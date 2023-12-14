@@ -1,6 +1,6 @@
 import cuquantum as cq
 from cuquantum import cutensornet as cutn
-from config import g_config
+from .config import g_config
 
 def contract(expression, *operands):
     return cq.contract(expression, *operands, options=cq.NetworkOptions(handle=g_config.ct_handle))

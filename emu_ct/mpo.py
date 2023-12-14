@@ -1,5 +1,5 @@
-from mps import MPS
-from operations import contract
+from .mps import MPS
+from .operations import contract
 import cupy as cp
 
 class MPO:    

@@ -1,8 +1,7 @@
 import itertools
-from operations import contract, qr, svd
+from .operations import contract, qr, svd
 import cupy as cp
 import numpy as np
-from tensor_descriptor import TensorDescriptor
 from typing import Union, List
 
 class MPS:    
