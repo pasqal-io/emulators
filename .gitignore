@@ -1,0 +1,10 @@
+*cache*
+.venv
+*.egg-info
+report*
+*coverage*
+
+build
+site
+
+.vscode

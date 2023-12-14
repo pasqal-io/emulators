@@ -1,0 +1,140 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "emu-ct"
+description = "Pasqal cutensornet based pulse emulator"
+readme = "README.md"
+authors = [
+    { name = "Anton Quelle", email = "anton.quelle@pasqal.com" }
+]
+url="https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct"
+requires-python = ">=3.10"
+license = {text = "Proprietary"}
+version = "2.0.0"
+classifiers=[
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "cuquantum-python-cu12",
+  "cupy-cuda12x",
+  "numpy"
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+allow-ambiguous-features = true
+
+[tool.hatch.envs.default]
+dependencies = [
+  "pytest",
+  "pytest-cov",
+  "pytest-mypy",
+  "pytest-xdist",
+  "nbconvert",
+  "ipykernel",
+  "pre-commit",
+  "flake8",
+  "black",
+  "isort",
+  "notebook<7.0"
+]
+
+[tool.hatch.envs.default.scripts]
+test = "pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_ct {args}"
+
+
+[tool.hatch.envs.docs]
+detached = true
+dependencies = [
+  "mkdocs",
+  "mkdocs-material",
+  "mkdocstrings",
+  "mkdocstrings-python",
+  "mkdocs-section-index",
+  "mkdocs-jupyter",
+  "mkdocs-exclude",
+  "markdown-exec",
+  "notebook<7.0",
+  "jupyter_contrib_nbextensions"
+]
+
+[tool.hatch.envs.docs.scripts]
+build = "mkdocs build --clean --strict"
+serve = "mkdocs serve --dev-addr localhost:8000"
+
+
+[[tool.hatch.envs.test.matrix]]
+python = ["38", "39", "310", "311"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.gitignore",
+  "/.gitlab-ci-yml",
+  "/.pre-commit-config.yml",
+  "/tests",
+  "/examples",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["emu_ct"]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+[tool.flake8]
+max-complexity = 18
+max-line-length = 100
+exclude = """
+    .git,
+    .venv,
+"""
+extend-ignore = """
+    E203,
+    W503,
+"""
+ban-relative-imports = true
+
+[tool.black]
+line-length = 90
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+line_length = 90
+combine_as_imports = true
+balanced_wrapping = true
+lines_after_imports = 2
+include_trailing_comma = true
+multi_line_output = 5
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+no_implicit_optional = true

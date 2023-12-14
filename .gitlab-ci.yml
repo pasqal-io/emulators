@@ -1,0 +1,46 @@
+# Change pip's cache directory to be inside the project directory since we can
+# only cache local items.
+variables:
+  PACKAGE: "emu-ct"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+.default_rules:
+  rules:
+    # Run when an MR is created/updated
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Otherwise, we're a commit, but if an open MR exists, don't run
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    # Otherwise, run this if we're not building documentation
+    - if: $CI_COMMIT_BRANCH != $DOCS_BRANCH
+
+cache:
+  paths:
+    - .cache/pip
+
+stages:
+  - lint
+  - test
+
+lint:
+  extends:
+    - .default_rules
+  image: python:3.10
+  stage: lint
+  script:
+    - pip install pre-commit pyproject-flake8
+    - pre-commit install
+    - pre-commit run --all-files
+
+.test:
+    script:
+    - pip install hatch
+    - hatch run test
+    coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+
+test-py3.10:
+  extends:
+    - .default_rules
+    - ".test"
+  image: python:3.10
+  stage: test
