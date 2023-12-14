@@ -21,7 +21,6 @@ classifiers=[
 ]
 dependencies = [
   "cuquantum-python-cu12",
-  "cupy-cuda12x",
   "numpy"
 ]
 

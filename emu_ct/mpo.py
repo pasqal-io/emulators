@@ -9,16 +9,10 @@ class MPO:
     Matrix Product Operator
     """
 
-    def __init__(self, factors: list, max_virtual_extent: int):
+    def __init__(self, factors: list):
         self.factors = factors
         self.num_sites = len(factors)
         assert self.num_sites > 1  # otherwise, do state vector
-
-        untruncated_max_extent = 2 ** (self.num_sites // 2)
-        if max_virtual_extent == 0:
-            self.max_virtual_extent = untruncated_max_extent
-        else:
-            self.max_virtual_extent = min(max_virtual_extent, untruncated_max_extent)
 
     def __repr__(self) -> str:
         result = "["
@@ -39,7 +33,7 @@ class MPO:
                     self.factors[i], state.factors[i], left_bond_size
                 )
                 out_factors.append(factor)
-            mps = MPS(out_factors, state.max_virtual_extent)
+            mps = MPS(out_factors)
             mps.truncate()
             return mps
         elif state.orth_center == self.num_sites - 1:

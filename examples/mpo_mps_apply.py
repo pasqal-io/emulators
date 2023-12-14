@@ -9,7 +9,8 @@ import numpy as np
 
 from cuquantum import cutensornet as cutn
 
-def main():    
+
+def main():
     print("cuTensorNet-vers:", cutn.get_version())
     dev = cp.cuda.Device()  # get current device
     props = cp.cuda.runtime.getDeviceProperties(dev.id)
@@ -24,7 +25,7 @@ def main():
 
     num_sites = 3
     max_virtual_extent = 12
-    
+
     ##################################
     # Initialize an MPSHelper object
     ##################################
@@ -33,15 +34,15 @@ def main():
     print(mps)
     factors = []
     for _ in range(num_sites):
-        tensor = cp.zeros((1,2,2,1), dtype=np.complex128, order="F")
-        tensor[0,0,1,0] = 1
-        tensor[0,1,0,0] = 1
+        tensor = cp.zeros((1, 2, 2, 1), dtype=np.complex128, order="F")
+        tensor[0, 0, 1, 0] = 1
+        tensor[0, 1, 0, 0] = 1
         factors.append(tensor)
     mpo = MPO(factors, max_virtual_extent)
     print(mpo)
     out = mpo * mps
     print(out)
-    
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

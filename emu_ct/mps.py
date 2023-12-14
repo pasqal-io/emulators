@@ -9,7 +9,7 @@ class MPS:
     Matrix Product State
     """
 
-    def __init__(self, sites: Union[int, List], max_virtual_extent: int):
+    def __init__(self, sites: Union[int, List]):
         if isinstance(sites, int):
             self.num_sites = sites
             self.factors = []
@@ -24,12 +24,6 @@ class MPS:
         else:
             raise NotImplementedError()
         assert self.num_sites > 1  # otherwise, do state vector
-
-        untruncated_max_extent = 2 ** (self.num_sites // 2)
-        if max_virtual_extent == 0:
-            self.max_virtual_extent = untruncated_max_extent
-        else:
-            self.max_virtual_extent = min(max_virtual_extent, untruncated_max_extent)
         self.orth_center = 0
 
     def __repr__(self) -> str:
@@ -40,6 +34,15 @@ class MPS:
         result += "]"
         return result
 
+    @staticmethod
+    def _determine_cutoff_index(singular_values: cp.array) -> int:
+        index = 0
+        for i in singular_values:
+            if i < 1e-8:
+                continue
+            index += 1
+        return index
+
     def truncate(self) -> None:
         for i in range(self.num_sites - 1):
             q, r = qr("ijk->ijl,lk", self.factors[i])
@@ -47,7 +50,10 @@ class MPS:
             self.factors[i + 1] = contract("ij, jkl->ikl", r, self.factors[i + 1])
         for i in range(self.num_sites - 1, 0, -1):
             u, s, vh = svd("ijk->il,ljk", self.factors[i])
-            self.factors[i] = vh
-            factor = contract("ij, j->ij", u, s.astype(dtype=np.complex128))
+            index = self._determine_cutoff_index(s)
+            self.factors[i] = vh[:index, :, :]
+            factor = contract(
+                "ij, j->ij", u[:, :index], s[:index].astype(dtype=np.complex128)
+            )
             factor = contract("ijk, kl->ijl", self.factors[i - 1], factor)
             self.factors[i - 1] = factor
