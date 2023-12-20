@@ -20,7 +20,7 @@ cache:
 
 stages:
   - lint
-#  - test
+  - test
 
 lint:
   extends:
@@ -38,10 +38,9 @@ lint:
     - hatch run test
     coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
 
-# the gitlab runner has no gpu
-# test-py3.10:
-#   extends:
-#     - .default_rules
-#     - ".test"
-#   image: python:3.10
-#   stage: test
+test-py3.10:
+  extends:
+    - .default_rules
+    - ".test"
+  image: python:3.10
+  stage: test

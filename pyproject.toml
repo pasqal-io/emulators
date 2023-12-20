@@ -20,7 +20,7 @@ classifiers=[
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "cuquantum-python-cu12",
+  "torch",
   "numpy"
 ]
 

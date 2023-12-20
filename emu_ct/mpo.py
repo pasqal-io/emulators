@@ -1,7 +1,6 @@
 from typing import Any
 from .mps import MPS
-from .operations import contract
-import cupy as cp
+import torch
 
 
 class MPO:
@@ -12,7 +11,8 @@ class MPO:
     def __init__(self, factors: list):
         self.factors = factors
         self.num_sites = len(factors)
-        assert self.num_sites > 1  # otherwise, do state vector
+        if not self.num_sites > 1:
+            raise ValueError("For 1 qubit states, do state vector")
 
     def __repr__(self) -> str:
         result = "["
@@ -34,7 +34,6 @@ class MPO:
                 )
                 out_factors.append(factor)
             mps = MPS(out_factors)
-            mps.truncate()
             return mps
         elif state.orth_center == self.num_sites - 1:
             raise NotImplementedError()
@@ -45,9 +44,9 @@ class MPO:
     def _contract_factors(
         mpo_factor: Any, mps_factor: Any, left_bond_size: int
     ) -> tuple[Any, int]:
-        factor = contract("ijkl,mko->imjlo", mpo_factor, mps_factor)
-        factor = cp.reshape(factor, (left_bond_size, 2, -1))
-        left_bond_size = cp.shape(factor)[-1]
+        factor = torch.einsum("ijkl,mko->imjlo", mpo_factor, mps_factor)
+        factor = factor.reshape(left_bond_size, 2, -1)
+        left_bond_size = factor.shape[-1]
         return factor, left_bond_size
 
     def __rmul__(self, state: MPS) -> MPS:
