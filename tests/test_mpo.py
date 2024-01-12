@@ -2,17 +2,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from emu_ct import MPS, MPO
+from emu_ct import MPS, MPO, Config
 import torch
 
 
 def test_mul():
 
     num_sites = 3
-
-    ##################################
-    # Initialize an MPSHelper object
-    ##################################
+    Config().set_num_devices_to_use(0)
 
     mps = MPS(num_sites)
     factors = []

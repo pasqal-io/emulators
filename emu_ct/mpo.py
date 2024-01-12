@@ -1,5 +1,6 @@
 from typing import Any
 from .mps import MPS
+from .config import Config
 import torch
 
 
@@ -14,6 +15,25 @@ class MPO:
         if not self.num_sites > 1:
             raise ValueError("For 1 qubit states, do state vector")
 
+        self.num_devices = Config().get_num_devices_to_use()
+        self.gpu_boundaries = [0]
+        if self.num_devices == 0:
+            self.num_devices = (
+                1  # from now on we will use this to loop over factors in batches
+            )
+            self.gpu_boundaries = [0, self.num_sites]
+            self.device = "cpu:"
+        else:
+            bin_size = self.num_sites / self.num_devices
+            self.gpu_boundaries = [
+                round(bin_size * i) for i in range(self.num_devices + 1)
+            ]
+            self.device = "cuda:"
+
+        for i in range(self.num_devices):
+            for j in range(self.gpu_boundaries[i], self.gpu_boundaries[i + 1]):
+                self.factors[j] = self.factors[j].to(self.device + str(i))
+
     def __repr__(self) -> str:
         result = "["
         for fac in self.factors:
@@ -27,18 +47,13 @@ class MPO:
         # to keep track of the bond dimensions of the output mps
         # so we can do the logic in a single sweep from either left-to-right or vice-versa
         left_bond_size = 1
-        if state.orth_center == 0:
-            for i in range(self.num_sites):
-                factor, left_bond_size = self._contract_factors(
-                    self.factors[i], state.factors[i], left_bond_size
-                )
-                out_factors.append(factor)
-            mps = MPS(out_factors)
-            return mps
-        elif state.orth_center == self.num_sites - 1:
-            raise NotImplementedError()
-        else:
-            raise NotImplementedError()
+        for i in range(self.num_sites):
+            factor, left_bond_size = self._contract_factors(
+                self.factors[i], state.factors[i], left_bond_size
+            )
+            out_factors.append(factor)
+        mps = MPS(out_factors)
+        return mps
 
     @staticmethod
     def _contract_factors(
