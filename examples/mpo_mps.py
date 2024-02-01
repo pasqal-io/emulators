@@ -1,4 +1,4 @@
-from emu_ct import MPS, MPO
+from emu_ct import MPS, MPO, inner
 import torch
 
 num_sites = 3
@@ -15,3 +15,5 @@ mpo = MPO(factors)
 print("MPO;", mpo)
 out = mpo * mps
 print("MPS*MPO:", out)
+assert inner(out, out) == 1.0 + 0.0j, "<111|111> = 1"
+assert inner(mps, out) == 0.0 + 0.0j, "<000|111> = 0"

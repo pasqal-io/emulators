@@ -43,6 +43,9 @@ class MPO:
         return result
 
     def __mul__(self, state: MPS) -> MPS:
+        assert (
+            self.gpu_boundaries == state.gpu_boundaries
+        ), "mpo and mps do not have the same gpu distribution"
         out_factors = []
         # to keep track of the bond dimensions of the output mps
         # so we can do the logic in a single sweep from either left-to-right or vice-versa

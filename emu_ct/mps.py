@@ -74,14 +74,14 @@ class MPS:
                 factor_shape = self.factors[i].shape
                 q, r = torch.linalg.qr(self.factors[i].reshape(-1, factor_shape[2]))
                 self.factors[i] = q.reshape(factor_shape[0], factor_shape[1], -1)
-                self.factors[i + 1] = torch.einsum("ac,cde->ade", r, self.factors[i + 1])
+                self.factors[i + 1] = torch.tensordot(r, self.factors[i + 1], dims=1)
             if j < self.num_devices - 1:
                 i = self.gpu_boundaries[j + 1] - 1
                 factor_shape = self.factors[i].shape
                 q, r = torch.linalg.qr(self.factors[i].reshape(-1, factor_shape[2]))
                 self.factors[i] = q.reshape(factor_shape[0], factor_shape[1], -1)
-                self.factors[i + 1] = torch.einsum(
-                    "ac,cde->ade", r.to(self.device + str(j + 1)), self.factors[i + 1]
+                self.factors[i + 1] = torch.tensordot(
+                    r.to(self.device + str(j + 1)), self.factors[i + 1], dims=1
                 )
 
     def truncate(self) -> None:
@@ -107,9 +107,8 @@ class MPS:
                 vh = vh[:max_bond, :]
                 vh = vh.reshape(-1, factor_shape[1], factor_shape[2])
                 self.factors[i] = vh
-                self.factors[i - 1] = torch.einsum(
-                    "cde,ef,f->cdf", self.factors[i - 1], u, d
-                )
+                tmp = u * d
+                self.factors[i - 1] = torch.tensordot(self.factors[i - 1], tmp, dims=1)
             if j > 0:
                 i = self.gpu_boundaries[j]
                 factor_shape = self.factors[i].shape
@@ -124,9 +123,24 @@ class MPS:
                 vh = vh[:max_bond, :]
                 vh = vh.reshape(-1, factor_shape[1], factor_shape[2])
                 self.factors[i] = vh
-                self.factors[i - 1] = torch.einsum(
-                    "cde,ef,f->cdf",
-                    self.factors[i - 1],
-                    u.to(self.device + str(j - 1)),
-                    d.to(self.device + str(j - 1)),
+                tmp = u * d
+                self.factors[i - 1] = torch.tensordot(
+                    self.factors[i - 1], tmp.to(self.device + str(j - 1)), dims=1
                 )
+
+
+def inner(left: MPS, right: MPS) -> float | complex:
+    assert (
+        left.gpu_boundaries == right.gpu_boundaries
+    ), "states do not have the same gpu distribution"
+    acc = torch.ones(1, 1, dtype=left.factors[0].dtype, device=left.factors[0].device)
+    for device in range(left.num_devices):
+        for i in range(left.gpu_boundaries[device], left.gpu_boundaries[device + 1]):
+            # just contract into right always.
+            # flop count is 2*l1*r1'*d2+2*d1'*d2*d2'
+            # todo branch on this to contract into left
+            acc = torch.tensordot(acc, right.factors[i], dims=1)
+            acc = torch.tensordot(left.factors[i].conj(), acc, dims=([0, 1], [0, 1]))
+        if device < left.num_devices - 1:
+            acc = acc.to(left.device + str(device + 1))
+    return acc.item()  # type: ignore[no-any-return]
