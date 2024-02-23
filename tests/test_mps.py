@@ -1,9 +1,8 @@
-from emu_ct import MPS, Config, inner
+from emu_ct import MPS, inner
 import torch
 
 
 def test_init():
-    Config().set_num_devices_to_use(0)
     factor1 = torch.tensor([[[0, 1, 0, 0], [0, 0, 0, 0]]], dtype=torch.complex128)
     factor2 = torch.tensor(
         [
@@ -20,12 +19,27 @@ def test_init():
     )
     state = MPS([factor1, factor2, factor3], truncate=True)
     for factor in state.factors:
-        assert torch.allclose(factor, torch.tensor([[[1], [0]]], dtype=torch.complex128))
+        assert factor.shape == (1, 2, 1)
+        # this determines the factors up to a global phase, which is implementation dependent
+        # due to svd returning different phases on cpu and gpu
+        assert (
+            abs(
+                torch.tensordot(
+                    factor,
+                    torch.tensor(
+                        [[[1], [0]]], dtype=torch.complex128, device=factor.device
+                    ),
+                    dims=3,
+                )
+            )
+            - 1
+            < 1e-8
+        )
+        assert abs(torch.tensordot(factor, factor, dims=3)) - 1 < 1e-8
 
 
 def test_inner():
     n_qubits = 3
-    Config().set_num_devices_to_use(0)
     l_factor1 = torch.tensor([[[1, 0], [0, 1j]]], dtype=torch.complex128)
     l_factor2 = torch.tensor(
         [[[1, 0], [0, 0]], [[0, 0], [0, 1]]],

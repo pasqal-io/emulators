@@ -2,14 +2,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from emu_ct import MPS, MPO, Config
+from emu_ct import MPS, MPO
 import torch
 
 
 def test_mul():
 
     num_sites = 3
-    Config().set_num_devices_to_use(0)
 
     mps = MPS(num_sites)
     factors = []
@@ -21,7 +20,11 @@ def test_mul():
     mpo = MPO(factors)
     out = mpo * mps
     for i in out.factors:
-        assert torch.allclose(i, torch.tensor([[[0], [1]]], dtype=torch.complex128))
+        assert torch.allclose(
+            i, torch.tensor([[[0], [1]]], dtype=torch.complex128, device=i.device)
+        )
     out = mps * mpo
     for i in out.factors:
-        assert torch.allclose(i, torch.tensor([[[0], [1]]], dtype=torch.complex128))
+        assert torch.allclose(
+            i, torch.tensor([[[0], [1]]], dtype=torch.complex128, device=i.device)
+        )

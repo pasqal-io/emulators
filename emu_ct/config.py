@@ -31,6 +31,9 @@ class Config(metaclass=SingletonMeta):
         self._num_devices_to_use = self._num_devices_actual
         self._max_bond_dim = 1024
         self.bond_precision = 1e-8
+        self.krylov_dim = 80
+        self.krylov_exp_tolerance = 1e-10
+        self.krylov_norm_tolerance = 1e-7
 
     def set_num_devices_to_use(self, devices: int) -> None:
         self._num_devices_to_use = min(self._num_devices_actual, devices)
@@ -51,3 +54,18 @@ class Config(metaclass=SingletonMeta):
 
     def get_bond_precision(self) -> float:
         return self.bond_precision
+
+    def get_krylov_dim(self) -> int:
+        return self.krylov_dim
+
+    def set_krylov_dim(self, dim: int) -> None:
+        self.krylov_dim = dim
+
+    def set_krylov_exp_tolerance(self, tol: float) -> None:
+        self.krylov_exp_tolerance = tol
+
+    def get_krylov_exp_tolerance(self) -> float:
+        return self.krylov_exp_tolerance
+
+    def get_krylov_norm_tolerance(self) -> float:
+        return self.krylov_norm_tolerance

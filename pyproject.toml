@@ -12,7 +12,7 @@ authors = [
 url="https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct"
 requires-python = ">=3.10"
 license = {text = "Proprietary"}
-version = "2.0.0"
+version = "0.1.0"
 classifiers=[
     "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3.10",
@@ -32,40 +32,14 @@ allow-ambiguous-features = true
 dependencies = [
   "pytest",
   "pytest-cov",
-  "pytest-mypy",
-  "pytest-xdist",
-  "nbconvert",
-  "ipykernel",
   "pre-commit",
   "flake8",
   "black",
   "isort",
-  "notebook<7.0"
 ]
 
 [tool.hatch.envs.default.scripts]
 test = "pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_ct {args}"
-
-
-[tool.hatch.envs.docs]
-detached = true
-dependencies = [
-  "mkdocs",
-  "mkdocs-material",
-  "mkdocstrings",
-  "mkdocstrings-python",
-  "mkdocs-section-index",
-  "mkdocs-jupyter",
-  "mkdocs-exclude",
-  "markdown-exec",
-  "notebook<7.0",
-  "jupyter_contrib_nbextensions"
-]
-
-[tool.hatch.envs.docs.scripts]
-build = "mkdocs build --clean --strict"
-serve = "mkdocs serve --dev-addr localhost:8000"
-
 
 [[tool.hatch.envs.test.matrix]]
 python = ["38", "39", "310", "311"]

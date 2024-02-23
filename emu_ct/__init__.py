@@ -1,5 +1,6 @@
 from .mps import MPS, inner
 from .mpo import MPO
+from .tdvp import tdvp
 from .config import Config
 
 __all__ = [
@@ -7,4 +8,5 @@ __all__ = [
     "Config",
     "MPS",
     "inner",
+    "tdvp",
 ]

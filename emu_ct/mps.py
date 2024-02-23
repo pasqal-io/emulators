@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 from typing import Union, List
 from .config import Config
@@ -6,6 +8,10 @@ from .config import Config
 class MPS:
     """
     Matrix Product State
+    When specifying the MPS from a list of tensors, ensure that
+    the MPS is in an orthogonal gauge with center on the first qubit
+    or put truncate=True (which will do it for you),
+    otherwise tdvp will break!
     """
 
     def __init__(self, sites: Union[int, List], truncate: bool = False):
@@ -56,13 +62,13 @@ class MPS:
         return result
 
     @staticmethod
-    def _determine_cutoff_index(singular_values: torch.Tensor) -> int:
-        index = 0
-        for i in singular_values:
-            if i < Config().get_bond_precision():
-                break
-            index += 1
-        return index
+    def _determine_cutoff_index(d: torch.Tensor, cutoff: float) -> int:
+        acc = 0
+        for i in range(d.shape[0] - 1, -1, -1):
+            acc += d[i] * d[i]
+            if acc > cutoff:
+                return i + 1
+        return d.shape[0]  # type: ignore[no-any-return]
 
     def orthogonalize(self) -> None:
         """
@@ -92,6 +98,7 @@ class MPS:
         Args:
             max_bond (int): the maximum bond dimension to allow
         """
+        precision = Config().get_bond_precision()
         self.orthogonalize()
         for j in range(self.num_devices - 1, -1, -1):
             for i in range(self.gpu_boundaries[j + 1] - 1, self.gpu_boundaries[j], -1):
@@ -100,7 +107,8 @@ class MPS:
                 # svd.apply calls torch_ops.svd.forward
                 u, d, vh = torch.linalg.svd(self.factors[i].reshape(factor_shape[0], -1))
                 max_bond = min(
-                    self._determine_cutoff_index(d), Config().get_max_bond_dim()
+                    self._determine_cutoff_index(d, precision),
+                    Config().get_max_bond_dim(),
                 )
                 u = u[:, :max_bond]
                 d = d[:max_bond]
@@ -116,7 +124,8 @@ class MPS:
                 # svd.apply calls torch_ops.svd.forward
                 u, d, vh = torch.linalg.svd(self.factors[i].reshape(factor_shape[0], -1))
                 max_bond = min(
-                    self._determine_cutoff_index(d), Config().get_max_bond_dim()
+                    self._determine_cutoff_index(d, precision),
+                    Config().get_max_bond_dim(),
                 )
                 u = u[:, :max_bond]
                 d = d[:max_bond]
