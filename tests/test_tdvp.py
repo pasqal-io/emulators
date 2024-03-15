@@ -6,10 +6,8 @@ from emu_ct.tdvp import (
     tdvp,
     Config,
 )
-from emu_ct import MPS, MPO, inner
+from emu_ct import MPS, MPO, inner, make_H, Register
 import torch
-import os
-import numpy
 
 
 def test_left_baths_bell():
@@ -290,34 +288,29 @@ def test_tdvp_state_vector():
     Config().set_bond_precision(1e-10)
     nqubits = 9
 
-    # This Hamiltonian is taken from ITensors, it implements a 3x3 grid
-    # with a constant omega and delta on all qubits.
-    # Note that this Hamiltonian uses the Itensors convention of |0>=[0,1]
-    # As opposed to the rest of the code base
-    # TODO use internal Hamiltonian generator when it is implemented
-    dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "data/ham"))
-    cores = []
-    for i in range(1, nqubits + 1):  # filenames are 1-indexed
-        core = numpy.load(dir + f"/core{i}.npy")
-        cores.append(torch.tensor(core, dtype=torch.complex128))
-    cores[0] = cores[0].reshape(1, 2, 2, -1)
-    cores[8] = cores[8].reshape(-1, 2, 2, 1)
-    ham = MPO(cores)
+    registers = []
+    for i in range(3):
+        for j in range(3):
+            registers.append(Register(7.0 * i, 7.0 * j))
+    omegas = [torch.tensor([12.566370614359172], dtype=torch.complex128)] * nqubits
+    deltas = [torch.tensor([10.771174812307862], dtype=torch.complex128)] * nqubits
+    ham = make_H(registers, omegas, deltas)
 
-    # |000000000> in the ITensors convention
+    # |000000000>
     state = MPS(
-        [torch.tensor([0.0, 1.0]).reshape(1, 2, 1).to(dtype=torch.complex128)] * nqubits
+        [torch.tensor([1.0, 0.0]).reshape(1, 2, 1).to(dtype=torch.complex128)] * nqubits
     )
 
     vec = torch.einsum(
-        "abtc,cdue,efvg,ghwi,ijxk,klym,mnzo,opAq,qrBs->abdfhjlnprtuvwxyzABs", *cores
-    ).reshape(2**9, 2**9)
-    expected = torch.linalg.matrix_exp(-0.01j * vec)[:, -1]
+        "abtc,cdue,efvg,ghwi,ijxk,klym,mnzo,opAq,qrBs->abdfhjlnprtuvwxyzABs",
+        *(ham.factors)
+    ).reshape(2**nqubits, 2**nqubits)
+    expected = torch.linalg.matrix_exp(-0.01j * vec)[:, 0]
     for _ in range(10):
         tdvp(-0.001j, state, ham)
     vec = torch.einsum(
         "abc,cde,efg,ghi,ijk,klm,mno,opq,qrs->abdfhjlnprs", *(state.factors)
-    ).reshape(2**9)
+    ).reshape(2**nqubits)
     assert (
         abs(torch.dot(vec.conj(), expected) - 1) < 4.4e-7
     )  # very dependent on bond_precision

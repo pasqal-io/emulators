@@ -34,6 +34,10 @@ class Config(metaclass=SingletonMeta):
         self.krylov_dim = 80
         self.krylov_exp_tolerance = 1e-10
         self.krylov_norm_tolerance = 1e-7
+        self.c6 = 5420158.53
+
+    def get_c6(self) -> float:
+        return self.c6
 
     def set_num_devices_to_use(self, devices: int) -> None:
         self._num_devices_to_use = min(self._num_devices_actual, devices)

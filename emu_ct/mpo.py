@@ -16,11 +16,9 @@ class MPO:
             raise ValueError("For 1 qubit states, do state vector")
 
         self.num_devices = Config().get_num_devices_to_use()
-        self.gpu_boundaries = [0]
+        # from now on we will use this to loop over factors in batches
         if self.num_devices == 0:
-            self.num_devices = (
-                1  # from now on we will use this to loop over factors in batches
-            )
+            self.num_devices = 1
             self.gpu_boundaries = [0, self.num_sites]
             self.device = "cpu:"
         else:

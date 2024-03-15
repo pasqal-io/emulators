@@ -20,8 +20,7 @@ classifiers=[
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "torch",
-  "numpy"
+  "torch"
 ]
 
 [tool.hatch.metadata]

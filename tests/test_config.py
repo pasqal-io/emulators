@@ -10,6 +10,7 @@ def test_singleton():
     assert Config().get_krylov_dim() == 80
     assert Config().get_krylov_exp_tolerance() == 1e-10
     assert Config().get_krylov_norm_tolerance() == 1e-7
+    assert Config().get_c6() == 5420158.53
 
     # set something else
     Config().set_max_bond_dim(512)
