@@ -1,10 +1,14 @@
 # emu-ct
 
+Emu-ct is a pulse sequence emulator based on tensor networks, specifically designed for evolving the Ising Hamiltonian. It is built based on EmuTN, a package for Emulation-Tensor Networks, and is compatible with Pulser.
+
+Emu-ct allows users to run sequences with up to 60 qubits, a significant improvement over Pulser. EmuTN is currently written in Julia, but with the introduction of emu-ct, users can now enjoy similar performance in Python.
+
 
 
 ## Getting started
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+pip install emu-ct
 
 Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
 

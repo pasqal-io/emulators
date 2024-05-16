@@ -7,12 +7,13 @@ name = "emu-ct"
 description = "Pasqal cutensornet based pulse emulator"
 readme = "README.md"
 authors = [
-    { name = "Anton Quelle", email = "anton.quelle@pasqal.com" }
+    { name = "Anton Quelle", email = "anton.quelle@pasqal.com"},
+    {name = "Mauro Mendizabal", email="mauro.mendizabal-pico@pasqal.com" }
 ]
 url="https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct"
 requires-python = ">=3.10"
 license = {text = "Proprietary"}
-version = "0.1.0"
+version = "0.2.0"
 classifiers=[
     "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3.10",
@@ -20,7 +21,8 @@ classifiers=[
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "torch"
+  "torch",
+  "pulser-core"
 ]
 
 [tool.hatch.metadata]
