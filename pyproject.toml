@@ -78,6 +78,7 @@ exclude = """
 extend-ignore = """
     E203,
     W503,
+    E731,
 """
 ban-relative-imports = true
 

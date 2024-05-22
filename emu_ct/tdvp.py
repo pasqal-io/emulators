@@ -1,7 +1,8 @@
 import torch
 from .mps import MPS
 from .mpo import MPO
-from .config import Config
+from .utils import truncated_svd
+from typing import Callable, Union
 
 
 def new_left_bath(
@@ -68,6 +69,13 @@ def right_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
 
 
 """
+Computes H(psi) where
+    x-    -x
+    x  ||  x             ||
+H = x- xx -x  and psi = -xx-
+    x  ||  x
+    x-    -x
+
 Expects the two qubit factors of the MPS precontracted,
 with one 'fat' physical index of dim 4 and index ordering
 (left bond, physical index, right bond):
@@ -95,32 +103,26 @@ def apply_effective_Hamiltonian(
     return state
 
 
+DEFAULT_MAX_KRYLOV_DIM: int = 80
+
+
 """
-Computes exp(tH)psi where t can be complex and
-    x-    -x
-    x  ||  x             ||
-H = x- xx -x  and psi = -xx-
-    x  ||  x
-    x-    -x
-Where the physical indices of state should be combined
-into a fat index, and similar for the corresponding indices in H.
+Computes exp(t.op) state.
 State should be normalized!
 All inputs must be on the same device.
-
 """
 
 
 def krylov_exp(
-    t: float | complex,
+    t: Union[float, complex],
+    op: Callable,
     state: torch.Tensor,
-    ham: torch.Tensor,
-    left_bath: torch.Tensor,
-    right_bath: torch.Tensor,
+    exp_tolerance: float,
+    norm_tolerance: float,
+    max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
 ) -> torch.Tensor:
-    config = Config()
-    max_krylov = config.get_krylov_dim()
-    exp_tolerance = config.get_krylov_exp_tolerance()
-    norm_tolerance = config.get_krylov_norm_tolerance()
+    lanczos_vectors = [state]
+    T = torch.zeros(max_krylov_dim + 1, max_krylov_dim + 1, dtype=state.dtype)
 
     def exponentiate() -> tuple[torch.Tensor, bool]:
         # approximate next iteration by modifying T, and unmodifying
@@ -142,17 +144,14 @@ def krylov_exp(
         converged = error < exp_tolerance
         return exp[:, 0], converged
 
-    lanczos_vectors = [state]
-    T = torch.zeros(max_krylov + 1, max_krylov + 1, dtype=state.dtype)
-
     # step 0 of the loop
-    v = apply_effective_Hamiltonian(state, ham, left_bath, right_bath)
+    v = op(state)
     a = torch.tensordot(v.conj(), state, dims=3)
     n = torch.linalg.vector_norm(v)
     T[0, 0] = a
     v = v - a * state
 
-    for i in range(1, max_krylov):
+    for i in range(1, max_krylov_dim):
         # this block should not be executed in step 0
         b = torch.linalg.vector_norm(v)
         if b < norm_tolerance:
@@ -168,7 +167,7 @@ def krylov_exp(
         if converged:
             break
 
-        v = apply_effective_Hamiltonian(state, ham, left_bath, right_bath)
+        v = op(state)
         a = torch.tensordot(v.conj(), state, dims=3)
         n = torch.linalg.vector_norm(v)
         T[i, i] = a
@@ -193,9 +192,12 @@ Hamiltonian should be Hermitian!
 """
 
 
-def tdvp(t: float | complex, state: MPS, Hamiltonian: MPO) -> None:
-    cutoff = Config().get_bond_precision()
-    max_dim = Config().get_max_bond_dim()
+def tdvp(
+    t: float | complex,
+    state: MPS,
+    Hamiltonian: MPO,
+    max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+) -> None:
     t /= 2
     nfactors = len(state.factors)
     assert nfactors > 1, "tdvp is not implemented for 1 site, just use state vector"
@@ -216,15 +218,26 @@ def tdvp(t: float | complex, state: MPS, Hamiltonian: MPO) -> None:
         rh = Hamiltonian.factors[i + 1].to(ls.device)
 
         h = torch.tensordot(lh, rh, dims=1).transpose(2, 3).reshape(lhs[0], 4, 4, -1)
-        evol = krylov_exp(t, s, h, lbs[i], rbs[-1 - i].to(ls.device)).reshape(
-            lss[0] * 2, 2 * rss[-1]
+
+        op = lambda x: apply_effective_Hamiltonian(
+            x, h, lbs[i], rbs[-1 - i].to(ls.device)
         )
 
-        u, d, v = torch.linalg.svd(evol, full_matrices=False)
-        max_bond = min(state._determine_cutoff_index(d, cutoff), max_dim)
-        u = u[:, :max_bond]
-        d = d[:max_bond]
-        v = v[:max_bond, :]
+        evol = krylov_exp(
+            t,
+            op,
+            s,
+            exp_tolerance=state.precision,
+            norm_tolerance=state.precision,
+            max_krylov_dim=max_krylov_dim,
+        ).reshape(lss[0] * 2, 2 * rss[-1])
+
+        u, d, v = truncated_svd(
+            evol,
+            max_error=state.precision,
+            max_rank=state.max_bond_dim,
+            full_matrices=False,
+        )
 
         state.factors[i] = u.reshape(lss[0], 2, -1)
         state.factors[i + 1] = (
@@ -236,12 +249,18 @@ def tdvp(t: float | complex, state: MPS, Hamiltonian: MPO) -> None:
                     state.factors[i + 1].device
                 )
             )
+
+            op = lambda x: apply_effective_Hamiltonian(
+                x, Hamiltonian.factors[i + 1], lbs[i + 1], rbs[-1 - i]
+            )
+
             evol = krylov_exp(
                 -t,
+                op,
                 state.factors[i + 1],
-                Hamiltonian.factors[i + 1],
-                lbs[i + 1],
-                rbs[-1 - i],
+                exp_tolerance=state.precision,
+                norm_tolerance=state.precision,
+                max_krylov_dim=max_krylov_dim,
             )
             state.factors[i + 1] = evol
 
@@ -260,15 +279,26 @@ def tdvp(t: float | complex, state: MPS, Hamiltonian: MPO) -> None:
         lhs = lh.shape
 
         h = torch.tensordot(lh, rh, dims=1).transpose(2, 3).reshape(lhs[0], 4, 4, -1)
-        evol = krylov_exp(t, s, h, lbs[i].to(rs.device), rbs[nfactors - 2 - i]).reshape(
-            lss[0] * 2, 2 * rss[-1]
+
+        op = lambda x: apply_effective_Hamiltonian(
+            x, h, lbs[i].to(rs.device), rbs[nfactors - 2 - i]
         )
 
-        u, d, v = torch.linalg.svd(evol, full_matrices=False)
-        max_bond = min(state._determine_cutoff_index(d, cutoff), max_dim)
-        u = u[:, :max_bond]
-        d = d[:max_bond]
-        v = v[:max_bond, :]
+        evol = krylov_exp(
+            t,
+            op,
+            s,
+            exp_tolerance=state.precision,
+            norm_tolerance=state.precision,
+            max_krylov_dim=max_krylov_dim,
+        ).reshape(lss[0] * 2, 2 * rss[-1])
+
+        u, d, v = truncated_svd(
+            evol,
+            max_error=state.precision,
+            max_rank=state.max_bond_dim,
+            full_matrices=False,
+        )
 
         state.factors[i + 1] = v.reshape(-1, 2, rss[-1])
         state.factors[i] = (u * d).reshape(lss[0], 2, -1).to(state.factors[i].device)
@@ -278,7 +308,18 @@ def tdvp(t: float | complex, state: MPS, Hamiltonian: MPO) -> None:
                     state.factors[i].device
                 )
             )
-            evol = krylov_exp(
-                -t, state.factors[i], Hamiltonian.factors[i], lbs[i], rbs[-1]
+
+            op = lambda x: apply_effective_Hamiltonian(
+                x, Hamiltonian.factors[i], lbs[i], rbs[-1]
             )
+
+            evol = krylov_exp(
+                -t,
+                op,
+                state.factors[i],
+                exp_tolerance=state.precision,
+                norm_tolerance=state.precision,
+                max_krylov_dim=max_krylov_dim,
+            )
+
             state.factors[i] = evol.reshape(lss[0], 2, -1)

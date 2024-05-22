@@ -1,7 +1,6 @@
 import torch
 import typing
 from .mpo import MPO
-from .config import Config
 from .register import Register, dist2
 
 """
@@ -181,13 +180,15 @@ the vector index
 
 
 def make_H(
-    registers: list[Register], omega: list[torch.Tensor], delta: list[torch.Tensor]
+    registers: list[Register],
+    omega: list[torch.Tensor],
+    delta: list[torch.Tensor],
+    c6: float = 5420158.53,
+    num_devices_to_use: int = torch.cuda.device_count(),
 ) -> MPO:
     nqubits = len(registers)
     dtype = omega[0].dtype
     device = omega[0].device
-    config = Config()
-    c6 = config.get_c6()
 
     def rydberg_interaction(i: int, j: int) -> float:
         return c6 / dist2(registers[i], registers[j]) ** 3
@@ -230,4 +231,4 @@ def make_H(
     if nqubits == 2:
         scale = c6 / dist2(*registers) ** 3
     cores.append(last_factor(omega[-1] * sx - delta[-1] * pu, scale))
-    return MPO(cores)
+    return MPO(cores, num_devices_to_use=num_devices_to_use)

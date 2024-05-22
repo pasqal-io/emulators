@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Any, List
 from .mps import MPS
-from .config import Config
+from .utils import assign_devices
 import torch
 
 
@@ -9,28 +9,17 @@ class MPO:
     Matrix Product Operator
     """
 
-    def __init__(self, factors: list):
+    def __init__(
+        self,
+        factors: List[torch.Tensor],
+        num_devices_to_use: int = torch.cuda.device_count(),
+    ):
         self.factors = factors
         self.num_sites = len(factors)
         if not self.num_sites > 1:
             raise ValueError("For 1 qubit states, do state vector")
 
-        self.num_devices = Config().get_num_devices_to_use()
-        # from now on we will use this to loop over factors in batches
-        if self.num_devices == 0:
-            self.num_devices = 1
-            self.gpu_boundaries = [0, self.num_sites]
-            self.device = "cpu:"
-        else:
-            bin_size = self.num_sites / self.num_devices
-            self.gpu_boundaries = [
-                round(bin_size * i) for i in range(self.num_devices + 1)
-            ]
-            self.device = "cuda:"
-
-        for i in range(self.num_devices):
-            for j in range(self.gpu_boundaries[i], self.gpu_boundaries[i + 1]):
-                self.factors[j] = self.factors[j].to(self.device + str(i))
+        assign_devices(self.factors, min(torch.cuda.device_count(), num_devices_to_use))
 
     def __repr__(self) -> str:
         result = "["
@@ -42,8 +31,14 @@ class MPO:
 
     def __mul__(self, state: MPS) -> MPS:
         assert (
-            self.gpu_boundaries == state.gpu_boundaries
-        ), "mpo and mps do not have the same gpu distribution"
+            self.num_sites == state.num_sites
+        ), "MPO and MPS don't have the same number of sites"
+
+        # Move own factors to the same devices as the MPS's factors
+        self.factors = [
+            self.factors[i].to(state.factors[i].device) for i in range(self.num_sites)
+        ]
+
         out_factors = []
         # to keep track of the bond dimensions of the output mps
         # so we can do the logic in a single sweep from either left-to-right or vice-versa

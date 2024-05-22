@@ -4,7 +4,6 @@ from emu_ct.tdvp import (
     apply_effective_Hamiltonian,
     krylov_exp,
     tdvp,
-    Config,
 )
 from emu_ct import MPS, MPO, inner, make_H, Register
 import torch
@@ -196,7 +195,11 @@ def test_krylov_exp_krylov_norm_tolerance():
     state[0, 0, 0] = 1
 
     # i.e. u = X1
-    result = krylov_exp(torch.pi * 0.5j, state, ham, bath, bath)
+    op = lambda x: apply_effective_Hamiltonian(x, ham, bath, bath)
+
+    result = krylov_exp(
+        torch.pi * 0.5j, op, state, exp_tolerance=1e-7, norm_tolerance=1e-12
+    )
 
     # result should be |10>, and the algorithm will terminate on
     # b < norm_tolerance, since in the second iteration, b=0
@@ -230,8 +233,9 @@ def test_krylov_exp_krylov_exp_tolerance():
     # This way we can test that the krylov exp terminates with the correct tolerance
     # on the weights of psi. Since 1/14! < 1e-10, this means we expect the algorithm
     # to terminate after step 13
-    Config().set_krylov_dim(13)  # test for bounds errors in preallocated T matrix
-    result = krylov_exp(1.0j, state, ham, left_bath, right_bath)
+    op = lambda x: apply_effective_Hamiltonian(x, ham, left_bath, right_bath)
+
+    result = krylov_exp(1.0j, op, state, norm_tolerance=1e-7, exp_tolerance=1e-10)
 
     # All the following numbers should be identically 0, since the krylov algorithm never
     # got that far
@@ -282,10 +286,6 @@ def test_tdvp():
 
 
 def test_tdvp_state_vector():
-    # run this on cpu, collecting the state vector from
-    # multiple devices is beside the point of the test
-    Config().set_num_devices_to_use(0)
-    Config().set_bond_precision(1e-10)
     nqubits = 9
 
     registers = []
@@ -294,11 +294,15 @@ def test_tdvp_state_vector():
             registers.append(Register(7.0 * i, 7.0 * j))
     omegas = [torch.tensor([12.566370614359172], dtype=torch.complex128)] * nqubits
     deltas = [torch.tensor([10.771174812307862], dtype=torch.complex128)] * nqubits
-    ham = make_H(registers, omegas, deltas)
+    ham = make_H(registers, omegas, deltas, num_devices_to_use=0)
 
     # |000000000>
     state = MPS(
-        [torch.tensor([1.0, 0.0]).reshape(1, 2, 1).to(dtype=torch.complex128)] * nqubits
+        [torch.tensor([1.0, 0.0]).reshape(1, 2, 1).to(dtype=torch.complex128)] * nqubits,
+        precision=1e-10,
+        # run this on cpu, collecting the state vector from
+        # multiple devices is beside the point of the test
+        num_devices_to_use=0,
     )
 
     vec = torch.einsum(
@@ -312,7 +316,7 @@ def test_tdvp_state_vector():
         "abc,cde,efg,ghi,ijk,klm,mno,opq,qrs->abdfhjlnprs", *(state.factors)
     ).reshape(2**nqubits)
     assert (
-        abs(torch.dot(vec.conj(), expected) - 1) < 4.4e-7
-    )  # very dependent on bond_precision
+        abs(torch.dot(vec.conj(), expected) - 1) < 1.5e-11
+    )  # very dependent on precision
     assert abs(torch.dot(vec.conj(), vec) - 1) < 1e-8
     assert abs(torch.dot(expected.conj(), expected) - 1) < 1e-8

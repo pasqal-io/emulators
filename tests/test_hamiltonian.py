@@ -1,4 +1,4 @@
-from emu_ct import make_H, Register, Config, dist2
+from emu_ct import make_H, Register, dist2
 import torch
 from functools import reduce
 
@@ -32,6 +32,9 @@ def n(i, j, nqubits):
     return reduce(torch.kron, matrices)
 
 
+TEST_C6 = 0.123456
+
+
 def sv_hamiltonian(
     registers: list[Register], omega: list[torch.Tensor], delta: list[torch.Tensor]
 ) -> torch.Tensor:
@@ -39,13 +42,12 @@ def sv_hamiltonian(
     dtype = omega[0].dtype
     device = omega[0].device
     h = torch.zeros(2**n_qubits, 2**n_qubits, dtype=dtype, device=device)
-    c6 = Config().get_c6()
     for i in range(n_qubits):
         h += omega[i] * sigma_x(i, n_qubits).to(dtype=dtype, device=device) / 2
         h -= delta[i] * pu(i, n_qubits).to(dtype=dtype, device=device)
         for j in range(i + 1, n_qubits):
             h += (
-                c6
+                TEST_C6
                 * n(i, j, n_qubits).to(dtype=dtype, device=device)
                 / dist2(registers[i], registers[j]) ** 3
             )
@@ -61,7 +63,7 @@ def test_2_qubit():
     delta = [torch.tensor([5.0], dtype=dtype), torch.tensor([7.0], dtype=dtype)]
     q = [Register(0.0, 0.0), Register(10.0, 0.0)]
 
-    ham = make_H(q, omega, delta)
+    ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0)
     assert ham.factors[0].shape == (1, 2, 2, 3)
     assert ham.factors[1].shape == (3, 2, 2, 1)
 
@@ -93,7 +95,7 @@ def test_4_qubit():
     q.append(Register(0.0, 10.0))
     q.append(Register(10.0, 10.0))
 
-    ham = make_H(q, omega, delta)
+    ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0)
     assert ham.factors[0].shape == (1, 2, 2, 3)
     assert ham.factors[1].shape == (3, 2, 2, 4)
     assert ham.factors[2].shape == (4, 2, 2, 3)
@@ -130,7 +132,7 @@ def test_5_qubit():
     q.append(Register(10.0, 10.0))
     q.append(Register(5.0, 5.0))
 
-    ham = make_H(q, omega, delta)
+    ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0)
     assert ham.factors[0].shape == (1, 2, 2, 3)
     assert ham.factors[1].shape == (3, 2, 2, 4)
     assert ham.factors[2].shape == (4, 2, 2, 4)
@@ -158,7 +160,7 @@ def test_9_qubit():
         for j in range(3):
             q.append(Register(7.0 * i, 7.0 * j))
 
-    ham = make_H(q, omega, delta)
+    ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0)
 
     sv = torch.einsum(
         "abcd,defg,ghij,jklm,mnop,pqrs,stuv,vwxy,yzAB->abehknqtwzcfiloruxAB",
@@ -194,7 +196,7 @@ def test_differentiation():
     q.append(Register(10.0, 10.0))
     q.append(Register(5.0, 5.0))
 
-    ham = make_H(q, omega, delta)
+    ham = make_H(q, omega, delta, num_devices_to_use=0)
 
     sv = torch.einsum("abcd,defg,ghij,jklm,mnop->abehkncfilop", *(ham.factors)).reshape(
         32, 32
