@@ -1,5 +1,6 @@
 from emu_ct import MPS, inner
 import torch
+from utils_testing import ghz_state_factors
 
 
 def test_init():
@@ -60,3 +61,9 @@ def test_inner():
     assert abs(inner(ones, bell) - 1j) < 1e-10
     assert abs(inner(ones, ones) - 1) < 1e-10
     assert abs(inner(bell, bell) - 2) < 1e-10
+
+
+def test_maxbondim():
+    bell_state = MPS(ghz_state_factors(3))
+
+    assert 2 == bell_state.get_max_bond_dim()

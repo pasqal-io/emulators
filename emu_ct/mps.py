@@ -3,6 +3,8 @@ from __future__ import annotations
 import torch
 from typing import Union, List
 from .utils import truncated_svd, assign_devices
+import math
+from collections import Counter
 
 
 class MPS:
@@ -30,6 +32,7 @@ class MPS:
             if not self.num_sites > 1:
                 raise ValueError("For 1 qubit states, do state vector")
             self.factors = []
+
             for i in range(self.num_sites):
                 tensor = torch.zeros((1, 2, 1), dtype=torch.complex128)
                 tensor[0, 0, 0] = 1.0
@@ -92,6 +95,57 @@ class MPS:
             self.factors[i - 1] = torch.tensordot(
                 self.factors[i - 1], tmp.to(self.factors[i - 1].device), dims=1
             )
+
+    def get_max_bond_dim(self) -> int:
+        """Return the max bond dimension of MPS"""
+        return int(max(x.shape[2] for x in self.factors))
+
+    def sample_mps(self, num_shots: int, truncate: bool = False) -> Counter[str]:
+        """Returns bitstring distribution for a given number of samples or shots"""
+        num_qubits = len(self.factors)
+        rnd_matrix = torch.rand(num_shots, num_qubits)
+        sampled_bitstrings = [
+            self._sample_implementation(rnd_matrix[x, :], truncate)
+            for x in range(num_shots)
+        ]
+        return Counter(sampled_bitstrings)
+
+    def _sample_implementation(
+        self, rnd_vector: torch.Tensor, truncate: bool = False
+    ) -> str:
+        """Returns a sample in string output."""
+        # the code is taken from ITensors and adapted for d=2 (qubits)
+        num_qubits = len(self.factors)
+
+        if truncate:  # moves the orthogonality center to the first qubit
+            self.truncate()
+
+        bitstring = ""
+        acc_mps_j: torch.tensor = self.factors[0]
+
+        for qubit in range(num_qubits):
+            # comp_basis is a projector: 0 is for ket |0> and 1 for ket |1>
+            comp_basis = 0  # check if the qubit is in |0>
+            # Measure the qubit j by applying the projector onto nth comp basis state
+            tensorj_projected_n = acc_mps_j[:, comp_basis, :]
+            probability_n = (tensorj_projected_n.norm() ** 2).item()
+
+            if rnd_vector[qubit] > probability_n:
+                # the qubit is in |1>
+                comp_basis = 1
+                tensorj_projected_n = acc_mps_j[:, comp_basis, :]
+                probability_n = 1 - probability_n
+
+            bitstring += str(comp_basis)
+            if qubit < num_qubits - 1:
+                acc_mps_j = torch.tensordot(
+                    tensorj_projected_n.to(device=self.factors[qubit + 1].device),
+                    self.factors[qubit + 1],
+                    dims=1,
+                )
+                acc_mps_j /= math.sqrt(probability_n)
+
+        return bitstring
 
 
 def inner(left: MPS, right: MPS) -> float | complex:

@@ -128,16 +128,16 @@ def test_channel_amp_det_t_0():
     # test at  t= 0
     t = 0
     ret_amp: list[float] = torch.zeros(
-        len(reg.qubit_ids), dtype=torch.float64
+        len(reg.qubit_ids), dtype=torch.complex128
     )  # initialize amplitude values
     ret_det: list[float] = torch.zeros(
-        len(reg.qubit_ids), dtype=torch.float64
+        len(reg.qubit_ids), dtype=torch.complex128
     )  # initialize detuning values
     amp_solution = torch.tensor(
-        [14.4513, 0.0, 0.0], dtype=torch.float64
+        [14.4513, 0.0, 0.0], dtype=torch.complex128
     )  # comming from pulser local channel
     det_solution = torch.tensor(
-        [14.4513, 0.0, 0.0], dtype=torch.float64
+        [14.4513, 0.0, 0.0], dtype=torch.complex128
     )  # comming from pulser local channel
     extract_values_from_channel(
         puls_discre.channel_samples["ch_local1"], reg, ret_amp, ret_det, t
@@ -154,18 +154,18 @@ def test_channel_amp_det_t_14():
     puls_discre, reg = discretize_sequence(L)
     t = 14
     ret_amp: list[float] = torch.zeros(
-        len(reg.qubit_ids), dtype=torch.float64
+        len(reg.qubit_ids), dtype=torch.complex128
     )  # initialize amp
     ret_det: list[float] = torch.zeros(
-        len(reg.qubit_ids), dtype=torch.float64
+        len(reg.qubit_ids), dtype=torch.complex128
     )  # initialize det
     amp_solution = torch.tensor(
         [3.61283155, 3.61283155, 3.61283155, 3.61283155],
-        dtype=torch.float64,
+        dtype=torch.complex128,
     )  # comming from pulser global channel
     det_solution = torch.tensor(
         [6.28318531, 6.28318531, 6.28318531, 6.28318531],
-        dtype=torch.float64,
+        dtype=torch.complex128,
     )  # comming from pulser global channel
     extract_values_from_channel(
         puls_discre.channel_samples["ising_global"], reg, ret_amp, ret_det, t
@@ -182,16 +182,16 @@ def test_channel_amp_det_t_21():
     puls_discre, reg = discretize_sequence(L)
     t = 21
     ret_amp: list[float] = torch.zeros(
-        len(reg.qubit_ids), dtype=torch.float64
+        len(reg.qubit_ids), dtype=torch.complex128
     )  # initialize amplitude values
     ret_det: list[float] = torch.zeros(
-        len(reg.qubit_ids), dtype=torch.float64
+        len(reg.qubit_ids), dtype=torch.complex128
     )  # initialize detuning values
     amp_solution = torch.tensor(
-        [0.0, 14.45132621, 0.0], dtype=torch.float64
+        [0.0, 14.45132621, 0.0], dtype=torch.complex128
     )  # comming from pulser local channel
     det_solution = torch.tensor(
-        [0.0, -18.84955592, 0.0], dtype=torch.float64
+        [0.0, -18.84955592, 0.0], dtype=torch.complex128
     )  # comming from pulser local channel
     extract_values_from_channel(
         puls_discre.channel_samples["ch_local2"], reg, ret_amp, ret_det, t
@@ -208,16 +208,16 @@ def test_channel_amp_det_t_21_different_channel():
     puls_discre, reg = discretize_sequence(L)
     t = 21
     ret_amp: list[float] = torch.zeros(
-        len(reg.qubit_ids), dtype=torch.float64
+        len(reg.qubit_ids), dtype=torch.complex128
     )  # initialize amplitude values
     ret_det: list[float] = torch.zeros(
-        len(reg.qubit_ids), dtype=torch.float64
+        len(reg.qubit_ids), dtype=torch.complex128
     )  # initialize detuning values
     amp_solution = torch.tensor(
-        [0.0, 0.0, 0.0], dtype=torch.float64
+        [0.0, 0.0, 0.0], dtype=torch.complex128
     )  # comming from pulser local channel
     det_solution = torch.tensor(
-        [0.0, 0.0, 0.0], dtype=torch.float64
+        [0.0, 0.0, 0.0], dtype=torch.complex128
     )  # comming from pulser local channel
     extract_values_from_channel(
         puls_discre.channel_samples["ch_local1"], reg, ret_amp, ret_det, t
@@ -233,9 +233,11 @@ def test_sequence_amp_det_t_1():
     L = 4
     puls_discre, reg = discretize_sequence(L)  # test for t= 1
     t = 1
-    amp_solution = torch.tensor([14.45132621, 3.61283155, 0.0, 0.0], dtype=torch.float64)
+    amp_solution = torch.tensor(
+        [14.45132621, 3.61283155, 0.0, 0.0], dtype=torch.complex128
+    )
     det_solution = torch.tensor(
-        [14.45132621, -18.84955592, 0.0, 0.0], dtype=torch.float64
+        [14.45132621, -18.84955592, 0.0, 0.0], dtype=torch.complex128
     )
     dis_amp, dis_det = extract_values_from_sequence(puls_discre.channel_samples, reg, t)
 
@@ -250,9 +252,9 @@ def test_sequence_amp_det_t_5():
     puls_discre, reg = discretize_sequence(L)
     # test for some values at t= 5
     t = 5
-    amp_solution = torch.tensor([0.0, 0.0, 0.0], dtype=torch.float64)
+    amp_solution = torch.tensor([0.0, 0.0, 0.0], dtype=torch.complex128)
     det_solution = torch.tensor(
-        [-18.84955592, -18.84955592, -18.84955592], dtype=torch.float64
+        [-18.84955592, -18.84955592, -18.84955592], dtype=torch.complex128
     )
     dis_amp, dis_det = extract_values_from_sequence(puls_discre.channel_samples, reg, t)
 
@@ -267,9 +269,11 @@ def test_sequence_amp_det_t_6():
     puls_discre, reg = discretize_sequence(L)
     # test for some values at t= 6
     t = 6
-    amp_solution = torch.tensor([3.61283155, 3.61283155, 3.61283155], dtype=torch.float64)
+    amp_solution = torch.tensor(
+        [3.61283155, 3.61283155, 3.61283155], dtype=torch.complex128
+    )
     det_solution = torch.tensor(
-        [-18.84955592, -18.84955592, -18.84955592], dtype=torch.float64
+        [-18.84955592, -18.84955592, -18.84955592], dtype=torch.complex128
     )
     dis_amp, dis_det = extract_values_from_sequence(puls_discre.channel_samples, reg, t)
 
@@ -284,8 +288,8 @@ def test_sequence_amp_det_t_21():
     puls_discre, reg = discretize_sequence(L)
     # test for some values at t= 21
     t = 21
-    amp_solution = torch.tensor([0.0, 14.45132621, 0.0, 0.0], dtype=torch.float64)
-    det_solution = torch.tensor([0.0, -18.84955592, 0.0, 0.0], dtype=torch.float64)
+    amp_solution = torch.tensor([0.0, 14.45132621, 0.0, 0.0], dtype=torch.complex128)
+    det_solution = torch.tensor([0.0, -18.84955592, 0.0, 0.0], dtype=torch.complex128)
     dis_amp, dis_det = extract_values_from_sequence(puls_discre.channel_samples, reg, t)
 
     torch.testing.assert_close(dis_amp, amp_solution, atol=1e-3, rtol=1e-05)

@@ -50,10 +50,10 @@ def extract_values_from_sequence(
     Extract amplitude and detening from the discretize sequence
     """
     ret_amp: list[float] = torch.zeros(
-        len(register.qubit_ids), dtype=torch.float64
+        len(register.qubit_ids), dtype=torch.complex128
     )  # initialize
     ret_det: list[float] = torch.zeros(
-        len(register.qubit_ids), dtype=torch.float64
+        len(register.qubit_ids), dtype=torch.complex128
     )  # initialize
     # create res_amp and result_detu
     for (_, samples) in discretize_sequence.items():
