@@ -2,9 +2,9 @@ from emu_ct.tdvp import (
     left_baths,
     right_baths,
     apply_effective_Hamiltonian,
-    krylov_exp,
     tdvp,
 )
+from emu_ct.math import krylov_exp
 from emu_ct import MPS, MPO, inner, make_H, Register
 import torch
 
@@ -195,11 +195,9 @@ def test_krylov_exp_krylov_norm_tolerance():
     state[0, 0, 0] = 1
 
     # i.e. u = X1
-    op = lambda x: apply_effective_Hamiltonian(x, ham, bath, bath)
+    op = lambda x: torch.pi * 0.5j * apply_effective_Hamiltonian(x, ham, bath, bath)
 
-    result = krylov_exp(
-        torch.pi * 0.5j, op, state, exp_tolerance=1e-7, norm_tolerance=1e-12
-    )
+    result = krylov_exp(op, state, exp_tolerance=1e-7, norm_tolerance=1e-12)
 
     # result should be |10>, and the algorithm will terminate on
     # b < norm_tolerance, since in the second iteration, b=0
@@ -233,9 +231,9 @@ def test_krylov_exp_krylov_exp_tolerance():
     # This way we can test that the krylov exp terminates with the correct tolerance
     # on the weights of psi. Since 1/14! < 1e-10, this means we expect the algorithm
     # to terminate after step 13
-    op = lambda x: apply_effective_Hamiltonian(x, ham, left_bath, right_bath)
+    op = lambda x: 1.0j * apply_effective_Hamiltonian(x, ham, left_bath, right_bath)
 
-    result = krylov_exp(1.0j, op, state, norm_tolerance=1e-7, exp_tolerance=1e-10)
+    result = krylov_exp(op, state, norm_tolerance=1e-7, exp_tolerance=1e-10)
 
     # All the following numbers should be identically 0, since the krylov algorithm never
     # got that far
@@ -253,7 +251,7 @@ def test_krylov_exp_krylov_exp_tolerance():
     assert torch.allclose(result[:, 0, 0], expected)
 
 
-def test_tdvp():
+def test_evolve_tdvp():
     # X1+X2+X3
     mpo_factor1 = torch.tensor(
         [[[[0, 1], [1, 0]], [[1, 0], [0, 1]]]], dtype=torch.complex128

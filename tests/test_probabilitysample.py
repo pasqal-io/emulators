@@ -1,14 +1,10 @@
 import torch
-import emu_ct
-from emu_ct.pulser_adapter import registers_to_pyemunt, extract_values_from_sequence
 from emu_ct import MPS
-from utils_testing import ghz_state_factors
-
-import pulser
-
-from pulser.waveforms import RampWaveform
-from pulser.devices import MockDevice
-from pulser.sampler.sampler import sample
+from .utils_testing import (
+    ghz_state_factors,
+    pulser_afm_sequence_ring,
+    simulate_pulser_sequence,
+)
 import numpy as np
 
 seed = 1337  # any number will do
@@ -16,7 +12,7 @@ device = "cpu"
 dtype = torch.complex128
 
 
-def test_sampling_bell5_mps():
+def test_sampling_ghz5_mps():
     device = "cpu"
     torch.manual_seed(seed)
     num_qubits = 5
@@ -50,79 +46,34 @@ def test_not_orthogonalized_state():
     assert bitstring.get("000") == 511
 
 
-def pulser_afm_sequence(num_qubits: int):
-    # Setup
-
+def simulate_afm_ring_state(num_qubits: int):
     Omega_max = 4 * 2 * np.pi
     U = Omega_max / 2
     delta_0 = -6 * U
     delta_f = 2 * U
     t_rise = 500
     t_fall = 1000
-    t_sweep = (delta_f - delta_0) / (2 * np.pi * 10) * 1000
 
-    # Define a ring of atoms distanced by a blockade radius distance:
-    R_interatomic = MockDevice.rydberg_blockade_radius(U)
-    coords = (
-        R_interatomic
-        / (2 * np.tan(np.pi / num_qubits))
-        * np.array(
-            [
-                (
-                    np.cos(theta * 2 * np.pi / num_qubits),
-                    np.sin(theta * 2 * np.pi / num_qubits),
-                )
-                for theta in range(num_qubits)
-            ]
-        )
+    puls_discre, reg = pulser_afm_sequence_ring(
+        num_qubits=num_qubits,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=t_rise,
+        t_fall=t_fall,
     )
 
-    reg = pulser.Register.from_coordinates(coords, prefix="q")
-    rise = pulser.Pulse.ConstantDetuning(
-        RampWaveform(t_rise, 0.0, Omega_max), delta_0, 0.0
-    )
-    sweep = pulser.Pulse.ConstantAmplitude(
-        Omega_max, RampWaveform(t_sweep, delta_0, delta_f), 0.0
-    )
-    fall = pulser.Pulse.ConstantDetuning(
-        RampWaveform(t_fall, Omega_max, 0.0), delta_f, 0.0
-    )
-
-    seq = pulser.Sequence(reg, pulser.devices.MockDevice)
-    seq.declare_channel("ising_global", "rydberg_global")
-    seq.add(rise, "ising_global")
-    seq.add(sweep, "ising_global")
-    seq.add(fall, "ising_global")
-    puls_discre = sample(seq)
-
-    return puls_discre, reg
+    return simulate_pulser_sequence(puls_discre, reg)
 
 
-def test_afm_mps_tdvp_sampling():
+def test_afm_ring_mps_tdvp_sampling():
+    torch.manual_seed(seed)
 
     num_qubits = 10
+    state = simulate_afm_ring_state(num_qubits)
+
     shots = 1000
-    torch.manual_seed(seed)
-    puls_discre, reg = pulser_afm_sequence(num_qubits)
-    state = MPS(
-        [(torch.tensor([1.0, 0.0]).reshape(1, 2, 1).to(dtype=torch.complex128))]
-        * len(reg.qubits)
-    )
-    reg_test = registers_to_pyemunt(reg)
-    dt: int = 100
-    coeff = 0.001
-
-    i = 0
-    while (
-        i < puls_discre.max_duration
-    ):  # TODO: this while should be converted into a run function as in Pulser
-        ampli_test, detu_test = extract_values_from_sequence(
-            puls_discre.channel_samples, reg, i
-        )
-        mpo_t0 = emu_ct.make_H(reg_test, ampli_test, detu_test)
-        emu_ct.tdvp(-dt * coeff * 1j, state, mpo_t0)
-        i += dt
-
     bitstrings = state.sample_mps(shots)
 
     assert bitstrings["1010101010"] == 148

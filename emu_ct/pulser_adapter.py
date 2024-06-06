@@ -3,25 +3,17 @@ from emu_ct import Register
 import torch
 
 
-def registers_to_pyemunt(register: pulser.Register) -> list[Register]:
+def registers_to_pyemunt(
+    register: pulser.Register,
+) -> list[Register]:  # Why is this not called "registers_to_emuct"?
     """Convert pulser registers into pyemunt registers"""
-    reg_pyemutn = []
-    for (_, position) in register.qubits.items():
-        reg_pyemutn.append(Register(*position))
-
-    return reg_pyemutn
+    return [Register(*position) for position in register.qubits.values()]
 
 
 def slot_target_to_positions(slot_target: set, qubit_ids: tuple) -> list[int]:
     """Matches the target atom (the atom or atoms that will be implemented amp and det)
     with the position in the register"""
-    position_target: list[int] = []
-    for i, j in enumerate(qubit_ids):
-        for _, m in enumerate(slot_target):
-            if j == m:
-                position_target.append(i)
-
-    return position_target
+    return [i for i, qubit_id in enumerate(qubit_ids) if qubit_id in slot_target]
 
 
 def extract_values_from_channel(
@@ -32,7 +24,7 @@ def extract_values_from_channel(
     t: int,
 ) -> None:
     """
-    Extract amplitude and detening from a channel
+    Extract amplitude and detuning from a channel
     """
     for slot in channel.slots:
         if slot.ti <= t < slot.tf:
@@ -44,10 +36,10 @@ def extract_values_from_channel(
 
 
 def extract_values_from_sequence(
-    discretize_sequence: dict, register: pulser.Register, t: int
+    discretized_sequence: dict, register: pulser.Register, t: int
 ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
     """
-    Extract amplitude and detening from the discretize sequence
+    Extract amplitude and detuning from the discretized sequence
     """
     ret_amp: list[float] = torch.zeros(
         len(register.qubit_ids), dtype=torch.complex128
@@ -56,6 +48,6 @@ def extract_values_from_sequence(
         len(register.qubit_ids), dtype=torch.complex128
     )  # initialize
     # create res_amp and result_detu
-    for (_, samples) in discretize_sequence.items():
+    for samples in discretized_sequence.values():
         extract_values_from_channel(samples, register, ret_amp, ret_det, t)
     return ret_amp, ret_det

@@ -2,7 +2,7 @@ import torch
 from .mps import MPS
 from .mpo import MPO
 from .utils import truncated_svd
-from typing import Callable, Union
+from .math.krylov_exp import krylov_exp, DEFAULT_MAX_KRYLOV_DIM
 
 
 def new_left_bath(
@@ -103,87 +103,6 @@ def apply_effective_Hamiltonian(
     return state
 
 
-DEFAULT_MAX_KRYLOV_DIM: int = 80
-
-
-"""
-Computes exp(t.op) state.
-State should be normalized!
-All inputs must be on the same device.
-"""
-
-
-def krylov_exp(
-    t: Union[float, complex],
-    op: Callable,
-    state: torch.Tensor,
-    exp_tolerance: float,
-    norm_tolerance: float,
-    max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
-) -> torch.Tensor:
-    lanczos_vectors = [state]
-    T = torch.zeros(max_krylov_dim + 1, max_krylov_dim + 1, dtype=state.dtype)
-
-    def exponentiate() -> tuple[torch.Tensor, bool]:
-        # approximate next iteration by modifying T, and unmodifying
-        T[i - 1, i] = 0
-        T[i + 1, i] = 1
-        exp = torch.linalg.matrix_exp(t * T[: i + 2, : i + 2])
-        T[i - 1, i] = T[i, i - 1]
-        T[i + 1, i] = 0
-
-        e1 = abs(exp[i, 0])
-        e2 = abs(exp[i + 1, 0]) * n
-        if e1 > 10 * e2:
-            error = e2
-        elif e2 > e1:
-            error = e1
-        else:
-            error = (e1 * e2) / (e1 - e2)
-
-        converged = error < exp_tolerance
-        return exp[:, 0], converged
-
-    # step 0 of the loop
-    v = op(state)
-    a = torch.tensordot(v.conj(), state, dims=3)
-    n = torch.linalg.vector_norm(v)
-    T[0, 0] = a
-    v = v - a * state
-
-    for i in range(1, max_krylov_dim):
-        # this block should not be executed in step 0
-        b = torch.linalg.vector_norm(v)
-        if b < norm_tolerance:
-            exp = torch.linalg.matrix_exp(t * T[:i, :i])
-            weights = exp[:, 0]
-            converged = True
-            break
-        T[i, i - 1] = b
-        T[i - 1, i] = b
-        state = v / b
-        lanczos_vectors.append(state)
-        weights, converged = exponentiate()
-        if converged:
-            break
-
-        v = op(state)
-        a = torch.tensordot(v.conj(), state, dims=3)
-        n = torch.linalg.vector_norm(v)
-        T[i, i] = a
-        v = v - a * state - b * lanczos_vectors[i - 1]
-
-    if not converged:
-        raise RecursionError(
-            "exponentiation algorithm did not converge to precision in allotted number of steps."
-        )
-
-    result = lanczos_vectors[0] * weights[0]
-    for i in range(1, len(lanczos_vectors)):
-        result += lanczos_vectors[i] * weights[i]
-    return result
-
-
 """
 Applies 2 sweep, 2-site tdvp to state in-place
 State should be normalized and in orthogonal gauge with center at qubit 0
@@ -219,12 +138,11 @@ def tdvp(
 
         h = torch.tensordot(lh, rh, dims=1).transpose(2, 3).reshape(lhs[0], 4, 4, -1)
 
-        op = lambda x: apply_effective_Hamiltonian(
+        op = lambda x: t * apply_effective_Hamiltonian(
             x, h, lbs[i], rbs[-1 - i].to(ls.device)
         )
 
         evol = krylov_exp(
-            t,
             op,
             s,
             exp_tolerance=state.precision,
@@ -250,12 +168,11 @@ def tdvp(
                 )
             )
 
-            op = lambda x: apply_effective_Hamiltonian(
+            op = lambda x: -t * apply_effective_Hamiltonian(
                 x, Hamiltonian.factors[i + 1], lbs[i + 1], rbs[-1 - i]
             )
 
             evol = krylov_exp(
-                -t,
                 op,
                 state.factors[i + 1],
                 exp_tolerance=state.precision,
@@ -280,12 +197,11 @@ def tdvp(
 
         h = torch.tensordot(lh, rh, dims=1).transpose(2, 3).reshape(lhs[0], 4, 4, -1)
 
-        op = lambda x: apply_effective_Hamiltonian(
+        op = lambda x: t * apply_effective_Hamiltonian(
             x, h, lbs[i].to(rs.device), rbs[nfactors - 2 - i]
         )
 
         evol = krylov_exp(
-            t,
             op,
             s,
             exp_tolerance=state.precision,
@@ -309,12 +225,11 @@ def tdvp(
                 )
             )
 
-            op = lambda x: apply_effective_Hamiltonian(
+            op = lambda x: -t * apply_effective_Hamiltonian(
                 x, Hamiltonian.factors[i], lbs[i], rbs[-1]
             )
 
             evol = krylov_exp(
-                -t,
                 op,
                 state.factors[i],
                 exp_tolerance=state.precision,

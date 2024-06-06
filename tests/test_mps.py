@@ -1,6 +1,6 @@
 from emu_ct import MPS, inner
 import torch
-from utils_testing import ghz_state_factors
+from .utils_testing import ghz_state_factors
 
 
 def test_init():
