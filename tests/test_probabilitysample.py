@@ -1,9 +1,9 @@
 import torch
 from emu_ct import MPS
+from emu_ct import simulate_pulser_sequence
 from .utils_testing import (
     ghz_state_factors,
     pulser_afm_sequence_ring,
-    simulate_pulser_sequence,
 )
 import numpy as np
 
@@ -54,7 +54,7 @@ def simulate_afm_ring_state(num_qubits: int):
     t_rise = 500
     t_fall = 1000
 
-    puls_discre, reg = pulser_afm_sequence_ring(
+    seq = pulser_afm_sequence_ring(
         num_qubits=num_qubits,
         Omega_max=Omega_max,
         U=U,
@@ -64,7 +64,7 @@ def simulate_afm_ring_state(num_qubits: int):
         t_fall=t_fall,
     )
 
-    return simulate_pulser_sequence(puls_discre, reg)
+    return simulate_pulser_sequence(seq)
 
 
 def test_afm_ring_mps_tdvp_sampling():

@@ -1,4 +1,4 @@
-class Register:
+class QubitPosition:
     def __init__(self, x: float, y: float):
         self.x = x
         self.y = y
@@ -10,7 +10,7 @@ class Register:
         return self.__str__()
 
 
-def dist2(left: Register, right: Register) -> float:
+def dist2(left: QubitPosition, right: QubitPosition) -> float:
     return (left.x - right.x) * (left.x - right.x) + (left.y - right.y) * (
         left.y - right.y
     )

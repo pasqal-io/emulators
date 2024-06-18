@@ -2,10 +2,10 @@ from emu_ct.tdvp import (
     left_baths,
     right_baths,
     apply_effective_Hamiltonian,
-    tdvp,
+    evolve_tdvp,
 )
 from emu_ct.math import krylov_exp
-from emu_ct import MPS, MPO, inner, make_H, Register
+from emu_ct import MPS, MPO, inner, make_H, QubitPosition
 import torch
 
 
@@ -271,7 +271,7 @@ def test_evolve_tdvp():
     obs = MPO([mpo_factor1, mpo_factor2, mpo_factor2, mpo_factor2, mpo_factor3])
 
     # this applies tdvp in place
-    tdvp(-0.5j * torch.pi, state, obs)
+    evolve_tdvp(-0.5j * torch.pi, state, obs)
     assert abs(inner(state, state) - 1) < 1e-8
 
     # state -i|00000>
@@ -286,13 +286,13 @@ def test_evolve_tdvp():
 def test_tdvp_state_vector():
     nqubits = 9
 
-    registers = []
+    qubit_positions = []
     for i in range(3):
         for j in range(3):
-            registers.append(Register(7.0 * i, 7.0 * j))
+            qubit_positions.append(QubitPosition(7.0 * i, 7.0 * j))
     omegas = [torch.tensor([12.566370614359172], dtype=torch.complex128)] * nqubits
     deltas = [torch.tensor([10.771174812307862], dtype=torch.complex128)] * nqubits
-    ham = make_H(registers, omegas, deltas, num_devices_to_use=0)
+    ham = make_H(qubit_positions, omegas, deltas, num_devices_to_use=0)
 
     # |000000000>
     state = MPS(
@@ -309,7 +309,7 @@ def test_tdvp_state_vector():
     ).reshape(2**nqubits, 2**nqubits)
     expected = torch.linalg.matrix_exp(-0.01j * vec)[:, 0]
     for _ in range(10):
-        tdvp(-0.001j, state, ham)
+        evolve_tdvp(-0.001j, state, ham)
     vec = torch.einsum(
         "abc,cde,efg,ghi,ijk,klm,mno,opq,qrs->abdfhjlnprs", *(state.factors)
     ).reshape(2**nqubits)

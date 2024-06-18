@@ -1,4 +1,4 @@
-from emu_ct import make_H, Register, dist2
+from emu_ct import make_H, QubitPosition, dist2
 import torch
 from functools import reduce
 
@@ -36,9 +36,11 @@ TEST_C6 = 0.123456
 
 
 def sv_hamiltonian(
-    registers: list[Register], omega: list[torch.Tensor], delta: list[torch.Tensor]
+    qubit_positions: list[QubitPosition],
+    omega: list[torch.Tensor],
+    delta: list[torch.Tensor],
 ) -> torch.Tensor:
-    n_qubits = len(registers)
+    n_qubits = len(qubit_positions)
     dtype = omega[0].dtype
     device = omega[0].device
     h = torch.zeros(2**n_qubits, 2**n_qubits, dtype=dtype, device=device)
@@ -49,7 +51,7 @@ def sv_hamiltonian(
             h += (
                 TEST_C6
                 * n(i, j, n_qubits).to(dtype=dtype, device=device)
-                / dist2(registers[i], registers[j]) ** 3
+                / dist2(qubit_positions[i], qubit_positions[j]) ** 3
             )
     return h
 
@@ -61,7 +63,7 @@ def test_2_qubit():
     dtype = torch.float64
     omega = [torch.tensor([2.0], dtype=dtype), torch.tensor([3.0], dtype=dtype)]
     delta = [torch.tensor([5.0], dtype=dtype), torch.tensor([7.0], dtype=dtype)]
-    q = [Register(0.0, 0.0), Register(10.0, 0.0)]
+    q = [QubitPosition(0.0, 0.0), QubitPosition(10.0, 0.0)]
 
     ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0)
     assert ham.factors[0].shape == (1, 2, 2, 3)
@@ -90,10 +92,10 @@ def test_4_qubit():
     delta.append(torch.tensor([5.0], dtype=dtype))
     delta.append(torch.tensor([7.0], dtype=dtype))
     q = []
-    q.append(Register(0.0, 0.0))
-    q.append(Register(10.0, 0.0))
-    q.append(Register(0.0, 10.0))
-    q.append(Register(10.0, 10.0))
+    q.append(QubitPosition(0.0, 0.0))
+    q.append(QubitPosition(10.0, 0.0))
+    q.append(QubitPosition(0.0, 10.0))
+    q.append(QubitPosition(10.0, 10.0))
 
     ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0)
     assert ham.factors[0].shape == (1, 2, 2, 3)
@@ -126,11 +128,11 @@ def test_5_qubit():
     delta.append(torch.tensor([7.0], dtype=dtype))
     delta.append(torch.tensor([11.0], dtype=dtype))
     q = []
-    q.append(Register(0.0, 0.0))
-    q.append(Register(10.0, 0.0))
-    q.append(Register(0.0, 10.0))
-    q.append(Register(10.0, 10.0))
-    q.append(Register(5.0, 5.0))
+    q.append(QubitPosition(0.0, 0.0))
+    q.append(QubitPosition(10.0, 0.0))
+    q.append(QubitPosition(0.0, 10.0))
+    q.append(QubitPosition(10.0, 10.0))
+    q.append(QubitPosition(5.0, 5.0))
 
     ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0)
     assert ham.factors[0].shape == (1, 2, 2, 3)
@@ -158,7 +160,7 @@ def test_9_qubit():
     q = []
     for i in range(3):
         for j in range(3):
-            q.append(Register(7.0 * i, 7.0 * j))
+            q.append(QubitPosition(7.0 * i, 7.0 * j))
 
     ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0)
 
@@ -176,49 +178,46 @@ def test_9_qubit():
 
 
 def test_differentiation():
+    n = 5
     dtype = torch.float64
-    omega = []
-    omega.append(torch.tensor([1.0], dtype=dtype, requires_grad=True))
-    omega.append(torch.tensor([1.0], dtype=dtype, requires_grad=True))
-    omega.append(torch.tensor([1.0], dtype=dtype, requires_grad=True))
-    omega.append(torch.tensor([1.0], dtype=dtype, requires_grad=True))
-    omega.append(torch.tensor([1.0], dtype=dtype, requires_grad=True))
-    delta = []
-    delta.append(torch.tensor([1.0], dtype=dtype, requires_grad=True))
-    delta.append(torch.tensor([1.0], dtype=dtype, requires_grad=True))
-    delta.append(torch.tensor([1.0], dtype=dtype, requires_grad=True))
-    delta.append(torch.tensor([1.0], dtype=dtype, requires_grad=True))
-    delta.append(torch.tensor([1.0], dtype=dtype, requires_grad=True))
-    q = []
-    q.append(Register(0.0, 0.0))
-    q.append(Register(10.0, 0.0))
-    q.append(Register(0.0, 10.0))
-    q.append(Register(10.0, 10.0))
-    q.append(Register(5.0, 5.0))
+    omega = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
+    delta = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
+    q = [
+        QubitPosition(0.0, 0.0),
+        QubitPosition(10.0, 0.0),
+        QubitPosition(0.0, 10.0),
+        QubitPosition(10.0, 10.0),
+        QubitPosition(5.0, 5.0),
+    ]
 
     ham = make_H(q, omega, delta, num_devices_to_use=0)
 
     sv = torch.einsum("abcd,defg,ghij,jklm,mnop->abehkncfilop", *(ham.factors)).reshape(
-        32, 32
+        1 << n, 1 << n
     )
 
     # loop over each element in the state-vector form of the hamiltonian, and assert that it depends
     # on the omegas and deltas in the correct way.
     for i in range(32):
         for j in range(32):
-            i_str = format(i, "b").zfill(5)
-            j_str = format(j, "b").zfill(5)
-            diffs = [
-                i for i, (left, right) in enumerate(zip(i_str, j_str)) if left != right
-            ]
-            for k in range(5):
-                assert torch.allclose(
-                    torch.autograd.grad(sv[i, j], delta[k], retain_graph=True)[0],
-                    torch.tensor(
-                        [-1.0 if i_str[-5 + k] == "1" and i == j else 0.0], dtype=dtype
-                    ),
+            expected_delta_diff = (
+                torch.zeros(5, dtype=dtype)
+                if i != j
+                else torch.tensor(
+                    [-1.0 if (i & (1 << (n - k - 1)) != 0) else 0.0 for k in range(n)],
+                    dtype=dtype,
                 )
-                assert torch.allclose(
-                    torch.autograd.grad(sv[i, j], omega[k], retain_graph=True)[0],
-                    torch.tensor([0.5 if diffs == [k] else 0.0], dtype=dtype),
-                )
+            )
+            assert torch.allclose(
+                torch.autograd.grad(sv[i, j], delta, retain_graph=True)[0],
+                expected_delta_diff,
+            )
+
+            expected_omega_diff = torch.zeros(n, dtype=dtype)
+            if (i ^ j).bit_count() == 1:
+                expected_omega_diff[n - (i ^ j).bit_length()] = 0.5
+
+            assert torch.allclose(
+                torch.autograd.grad(sv[i, j], omega, retain_graph=True)[0],
+                expected_omega_diff,
+            )

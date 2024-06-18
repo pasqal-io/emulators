@@ -1,53 +1,96 @@
 import pulser
-from emu_ct import Register
+from emu_ct import QubitPosition, MPS, make_H, evolve_tdvp
 import torch
 
 
-def registers_to_pyemunt(
+def get_qubit_positions(
     register: pulser.Register,
-) -> list[Register]:  # Why is this not called "registers_to_emuct"?
-    """Convert pulser registers into pyemunt registers"""
-    return [Register(*position) for position in register.qubits.values()]
+) -> list[QubitPosition]:
+    return [QubitPosition(*position) for position in register.qubits.values()]
 
 
-def slot_target_to_positions(slot_target: set, qubit_ids: tuple) -> list[int]:
-    """Matches the target atom (the atom or atoms that will be implemented amp and det)
-    with the position in the register"""
-    return [i for i, qubit_id in enumerate(qubit_ids) if qubit_id in slot_target]
-
-
-def extract_values_from_channel(
-    channel: pulser.sampler.samples.SequenceSamples,
-    register: pulser.Register,
-    ret_amp: list[torch.Tensor],
-    ret_det: list[torch.Tensor],
-    t: int,
-) -> None:
+def extract_omega_delta(
+    seq: pulser.sequence.sequence.Sequence, sampling_rate: float
+) -> torch.Tensor:
     """
-    Extract amplitude and detuning from a channel
+    Samples the Pulser sequence and returns a tensor T containing:
+    - T[0, i, q] = amplitude at time i * sampling_rate for qubit q
+    - T[1, i, q] = detuning at time i * sampling_rate for qubit q
     """
-    for slot in channel.slots:
-        if slot.ti <= t < slot.tf:
-            targets = slot_target_to_positions(slot.targets, register.qubit_ids)
-            for i in targets:
-                ret_amp[i] = channel.amp[t]
-                ret_det[i] = channel.det[t]
-            break
+    sequence_samples = pulser.sampler.sampler.sample(seq)
+
+    assert 0.0 < sampling_rate <= 1.0
+
+    result = torch.zeros(
+        2,
+        int(seq.get_duration() * sampling_rate) + 1,
+        len(seq.register.qubit_ids),
+        dtype=torch.complex128,
+    )
+
+    number_of_channels = len(sequence_samples.samples_list)
+
+    current_slot_indices = [0] * number_of_channels
+
+    step = 0
+    dt = int(1 / sampling_rate)
+    while step * dt < seq.get_duration():
+        t = step * dt
+
+        seen_qubits = set()
+
+        for channel_index, slot_index in enumerate(current_slot_indices):
+            channel_samples = sequence_samples.samples_list[channel_index]
+
+            while (
+                slot_index < len(channel_samples.slots)
+                and t > channel_samples.slots[slot_index].tf
+            ):
+                slot_index += 1
+
+            current_slot_indices[channel_index] = slot_index
+
+            if (
+                slot_index >= len(channel_samples.slots)
+                or t < channel_samples.slots[slot_index].ti
+            ):
+                continue
+
+            for qubit_id in channel_samples.slots[slot_index].targets:
+                qubit_index = seq.register.qubit_ids.index(qubit_id)
+
+                if qubit_index in seen_qubits:
+                    # FIXME: if amp or det are 0 just ignore??
+                    raise NotImplementedError("multiple pulses acting on same qubit")
+
+                seen_qubits.add(qubit_index)
+
+                result[0, step, qubit_index] = channel_samples.amp[t]
+                result[1, step, qubit_index] = channel_samples.det[t]
+
+        step += 1
+
+    return result
 
 
-def extract_values_from_sequence(
-    discretized_sequence: dict, register: pulser.Register, t: int
-) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
-    """
-    Extract amplitude and detuning from the discretized sequence
-    """
-    ret_amp: list[float] = torch.zeros(
-        len(register.qubit_ids), dtype=torch.complex128
-    )  # initialize
-    ret_det: list[float] = torch.zeros(
-        len(register.qubit_ids), dtype=torch.complex128
-    )  # initialize
-    # create res_amp and result_detu
-    for samples in discretized_sequence.values():
-        extract_values_from_channel(samples, register, ret_amp, ret_det, t)
-    return ret_amp, ret_det
+def simulate_pulser_sequence(
+    seq: pulser.sequence.sequence.Sequence,
+) -> MPS:  # pass eta here?
+    state = MPS(
+        [(torch.tensor([1.0, 0.0], dtype=torch.complex128).reshape(1, 2, 1))]
+        * len(seq.register.qubit_ids)
+    )
+
+    sampling_rate: float = 0.01
+    coeff = 0.001  # Omega and delta are given in rad/microseconds, dt in nanoseconds
+    omega_delta = extract_omega_delta(seq, sampling_rate=sampling_rate)
+
+    emuct_register = get_qubit_positions(seq.register)
+
+    for step in range(
+        omega_delta.shape[1]
+    ):  # TODO: this while should be converted into a run function as in Pulser
+        mpo_t0 = make_H(emuct_register, omega_delta[0, step, :], omega_delta[1, step, :])
+        evolve_tdvp(-coeff / sampling_rate * 1j, state, mpo_t0)
+
+    return state

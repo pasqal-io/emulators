@@ -3,6 +3,9 @@ from typing import List
 import torch
 
 
+DEVICE_COUNT = torch.cuda.device_count()
+
+
 def _determine_cutoff_index(d: torch.Tensor, max_error: float) -> int:
     assert max_error > 0
     squared_max_error = max_error * max_error

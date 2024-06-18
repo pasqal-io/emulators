@@ -3,10 +3,6 @@ import torch
 from typing import List, Optional, Union
 import numpy as np
 import pulser
-from emu_ct.pulser_adapter import extract_values_from_sequence, registers_to_pyemunt
-from emu_ct.tdvp import tdvp
-from emu_ct.hamiltonian import make_H
-from emu_ct.mps import MPS
 
 
 def ghz_state_factors(
@@ -79,9 +75,8 @@ def pulser_afm_sequence_from_register(
     seq.add(rise, "ising_global")
     seq.add(sweep, "ising_global")
     seq.add(fall, "ising_global")
-    puls_discre = pulser.sampler.sampler.sample(seq)
 
-    return puls_discre
+    return seq
 
 
 def pulser_afm_sequence_ring(
@@ -111,16 +106,13 @@ def pulser_afm_sequence_ring(
 
     reg = pulser.Register.from_coordinates(coords, prefix="q")
 
-    return (
-        pulser_afm_sequence_from_register(
-            reg,
-            Omega_max=Omega_max,
-            delta_0=delta_0,
-            delta_f=delta_f,
-            t_rise=t_rise,
-            t_fall=t_fall,
-        ),
+    return pulser_afm_sequence_from_register(
         reg,
+        Omega_max=Omega_max,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=t_rise,
+        t_fall=t_fall,
     )
 
 
@@ -137,16 +129,13 @@ def pulser_afm_sequence_grid(
     R_interatomic = pulser.devices.MockDevice.rydberg_blockade_radius(U)
     reg = pulser.Register.rectangle(rows, columns, R_interatomic, prefix="q")
 
-    return (
-        pulser_afm_sequence_from_register(
-            reg,
-            Omega_max=Omega_max,
-            delta_0=delta_0,
-            delta_f=delta_f,
-            t_rise=t_rise,
-            t_fall=t_fall,
-        ),
+    return pulser_afm_sequence_from_register(
         reg,
+        Omega_max=Omega_max,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=t_rise,
+        t_fall=t_fall,
     )
 
 
@@ -188,28 +177,4 @@ def pulser_quench_sequence_grid(nx: int, ny: int):
     simple_pulse = pulser.pulse.Pulse.ConstantPulse(T, omega, delta, 0)
     seq.add(simple_pulse, "ising")
 
-    puls_discre = pulser.sampler.sampler.sample(seq)
-    return puls_discre, reg
-
-
-def simulate_pulser_sequence(pulser_discretized_sequence, pulser_register):
-    state = MPS(
-        [(torch.tensor([1.0, 0.0]).reshape(1, 2, 1).to(dtype=torch.complex128))]
-        * len(pulser_register.qubits)
-    )
-    emuct_register = registers_to_pyemunt(pulser_register)
-    dt: int = 100
-    coeff = 0.001
-
-    i = 0
-    while (
-        i < pulser_discretized_sequence.max_duration
-    ):  # TODO: this while should be converted into a run function as in Pulser
-        ampli_test, detu_test = extract_values_from_sequence(
-            pulser_discretized_sequence.channel_samples, pulser_register, i
-        )
-        mpo_t0 = make_H(emuct_register, ampli_test, detu_test)
-        tdvp(-dt * coeff * 1j, state, mpo_t0)
-        i += dt
-
-    return state
+    return seq

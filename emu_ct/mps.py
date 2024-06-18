@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 from typing import Union, List
-from .utils import truncated_svd, assign_devices
+from .utils import truncated_svd, assign_devices, DEVICE_COUNT
 import math
 from collections import Counter
 
@@ -22,7 +22,7 @@ class MPS:
         truncate: bool = False,
         precision: float = 1e-5,
         max_bond_dim: int = 1024,
-        num_devices_to_use: int = torch.cuda.device_count(),
+        num_devices_to_use: int = DEVICE_COUNT,
     ):
         self.precision = precision
         self.max_bond_dim = max_bond_dim
@@ -46,7 +46,7 @@ class MPS:
                 "Sites must specify a number of qubits, or a list of tensors representing the MPS"
             )
 
-        assign_devices(self.factors, min(torch.cuda.device_count(), num_devices_to_use))
+        assign_devices(self.factors, min(DEVICE_COUNT, num_devices_to_use))
 
         if truncate:
             self.truncate()
