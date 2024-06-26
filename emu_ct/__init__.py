@@ -3,7 +3,7 @@ from .mpo import MPO
 from .tdvp import evolve_tdvp
 from .qubit_position import QubitPosition, dist2
 from .hamiltonian import make_H
-from .pulser_adapter import simulate_pulser_sequence
+from .MPSbackend import MPSBackend
 
 
 __all__ = [
@@ -14,5 +14,5 @@ __all__ = [
     "QubitPosition",
     "dist2",
     "make_H",
-    "simulate_pulser_sequence",
+    "MPSBackend",
 ]
