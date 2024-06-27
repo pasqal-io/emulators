@@ -1,0 +1,31 @@
+from .config import BackendConfig
+from pulser import Sequence
+import warnings
+from .results import Results
+from abc import ABC, abstractmethod
+
+
+class Backend(ABC):
+    @staticmethod
+    def validate_sequence(sequence: Sequence) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=DeprecationWarning)
+
+        if not isinstance(sequence, Sequence):
+            raise TypeError(
+                "The provided sequence has to be a valid " "pulser.Sequence instance."
+            )
+        if sequence.is_parametrized() or sequence.is_register_mappable():
+            raise ValueError(
+                "Not supported"
+                "The provided sequence needs to be built to be simulated. Call"
+                " `Sequence.build()` with the necessary parameters."
+            )
+        if not sequence._schedule:
+            raise ValueError("The provided sequence has no declared channels.")
+        if all(sequence._schedule[x][-1].tf == 0 for x in sequence.declared_channels):
+            raise ValueError("No instructions given for the channels in the sequence.")
+
+    @abstractmethod
+    def run(self, sequence: Sequence, config: BackendConfig) -> Results:
+        pass

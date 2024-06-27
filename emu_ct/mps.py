@@ -4,10 +4,11 @@ import torch
 import math
 from typing import Union, List
 from emu_ct.utils import split_tensor, assign_devices, DEVICE_COUNT
+from emu_ct.base_classes.state import State
 from collections import Counter
 
 
-class MPS:
+class MPS(State):
     """
     Matrix Product State
     When specifying the MPS from a list of tensors, ensure that
@@ -100,12 +101,12 @@ class MPS:
         """Return the max bond dimension of MPS"""
         return int(max(x.shape[2] for x in self.factors))
 
-    def sample_mps(self, num_shots: int, truncate: bool = False) -> Counter[str]:
+    def sample(self, num_shots: int) -> Counter[str]:
         """Returns bitstring distribution for a given number of samples or shots"""
         num_qubits = len(self.factors)
         rnd_matrix = torch.rand(num_shots, num_qubits)
         sampled_bitstrings = [
-            self._sample_implementation(rnd_matrix[x, :], truncate)
+            self._sample_implementation(rnd_matrix[x, :], truncate=False)
             for x in range(num_shots)
         ]
         return Counter(sampled_bitstrings)
@@ -147,17 +148,21 @@ class MPS:
 
         return bitstring
 
+    def inner(self, right: State) -> float | complex:
+        assert isinstance(right, MPS), "Other state also needs to be an MPS"
+        assert (
+            self.num_sites == right.num_sites
+        ), "States do not have the same number of sites"
+
+        acc = torch.ones(1, 1, dtype=self.factors[0].dtype, device=self.factors[0].device)
+
+        for i in range(self.num_sites):
+            acc = acc.to(self.factors[i].device)
+            acc = torch.tensordot(acc, right.factors[i].to(acc.device), dims=1)
+            acc = torch.tensordot(self.factors[i].conj(), acc, dims=([0, 1], [0, 1]))
+
+        return acc.item()  # type: ignore[no-any-return]
+
 
 def inner(left: MPS, right: MPS) -> float | complex:
-    assert (
-        left.num_sites == right.num_sites
-    ), "States do not have the same number of sites"
-
-    acc = torch.ones(1, 1, dtype=left.factors[0].dtype, device=left.factors[0].device)
-
-    for i in range(left.num_sites):
-        acc = acc.to(left.factors[i].device)
-        acc = torch.tensordot(acc, right.factors[i].to(acc.device), dims=1)
-        acc = torch.tensordot(left.factors[i].conj(), acc, dims=([0, 1], [0, 1]))
-
-    return acc.item()  # type: ignore[no-any-return]
+    return left.inner(right)

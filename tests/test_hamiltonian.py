@@ -213,6 +213,7 @@ def test_9_qubit_noise():
 
 
 def test_differentiation():
+    c6 = 5420158.53
     n = 5
     omega = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
     delta = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
@@ -224,7 +225,7 @@ def test_differentiation():
         torch.tensor([5.0, 5.0]),
     ]
 
-    ham = make_H(q, omega, delta, num_devices_to_use=0)
+    ham = make_H(q, omega, delta, c6, num_devices_to_use=0)
 
     sv = torch.einsum("abcd,defg,ghij,jklm,mnop->abehkncfilop", *(ham.factors)).reshape(
         1 << n, 1 << n

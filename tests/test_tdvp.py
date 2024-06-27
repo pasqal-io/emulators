@@ -286,6 +286,7 @@ def test_evolve_tdvp():
 
 def test_tdvp_state_vector():
     nqubits = 9
+    c6 = 5420158.53  # mock device c6
 
     qubit_positions = []
     for i in range(3):
@@ -293,7 +294,7 @@ def test_tdvp_state_vector():
             qubit_positions.append(torch.tensor([7.0 * i, 7.0 * j]))
     omegas = [torch.tensor([12.566370614359172], dtype=torch.complex128)] * nqubits
     deltas = [torch.tensor([10.771174812307862], dtype=torch.complex128)] * nqubits
-    ham = make_H(qubit_positions, omegas, deltas, num_devices_to_use=0)
+    ham = make_H(qubit_positions, omegas, deltas, c6, num_devices_to_use=0)
 
     # |000000000>
     state = MPS(

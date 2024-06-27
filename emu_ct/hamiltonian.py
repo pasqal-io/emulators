@@ -3,6 +3,7 @@ from emu_ct.utils import DEVICE_COUNT
 from emu_ct.mpo import MPO
 from emu_ct.qubit_position import dist2
 
+
 """
 Takes a single qubit operator, and creates the first factor in a Hamiltonian
 consisting of this single qubit operator and the Rydberg interaction terms.
@@ -129,7 +130,7 @@ def make_H(
     qubit_positions: list[torch.tensor],
     omega: torch.Tensor,
     delta: torch.Tensor,
-    c6: float = 5420158.53,
+    c6: float,
     num_devices_to_use: int = DEVICE_COUNT,
     noise: torch.Tensor = torch.zeros(2, 2),
 ) -> MPO:

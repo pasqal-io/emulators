@@ -57,6 +57,7 @@ def pulser_afm_sequence_from_register(
     delta_f: float,
     t_rise: float,
     t_fall: float,
+    device: pulser.devices = pulser.devices.MockDevice,
 ):
     t_sweep = (delta_f - delta_0) / (2 * np.pi * 10) * 1000
 
@@ -70,7 +71,7 @@ def pulser_afm_sequence_from_register(
         pulser.waveforms.RampWaveform(t_fall, Omega_max, 0.0), delta_f, 0.0
     )
 
-    seq = pulser.Sequence(reg, pulser.devices.MockDevice)
+    seq = pulser.Sequence(reg, device)
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(rise, "ising_global")
     seq.add(sweep, "ising_global")
@@ -87,9 +88,10 @@ def pulser_afm_sequence_ring(
     delta_f: float,
     t_rise: float,
     t_fall: float,
+    device: pulser.devices = pulser.devices.MockDevice,
 ):
     # Define a ring of atoms distanced by a blockade radius distance:
-    R_interatomic = pulser.devices.MockDevice.rydberg_blockade_radius(U)
+    R_interatomic = device.rydberg_blockade_radius(U)
     coords = (
         R_interatomic
         / (2 * np.tan(np.pi / num_qubits))
@@ -125,8 +127,9 @@ def pulser_afm_sequence_grid(
     delta_f: float,
     t_rise: float,
     t_fall: float,
+    device: pulser.devices = pulser.devices.MockDevice,
 ):
-    R_interatomic = pulser.devices.MockDevice.rydberg_blockade_radius(U)
+    R_interatomic = device.rydberg_blockade_radius(U)
     reg = pulser.Register.rectangle(rows, columns, R_interatomic, prefix="q")
 
     return pulser_afm_sequence_from_register(

@@ -2,9 +2,11 @@ from typing import Any, List
 from emu_ct.mps import MPS
 from emu_ct.utils import assign_devices, DEVICE_COUNT
 import torch
+from .base_classes.state import State
+from .base_classes.operator import Operator
 
 
-class MPO:
+class MPO(Operator):
     """
     Matrix Product Operator
     """
@@ -29,7 +31,8 @@ class MPO:
         result += "]"
         return result
 
-    def __mul__(self, state: MPS) -> MPS:
+    def __mul__(self, state: State) -> MPS:
+        assert isinstance(state, MPS), "MPO can only be multiplied with MPS"
         assert (
             self.num_sites == state.num_sites
         ), "MPO and MPS don't have the same number of sites"

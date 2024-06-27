@@ -1,9 +1,11 @@
 import torch
-from emu_ct.MPSbackend import MPSBackend
+from emu_ct import MPS, MPSBackend, MPSConfig, BitStrings, StateResult
 
 from .utils_testing import pulser_afm_sequence_ring
 
 import numpy as np
+from pytest import approx
+
 
 seed = 1337
 
@@ -25,23 +27,43 @@ def simulate_afm_ring_state(num_qubits: int):
         t_rise=t_rise,
         t_fall=t_fall,
     )
+    final_time = seq.get_duration()
+    mpsConfig = MPSConfig(
+        dt=100,
+        precision=1e-5,
+        observables=[
+            StateResult(times=[final_time]),
+            BitStrings(times=[final_time], num_shots=1000),
+        ],
+    )
+    sim = MPSBackend()
 
-    sim = MPSBackend(seq)
-
-    return sim.run(dt=100)
+    return sim.run(seq, mpsConfig), seq
 
 
 def test_afm_ring_mps_tdvp_sampling():
     torch.manual_seed(seed)
 
     num_qubits = 10
-    state = simulate_afm_ring_state(num_qubits)
-
-    shots = 1000
-    bitstrings = state.get_samples(shots)
+    result, seq = simulate_afm_ring_state(num_qubits)
+    final_time = seq.get_duration()
+    bitstrings = result[BitStrings.name()][final_time]
+    final_state = result[StateResult.name()][final_time]
+    max_bond_dim = final_state.get_max_bond_dim()
 
     assert bitstrings["1010101010"] == 148
     assert bitstrings["0101010101"] == 151
+    assert max_bond_dim == 29
 
+    one = torch.tensor([[[0], [1]]], dtype=torch.complex128)
+    zero = torch.tensor([[[1], [0]]], dtype=torch.complex128)
 
-test_afm_ring_mps_tdvp_sampling()
+    expected_state1 = MPS([one, zero] * (num_qubits // 2))
+    inner_sol1 = expected_state1.inner(final_state)
+
+    expected_state2 = MPS([zero, one] * (num_qubits // 2))
+    inner_sol2 = expected_state2.inner(final_state)
+
+    assert abs(inner_sol1) ** 2 == approx(0.15, abs=1e-2)
+
+    assert abs(inner_sol2) ** 2 == approx(0.15, abs=1e-2)
