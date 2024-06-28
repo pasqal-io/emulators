@@ -1,7 +1,7 @@
 import torch
 from .mps import MPS
 from .mpo import MPO
-from .utils import truncated_svd
+from .utils import split_tensor
 from .math.krylov_exp import krylov_exp, DEFAULT_MAX_KRYLOV_DIM
 
 
@@ -150,17 +150,10 @@ def evolve_tdvp(
             max_krylov_dim=max_krylov_dim,
         ).reshape(lss[0] * 2, 2 * rss[-1])
 
-        u, d, v = truncated_svd(
-            evol,
-            max_error=state.precision,
-            max_rank=state.max_bond_dim,
-            full_matrices=False,
-        )
+        l, r = split_tensor(evol, max_error=state.precision, max_rank=state.max_bond_dim)
 
-        state.factors[i] = u.reshape(lss[0], 2, -1)
-        state.factors[i + 1] = (
-            (d.reshape(-1, 1) * v).reshape(-1, 2, rss[-1]).to(state.factors[i + 1].device)
-        )
+        state.factors[i] = l.reshape(lss[0], 2, -1)
+        state.factors[i + 1] = r.reshape(-1, 2, rss[-1]).to(state.factors[i + 1].device)
         if i is not nfactors - 2:
             lbs.append(
                 new_left_bath(lbs[i], state.factors[i], lh).to(
@@ -209,15 +202,15 @@ def evolve_tdvp(
             max_krylov_dim=max_krylov_dim,
         ).reshape(lss[0] * 2, 2 * rss[-1])
 
-        u, d, v = truncated_svd(
+        l, r = split_tensor(
             evol,
             max_error=state.precision,
             max_rank=state.max_bond_dim,
-            full_matrices=False,
+            orth_center_right=False,
         )
 
-        state.factors[i + 1] = v.reshape(-1, 2, rss[-1])
-        state.factors[i] = (u * d).reshape(lss[0], 2, -1).to(state.factors[i].device)
+        state.factors[i + 1] = r.reshape(-1, 2, rss[-1])
+        state.factors[i] = l.reshape(lss[0], 2, -1).to(state.factors[i].device)
         if i != 0:
             rbs.append(
                 new_right_bath(rbs[-1], state.factors[i + 1], rh).to(

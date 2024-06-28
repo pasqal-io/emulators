@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 import math
 from typing import Union, List
-from .utils import truncated_svd, assign_devices, DEVICE_COUNT
+from .utils import split_tensor, assign_devices, DEVICE_COUNT
 from collections import Counter
 
 
@@ -83,17 +83,17 @@ class MPS:
         for i in range(self.num_sites - 1, 0, -1):
             factor_shape = self.factors[i].shape
 
-            u, d, vh = truncated_svd(
+            l, r = split_tensor(
                 self.factors[i].reshape(factor_shape[0], -1),
                 max_error=self.precision,
                 max_rank=self.max_bond_dim,
+                orth_center_right=False,
             )
 
-            vh = vh.reshape(-1, factor_shape[1], factor_shape[2])
-            self.factors[i] = vh
-            tmp = u * d
+            r = r.reshape(-1, factor_shape[1], factor_shape[2])
+            self.factors[i] = r
             self.factors[i - 1] = torch.tensordot(
-                self.factors[i - 1], tmp.to(self.factors[i - 1].device), dims=1
+                self.factors[i - 1], l.to(self.factors[i - 1].device), dims=1
             )
 
     def get_max_bond_dim(self) -> int:

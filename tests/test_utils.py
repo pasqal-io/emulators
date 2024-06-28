@@ -1,27 +1,51 @@
+import pytest
 import torch
 import math
 from typing import List
-from emu_ct.utils import truncated_svd, assign_devices
+from emu_ct.utils import split_tensor, assign_devices
 
 
-def test_truncated_svd():
+@pytest.mark.parametrize(
+    "orth_center_right",
+    [
+        (True),
+        (False),
+    ],
+)
+def test_split_tensor(orth_center_right):
     a = torch.diag(torch.tensor([1.0, 5.0, 3.0, 6.0, -2.0]))
 
-    u, d, vh = truncated_svd(a, max_rank=3, max_error=9999)
+    l, r = split_tensor(
+        a, max_rank=3, max_error=9999, orth_center_right=orth_center_right
+    )
 
-    assert torch.allclose(d, torch.tensor([6.0, 5.0, 3.0]))
+    m = l.T.conj() @ l if orth_center_right else r @ r.T.conj()
+    assert torch.allclose(m, torch.eye(3, 3))
+    assert torch.allclose(l @ r, torch.diag(torch.tensor([0.0, 5.0, 3.0, 6.0, 0.0])))
 
-    u, d, vh = truncated_svd(a, max_rank=4, max_error=9999)
+    l, r = split_tensor(
+        a, max_rank=4, max_error=9999, orth_center_right=orth_center_right
+    )
 
-    assert torch.allclose(d, torch.tensor([6.0, 5.0, 3.0, 2.0]))
+    m = l.T.conj() @ l if orth_center_right else r @ r.T.conj()
+    assert torch.allclose(m, torch.eye(4, 4))
+    assert torch.allclose(l @ r, torch.diag(torch.tensor([0.0, 5.0, 3.0, 6.0, -2.0])))
 
-    u, d, vh = truncated_svd(a, max_rank=20, max_error=1.5)
+    l, r = split_tensor(
+        a, max_rank=20, max_error=1.5, orth_center_right=orth_center_right
+    )
 
-    assert torch.allclose(d, torch.tensor([6.0, 5.0, 3.0, 2.0]))
+    m = l.T.conj() @ l if orth_center_right else r @ r.T.conj()
+    assert torch.allclose(m, torch.eye(4, 4))
+    assert torch.allclose(l @ r, torch.diag(torch.tensor([0.0, 5.0, 3.0, 6.0, -2.0])))
 
-    u, d, vh = truncated_svd(a, max_rank=20, max_error=math.sqrt(5) + 0.1)
+    l, r = split_tensor(
+        a, max_rank=20, max_error=math.sqrt(5) + 0.1, orth_center_right=orth_center_right
+    )
 
-    assert torch.allclose(d, torch.tensor([6.0, 5.0, 3.0]))
+    m = l.T.conj() @ l if orth_center_right else r @ r.T.conj()
+    assert torch.allclose(m, torch.eye(3, 3))
+    assert torch.allclose(l @ r, torch.diag(torch.tensor([0.0, 5.0, 3.0, 6.0, 0.0])))
 
 
 def test_assign_devices():
