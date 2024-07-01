@@ -119,8 +119,9 @@ def middle_factor(
 
 
 """
-returns an MPO representing the Hamiltonian specified by omega and delta
-the vector index
+Returns an MPO representing the Hamiltonian specified by omega and delta.
+
+`noise` should be `-1j / 2. * sum(lind.T.conj() @ lind for lind in lindbladians)`.
 """
 
 
@@ -130,7 +131,10 @@ def make_H(
     delta: torch.Tensor,
     c6: float = 5420158.53,
     num_devices_to_use: int = DEVICE_COUNT,
+    noise: torch.Tensor = torch.zeros(2, 2),
 ) -> MPO:
+    assert noise.shape == (2, 2)
+
     nqubits = len(qubit_positions)
     dtype = omega[0].dtype
     device = omega[0].device
@@ -140,13 +144,13 @@ def make_H(
 
     sx = torch.tensor([[0, 0.5], [0.5, 0]], dtype=dtype, device=device)
     pu = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype, device=device)
-    cores = [first_factor(omega[0] * sx - delta[0] * pu)]
+    cores = [first_factor(omega[0] * sx - delta[0] * pu + noise)]
 
     if nqubits > 2:
         for i in range(1, nqubits // 2):
             cores.append(
                 left_factor(
-                    omega[i] * sx - delta[i] * pu,
+                    omega[i] * sx - delta[i] * pu + noise,
                     [rydberg_interaction(i, j) for j in range(i)],
                 )
             )
@@ -154,7 +158,7 @@ def make_H(
         i = nqubits // 2
         cores.append(
             middle_factor(
-                omega[i] * sx - delta[i] * pu,
+                omega[i] * sx - delta[i] * pu + noise,
                 [rydberg_interaction(i, j) for j in range(i)],
                 [rydberg_interaction(i, j) for j in range(i + 1, nqubits)],
                 [
@@ -167,7 +171,7 @@ def make_H(
         for i in range(nqubits // 2 + 1, nqubits - 1):
             cores.append(
                 right_factor(
-                    omega[i] * sx - delta[i] * pu,
+                    omega[i] * sx - delta[i] * pu + noise,
                     [rydberg_interaction(i, j) for j in range(i + 1, nqubits)],
                 )
             )
@@ -175,5 +179,5 @@ def make_H(
     scale = 1.0
     if nqubits == 2:
         scale = c6 / dist2(*qubit_positions) ** 3
-    cores.append(last_factor(omega[-1] * sx - delta[-1] * pu, scale))
+    cores.append(last_factor(omega[-1] * sx - delta[-1] * pu + noise, scale))
     return MPO(cores, num_devices_to_use=num_devices_to_use)
