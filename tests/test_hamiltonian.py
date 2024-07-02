@@ -1,6 +1,7 @@
 from emu_ct import make_H, QubitPosition, dist2
 import torch
 from functools import reduce
+from emu_ct.noise import compute_noise_from_lindbladians
 
 
 #########################################
@@ -193,11 +194,7 @@ def test_9_qubit_noise():
         torch.tensor([[-2.5j + 0.5, 2.3], [1, 2]], dtype=dtype),
     ]
 
-    noise = (
-        -1j
-        / 2.0
-        * sum(lindbladian.T.conj() @ lindbladian for lindbladian in lindbladians)
-    )
+    noise = compute_noise_from_lindbladians(lindbladians)
 
     ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0, noise=noise)
 
