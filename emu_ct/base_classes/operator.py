@@ -1,6 +1,8 @@
 from __future__ import annotations
-from .state import State
+
 from abc import ABC, abstractmethod
+
+from emu_ct.base_classes.state import State
 
 
 class Operator(ABC):

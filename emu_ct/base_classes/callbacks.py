@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any
-from .state import State
-from .results import Results
-from .operator import Operator
+from emu_ct.base_classes.state import State
+from emu_ct.base_classes.results import Results
+from emu_ct.base_classes.operator import Operator
 from copy import deepcopy
 
 

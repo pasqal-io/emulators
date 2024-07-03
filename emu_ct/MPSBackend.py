@@ -3,14 +3,11 @@ from pulser import Sequence
 from emu_ct.mps import MPS
 from emu_ct.hamiltonian import make_H
 from emu_ct.tdvp import evolve_tdvp
-from .MPSConfig import MPSConfig
-from .base_classes.config import BackendConfig
-
-
-from .base_classes.backend import Backend
-from .pulser_adapter import get_qubit_positions, _extract_omega_delta
-
-from .base_classes.results import Results
+from emu_ct.MPSConfig import MPSConfig
+from emu_ct.base_classes.config import BackendConfig
+from emu_ct.base_classes.backend import Backend
+from emu_ct.pulser_adapter import get_qubit_positions, _extract_omega_delta
+from emu_ct.base_classes.results import Results
 
 
 class MPSBackend(Backend):

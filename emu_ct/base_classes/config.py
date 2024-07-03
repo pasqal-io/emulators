@@ -1,4 +1,4 @@
-from .callbacks import Callback
+from emu_ct.base_classes.callbacks import Callback
 
 
 class BackendConfig:

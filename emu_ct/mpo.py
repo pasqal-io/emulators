@@ -2,8 +2,8 @@ from typing import Any, List
 from emu_ct.mps import MPS
 from emu_ct.utils import assign_devices, DEVICE_COUNT
 import torch
-from .base_classes.state import State
-from .base_classes.operator import Operator
+from emu_ct.base_classes.state import State
+from emu_ct.base_classes.operator import Operator
 
 
 class MPO(Operator):

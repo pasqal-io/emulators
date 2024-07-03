@@ -1,8 +1,11 @@
-from .config import BackendConfig
-from pulser import Sequence
 import warnings
-from .results import Results
+
 from abc import ABC, abstractmethod
+
+from pulser import Sequence
+
+from emu_ct.base_classes.config import BackendConfig
+from emu_ct.base_classes.results import Results
 
 
 class Backend(ABC):
