@@ -7,8 +7,10 @@ from pulser.backend.abc import Backend
 import pulser
 
 
-from emu_ct import MPS, evolve_tdvp, make_H
-from .results import MPSBackendResults
+from emu_ct.mps import MPS
+from emu_ct.tdvp import evolve_tdvp
+from emu_ct.hamiltonian import make_H
+from emu_ct.results import MPSBackendResults
 from emu_ct.pulser_adapter import get_qubit_positions, _extract_omega_delta
 
 

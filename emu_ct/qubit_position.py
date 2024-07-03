@@ -1,16 +1,5 @@
-class QubitPosition:
-    def __init__(self, x: float, y: float):
-        self.x = x
-        self.y = y
-
-    def __str__(self) -> str:
-        return f"x: {self.x}, y: {self.y}"
-
-    def __repr__(self) -> str:
-        return self.__str__()
+import torch
 
 
-def dist2(left: QubitPosition, right: QubitPosition) -> float:
-    return (left.x - right.x) * (left.x - right.x) + (left.y - right.y) * (
-        left.y - right.y
-    )
+def dist2(left: torch.tensor, right: torch.tensor) -> torch.Tensor:
+    return torch.norm(left - right) ** 2

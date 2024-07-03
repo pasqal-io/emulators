@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 import math
 from typing import Union, List
-from .utils import split_tensor, assign_devices, DEVICE_COUNT
+from emu_ct.utils import split_tensor, assign_devices, DEVICE_COUNT
 from collections import Counter
 
 

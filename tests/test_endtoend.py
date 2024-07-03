@@ -42,3 +42,6 @@ def test_afm_ring_mps_tdvp_sampling():
 
     assert bitstrings["1010101010"] == 148
     assert bitstrings["0101010101"] == 151
+
+
+test_afm_ring_mps_tdvp_sampling()

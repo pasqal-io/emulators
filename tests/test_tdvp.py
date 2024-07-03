@@ -5,7 +5,8 @@ from emu_ct.tdvp import (
     evolve_tdvp,
 )
 from emu_ct.math import krylov_exp
-from emu_ct import MPS, MPO, inner, make_H, QubitPosition
+from emu_ct import MPS, MPO, inner
+from emu_ct.hamiltonian import make_H
 import torch
 
 
@@ -289,7 +290,7 @@ def test_tdvp_state_vector():
     qubit_positions = []
     for i in range(3):
         for j in range(3):
-            qubit_positions.append(QubitPosition(7.0 * i, 7.0 * j))
+            qubit_positions.append(torch.tensor([7.0 * i, 7.0 * j]))
     omegas = [torch.tensor([12.566370614359172], dtype=torch.complex128)] * nqubits
     deltas = [torch.tensor([10.771174812307862], dtype=torch.complex128)] * nqubits
     ham = make_H(qubit_positions, omegas, deltas, num_devices_to_use=0)

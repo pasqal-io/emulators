@@ -2,6 +2,7 @@ from emu_ct.pulser_adapter import _extract_omega_delta
 import torch
 from unittest.mock import patch, MagicMock
 import pytest
+from pulser.math import AbstractArray
 
 TEST_DURATION = 30
 TEST_QUBIT_IDS = ["test_qubit_0", "test_qubit_1", "test_qubit_2"]
@@ -9,8 +10,8 @@ TEST_QUBIT_IDS = ["test_qubit_0", "test_qubit_1", "test_qubit_2"]
 
 def make_channel_samples_mock(channels_data):
     channel_samples = MagicMock()
-    channel_samples.amp = torch.zeros(TEST_DURATION)
-    channel_samples.det = torch.zeros(TEST_DURATION)
+    channel_samples.amp = AbstractArray(torch.zeros(TEST_DURATION))
+    channel_samples.det = AbstractArray(torch.zeros(TEST_DURATION))
     channel_samples.slots = []
     for slot_data, slot_samples in channels_data.items():
         slot = MagicMock()
@@ -18,17 +19,17 @@ def make_channel_samples_mock(channels_data):
         slot.tf = slot_data[1]
         assert slot_data[0] < slot_data[1]
         assert len(slot_samples) == slot.tf - slot.ti
-        channel_samples.amp[slot.ti : slot.tf] = torch.Tensor(
+        channel_samples.amp._array[slot.ti : slot.tf] = torch.Tensor(
             [x[0] for x in slot_samples]
         )
-        channel_samples.det[slot.ti : slot.tf] = torch.Tensor(
+        channel_samples.det._array[slot.ti : slot.tf] = torch.Tensor(
             [x[1] for x in slot_samples]
         )
         slot.targets = slot_data[2]
         channel_samples.slots.append(slot)
 
-    channel_samples.amp.requires_grad = True
-    channel_samples.det.requires_grad = True
+    channel_samples.amp._array.requires_grad = True
+    channel_samples.det._array.requires_grad = True
 
     return channel_samples
 

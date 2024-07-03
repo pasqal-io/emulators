@@ -1,4 +1,5 @@
-from emu_ct import make_H, QubitPosition, dist2
+from emu_ct.hamiltonian import make_H
+from emu_ct.qubit_position import dist2
 import torch
 from functools import reduce
 from emu_ct.noise import compute_noise_from_lindbladians
@@ -41,7 +42,7 @@ TEST_C6 = 0.123456
 
 
 def sv_hamiltonian(
-    qubit_positions: list[QubitPosition],
+    qubit_positions: list[torch.Tensor],
     omega: list[torch.Tensor],
     delta: list[torch.Tensor],
     noise: torch.Tensor = torch.zeros(2, 2),
@@ -69,7 +70,7 @@ def sv_hamiltonian(
 def test_2_qubit():
     omega = [torch.tensor([2.0], dtype=dtype), torch.tensor([3.0], dtype=dtype)]
     delta = [torch.tensor([5.0], dtype=dtype), torch.tensor([7.0], dtype=dtype)]
-    q = [QubitPosition(0.0, 0.0), QubitPosition(10.0, 0.0)]
+    q = [torch.tensor([0.0, 0.0]), torch.tensor([10.0, 0.0])]
 
     ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0)
     assert ham.factors[0].shape == (1, 2, 2, 3)
@@ -90,7 +91,7 @@ def test_noise():
     delta = torch.tensor([0.0, 0.0], dtype=dtype)
 
     # Large distance to erase the interaction
-    q = [QubitPosition(0.0, 0.0), QubitPosition(1000.0, 0.0)]
+    q = [torch.tensor([0.0, 0.0]), torch.tensor([1000.0, 0.0])]
 
     rate = 0.234
     noise = -1j / 2.0 * torch.tensor([[0, 0], [0, rate]], dtype=dtype)
@@ -120,10 +121,10 @@ def test_4_qubit():
     delta.append(torch.tensor([5.0], dtype=dtype))
     delta.append(torch.tensor([7.0], dtype=dtype))
     q = []
-    q.append(QubitPosition(0.0, 0.0))
-    q.append(QubitPosition(10.0, 0.0))
-    q.append(QubitPosition(0.0, 10.0))
-    q.append(QubitPosition(10.0, 10.0))
+    q.append(torch.tensor([0.0, 0.0]))
+    q.append(torch.tensor([10.0, 0.0]))
+    q.append(torch.tensor([0.0, 10.0]))
+    q.append(torch.tensor([10.0, 10.0]))
 
     ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0)
     assert ham.factors[0].shape == (1, 2, 2, 3)
@@ -155,11 +156,11 @@ def test_5_qubit():
     delta.append(torch.tensor([7.0], dtype=dtype))
     delta.append(torch.tensor([11.0], dtype=dtype))
     q = []
-    q.append(QubitPosition(0.0, 0.0))
-    q.append(QubitPosition(10.0, 0.0))
-    q.append(QubitPosition(0.0, 10.0))
-    q.append(QubitPosition(10.0, 10.0))
-    q.append(QubitPosition(5.0, 5.0))
+    q.append(torch.tensor([0.0, 0.0]))
+    q.append(torch.tensor([10.0, 0.0]))
+    q.append(torch.tensor([0.0, 10.0]))
+    q.append(torch.tensor([10.0, 10.0]))
+    q.append(torch.tensor([5.0, 5.0]))
 
     ham = make_H(q, omega, delta, c6=TEST_C6, num_devices_to_use=0)
     assert ham.factors[0].shape == (1, 2, 2, 3)
@@ -186,7 +187,7 @@ def test_9_qubit_noise():
     q = []
     for i in range(3):
         for j in range(3):
-            q.append(QubitPosition(7.0 * i, 7.0 * j))
+            q.append(torch.tensor([7.0 * i, 7.0 * j]))
 
     lindbladians = [
         torch.tensor([[-5, 4], [2, 5]], dtype=dtype),
@@ -216,11 +217,11 @@ def test_differentiation():
     omega = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
     delta = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
     q = [
-        QubitPosition(0.0, 0.0),
-        QubitPosition(10.0, 0.0),
-        QubitPosition(0.0, 10.0),
-        QubitPosition(10.0, 10.0),
-        QubitPosition(5.0, 5.0),
+        torch.tensor([0.0, 0.0]),
+        torch.tensor([10.0, 0.0]),
+        torch.tensor([0.0, 10.0]),
+        torch.tensor([10.0, 10.0]),
+        torch.tensor([5.0, 5.0]),
     ]
 
     ham = make_H(q, omega, delta, num_devices_to_use=0)

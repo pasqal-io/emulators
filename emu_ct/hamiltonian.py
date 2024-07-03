@@ -1,7 +1,7 @@
 import torch
-from .utils import DEVICE_COUNT
-from .mpo import MPO
-from .qubit_position import QubitPosition, dist2
+from emu_ct.utils import DEVICE_COUNT
+from emu_ct.mpo import MPO
+from emu_ct.qubit_position import dist2
 
 """
 Takes a single qubit operator, and creates the first factor in a Hamiltonian
@@ -126,7 +126,7 @@ Returns an MPO representing the Hamiltonian specified by omega and delta.
 
 
 def make_H(
-    qubit_positions: list[QubitPosition],
+    qubit_positions: list[torch.tensor],
     omega: torch.Tensor,
     delta: torch.Tensor,
     c6: float = 5420158.53,
@@ -139,7 +139,7 @@ def make_H(
     dtype = omega[0].dtype
     device = omega[0].device
 
-    def rydberg_interaction(i: int, j: int) -> float:
+    def rydberg_interaction(i: int, j: int) -> torch.Tensor:
         return c6 / dist2(qubit_positions[i], qubit_positions[j]) ** 3
 
     sx = torch.tensor([[0, 0.5], [0.5, 0]], dtype=dtype, device=device)

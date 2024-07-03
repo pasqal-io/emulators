@@ -1,13 +1,31 @@
 import pulser
 
-from emu_ct import QubitPosition
 import torch
 
 
 def get_qubit_positions(
     register: pulser.Register,
-) -> list[QubitPosition]:
-    return [QubitPosition(*position) for position in register.qubits.values()]
+) -> list[torch.Tensor]:
+    return [
+        position._array if position.is_tensor else torch.tensor(position._array)
+        for position in register.qubits.values()
+    ]
+
+
+def _convert_sequence_samples(
+    sequence_samples: pulser.sampler.samples.SequenceSamples,
+) -> None:
+    for channel_samples in sequence_samples.samples_list:
+        channel_samples.amp = (
+            channel_samples.amp._array
+            if channel_samples.amp.is_tensor
+            else torch.tensor(channel_samples.amp._array)
+        )
+        channel_samples.det = (
+            channel_samples.det._array
+            if channel_samples.det.is_tensor
+            else torch.tensor(channel_samples.det._array)
+        )
 
 
 def _extract_omega_delta(
@@ -32,6 +50,7 @@ def _extract_omega_delta(
         modulation=with_modulation,
         extended_duration=sequence.get_duration(include_fall_time=with_modulation),
     )
+    _convert_sequence_samples(sequence_samples)
 
     max_duration = sequence_samples.max_duration
 

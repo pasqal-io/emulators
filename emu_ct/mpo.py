@@ -1,6 +1,6 @@
 from typing import Any, List
-from .mps import MPS
-from .utils import assign_devices, DEVICE_COUNT
+from emu_ct.mps import MPS
+from emu_ct.utils import assign_devices, DEVICE_COUNT
 import torch
 
 
