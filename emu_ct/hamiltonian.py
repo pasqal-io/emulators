@@ -1,7 +1,8 @@
 import torch
-from emu_ct.utils import DEVICE_COUNT
 from emu_ct.mpo import MPO
 from emu_ct.qubit_position import dist2
+from emu_ct.pulser_adapter import get_qubit_positions
+import pulser
 
 
 """
@@ -119,6 +120,23 @@ def middle_factor(
     return fac
 
 
+def rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
+    num_qubits = len(sequence.register.qubit_ids)
+
+    c6 = sequence.device.interaction_coeff
+
+    qubit_positions = get_qubit_positions(sequence.register)
+    interaction_matrix = torch.zeros(num_qubits, num_qubits)
+
+    for numi in range(len(qubit_positions)):
+        for numj in range(numi + 1, len(qubit_positions)):
+            interaction_matrix[numi][numj] = (
+                c6 / dist2(qubit_positions[numi], qubit_positions[numj]) ** 3
+            )
+
+    return interaction_matrix
+
+
 """
 Returns an MPO representing the Hamiltonian specified by omega and delta.
 
@@ -127,21 +145,18 @@ Returns an MPO representing the Hamiltonian specified by omega and delta.
 
 
 def make_H(
-    qubit_positions: list[torch.tensor],
+    interaction_matrix: torch.tensor,
     omega: torch.Tensor,
     delta: torch.Tensor,
-    c6: float,
-    num_devices_to_use: int = DEVICE_COUNT,
+    num_devices_to_use: int,
+    /,
     noise: torch.Tensor = torch.zeros(2, 2),
 ) -> MPO:
     assert noise.shape == (2, 2)
 
-    nqubits = len(qubit_positions)
+    nqubits = interaction_matrix.size(dim=1)
     dtype = omega[0].dtype
     device = omega[0].device
-
-    def rydberg_interaction(i: int, j: int) -> torch.Tensor:
-        return c6 / dist2(qubit_positions[i], qubit_positions[j]) ** 3
 
     sx = torch.tensor([[0, 0.5], [0.5, 0]], dtype=dtype, device=device)
     pu = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype, device=device)
@@ -149,10 +164,11 @@ def make_H(
 
     if nqubits > 2:
         for i in range(1, nqubits // 2):
+
             cores.append(
                 left_factor(
                     omega[i] * sx - delta[i] * pu + noise,
-                    [rydberg_interaction(i, j) for j in range(i)],
+                    [interaction_matrix[j, i] for j in range(i)],
                 )
             )
 
@@ -160,10 +176,10 @@ def make_H(
         cores.append(
             middle_factor(
                 omega[i] * sx - delta[i] * pu + noise,
-                [rydberg_interaction(i, j) for j in range(i)],
-                [rydberg_interaction(i, j) for j in range(i + 1, nqubits)],
+                [interaction_matrix[j, i] for j in range(i)],
+                [interaction_matrix[i, j] for j in range(i + 1, nqubits)],
                 [
-                    [rydberg_interaction(k, j) for j in range(i + 1, nqubits)]
+                    [interaction_matrix[k, j] for j in range(i + 1, nqubits)]
                     for k in range(i)
                 ],
             )
@@ -173,12 +189,12 @@ def make_H(
             cores.append(
                 right_factor(
                     omega[i] * sx - delta[i] * pu + noise,
-                    [rydberg_interaction(i, j) for j in range(i + 1, nqubits)],
+                    [interaction_matrix[i, j] for j in range(i + 1, nqubits)],
                 )
             )
 
     scale = 1.0
     if nqubits == 2:
-        scale = c6 / dist2(*qubit_positions) ** 3
+        scale = interaction_matrix[0, 1]
     cores.append(last_factor(omega[-1] * sx - delta[-1] * pu + noise, scale))
     return MPO(cores, num_devices_to_use=num_devices_to_use)

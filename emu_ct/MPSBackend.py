@@ -1,12 +1,12 @@
 from pulser import Sequence
 
 from emu_ct.mps import MPS
-from emu_ct.hamiltonian import make_H
+from emu_ct.hamiltonian import make_H, rydberg_interaction
 from emu_ct.tdvp import evolve_tdvp
 from emu_ct.MPSConfig import MPSConfig
 from emu_ct.base_classes.config import BackendConfig
 from emu_ct.base_classes.backend import Backend
-from emu_ct.pulser_adapter import get_qubit_positions, _extract_omega_delta
+from emu_ct.pulser_adapter import _extract_omega_delta
 from emu_ct.base_classes.results import Results
 
 
@@ -36,7 +36,20 @@ class MPSBackend(Backend):
         coeff = 0.001  # Omega and delta are given in rad/ms, dt in ns
         dt = mps_config.dt
         omega_delta = _extract_omega_delta(sequence, dt, mps_config.with_modulation)
-        emuct_register = get_qubit_positions(sequence.register)
+
+        if mps_config.interaction_matrix is not None:
+            assert len(sequence.register.qubit_ids) == mps_config.interaction_matrix.size(
+                dim=1
+            ), (
+                "The number of qubits in the register should be the same as the dimension of "
+                "the columns of the interaction matrix"
+            )
+
+        interaction_matrix = (
+            rydberg_interaction(sequence)
+            if mps_config.interaction_matrix is None
+            else mps_config.interaction_matrix
+        )
 
         evolve_state = MPS(
             len(sequence.register.qubits),
@@ -51,12 +64,13 @@ class MPSBackend(Backend):
         for step in range(omega_delta.shape[1]):
             t = step * dt
             mpo_t = make_H(
-                emuct_register,
+                interaction_matrix,
                 omega_delta[0, step, :],
                 omega_delta[1, step, :],
-                sequence.device.interaction_coeff,
+                mps_config.num_devices_to_use,
             )
             evolve_tdvp(-coeff * dt * 1j, evolve_state, mpo_t, mps_config.max_krylov_dim)
+
             for callback in mps_config.callbacks:
                 callback(t + dt, evolve_state, mpo_t, result)
 

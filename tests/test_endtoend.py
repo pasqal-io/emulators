@@ -3,7 +3,6 @@ from emu_ct import MPS, MPSBackend, MPSConfig, BitStrings, StateResult
 
 from .utils_testing import pulser_afm_sequence_ring
 
-import numpy as np
 from pytest import approx
 
 
@@ -11,7 +10,7 @@ seed = 1337
 
 
 def simulate_afm_ring_state(num_qubits: int):
-    Omega_max = 4 * 2 * np.pi
+    Omega_max = 4 * 2 * torch.pi
     U = Omega_max / 2
     delta_0 = -6 * U
     delta_f = 2 * U

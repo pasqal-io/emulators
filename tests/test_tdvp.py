@@ -6,8 +6,13 @@ from emu_ct.tdvp import (
 )
 from emu_ct.math import krylov_exp
 from emu_ct import MPS, MPO, inner
-from emu_ct.hamiltonian import make_H
+from emu_ct.hamiltonian import make_H, rydberg_interaction
+
 import torch
+
+from unittest.mock import patch, MagicMock
+
+from pulser.math import AbstractArray
 
 
 def test_left_baths_bell():
@@ -284,7 +289,8 @@ def test_evolve_tdvp():
     assert abs(inner(state, expected) - 1) < 1e-8
 
 
-def test_tdvp_state_vector():
+@patch("emu_ct.hamiltonian.pulser.sequence.Sequence")
+def test_tdvp_state_vector(mock_sequence):
     nqubits = 9
     c6 = 5420158.53  # mock device c6
 
@@ -292,9 +298,22 @@ def test_tdvp_state_vector():
     for i in range(3):
         for j in range(3):
             qubit_positions.append(torch.tensor([7.0 * i, 7.0 * j]))
+
     omegas = [torch.tensor([12.566370614359172], dtype=torch.complex128)] * nqubits
     deltas = [torch.tensor([10.771174812307862], dtype=torch.complex128)] * nqubits
-    ham = make_H(qubit_positions, omegas, deltas, c6, num_devices_to_use=0)
+
+    mock_device = MagicMock(interaction_coeff=c6)
+    mock_sequence.device = mock_device
+
+    mock_register = MagicMock()
+    qubits_ids = [f"q{i}" for i in range(9)]
+    mock_register.qubit_ids = qubits_ids
+    abstract_q = [AbstractArray(qubit) for qubit in qubit_positions]
+    mock_register.qubits = dict(zip(qubits_ids, abstract_q))
+    mock_sequence.register = mock_register
+    interaction_matrix = rydberg_interaction(mock_sequence)
+
+    ham = make_H(interaction_matrix, omegas, deltas, 0)
 
     # |000000000>
     state = MPS(
@@ -307,7 +326,7 @@ def test_tdvp_state_vector():
 
     vec = torch.einsum(
         "abtc,cdue,efvg,ghwi,ijxk,klym,mnzo,opAq,qrBs->abdfhjlnprtuvwxyzABs",
-        *(ham.factors)
+        *(ham.factors),
     ).reshape(2**nqubits, 2**nqubits)
     expected = torch.linalg.matrix_exp(-0.01j * vec)[:, 0]
     for _ in range(10):

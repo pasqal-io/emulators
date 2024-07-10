@@ -1,4 +1,5 @@
-from emu_ct import MPS, MPO, inner, evolve_tdvp
+from emu_ct import MPS, MPO, inner
+from emu_ct.tdvp import evolve_tdvp
 import torch
 
 num_sites = 3
