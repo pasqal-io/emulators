@@ -70,20 +70,24 @@ def test_single_channel(mock_pulser_sample):
     )
 
     dt = 2
-    res = _extract_omega_delta(sequence, dt, False)
+    actual_omega, actual_delta = _extract_omega_delta(sequence, dt, False)
 
     expected_number_of_samples = 16  # TEST_DURATION // sampling_rate + 1
-    expected = torch.zeros(
-        2, expected_number_of_samples, len(TEST_QUBIT_IDS), dtype=torch.complex128
+    expected_omega = torch.zeros(
+        expected_number_of_samples, len(TEST_QUBIT_IDS), dtype=torch.complex128
     )
-    expected[0, 5:10, 0] = 1
-    expected[1, 5:10, 0] = 2
-    expected[0, 13, 2] = 3
-    expected[1, 13, 2] = 4
-    expected[0, 14, 2] = 7
-    expected[1, 14, 2] = 8
+    expected_delta = torch.zeros(
+        expected_number_of_samples, len(TEST_QUBIT_IDS), dtype=torch.complex128
+    )
+    expected_omega[5:10, 0] = 1
+    expected_delta[5:10, 0] = 2
+    expected_omega[13, 2] = 3
+    expected_delta[13, 2] = 4
+    expected_omega[14, 2] = 7
+    expected_delta[14, 2] = 8
 
-    assert torch.allclose(res, expected)
+    assert torch.allclose(actual_omega, expected_omega)
+    assert torch.allclose(actual_delta, expected_delta)
 
 
 @patch("emu_ct.pulser_adapter.pulser.sampler.sampler.sample")
@@ -97,7 +101,7 @@ def test_autograd(mock_pulser_sample):
 
     dt = 2
     res = torch.autograd.grad(
-        _extract_omega_delta(sequence, dt, False)[0, 13, 2].real,
+        _extract_omega_delta(sequence, dt, False)[0][13, 2].real,
         mock_pulser_sample.return_value.samples_list[0].amp,
     )
     expected = torch.zeros(30)
@@ -123,18 +127,22 @@ def test_multiple_channels(mock_pulser_sample):
         },
     )
     dt = 2
-    res = _extract_omega_delta(sequence, dt, False)
+    actual_omega, actual_delta = _extract_omega_delta(sequence, dt, False)
     expected_number_of_samples = 16  # TEST_DURATION // sampling_rate + 1
-    expected = torch.zeros(
-        2, expected_number_of_samples, len(TEST_QUBIT_IDS), dtype=torch.complex128
+    expected_omega = torch.zeros(
+        expected_number_of_samples, len(TEST_QUBIT_IDS), dtype=torch.complex128
     )
-    expected[0, 5:10, 0] = 1
-    expected[1, 5:10, 0] = 2
-    expected[0, 13, (0, 2)] = 3
-    expected[1, 13, (0, 2)] = 4
-    expected[0, 14, (0, 2)] = 7
-    expected[1, 14, (0, 2)] = 8
-    assert torch.allclose(res, expected)
+    expected_delta = torch.zeros(
+        expected_number_of_samples, len(TEST_QUBIT_IDS), dtype=torch.complex128
+    )
+    expected_omega[5:10, 0] = 1
+    expected_delta[5:10, 0] = 2
+    expected_omega[13, (0, 2)] = 3
+    expected_delta[13, (0, 2)] = 4
+    expected_omega[14, (0, 2)] = 7
+    expected_delta[14, (0, 2)] = 8
+    assert torch.allclose(actual_omega, expected_omega)
+    assert torch.allclose(actual_delta, expected_delta)
 
 
 @patch("emu_ct.pulser_adapter.pulser.sampler.sampler.sample")
@@ -148,16 +156,20 @@ def test_multiple_channels_together(mock_pulser_sample):
         },
     )
     dt = 5
-    res = _extract_omega_delta(sequence, dt, False)
+    actual_omega, actual_delta = _extract_omega_delta(sequence, dt, False)
     expected_number_of_samples = 7
-    expected = torch.zeros(
-        2, expected_number_of_samples, len(TEST_QUBIT_IDS), dtype=torch.complex128
+    expected_omega = torch.zeros(
+        expected_number_of_samples, len(TEST_QUBIT_IDS), dtype=torch.complex128
     )
-    expected[0, 2:4, 0] = 1
-    expected[1, 2:4, 0] = 2
-    expected[0, 2:4, 1:3] = 3
-    expected[1, 2:4, 1:3] = 4
-    assert torch.allclose(res, expected)
+    expected_delta = torch.zeros(
+        expected_number_of_samples, len(TEST_QUBIT_IDS), dtype=torch.complex128
+    )
+    expected_omega[2:4, 0] = 1
+    expected_delta[2:4, 0] = 2
+    expected_omega[2:4, 1:3] = 3
+    expected_delta[2:4, 1:3] = 4
+    assert torch.allclose(actual_omega, expected_omega)
+    assert torch.allclose(actual_delta, expected_delta)
 
 
 @patch("emu_ct.pulser_adapter.pulser.sampler.sampler.sample")

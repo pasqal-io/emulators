@@ -2,7 +2,12 @@ import pytest
 import torch
 import math
 from typing import List
-from emu_ct.utils import split_tensor, assign_devices
+from emu_ct.utils import (
+    split_tensor,
+    assign_devices,
+    extended_mps_factors,
+    extended_mpo_factors,
+)
 
 
 @pytest.mark.parametrize(
@@ -89,3 +94,82 @@ def test_assign_devices():
     assign_devices(ts, num_devices_to_use=2)
 
     assert gpus(ts) == [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
+
+
+def test_extended_mps_factors():
+    a = torch.rand(1, 2, 3)
+    b = torch.rand(3, 2, 5)
+    c = torch.rand(5, 2, 1)
+    mpo_factors = [a, b, c]
+    where = [False, True, False, True, True, False, False]
+    extended = extended_mps_factors(mpo_factors, where)
+
+    assert [t.shape for t in extended] == [
+        (1, 2, 1),
+        (1, 2, 3),
+        (3, 2, 3),
+        (3, 2, 5),
+        (5, 2, 1),
+        (1, 2, 1),
+        (1, 2, 1),
+    ]
+    true_count = 0
+    for i, b in enumerate(where):
+        if b:
+            assert extended[i] is mpo_factors[true_count]
+            true_count += 1
+        else:
+            assert torch.allclose(
+                extended[i][:, 0, :],
+                torch.eye(extended[i].shape[0], dtype=torch.complex128),
+            )
+            assert torch.allclose(
+                extended[i][:, 1, :],
+                torch.zeros(extended[i].shape[0], dtype=torch.complex128),
+            )
+
+
+def test_extended_mpo_factors():
+    a = torch.rand(1, 2, 2, 3)
+    b = torch.rand(3, 2, 2, 5)
+    c = torch.rand(5, 2, 2, 1)
+    mpo_factors = [a, b, c]
+    where = [False, True, False, True, True, False, False]
+    extended = extended_mpo_factors(mpo_factors, where)
+
+    assert [t.shape for t in extended] == [
+        (1, 2, 2, 1),
+        (1, 2, 2, 3),
+        (3, 2, 2, 3),
+        (3, 2, 2, 5),
+        (5, 2, 2, 1),
+        (1, 2, 2, 1),
+        (1, 2, 2, 1),
+    ]
+
+    true_count = 0
+    for i, b in enumerate(where):
+        if b:
+            assert extended[i] is mpo_factors[true_count]
+            true_count += 1
+        else:
+            assert torch.allclose(
+                extended[i][:, 0, 0, :],
+                torch.eye(extended[i].shape[0], dtype=torch.complex128),
+            )
+            assert torch.allclose(
+                extended[i][:, 1, 1, :],
+                torch.eye(extended[i].shape[0], dtype=torch.complex128),
+            )
+            assert torch.allclose(
+                extended[i][:, 1, 0, :],
+                torch.zeros(
+                    extended[i].shape[0], extended[i].shape[0], dtype=torch.complex128
+                ),
+            )
+            assert torch.allclose(
+                extended[i][:, 0, 1, :],
+                torch.zeros(
+                    extended[i].shape[0], extended[i].shape[0], dtype=torch.complex128
+                ),
+            )

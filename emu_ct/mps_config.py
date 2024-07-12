@@ -25,3 +25,15 @@ class MPSConfig(BackendConfig):
         self.max_krylov_dim = max_krylov_dim
         self.num_devices_to_use = num_devices_to_use
         self.interaction_matrix = interaction_matrix
+
+        if self.noise_model is not None:
+            if not set(self.noise_model.noise_types).issubset({"SPAM"}):
+                raise NotImplementedError(
+                    "Unsupported noise type(s): "
+                    + str(set(self.noise_model.noise_types) - {"SPAM"})
+                )
+
+            if self.noise_model.p_false_pos > 0.0 or self.noise_model.p_false_neg > 0.0:
+                raise NotImplementedError(
+                    "Unsupported: measurement errors - set p_false_pos=0. and p_false_neg=0."
+                )

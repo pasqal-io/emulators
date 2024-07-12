@@ -19,26 +19,32 @@ class MPS(State):
 
     def __init__(
         self,
-        sites: Union[int, List],
+        sites: Union[int, List[torch.Tensor]],
         truncate: bool = False,
         precision: float = 1e-5,
         max_bond_dim: int = 1024,
         num_devices_to_use: int = DEVICE_COUNT,
+        keep_devices: bool = False,
     ):
         self.precision = precision
         self.max_bond_dim = max_bond_dim
+        self.factors: List[torch.Tensor] = []
 
         if isinstance(sites, int):
             self.num_sites = sites
             if not self.num_sites > 1:
                 raise ValueError("For 1 qubit states, do state vector")
-            self.factors = []
 
             for i in range(self.num_sites):
                 tensor = torch.zeros((1, 2, 1), dtype=torch.complex128)
                 tensor[0, 0, 0] = 1.0
                 self.factors.append(tensor)
         elif isinstance(sites, List):
+            assert all(
+                sites[i - 1].shape[2] == sites[i].shape[0] for i in range(1, len(sites))
+            )
+            assert sites[0].shape[0] == sites[-1].shape[2] == 1
+
             self.factors = sites
             self.num_sites = len(sites)
             assert self.num_sites > 1  # otherwise, do state vector
@@ -47,7 +53,8 @@ class MPS(State):
                 "Sites must specify a number of qubits, or a list of tensors representing the MPS"
             )
 
-        assign_devices(self.factors, min(DEVICE_COUNT, num_devices_to_use))
+        if not keep_devices:
+            assign_devices(self.factors, min(DEVICE_COUNT, num_devices_to_use))
 
         if truncate:
             self.truncate()
@@ -99,7 +106,7 @@ class MPS(State):
 
     def get_max_bond_dim(self) -> int:
         """Return the max bond dimension of MPS"""
-        return int(max(x.shape[2] for x in self.factors))
+        return max((x.shape[2] for x in self.factors), default=0)
 
     def sample(self, num_shots: int) -> Counter[str]:
         """Returns bitstring distribution for a given number of samples or shots"""

@@ -1,7 +1,7 @@
 from .mps import MPS, inner
 from .mpo import MPO
-from .MPSConfig import MPSConfig
-from .MPSBackend import MPSBackend
+from .mps_config import MPSConfig
+from .mps_backend import MPSBackend
 from .base_classes.callbacks import Callback, StateResult, BitStrings
 
 

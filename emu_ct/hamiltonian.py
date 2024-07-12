@@ -197,4 +197,4 @@ def make_H(
     if nqubits == 2:
         scale = interaction_matrix[0, 1]
     cores.append(last_factor(omega[-1] * sx - delta[-1] * pu + noise, scale))
-    return MPO(cores, num_devices_to_use=num_devices_to_use)
+    return MPO(cores)

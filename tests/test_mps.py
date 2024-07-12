@@ -38,6 +38,12 @@ def test_init():
         )
         assert abs(torch.tensordot(factor, factor, dims=3)) - 1 < 1e-8
 
+    # Check that no copy or move is performed when keep_devices=True
+    state_keep_devices = MPS([factor1, factor2, factor3], keep_devices=True)
+    assert state_keep_devices.factors[0] is factor1
+    assert state_keep_devices.factors[1] is factor2
+    assert state_keep_devices.factors[2] is factor3
+
 
 def test_inner():
     n_qubits = 3

@@ -1,5 +1,5 @@
 import pulser
-
+from typing import Tuple
 import torch
 
 
@@ -32,11 +32,11 @@ def _extract_omega_delta(
     sequence: pulser.sequence.sequence.Sequence,
     dt: int,
     with_modulation: bool,
-) -> torch.Tensor:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Samples the Pulser sequence and returns a tensor T containing:
-    - T[0, i, q] = amplitude at time i * sampling_rate for qubit q
-    - T[1, i, q] = detuning at time i * sampling_rate for qubit q
+    Samples the Pulser sequence and returns a pair of tensors (omega, delta) containing:
+    - omega[i, q] = amplitude at time i * dt for qubit q
+    - delta[i, q] = detuning at time i * dt for qubit q
     """
 
     if with_modulation and sequence._slm_mask_targets:
@@ -54,8 +54,12 @@ def _extract_omega_delta(
 
     max_duration = sequence_samples.max_duration
 
-    result = torch.zeros(
-        2,
+    omega = torch.zeros(
+        int(max_duration / dt) + 1,
+        len(sequence.register.qubit_ids),
+        dtype=torch.complex128,
+    )
+    delta = torch.zeros(
         int(max_duration / dt) + 1,
         len(sequence.register.qubit_ids),
         dtype=torch.complex128,
@@ -89,9 +93,9 @@ def _extract_omega_delta(
 
                 seen_qubits.add(qubit_index)
 
-                result[0, step, qubit_index] = channel_samples.amp[t]
-                result[1, step, qubit_index] = channel_samples.det[t]
+                omega[step, qubit_index] = channel_samples.amp[t]
+                delta[step, qubit_index] = channel_samples.det[t]
 
         step += 1
 
-    return result
+    return omega, delta

@@ -71,3 +71,71 @@ def assign_devices(tensors: List[torch.Tensor], num_devices_to_use: int) -> None
 
     for i in range(len(tensors)):
         tensors[i] = tensors[i].to(f"cuda:{i // tensors_per_device}")
+
+
+def extended_mps_factors(
+    mps_factors: list[torch.Tensor], where: list[bool]
+) -> list[torch.Tensor]:
+    """
+    Given a valid list of MPS factors, accounting for qubits marked as `True` in `where`,
+    fills the `False` positions with new qubits in the |0> state.
+    """
+    assert len(mps_factors) == sum(1 for b in where if b)
+
+    bond_dimension = 1
+    factor_index = 0
+    result = []
+    for is_factor in where:
+        assert 0 <= factor_index <= len(mps_factors)
+
+        if is_factor:
+            result.append(mps_factors[factor_index])
+            bond_dimension = mps_factors[factor_index].shape[2]
+            factor_index += 1
+        elif factor_index == len(mps_factors):
+            factor = torch.zeros(bond_dimension, 2, 1, dtype=torch.complex128)
+            factor[:, 0, :] = torch.eye(bond_dimension, 1)
+            bond_dimension = 1
+            result.append(factor)
+        else:
+            factor = torch.zeros(
+                bond_dimension, 2, bond_dimension, dtype=torch.complex128
+            )
+            factor[:, 0, :] = torch.eye(bond_dimension, bond_dimension)
+            result.append(factor)
+    return result
+
+
+def extended_mpo_factors(
+    mpo_factors: list[torch.Tensor], where: list[bool]
+) -> list[torch.Tensor]:
+    """
+    Given a valid list of MPO factors, accounting for qubits marked as `True` in `where`,
+    fills the `False` positions with new MPO identity factors.
+    """
+    assert len(mpo_factors) == sum(1 for b in where if b)
+
+    bond_dimension = 1
+    factor_index = 0
+    result = []
+    for is_factor in where:
+        assert 0 <= factor_index <= len(mpo_factors)
+
+        if is_factor:
+            result.append(mpo_factors[factor_index])
+            bond_dimension = mpo_factors[factor_index].shape[3]
+            factor_index += 1
+        elif factor_index == len(mpo_factors):
+            factor = torch.zeros(bond_dimension, 2, 2, 1, dtype=torch.complex128)
+            factor[:, 0, 0, :] = torch.eye(bond_dimension, 1)
+            factor[:, 1, 1, :] = torch.eye(bond_dimension, 1)
+            bond_dimension = 1
+            result.append(factor)
+        else:
+            factor = torch.zeros(
+                bond_dimension, 2, 2, bond_dimension, dtype=torch.complex128
+            )
+            factor[:, 0, 0, :] = torch.eye(bond_dimension, bond_dimension)
+            factor[:, 1, 1, :] = torch.eye(bond_dimension, bond_dimension)
+            result.append(factor)
+    return result

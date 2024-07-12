@@ -1,6 +1,5 @@
 from typing import Any, List
 from emu_ct.mps import MPS
-from emu_ct.utils import assign_devices, DEVICE_COUNT
 import torch
 from emu_ct.base_classes.state import State
 from emu_ct.base_classes.operator import Operator
@@ -14,14 +13,11 @@ class MPO(Operator):
     def __init__(
         self,
         factors: List[torch.Tensor],
-        num_devices_to_use: int = DEVICE_COUNT,
     ):
         self.factors = factors
         self.num_sites = len(factors)
         if not self.num_sites > 1:
             raise ValueError("For 1 qubit states, do state vector")
-
-        assign_devices(self.factors, min(DEVICE_COUNT, num_devices_to_use))
 
     def __repr__(self) -> str:
         result = "["

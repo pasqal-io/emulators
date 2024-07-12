@@ -7,7 +7,7 @@ from copy import deepcopy
 
 
 class Callback(ABC):
-    def __init__(self, times: list[int]):
+    def __init__(self, times: set[int]):
         self.times = times
 
     def __call__(self, t: int, state: State, H: Operator, result: Results) -> None:
@@ -26,7 +26,7 @@ class Callback(ABC):
 
 
 class StateResult(Callback):
-    def __init__(self, times: list[int]):
+    def __init__(self, times: set[int]):
         super().__init__(times)
 
     @staticmethod
@@ -38,7 +38,7 @@ class StateResult(Callback):
 
 
 class BitStrings(Callback):
-    def __init__(self, times: list[int], num_shots: int = 1000):
+    def __init__(self, times: set[int], num_shots: int = 1000):
         super().__init__(times)
         self.num_shots = num_shots
 

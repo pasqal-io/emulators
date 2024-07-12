@@ -1,4 +1,5 @@
 import torch
+import random
 
 
 def compute_noise_from_lindbladians(lindbladians: list[torch.Tensor]) -> torch.Tensor:
@@ -14,3 +15,7 @@ def compute_noise_from_lindbladians(lindbladians: list[torch.Tensor]) -> torch.T
             start=torch.zeros(2, 2, dtype=torch.complex128),
         )
     )
+
+
+def pick_well_prepared_qubits(eta: float, n: int) -> list[bool]:
+    return [random.random() > eta for _ in range(n)]
