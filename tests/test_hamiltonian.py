@@ -44,7 +44,7 @@ def n(i, j, nqubits):
     return reduce(torch.kron, matrices)
 
 
-TEST_C6 = 5420158.53  # MockDevice c6
+TEST_C6 = 5420158.53
 
 
 def sv_hamiltonian(

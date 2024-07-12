@@ -2,6 +2,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections import Counter
 
+"""
+note that self is the left state in the inner product,
+so this function is linear in other, and anti-linear in self
+"""
+
 
 class State(ABC):
     @abstractmethod

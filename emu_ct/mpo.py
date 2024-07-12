@@ -1,8 +1,28 @@
-from typing import Any, List
+from typing import Any, List, cast
+import itertools
 from emu_ct.mps import MPS
 import torch
 from emu_ct.base_classes.state import State
-from emu_ct.base_classes.operator import Operator
+from emu_ct.base_classes.operator import Operator, OperatorString, TargetedOperatorString
+from pulser.register.base_register import QubitId
+
+
+def _validate_qubit_ids(
+    operations: list[TargetedOperatorString], qubit_ids: list[QubitId]
+) -> None:
+    target_qids = [operation[1] for operation in operations]
+    assert "global" not in target_qids, "global is not supported yet."
+    target_qids_list = list(itertools.chain(*target_qids))
+    target_qids_set = set(target_qids_list)
+    if len(target_qids_set) < len(target_qids_list):
+        # Either the qubit id has been defined twice in an operation:
+        for qids in target_qids:
+            if len(set(qids)) < len(qids):
+                raise ValueError("Duplicate atom ids in argument list.")
+        # Or it was defined in two different operations
+        raise ValueError("Each qubit can be targeted by only one operation.")
+    if not target_qids_set.issubset(qubit_ids):
+        raise ValueError("Invalid qubit names: " f"{target_qids_set - set(qubit_ids)}")
 
 
 class MPO(Operator):
@@ -13,6 +33,7 @@ class MPO(Operator):
     def __init__(
         self,
         factors: List[torch.Tensor],
+        /,
     ):
         self.factors = factors
         self.num_sites = len(factors)
@@ -61,3 +82,64 @@ class MPO(Operator):
 
     def __rmul__(self, state: MPS) -> MPS:
         return self * state
+
+    @staticmethod
+    def from_operator_string(
+        basis: tuple[str],
+        qubits: list[QubitId],
+        operations: list[TargetedOperatorString],
+        operators: dict[str, OperatorString] = {},
+        /,
+        **kwargs: Any,
+    ) -> Operator:
+        assert set(basis) == {
+            "r",
+            "g",
+        }, "only the rydberg-ground basis is currently supported"
+        _validate_qubit_ids(operations, qubits)
+        nqubits = len(qubits)
+
+        id_to_idx: dict[str, int] = {}
+        for i, name in enumerate(qubits):
+            id_to_idx[name] = i
+        operations_indexed = [
+            (op[0], set([id_to_idx[target] for target in op[1]])) for op in operations
+        ]
+
+        # operators will now contain the 'sigma_ij' elements defined, and potentially
+        # user defined strings in terms of the 'sigma_ij'
+        operators |= {
+            "sigma_gg": torch.tensor(
+                [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
+            ).reshape(1, 2, 2, 1),
+            "sigma_gr": torch.tensor(
+                [[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128
+            ).reshape(1, 2, 2, 1),
+            "sigma_rg": torch.tensor(
+                [[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128
+            ).reshape(1, 2, 2, 1),
+            "sigma_rr": torch.tensor(
+                [[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128
+            ).reshape(1, 2, 2, 1),
+        }
+
+        # this function will recurse through the operators, and replace any definitions
+        # in terms of strings by the computed tensor
+        def replace_operator_string(op: OperatorString | torch.Tensor) -> torch.Tensor:
+            if isinstance(op, OperatorString):
+                for i, factor in enumerate(op.operators):
+                    tensor = replace_operator_string(operators[factor])
+                    operators[factor] = tensor
+                    op.operators[i] = tensor * op.coefficients[i]
+                op = sum(cast(list[torch.Tensor], op.operators))
+            return op
+
+        factors = [torch.eye(2, 2, dtype=torch.complex128).reshape(1, 2, 2, 1)] * nqubits
+
+        for i, op in enumerate(operations_indexed):
+            operations_indexed[i] = (replace_operator_string(op[0]), op[1])
+
+        for op in operations_indexed:
+            for i in op[1]:
+                factors[i] = op[0]
+        return MPO(factors, **kwargs)
