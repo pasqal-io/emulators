@@ -16,3 +16,7 @@ class State(ABC):
     @abstractmethod
     def sample(self, num_shots: int) -> Counter[str]:
         pass
+
+    @abstractmethod
+    def __add__(self, other: State) -> State:
+        pass

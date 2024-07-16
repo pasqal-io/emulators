@@ -7,6 +7,8 @@ from emu_ct.utils import split_tensor, assign_devices, DEVICE_COUNT
 from emu_ct.base_classes.state import State
 from collections import Counter
 
+from emu_ct.algebra import _add_factors
+
 
 class MPS(State):
     """
@@ -45,7 +47,10 @@ class MPS(State):
             assert all(
                 sites[i - 1].shape[2] == sites[i].shape[0] for i in range(1, len(sites))
             )
-            assert sites[0].shape[0] == sites[-1].shape[2] == 1
+            if sites[0].shape[0] != 1 or sites[-1].shape[2] != 1:
+                raise ValueError(
+                    "The dimension of the left (right) link of the first (last) tensor should be 1"
+                )
 
             self.factors = sites
             self.num_sites = len(sites)
@@ -171,6 +176,22 @@ class MPS(State):
             acc = torch.tensordot(self.factors[i].conj(), acc, dims=([0, 1], [0, 1]))
 
         return acc.item()  # type: ignore[no-any-return]
+
+    def __add__(self, other: State) -> State:
+        """
+        Returns the sum of two MPSs, computed with a direct algorithm.
+        The resulting MPS is orthogonalized on the first site and truncated
+        up to `self.precision`.
+        """
+        assert isinstance(other, MPS), "Other state also needs to be an MPS"
+        new_tt = _add_factors(self.factors, other.factors)
+        return MPS(
+            new_tt,
+            truncate=True,
+            precision=self.precision,
+            max_bond_dim=self.max_bond_dim,
+            keep_devices=True,
+        )
 
 
 def inner(left: MPS, right: MPS) -> float | complex:
