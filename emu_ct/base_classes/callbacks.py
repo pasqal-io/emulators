@@ -93,7 +93,7 @@ class CorrelationMatrix(Callback):
                 ]
                 for i in self.qubits
             ]
-        return [[state.inner(op * state) for op in ops] for ops in self.operators]
+        return [[state.inner(op * state).real for op in ops] for ops in self.operators]
 
 
 class QubitDensity(Callback):
@@ -115,4 +115,27 @@ class QubitDensity(Callback):
                 )
                 for i in self.qubits
             ]
-        return [state.inner(op * state) for op in self.operators]
+        return [state.inner(op * state).real for op in self.operators]
+
+
+class Energy(Callback):
+    def __init__(self, times: set[int]):
+        super().__init__(times)
+
+    def name(self) -> str:
+        return "energy"
+
+    def apply(self, t: int, state: State, H: Operator) -> Any:
+        return state.inner(H * state).real
+
+
+class EnergyVariance(Callback):
+    def __init__(self, times: set[int]):
+        super().__init__(times)
+
+    def name(self) -> str:
+        return "energy_variance"
+
+    def apply(self, t: int, state: State, H: Operator) -> Any:
+        h_state = H * state
+        return h_state.inner(h_state).real - (state.inner(H * state).real) ** 2

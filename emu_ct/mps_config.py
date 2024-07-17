@@ -1,5 +1,6 @@
 from typing import Any
-from .base_classes.config import BackendConfig
+from emu_ct.base_classes.config import BackendConfig
+from emu_ct.base_classes.state import State
 from .utils import DEVICE_COUNT
 import torch
 
@@ -8,7 +9,7 @@ class MPSConfig(BackendConfig):
     def __init__(
         self,
         *,
-        initial_state: str = "ground",
+        initial_state: State | None = None,
         dt: int = 10,
         precision: float = 1e-5,
         max_bond_dim: int = 1024,

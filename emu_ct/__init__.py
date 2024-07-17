@@ -7,6 +7,8 @@ from .base_classes.callbacks import (
     QubitDensity,
     CorrelationMatrix,
     Fidelity,
+    Energy,
+    EnergyVariance,
 )
 from .base_classes.operator import OperatorString, TargetedOperatorString
 from .mps_config import MPSConfig
@@ -28,4 +30,6 @@ __all__ = [
     "QubitDensity",
     "CorrelationMatrix",
     "Fidelity",
+    "Energy",
+    "EnergyVariance",
 ]

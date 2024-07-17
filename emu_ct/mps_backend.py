@@ -1,4 +1,7 @@
 from pulser import Sequence
+from time import time
+import torch
+from resource import getrusage, RUSAGE_SELF
 
 from emu_ct.mps import MPS
 from emu_ct.hamiltonian import make_H, rydberg_interaction
@@ -85,7 +88,7 @@ class MPSBackend(Backend):
         result = Results()
 
         for step in range(omega.shape[0]):
-            t = step * dt
+            start = time()
             mpo = make_H(
                 interaction_matrix[well_prepared_qubits_filter, :][
                     :, well_prepared_qubits_filter
@@ -96,6 +99,7 @@ class MPSBackend(Backend):
             )
             evolve_tdvp(-coeff * dt * 1j, state, mpo, mps_config.max_krylov_dim)
 
+            t = (step + 1) * dt  # we are now after the time-step, so use step+1
             for callback in mps_config.callbacks:
                 if not has_dark_qubit:
                     callback(t, state, mpo, result)
@@ -109,5 +113,18 @@ class MPSBackend(Backend):
                         keep_devices=True,
                     )
                     callback(t, full_state, full_mpo, result)
+            end = time()
+            mem = (
+                torch.cuda.max_memory_allocated() * 1e-6
+                if state.factors[0].is_cuda
+                else getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+            )
+            print(
+                f"step = {step}/{omega.shape[0]},",
+                f"χ = {state.get_max_bond_dim()},",
+                f"|ψ| = {state.get_memory_footprint():.3f} MB,",
+                f"RSS = {mem:.3f} MB,",
+                f"Δt = {end - start} s",
+            )
 
         return result

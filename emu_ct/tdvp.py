@@ -150,8 +150,8 @@ def evolve_tdvp(
         evol = krylov_exp(
             op,
             s,
-            exp_tolerance=state.precision,
-            norm_tolerance=state.precision,
+            exp_tolerance=state.precision**2,
+            norm_tolerance=state.precision**2,
             max_krylov_dim=max_krylov_dim,
         ).reshape(lss[0] * 2, 2 * rss[-1])
 
@@ -171,8 +171,8 @@ def evolve_tdvp(
             evol = krylov_exp(
                 op,
                 state.factors[i + 1],
-                exp_tolerance=state.precision,
-                norm_tolerance=state.precision,
+                exp_tolerance=state.precision**2,
+                norm_tolerance=state.precision**2,
                 max_krylov_dim=max_krylov_dim,
             )
             state.factors[i + 1] = evol
@@ -205,8 +205,8 @@ def evolve_tdvp(
         evol = krylov_exp(
             op,
             s,
-            exp_tolerance=state.precision,
-            norm_tolerance=state.precision,
+            exp_tolerance=state.precision * 1e-3,
+            norm_tolerance=state.precision * 1e-3,
             max_krylov_dim=max_krylov_dim,
         ).reshape(lss[0] * 2, 2 * rss[-1])
 
@@ -232,8 +232,8 @@ def evolve_tdvp(
             evol = krylov_exp(
                 op,
                 state.factors[i],
-                exp_tolerance=state.precision,
-                norm_tolerance=state.precision,
+                exp_tolerance=state.precision**2,
+                norm_tolerance=state.precision**2,
                 max_krylov_dim=max_krylov_dim,
             )
 

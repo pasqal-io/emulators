@@ -8,8 +8,6 @@ from functools import reduce
 
 from unittest.mock import patch, MagicMock
 
-from pulser.math import AbstractArray
-
 
 #########################################
 # Code for building the hamiltonian in
@@ -80,9 +78,9 @@ def test_rydberg_interaction(mock_sequence):
     mock_register.qubit_ids = ["q0", "q1", "q2"]
 
     mock_register.qubits = {
-        "q0": AbstractArray(q[0]),
-        "q1": AbstractArray(q[1]),
-        "q2": AbstractArray(q[2]),
+        "q0": q[0],
+        "q1": q[1],
+        "q2": q[2],
     }
     mock_sequence.register = mock_register
 

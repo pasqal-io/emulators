@@ -12,8 +12,6 @@ import torch
 
 from unittest.mock import patch, MagicMock
 
-from pulser.math import AbstractArray
-
 
 def test_left_baths_bell():
     # state = (|0> + |1>)^3 / norm
@@ -308,7 +306,7 @@ def test_tdvp_state_vector(mock_sequence):
     mock_register = MagicMock()
     qubits_ids = [f"q{i}" for i in range(9)]
     mock_register.qubit_ids = qubits_ids
-    abstract_q = [AbstractArray(qubit) for qubit in qubit_positions]
+    abstract_q = [qubit for qubit in qubit_positions]
     mock_register.qubits = dict(zip(qubits_ids, abstract_q))
     mock_sequence.register = mock_register
     interaction_matrix = rydberg_interaction(mock_sequence)

@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "benchmarkutils"
+description = "Benchmark utilities for Emu-TN"
+version = "0.1"
+dependencies = [
+  "pulser",
+  "matplotlib",
+  "numpy",
+  "qutip",
+]
+
+[tool.hatch.build.targets.wheel]
+      packages = ["benchmarkutils"]

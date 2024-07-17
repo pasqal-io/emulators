@@ -1,31 +1,21 @@
 import pulser
 from typing import Tuple
 import torch
+import math
 
 
 def get_qubit_positions(
     register: pulser.Register,
 ) -> list[torch.Tensor]:
-    return [
-        position._array if position.is_tensor else torch.tensor(position._array)
-        for position in register.qubits.values()
-    ]
+    return [torch.tensor(position) for position in register.qubits.values()]
 
 
 def _convert_sequence_samples(
     sequence_samples: pulser.sampler.samples.SequenceSamples,
 ) -> None:
     for channel_samples in sequence_samples.samples_list:
-        channel_samples.amp = (
-            channel_samples.amp._array
-            if channel_samples.amp.is_tensor
-            else torch.tensor(channel_samples.amp._array)
-        )
-        channel_samples.det = (
-            channel_samples.det._array
-            if channel_samples.det.is_tensor
-            else torch.tensor(channel_samples.det._array)
-        )
+        channel_samples.amp = torch.tensor(channel_samples.amp)
+        channel_samples.det = torch.tensor(channel_samples.det)
 
 
 def _extract_omega_delta(
@@ -53,23 +43,23 @@ def _extract_omega_delta(
     _convert_sequence_samples(sequence_samples)
 
     max_duration = sequence_samples.max_duration
-
+    nsamples = math.ceil(max_duration / dt - 1 / 2)
     omega = torch.zeros(
-        int(max_duration / dt) + 1,
+        nsamples,
         len(sequence.register.qubit_ids),
         dtype=torch.complex128,
     )
     delta = torch.zeros(
-        int(max_duration / dt) + 1,
+        nsamples,
         len(sequence.register.qubit_ids),
         dtype=torch.complex128,
     )
     number_of_channels = len(sequence_samples.samples_list)
     current_slot_indices = [0] * number_of_channels
     step = 0
+    t = int((step + 1 / 2) * dt)
 
-    while step * dt < max_duration:
-        t = step * dt
+    while t < max_duration:
         seen_qubits = set()
         for channel_index, slot_index in enumerate(current_slot_indices):
             channel_samples = sequence_samples.samples_list[channel_index]
@@ -97,5 +87,6 @@ def _extract_omega_delta(
                 delta[step, qubit_index] = channel_samples.det[t]
 
         step += 1
+        t = int((step + 1 / 2) * dt)
 
     return omega, delta

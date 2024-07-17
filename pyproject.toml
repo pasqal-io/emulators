@@ -21,7 +21,7 @@ classifiers=[
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pulser-core[torch] @ git+https://github.com/pasqal-io/Pulser/@release/v0.20.0-rc#subdirectory=pulser-core",
+  "pulser-core",
   "torch"
 ]
 

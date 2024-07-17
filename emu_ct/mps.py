@@ -177,6 +177,12 @@ class MPS(State):
 
         return acc.item()  # type: ignore[no-any-return]
 
+    def get_memory_footprint(self) -> float:
+        return (  # type: ignore[no-any-return]
+            sum([factor.element_size() * factor.numel() for factor in self.factors])
+            * 1e-6
+        )
+
     def __add__(self, other: State) -> State:
         """
         Returns the sum of two MPSs, computed with a direct algorithm.
