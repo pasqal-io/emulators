@@ -1,6 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections import Counter
+from numbers import Number
 
 """
 note that self is the left state in the inner product,
@@ -19,4 +20,8 @@ class State(ABC):
 
     @abstractmethod
     def __add__(self, other: State) -> State:
+        pass
+
+    @abstractmethod
+    def __rmul__(self, scalar: Number) -> State:
         pass

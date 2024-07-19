@@ -165,3 +165,34 @@ def test_add_to_make_w_state():
         assert get_bistring_coeff(mps_sum, bitstring) == pytest.approx(1.0, tol)
     norm = torch.norm(mps_sum.factors[0]).item()
     assert norm == pytest.approx(math.sqrt(num_sites), tol)
+
+
+def test_rmul():
+    num_sites = 5
+    # this test should work for all states
+    mps = MPS([up for _ in range(num_sites)])
+    for scale in [3.0, 2j, -1 / 4]:
+        scaled_mps = scale * mps
+        assert inner(mps, scaled_mps) == pytest.approx(scale, tol)
+        assert inner(scaled_mps, mps) == pytest.approx(scale.conjugate(), tol)
+        assert inner(scaled_mps, scaled_mps) == pytest.approx(abs(scale) ** 2, tol)
+
+
+def test_catch_err_when_lmul():
+    num_sites = 3
+    mps = MPS([down for _ in range(num_sites)])
+    with pytest.raises(TypeError) as ve:
+        mps * 3.0
+    msg = "unsupported operand type(s) for *: 'MPS' and 'float'"
+    assert str(ve.value) == msg
+
+
+def test_mps_algebra():
+    num_sites = 5
+    # this test should work for all states
+    mps = MPS([up for _ in range(num_sites)])
+    mps_sum = mps + mps + 0.5 * mps + (1 / 3) * mps
+    mps_rmul = (1 + 1 + 0.5 + 1 / 3) * mps
+
+    for a, b in zip(mps_sum.factors, mps_rmul.factors):
+        assert torch.equal(a, b)

@@ -1,6 +1,6 @@
 import torch
 import pytest
-from emu_ct.algebra import _add_factors
+from emu_ct.algebra import _add_factors, _mul_factors
 
 dtype = torch.complex128
 
@@ -75,3 +75,15 @@ def test_add_mps_factors_blockdiag():
             pad_2_expected = torch.zeros(linkdim1, 2, linkdim2, dtype=dtype)
             assert pad_2_view.shape == pad_2_expected.shape
             assert torch.allclose(pad_2_view, pad_2_expected)
+
+
+def test_mul_factors():
+    num_sites = 5
+    linkdim1 = 8
+    factors = random_mps_factors(num_sites, linkdim=linkdim1, dtype=dtype)
+    for scale in [3.0, 2j, -1 / 4]:
+        scaled_factors = _mul_factors(factors, scale)
+        # all but 0 factor unchanged
+        assert torch.equal(scaled_factors[0], scale * factors[0])
+        for f1, f2 in zip(scaled_factors[1:], factors[1:]):
+            assert torch.equal(f1[0], f2[0])

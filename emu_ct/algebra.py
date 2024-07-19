@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import torch
+from numbers import Number
 
 
 def _add_factors(
@@ -43,3 +44,13 @@ def _add_factors(
             )  # concatenate along the right bond
         new_tt.append(core)
     return new_tt
+
+
+def _mul_factors(factors: list[torch.tensor], scalar: Number) -> list[torch.tensor]:
+    """
+    Returns the tensor train (MPS/MPO) multiplied by a scalar.
+    Assumes the orthogonal centre of the train is on the factor 0.
+    """
+    new_factors = [fac.clone() for fac in factors]
+    new_factors[0] *= scalar
+    return new_factors

@@ -6,8 +6,8 @@ from typing import Union, List
 from emu_ct.utils import split_tensor, assign_devices, DEVICE_COUNT
 from emu_ct.base_classes.state import State
 from collections import Counter
-
-from emu_ct.algebra import _add_factors
+from numbers import Number
+from emu_ct.algebra import _add_factors, _mul_factors
 
 
 class MPS(State):
@@ -194,6 +194,19 @@ class MPS(State):
         return MPS(
             new_tt,
             truncate=True,
+            precision=self.precision,
+            max_bond_dim=self.max_bond_dim,
+            keep_devices=True,
+        )
+
+    def __rmul__(self, scalar: Number) -> State:
+        """
+        Multiply an MPS by scalar.
+        Assumes the MPS is orthogonalized on the site 0.
+        """
+        factors = _mul_factors(self.factors, scalar)
+        return MPS(
+            factors,
             precision=self.precision,
             max_bond_dim=self.max_bond_dim,
             keep_devices=True,
