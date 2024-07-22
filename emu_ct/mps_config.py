@@ -14,6 +14,7 @@ class MPSConfig(BackendConfig):
         precision: float = 1e-5,
         max_bond_dim: int = 1024,
         max_krylov_dim: int = 100,
+        extra_krylov_tolerance: float = 1e-3,
         num_devices_to_use: int = DEVICE_COUNT,
         interaction_matrix: torch.Tensor | None = None,
         **kwargs: Any
@@ -26,6 +27,7 @@ class MPSConfig(BackendConfig):
         self.max_krylov_dim = max_krylov_dim
         self.num_devices_to_use = num_devices_to_use
         self.interaction_matrix = interaction_matrix
+        self.extra_krylov_tolerance = extra_krylov_tolerance
 
         if self.noise_model is not None:
             if not set(self.noise_model.noise_types).issubset({"SPAM"}):

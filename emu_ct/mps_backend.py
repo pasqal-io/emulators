@@ -97,7 +97,13 @@ class MPSBackend(Backend):
                 delta[step, well_prepared_qubits_filter],
                 mps_config.num_devices_to_use,
             )
-            evolve_tdvp(-coeff * dt * 1j, state, mpo, mps_config.max_krylov_dim)
+            evolve_tdvp(
+                -coeff * dt * 1j,
+                state,
+                mpo,
+                mps_config.extra_krylov_tolerance,
+                mps_config.max_krylov_dim,
+            )
 
             t = (step + 1) * dt  # we are now after the time-step, so use step+1
             for callback in mps_config.callbacks:

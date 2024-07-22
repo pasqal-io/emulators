@@ -275,7 +275,7 @@ def test_evolve_tdvp():
     obs = MPO([mpo_factor1, mpo_factor2, mpo_factor2, mpo_factor2, mpo_factor3])
 
     # this applies tdvp in place
-    evolve_tdvp(-0.5j * torch.pi, state, obs)
+    evolve_tdvp(-0.5j * torch.pi, state, obs, state.precision)
     assert abs(inner(state, state) - 1) < 1e-8
 
     # state -i|00000>
@@ -328,7 +328,7 @@ def test_tdvp_state_vector(mock_sequence):
     ).reshape(2**nqubits, 2**nqubits)
     expected = torch.linalg.matrix_exp(-0.01j * vec)[:, 0]
     for _ in range(10):
-        evolve_tdvp(-0.001j, state, ham)
+        evolve_tdvp(-0.001j, state, ham, state.precision)
     vec = torch.einsum(
         "abc,cde,efg,ghi,ijk,klm,mno,opq,qrs->abdfhjlnprs", *(state.factors)
     ).reshape(2**nqubits)

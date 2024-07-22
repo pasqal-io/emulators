@@ -24,7 +24,7 @@ print("MPO*MPS:", out)
 assert inner(out, out) == 3.0 + 0.0j, "<110+101+011=|110+101+011> = 3"
 assert inner(mps, out) == 0.0 + 0.0j, "<000|110+101+011> = 0"
 
-evolve_tdvp(-0.5j * torch.pi, mps, mpo)
+evolve_tdvp(-0.5j * torch.pi, mps, mpo, mps.precision)
 print("exp(-i pi MPO / 2)*MPS:", mps)
 assert abs(inner(mps, mps) - 1) < 1e-8, "<-i*111|-i*111> = 1"
 assert abs(inner(mps, out)) < 1e-8, "<-i*111|110+101+011> = 0"
