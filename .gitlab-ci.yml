@@ -53,7 +53,7 @@ test-py3.10:
 benchmarks:
   stage: benchmarks
   rules:
-    - if: $CI_COMMIT_BRANCH=="develop" && $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_BRANCH=="main" && $CI_PIPELINE_SOURCE == "schedule"
   before_script:
     - apt-get update -y && apt-get install openssh-client -y && apt-get install -y iputils-ping
     - eval $(ssh-agent -s)
