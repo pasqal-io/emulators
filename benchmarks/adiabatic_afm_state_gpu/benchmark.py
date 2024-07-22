@@ -29,7 +29,7 @@ try:
             filename = f"Nx{Nx}Ny{Ny}"
             log_file = log_dir / filename
             print(f"\tRegister: {Nx}x{Ny} atoms")
-            with open(str(log_file), "w") as f:
+            with open(log_file, "w") as f:
                 subprocess.run(
                     [
                         "python3",

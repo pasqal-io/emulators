@@ -78,10 +78,10 @@ def plot_qubit_shuffling_benchmark(results: dict, title: str, output_dir: Path):
     axs = subfigs[0].subplots(4, 1, sharex=True)
     for key, res_dict in results.items():
         obs = res_dict["observables"]
-        time = obs["time"]
-        axs[0].plot(time, obs["energy"], label=key)
-        axs[1].plot(time, obs["varianceH"])
-        qubit_density = np.matrix(obs["qubitDensity"])
+        time = list(obs["energy"].keys())
+        axs[0].plot(time, list(obs["energy"].values()), label=key)
+        axs[1].plot(time, list(obs["energy_variance"].values()))
+        qubit_density = np.matrix(list(obs["qubit_density"].values()))
         axs[2].plot(time, qubit_density.mean(1))
         i = 3  # qubit to plot
         perm_map = res_dict["perm_map"]

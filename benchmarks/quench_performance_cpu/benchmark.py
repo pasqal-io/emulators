@@ -7,16 +7,13 @@ res_dir.mkdir(exist_ok=True)
 log_dir = res_dir / "log"
 log_dir.mkdir(exist_ok=True)
 
-title = "Adiabatic AFM state 2d - CPU"
+title = "Quench performance 2d - CPU"
 print(f"Starting {title} benchmark")
 
 try:
     import subprocess
-    from benchmarkutils.sequenceutils import make_adiabatic_afm_state_2d_seq
-    from benchmarkutils.parseutils import (
-        parse_latest_log,
-        parse_benckmark_results_2d,
-    )
+    from benchmarkutils.sequenceutils import make_quench_2d_seq
+    from benchmarkutils.parseutils import parse_latest_log, parse_benckmark_results_2d
     from benchmarkutils.plotutils import plot_performance_2d_benchmark
 
     # loop over different registers, seqs, GPU, timesteps...
@@ -25,7 +22,7 @@ try:
     for Nx in Nxs:
         for Ny in Nys:
             # make Pulser sequence
-            seq = make_adiabatic_afm_state_2d_seq(Nx, Ny)
+            seq = make_quench_2d_seq(Nx, Ny)
             filename = f"Nx{Nx}Ny{Ny}"
             log_file = log_dir / filename
             print(f"\tRegister: {Nx}x{Ny} atoms")
@@ -44,6 +41,7 @@ try:
 
     parse_benckmark_results_2d(log_dir, Nxs, Nys)
     plot_performance_2d_benchmark(log_dir, title)
+
 except Exception:
     raise
 finally:

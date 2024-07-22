@@ -25,7 +25,7 @@ class MPS(State):
         /,
         *,
         truncate: bool = False,
-        precision: float = 1e-10,
+        precision: float = 1e-5,
         max_bond_dim: int = 1024,
         num_devices_to_use: int = DEVICE_COUNT,
         keep_devices: bool = False,

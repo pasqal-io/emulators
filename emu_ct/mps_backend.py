@@ -120,7 +120,7 @@ class MPSBackend(Backend):
                 else getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
             )
             print(
-                f"step = {step}/{omega.shape[0]},",
+                f"step = {step+1}/{omega.shape[0]},",
                 f"χ = {state.get_max_bond_dim()},",
                 f"|ψ| = {state.get_memory_footprint():.3f} MB,",
                 f"RSS = {mem:.3f} MB,",
