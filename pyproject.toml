@@ -21,7 +21,7 @@ classifiers=[
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pulser-core",
+  "pulser-core>=0.19",
   "torch"
 ]
 

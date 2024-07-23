@@ -22,7 +22,7 @@ cd $dir
 
 eval $(ssh-agent) && ssh-add
 /usr/bin/git clone git@gitlab.pasqal.com:emulation/rydberg-atoms/emu-ct.git
-cd emu-t
+cd emu-ct
 /usr/bin/git checkout BRANCH
 
 #TODO replace with sbatch line when mail works on compute nodes
