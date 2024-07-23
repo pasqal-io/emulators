@@ -5,6 +5,7 @@ import torch
 from emu_ct.base_classes.state import State
 from emu_ct.base_classes.operator import Operator, OperatorString, TargetedOperatorString
 from pulser.register.base_register import QubitId
+import emu_ct.algebra
 
 
 def _validate_qubit_ids(
@@ -39,6 +40,14 @@ class MPO(Operator):
         self.num_sites = len(factors)
         if not self.num_sites > 1:
             raise ValueError("For 1 qubit states, do state vector")
+        if factors[0].shape[0] != 1 or factors[-1].shape[-1] != 1:
+            raise ValueError(
+                "The dimension of the left (right) link of the first (last) tensor should be 1"
+            )
+        assert all(
+            factors[i - 1].shape[-1] == factors[i].shape[0]
+            for i in range(1, self.num_sites)
+        )
 
     def __repr__(self) -> str:
         result = "["
@@ -48,15 +57,15 @@ class MPO(Operator):
         result += "]"
         return result
 
-    def __mul__(self, state: State) -> MPS:
-        assert isinstance(state, MPS), "MPO can only be multiplied with MPS"
+    def __mul__(self, other: State) -> MPS:
+        assert isinstance(other, MPS), "MPO can only be multiplied with MPS"
         assert (
-            self.num_sites == state.num_sites
+            self.num_sites == other.num_sites
         ), "MPO and MPS don't have the same number of sites"
 
         # Move own factors to the same devices as the MPS's factors
         self.factors = [
-            self.factors[i].to(state.factors[i].device) for i in range(self.num_sites)
+            self.factors[i].to(other.factors[i].device) for i in range(self.num_sites)
         ]
 
         out_factors = []
@@ -65,7 +74,7 @@ class MPO(Operator):
         left_bond_size = 1
         for i in range(self.num_sites):
             factor, left_bond_size = self._contract_factors(
-                self.factors[i], state.factors[i], left_bond_size
+                self.factors[i], other.factors[i], left_bond_size
             )
             out_factors.append(factor)
         mps = MPS(out_factors)
@@ -80,8 +89,13 @@ class MPO(Operator):
         left_bond_size = factor.shape[-1]
         return factor, left_bond_size
 
-    def __rmul__(self, state: MPS) -> MPS:
-        return self * state
+    def __add__(self, other: Operator) -> Operator:
+        """
+        Returns the sum of two MPOs, computed with a direct algorithm.
+        """
+        assert isinstance(other, MPO), "MPO can only be added to another MPO"
+        sum_factors = emu_ct.algebra._add_factors(self.factors, other.factors)
+        return MPO(sum_factors)
 
     @staticmethod
     def from_operator_string(

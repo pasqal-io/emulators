@@ -9,7 +9,7 @@ def _add_factors(
 ) -> list[torch.tensor]:
     """
     Direct sum algorithm implementation to sum two tensor trains (MPS/MPO).
-    It assumes the left and right bond are along the dimension 0 and 2 of each tensor.
+    It assumes the left and right bond are along the dimension 0 and -1 of each tensor.
     """
     num_sites = len(left)
     if num_sites != len(right):
@@ -19,7 +19,7 @@ def _add_factors(
     for i, (core1, core2) in enumerate(zip(left, right)):
         core2 = core2.to(core1.device)
         if i == 0:
-            core = torch.cat((core1, core2), dim=2)  # concatenate along the right bond
+            core = torch.cat((core1, core2), dim=-1)  # concatenate along the right bond
         elif i == (num_sites - 1):
             core = torch.cat((core1, core2), dim=0)  # concatenate along the left bond
         else:
@@ -40,7 +40,7 @@ def _add_factors(
                 dim=0,  # concatenate along the left bond
             )
             core = torch.cat(
-                (padded_c1, padded_c2), dim=2
+                (padded_c1, padded_c2), dim=-1
             )  # concatenate along the right bond
         new_tt.append(core)
     return new_tt
@@ -51,6 +51,4 @@ def _mul_factors(factors: list[torch.tensor], scalar: Number) -> list[torch.tens
     Returns the tensor train (MPS/MPO) multiplied by a scalar.
     Assumes the orthogonal centre of the train is on the factor 0.
     """
-    new_factors = [fac.clone() for fac in factors]
-    new_factors[0] *= scalar
-    return new_factors
+    return [scalar * factors[0], *factors[1:]]

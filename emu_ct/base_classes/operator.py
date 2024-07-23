@@ -26,7 +26,11 @@ TargetedOperatorString = tuple[OperatorString, set[str]]
 
 class Operator(ABC):
     @abstractmethod
-    def __mul__(self, state: State) -> State:
+    def __mul__(self, other: State) -> State:
+        pass
+
+    @abstractmethod
+    def __add__(self, other: Operator) -> Operator:
         pass
 
     """
