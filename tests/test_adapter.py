@@ -1,4 +1,4 @@
-from emu_ct.pulser_adapter import _extract_omega_delta
+from emu_ct.pulser_adapter import extract_omega_delta
 import torch
 from unittest.mock import patch, MagicMock
 import pytest
@@ -70,7 +70,7 @@ def test_single_channel(mock_pulser_sample):
     )
 
     dt = 2
-    actual_omega, actual_delta = _extract_omega_delta(sequence, dt, False)
+    actual_omega, actual_delta = extract_omega_delta(sequence, dt, False)
 
     expected_number_of_samples = 15  # ceil(TEST_DURATION / sampling_rate -0.5)
     expected_omega = torch.zeros(
@@ -129,7 +129,7 @@ def test_multiple_channels(mock_pulser_sample):
         },
     )
     dt = 2
-    actual_omega, actual_delta = _extract_omega_delta(sequence, dt, False)
+    actual_omega, actual_delta = extract_omega_delta(sequence, dt, False)
     expected_number_of_samples = 15  # TEST_DURATION // sampling_rate + 1
     expected_omega = torch.zeros(
         expected_number_of_samples, len(TEST_QUBIT_IDS), dtype=torch.complex128
@@ -158,7 +158,7 @@ def test_multiple_channels_together(mock_pulser_sample):
         },
     )
     dt = 5
-    actual_omega, actual_delta = _extract_omega_delta(sequence, dt, False)
+    actual_omega, actual_delta = extract_omega_delta(sequence, dt, False)
     expected_number_of_samples = 6
     expected_omega = torch.zeros(
         expected_number_of_samples, len(TEST_QUBIT_IDS), dtype=torch.complex128
@@ -186,5 +186,5 @@ def test_multiple_channels_together_on_same_qubit(mock_pulser_sample):
     )
     with pytest.raises(NotImplementedError) as exception_info:
         dt = 2
-        _extract_omega_delta(sequence, dt, False)
+        extract_omega_delta(sequence, dt, False)
     assert "multiple pulses acting on same qubit" in str(exception_info.value)

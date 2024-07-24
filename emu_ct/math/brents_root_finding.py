@@ -1,9 +1,5 @@
 from typing import Callable
 
-"""
-Finds the zero of a scalar function using Brent's method.
-"""
-
 
 def find_root_brents(
     f: Callable[[float], float],
@@ -16,6 +12,9 @@ def find_root_brents(
     tolerance: float = 1e-6,
     epsilon: float = 1e-6,
 ) -> float:
+    """
+    Approximates and returns the zero of a scalar function using Brent's method.
+    """
     fa = fa or f(a)
     fb = fb or f(b)
 

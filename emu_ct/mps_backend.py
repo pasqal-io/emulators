@@ -10,30 +10,28 @@ from emu_ct.tdvp import evolve_tdvp
 from emu_ct.mps_config import MPSConfig
 from emu_ct.base_classes.config import BackendConfig
 from emu_ct.base_classes.backend import Backend
-from emu_ct.pulser_adapter import _extract_omega_delta
+from emu_ct.pulser_adapter import extract_omega_delta
 from emu_ct.base_classes.results import Results
 from emu_ct.utils import extended_mps_factors, extended_mpo_factors
 from emu_ct.noise import pick_well_prepared_qubits
 
 
 class MPSBackend(Backend):
-    """A backend for emulating the sequences using Matrix Product State (MPS).
-
-    Args:
-        sequence: An instance of a Pulser Sequence that we
-            want to simulate.
-        sampling_rate: The fraction of samples that we wish to
-            extract from the pulse sequence to simulate. Has to be a
-            value between 0.05 and 1.0
-        with_modulation: Whether to simulate the sequence with the
-            programmed input or the expected output.
+    """
+    A backend for emulating Pulser sequences using Matrix Product States (MPS),
+    aka tensor trains.
     """
 
     def run(self, sequence: Sequence, mps_config: BackendConfig) -> Results:
-        """Emulates the sequences using Emu_ct solvers.
+        """
+        Emulates the given sequence.
+
+        Args:
+            sequence: a Pulser sequence to simulate
+            mps_config: the backend's config
 
         Returns:
-            MPSBackendResults
+            MPSBackendResults: the simulation results
         """
         assert isinstance(mps_config, MPSConfig)
 
@@ -41,7 +39,7 @@ class MPSBackend(Backend):
 
         coeff = 0.001  # Omega and delta are given in rad/ms, dt in ns
         dt = mps_config.dt
-        omega, delta = _extract_omega_delta(sequence, dt, mps_config.with_modulation)
+        omega, delta = extract_omega_delta(sequence, dt, mps_config.with_modulation)
 
         qubit_count = len(sequence.register.qubit_ids)
 

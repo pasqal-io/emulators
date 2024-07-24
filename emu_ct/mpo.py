@@ -28,7 +28,9 @@ def _validate_qubit_ids(
 
 class MPO(Operator):
     """
-    Matrix Product Operator
+    Matrix Product Operator.
+
+    Each tensor has 4 dimensions ordered as such: (left bond, output, input, right bond).
     """
 
     def __init__(
@@ -58,6 +60,9 @@ class MPO(Operator):
         return result
 
     def __mul__(self, other: State) -> MPS:
+        """
+        Applies this MPO to the given MPS.
+        """
         assert isinstance(other, MPS), "MPO can only be multiplied with MPS"
         assert (
             self.num_sites == other.num_sites

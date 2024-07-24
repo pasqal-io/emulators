@@ -1,9 +1,12 @@
 from typing import List
-
 import torch
 
 
 DEVICE_COUNT = torch.cuda.device_count()
+
+
+def dist2(left: torch.tensor, right: torch.tensor) -> torch.Tensor:
+    return torch.norm(left - right) ** 2
 
 
 def _determine_cutoff_index(d: torch.Tensor, max_error: float) -> int:
@@ -17,17 +20,17 @@ def _determine_cutoff_index(d: torch.Tensor, max_error: float) -> int:
     return 0  # type: ignore[no-any-return]
 
 
-"""
-Computes a low-rank approximation svd of m using the Eckart-Young-Mirsky theorem.
-"""
-
-
 def split_tensor(
     m: torch.Tensor,
     max_error: float = 1e-5,
     max_rank: int = 1024,
     orth_center_right: bool = True,
 ) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Computes a low-rank approximation split of m using the Eckart-Young-Mirsky theorem.
+    """
+    assert m.ndim == 2
+
     if orth_center_right:
         d, q = torch.linalg.eigh(m @ m.T.conj())
         max_bond = max(
@@ -50,13 +53,11 @@ def split_tensor(
     return left, right
 
 
-"""
-Evenly distributes each tensor in the list to a device.
-If num_devices_to_use is 0, then all tensors go to CPU.
-"""
-
-
 def assign_devices(tensors: List[torch.Tensor], num_devices_to_use: int) -> None:
+    """
+    Evenly distributes each tensor in the list to a device.
+    If num_devices_to_use is 0, then all tensors go to CPU.
+    """
     num_devices_to_use = min(len(tensors), num_devices_to_use)
 
     if num_devices_to_use <= 0:

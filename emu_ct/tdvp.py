@@ -160,29 +160,30 @@ def evolve_tdvp(
 
         state.factors[i] = l.reshape(lss[0], 2, -1)
         state.factors[i + 1] = r.reshape(-1, 2, rss[-1]).to(state.factors[i + 1].device)
-        if i is not nfactors - 2:
-            lbs.append(
-                new_left_bath(lbs[i], state.factors[i], lh).to(
-                    state.factors[i + 1].device
-                )
-            )
-            h = Hamiltonian.factors[i + 1].to(state.factors[i + 1].device)
-            op = lambda x: -t * apply_effective_Hamiltonian(x, h, lbs[i + 1], rbs[-1 - i])
 
-            evol = krylov_exp(
-                op,
-                state.factors[i + 1],
-                exp_tolerance=state.precision * extra_krylov_tolerance,
-                norm_tolerance=state.precision * extra_krylov_tolerance,
-                max_krylov_dim=max_krylov_dim,
-            )
-            state.factors[i + 1] = evol
+        if i == nfactors - 2:
+            break
+
+        lbs.append(
+            new_left_bath(lbs[i], state.factors[i], lh).to(state.factors[i + 1].device)
+        )
+        h = Hamiltonian.factors[i + 1].to(state.factors[i + 1].device)
+        op = lambda x: -t * apply_effective_Hamiltonian(x, h, lbs[i + 1], rbs[-1 - i])
+
+        evol = krylov_exp(
+            op,
+            state.factors[i + 1],
+            exp_tolerance=state.precision * extra_krylov_tolerance,
+            norm_tolerance=state.precision * extra_krylov_tolerance,
+            max_krylov_dim=max_krylov_dim,
+        )
+        state.factors[i + 1] = evol
 
     # sweep right-left
     rbs = [
         torch.ones(1, 1, 1, dtype=state.factors[0].dtype, device=state.factors[-1].device)
     ]
-    for i in range(i, -1, -1):
+    for i in range(nfactors - 2, -1, -1):
         rs = state.factors[i + 1]
         rss = rs.shape
         ls = state.factors[i].to(rs.device)
@@ -220,22 +221,23 @@ def evolve_tdvp(
 
         state.factors[i + 1] = r.reshape(-1, 2, rss[-1])
         state.factors[i] = l.reshape(lss[0], 2, -1).to(state.factors[i].device)
-        if i != 0:
-            rbs.append(
-                new_right_bath(rbs[-1], state.factors[i + 1], rh).to(
-                    state.factors[i].device
-                )
-            )
 
-            h = Hamiltonian.factors[i].to(state.factors[i].device)
-            op = lambda x: -t * apply_effective_Hamiltonian(x, h, lbs[i], rbs[-1])
+        if i == 0:
+            break
 
-            evol = krylov_exp(
-                op,
-                state.factors[i],
-                exp_tolerance=state.precision * extra_krylov_tolerance,
-                norm_tolerance=state.precision * extra_krylov_tolerance,
-                max_krylov_dim=max_krylov_dim,
-            )
+        rbs.append(
+            new_right_bath(rbs[-1], state.factors[i + 1], rh).to(state.factors[i].device)
+        )
 
-            state.factors[i] = evol.reshape(lss[0], 2, -1)
+        h = Hamiltonian.factors[i].to(state.factors[i].device)
+        op = lambda x: -t * apply_effective_Hamiltonian(x, h, lbs[i], rbs[-1])
+
+        evol = krylov_exp(
+            op,
+            state.factors[i],
+            exp_tolerance=state.precision * extra_krylov_tolerance,
+            norm_tolerance=state.precision * extra_krylov_tolerance,
+            max_krylov_dim=max_krylov_dim,
+        )
+
+        state.factors[i] = evol.reshape(lss[0], 2, -1)

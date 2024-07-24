@@ -6,6 +6,10 @@ import torch
 
 
 class MPSConfig(BackendConfig):
+    """
+    The configuration of the emu-ct MPSBackend.
+    """
+
     def __init__(
         self,
         *,

@@ -20,13 +20,6 @@ class KrylovExpResult:
         self.result = result
 
 
-"""
-Computes exp(op).v
-v should be normalized!
-All inputs must be on the same device.
-"""
-
-
 def krylov_exp_impl(
     op: Callable,
     v: torch.Tensor,
@@ -35,10 +28,16 @@ def krylov_exp_impl(
     norm_tolerance: float,
     max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
 ) -> KrylovExpResult:
-    # This function implements the Lanczos/Arnoldi algorithm, based on the is_hermitian flag.
-    # Convergence is checked using the exponential of the "extended T matrix", a criterion
-    # described in "Expokit: A Software Package for Computing Matrix Exponentials"
-    # (https://www.maths.uq.edu.au/expokit/paper.pdf).
+    """
+    Computes exp(op).v using either the Lanczos or Arnoldi algorithm,
+    based on the `is_hermitian` flag.
+    v should be normalized!
+    All inputs must be on the same device.
+
+    Convergence is checked using the exponential of the "extended T matrix", a criterion
+    described in "Expokit: A Software Package for Computing Matrix Exponentials"
+    (https://www.maths.uq.edu.au/expokit/paper.pdf).
+    """
 
     # assert abs(v.norm() - 1) < norm_tolerance, "Vector needs to be normalized"
 

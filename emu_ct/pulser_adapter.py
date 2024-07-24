@@ -7,18 +7,23 @@ import math
 def get_qubit_positions(
     register: pulser.Register,
 ) -> list[torch.Tensor]:
-    return [torch.tensor(position) for position in register.qubits.values()]
+    if any(not isinstance(p, torch.Tensor) for p in register.qubits.values()):
+        return [torch.tensor(position) for position in register.qubits.values()]
+
+    return list(register.qubits.values())
 
 
 def _convert_sequence_samples(
     sequence_samples: pulser.sampler.samples.SequenceSamples,
 ) -> None:
     for channel_samples in sequence_samples.samples_list:
-        channel_samples.amp = torch.tensor(channel_samples.amp)
-        channel_samples.det = torch.tensor(channel_samples.det)
+        if not isinstance(channel_samples.amp, torch.Tensor):
+            channel_samples.amp = torch.tensor(channel_samples.amp)
+        if not isinstance(channel_samples.det, torch.Tensor):
+            channel_samples.det = torch.tensor(channel_samples.det)
 
 
-def _extract_omega_delta(
+def extract_omega_delta(
     sequence: pulser.sequence.sequence.Sequence,
     dt: int,
     with_modulation: bool,

@@ -12,7 +12,12 @@ from emu_ct.algebra import _add_factors, _mul_factors
 
 class MPS(State):
     """
-    Matrix Product State
+    Matrix Product State, aka tensor train.
+
+    Each tensor has 3 dimensions ordered as such: (left bond, site, right bond).
+
+    Only qubits are supported.
+
     When specifying the MPS from a list of tensors, ensure that
     the MPS is in an orthogonal gauge with center on the first qubit
     or put truncate=True (which will do it for you),
@@ -64,7 +69,7 @@ class MPS(State):
             assign_devices(self.factors, min(DEVICE_COUNT, num_devices_to_use))
 
         if truncate:
-            self.truncate()
+            self._truncate()
 
     def __repr__(self) -> str:
         result = "["
@@ -88,7 +93,7 @@ class MPS(State):
                 r.to(self.factors[i + 1].device), self.factors[i + 1], dims=1
             )
 
-    def truncate(self) -> None:
+    def _truncate(self) -> None:
         """
         SVD based truncation of the state.
         An in-place operation.
@@ -112,28 +117,29 @@ class MPS(State):
             )
 
     def get_max_bond_dim(self) -> int:
-        """Return the max bond dimension of MPS"""
+        """
+        Return the max bond dimension of this MPS.
+        """
         return max((x.shape[2] for x in self.factors), default=0)
 
     def sample(self, num_shots: int) -> Counter[str]:
-        """Returns bitstring distribution for a given number of samples or shots"""
+        """
+        Returns bitstring distribution for a given number of samples or shots.
+        """
         num_qubits = len(self.factors)
         rnd_matrix = torch.rand(num_shots, num_qubits)
         sampled_bitstrings = [
-            self._sample_implementation(rnd_matrix[x, :], truncate=False)
-            for x in range(num_shots)
+            self._sample_implementation(rnd_matrix[x, :]) for x in range(num_shots)
         ]
         return Counter(sampled_bitstrings)
 
-    def _sample_implementation(
-        self, rnd_vector: torch.Tensor, truncate: bool = False
-    ) -> str:
-        """Returns a sample in string output."""
-        # the code is taken from ITensors and adapted for d=2 (qubits)
-        num_qubits = len(self.factors)
+    def _sample_implementation(self, rnd_vector: torch.Tensor) -> str:
+        """
+        Samples this MPS once, returning the resulting bitstring.
+        """
+        assert rnd_vector.shape == (self.num_sites,)
 
-        if truncate:  # moves the orthogonality center to the first qubit
-            self.truncate()
+        num_qubits = len(self.factors)
 
         bitstring = ""
         acc_mps_j: torch.tensor = self.factors[0]
@@ -163,6 +169,10 @@ class MPS(State):
         return bitstring
 
     def inner(self, right: State) -> float | complex:
+        """
+        Computes the inner product between this MPS and the argument.
+        """
+
         assert isinstance(right, MPS), "Other state also needs to be an MPS"
         assert (
             self.num_sites == right.num_sites
