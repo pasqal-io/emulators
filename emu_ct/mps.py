@@ -188,8 +188,7 @@ class MPS(State):
 
     def get_memory_footprint(self) -> float:
         return (  # type: ignore[no-any-return]
-            sum([factor.element_size() * factor.numel() for factor in self.factors])
-            * 1e-6
+            sum(factor.element_size() * factor.numel() for factor in self.factors) * 1e-6
         )
 
     def __add__(self, other: State) -> State:

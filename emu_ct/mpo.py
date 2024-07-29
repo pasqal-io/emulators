@@ -122,7 +122,7 @@ class MPO(Operator):
         for i, name in enumerate(qubits):
             id_to_idx[name] = i
         operations_indexed = [
-            (op[0], set([id_to_idx[target] for target in op[1]])) for op in operations
+            (op[0], set(id_to_idx[target] for target in op[1])) for op in operations
         ]
 
         # operators will now contain the 'sigma_ij' elements defined, and potentially

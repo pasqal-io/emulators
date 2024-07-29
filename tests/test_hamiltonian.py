@@ -115,7 +115,7 @@ def test_2_qubit():
 
     interaction_matrix = torch.tensor([[0.0000, 5.4202], [0.0000, 0.0000]])
 
-    ham = make_H(interaction_matrix, omega, delta, 0)
+    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta)
     assert ham.factors[0].shape == (1, 2, 2, 3)
     assert ham.factors[1].shape == (3, 2, 2, 1)
 
@@ -138,7 +138,9 @@ def test_noise():
     rate = 0.234
     noise = -1j / 2.0 * torch.tensor([[0, 0], [0, rate]], dtype=dtype)
 
-    ham = make_H(interaction_matrix, omega, delta, 0, noise=noise)
+    ham = make_H(
+        interaction_matrix=interaction_matrix, omega=omega, delta=delta, noise=noise
+    )
 
     sv = torch.einsum("ijkl,lmno->ijmkno", *(ham.factors)).reshape(4, 4)
     expected = sv_hamiltonian(interaction_matrix, omega, delta, noise=noise).to(sv.device)
@@ -156,7 +158,7 @@ def test_4_qubit():
 
     interaction_matrix = torch.randn(4, 4, dtype=torch.float64)
 
-    ham = make_H(interaction_matrix, omega, delta, 0)
+    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta)
     assert ham.factors[0].shape == (1, 2, 2, 3)
     assert ham.factors[1].shape == (3, 2, 2, 4)
     assert ham.factors[2].shape == (4, 2, 2, 3)
@@ -177,7 +179,7 @@ def test_5_qubit():
 
     interaction_matrix = torch.randn(5, 5, dtype=torch.float64)
 
-    ham = make_H(interaction_matrix, omega, delta, 0)
+    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta)
     assert ham.factors[0].shape == (1, 2, 2, 3)
     assert ham.factors[1].shape == (3, 2, 2, 4)
     assert ham.factors[2].shape == (4, 2, 2, 4)
@@ -211,7 +213,9 @@ def test_9_qubit_noise(mock_sequence):
 
     noise = compute_noise_from_lindbladians(lindbladians)
 
-    ham = make_H(interaction_matrix, omega, delta, 0, noise=noise)
+    ham = make_H(
+        interaction_matrix=interaction_matrix, omega=omega, delta=delta, noise=noise
+    )
 
     sv = torch.einsum(
         "abcd,defg,ghij,jklm,mnop,pqrs,stuv,vwxy,yzAB->abehknqtwzcfiloruxAB",
@@ -228,7 +232,6 @@ def test_9_qubit_noise(mock_sequence):
 
 
 def test_differentiation():
-
     n = 5
     omega = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
     delta = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
@@ -243,7 +246,7 @@ def test_differentiation():
         ]
     )
 
-    ham = make_H(interaction_matrix, omega, delta, 0)
+    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta)
 
     sv = torch.einsum("abcd,defg,ghij,jklm,mnop->abehkncfilop", *(ham.factors)).reshape(
         1 << n, 1 << n

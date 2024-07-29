@@ -5,7 +5,7 @@ to the Hamiltonian of a neutral atoms quantum processor.
 
 import torch
 from emu_ct.mpo import MPO
-from emu_ct.utils import dist2
+from emu_ct.utils import dist2, DEVICE_COUNT
 from emu_ct.pulser_adapter import get_qubit_positions
 import pulser
 
@@ -129,11 +129,11 @@ def rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
 
 
 def make_H(
+    *,
     interaction_matrix: torch.tensor,
     omega: torch.Tensor,
     delta: torch.Tensor,
-    num_devices_to_use: int,
-    /,
+    num_devices_to_use: int = DEVICE_COUNT,
     noise: torch.Tensor = torch.zeros(2, 2),
 ) -> MPO:
     """

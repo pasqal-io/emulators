@@ -311,7 +311,7 @@ def test_tdvp_state_vector(mock_sequence):
     mock_sequence.register = mock_register
     interaction_matrix = rydberg_interaction(mock_sequence)
 
-    ham = make_H(interaction_matrix, omegas, deltas, 0)
+    ham = make_H(interaction_matrix=interaction_matrix, omega=omegas, delta=deltas)
 
     # |000000000>
     state = MPS(

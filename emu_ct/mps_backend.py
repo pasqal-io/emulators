@@ -88,12 +88,12 @@ class MPSBackend(Backend):
         for step in range(omega.shape[0]):
             start = time()
             mpo = make_H(
-                interaction_matrix[well_prepared_qubits_filter, :][
+                interaction_matrix=interaction_matrix[well_prepared_qubits_filter, :][
                     :, well_prepared_qubits_filter
                 ],
-                omega[step, well_prepared_qubits_filter],
-                delta[step, well_prepared_qubits_filter],
-                mps_config.num_devices_to_use,
+                omega=omega[step, well_prepared_qubits_filter],
+                delta=delta[step, well_prepared_qubits_filter],
+                num_devices_to_use=mps_config.num_devices_to_use,
             )
             evolve_tdvp(
                 -coeff * dt * 1j,
