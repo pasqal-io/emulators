@@ -52,12 +52,7 @@ class MPO(Operator):
         )
 
     def __repr__(self) -> str:
-        result = "["
-        for fac in self.factors:
-            result += repr(fac)
-            result += ", "
-        result += "]"
-        return result
+        return "[" + ", ".join(map(repr, self.factors)) + "]"
 
     def __mul__(self, other: State) -> MPS:
         """
