@@ -1,4 +1,3 @@
-from emu_ct.base_classes.callbacks import Callback
 from pulser.noise_model import NoiseModel
 
 
@@ -13,7 +12,8 @@ class BackendConfig:
     def __init__(
         self,
         *,
-        observables: list[Callback] = [],
+        # "Callback" is a forward type reference because of the circular import otherwise.
+        observables: list["Callback"] = [],  # type: ignore # noqa: F821
         with_modulation: bool = False,
         noise_model: NoiseModel = None
     ):

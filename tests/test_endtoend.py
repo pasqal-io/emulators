@@ -13,7 +13,7 @@ from emu_ct import (
 from .utils_testing import pulser_afm_sequence_ring, pulser_afm_sequence_grid
 
 from pytest import approx
-from unittest.mock import patch
+from unittest.mock import patch, ANY, MagicMock
 import pytest
 import pulser
 
@@ -32,23 +32,22 @@ def create_antiferromagnetic_mps(num_qubits: int):
     return MPS(factors)
 
 
-def simulate(seq, state_prep_error=None):
+def simulate(seq, state_prep_error=0.0, p_false_pos=0.0, p_false_neg=0.0):
     final_time = seq.get_duration()
     fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
     qubit_ids = seq.register.qubit_ids
 
-    basis = {"r", "g"}
-    if state_prep_error is None:
-        noise_model = None
-    else:
+    basis = ("r", "g")
+    noise_model = None
+    if state_prep_error > 0.0 or p_false_pos > 0.0 or p_false_neg > 0.0:
         noise_model = pulser.noise_model.NoiseModel(
             noise_types=("SPAM",),
             state_prep_error=state_prep_error,
-            p_false_pos=0.0,
-            p_false_neg=0.0,
+            p_false_pos=p_false_pos,
+            p_false_neg=p_false_neg,
         )
 
-    times = [final_time]
+    times = {final_time}
     mps_config = MPSConfig(
         dt=100,
         precision=1e-5,
@@ -65,6 +64,20 @@ def simulate(seq, state_prep_error=None):
     result = mps_backend.run(seq, mps_config)
 
     return result
+
+
+def simulate_line(n, **kwargs):
+    seq = pulser_afm_sequence_grid(
+        rows=1,
+        columns=n,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=t_rise,
+        t_fall=t_fall,
+    )
+    return seq.get_duration(), simulate(seq, **kwargs)
 
 
 def get_proba(state: MPS, bitstring: str):
@@ -143,21 +156,8 @@ def test_end_to_end_afm_ring():
                     )
 
 
-def test_end_to_end_afm_line_with_state_preparation_error():
+def test_end_to_end_afm_line_with_state_preparation_errors():
     torch.manual_seed(seed)
-
-    def simulate_line(n, state_prep_error=0.1):
-        seq = pulser_afm_sequence_grid(
-            rows=1,
-            columns=n,
-            Omega_max=Omega_max,
-            U=U,
-            delta_0=delta_0,
-            delta_f=delta_f,
-            t_rise=t_rise,
-            t_fall=t_fall,
-        )
-        return seq.get_duration(), simulate(seq, state_prep_error=state_prep_error)
 
     with patch(
         "emu_ct.mps_backend.pick_well_prepared_qubits"
@@ -174,7 +174,7 @@ def test_end_to_end_afm_line_with_state_preparation_error():
     with patch(
         "emu_ct.mps_backend.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
-        final_time, result = simulate_line(3, state_prep_error=None)
+        final_time, result = simulate_line(3)
         final_state = result["state"][final_time]
         pick_well_prepared_qubits_mock.assert_not_called()
         assert get_proba(final_state, "111") == approx(0.56, abs=1e-2)
@@ -184,13 +184,13 @@ def test_end_to_end_afm_line_with_state_preparation_error():
         "emu_ct.mps_backend.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [True, False, True, True]
-        final_time, result = simulate_line(4)
+        final_time, result = simulate_line(4, state_prep_error=0.1)
         final_state = result["state"][final_time]
 
     assert get_proba(final_state, "1011") == approx(0.95, abs=1e-2)
 
     # Results for a 2 qubit line.
-    final_time, result = simulate_line(2, state_prep_error=None)
+    final_time, result = simulate_line(2)
     final_state = result["state"][final_time]
     assert get_proba(final_state, "11") == approx(0.95, abs=1e-2)
 
@@ -198,7 +198,7 @@ def test_end_to_end_afm_line_with_state_preparation_error():
         "emu_ct.mps_backend.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [False, True, True, False]
-        final_time, result = simulate_line(4)
+        final_time, result = simulate_line(4, state_prep_error=0.1)
         final_state = result["state"][final_time]
 
     assert get_proba(final_state, "0110") == approx(0.95, abs=1e-2)
@@ -209,7 +209,20 @@ def test_end_to_end_afm_line_with_state_preparation_error():
     ) as pick_well_prepared_qubits_mock:
         with pytest.raises(ValueError) as exception_info:
             pick_well_prepared_qubits_mock.return_value = [False, False, True, False]
-            final_time, result = simulate_line(4)
+            final_time, result = simulate_line(4, state_prep_error=0.1)
             final_state = result["state"][final_time]
 
     assert "For 1 qubit states, do state vector" in str(exception_info.value)
+
+
+def test_end_to_end_afm_line_with_measurement_errors():
+    with patch(
+        "emu_ct.base_classes.default_callbacks.apply_measurement_errors"
+    ) as apply_measurement_errors_mock:
+        bitstrings = MagicMock()
+        apply_measurement_errors_mock.return_value = bitstrings
+        final_time, results = simulate_line(4, p_false_pos=0.0, p_false_neg=0.5)
+        apply_measurement_errors_mock.assert_called_with(
+            ANY, p_false_pos=0.0, p_false_neg=0.5
+        )
+        assert results["bitstrings"][final_time] is bitstrings

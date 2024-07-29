@@ -128,10 +128,9 @@ class MPS(State):
         """
         num_qubits = len(self.factors)
         rnd_matrix = torch.rand(num_shots, num_qubits)
-        sampled_bitstrings = [
+        return Counter(
             self._sample_implementation(rnd_matrix[x, :]) for x in range(num_shots)
-        ]
-        return Counter(sampled_bitstrings)
+        )
 
     def _sample_implementation(self, rnd_vector: torch.Tensor) -> str:
         """

@@ -106,7 +106,7 @@ class MPSBackend(Backend):
             t = (step + 1) * dt  # we are now after the time-step, so use step+1
             for callback in mps_config.callbacks:
                 if not has_dark_qubit:
-                    callback(t, state, mpo, result)
+                    callback(mps_config, t, state, mpo, result)
                 elif t in callback.times:
                     assert isinstance(well_prepared_qubits_filter, list)  # For mypy.
                     full_mpo = MPO(
@@ -116,7 +116,7 @@ class MPSBackend(Backend):
                         extended_mps_factors(state.factors, well_prepared_qubits_filter),
                         keep_devices=True,
                     )
-                    callback(t, full_state, full_mpo, result)
+                    callback(mps_config, t, full_state, full_mpo, result)
             end = time()
             mem = (
                 torch.cuda.max_memory_allocated() * 1e-6

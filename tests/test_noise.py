@@ -1,4 +1,7 @@
-from emu_ct.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
+from emu_ct.noise import (
+    compute_noise_from_lindbladians,
+    pick_well_prepared_qubits,
+)
 import torch
 import pytest
 from unittest.mock import patch

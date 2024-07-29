@@ -1,28 +1,11 @@
-from abc import ABC, abstractmethod
+from emu_ct.base_classes.callback import Callback
 from typing import Any
 from pulser.register.base_register import QubitId
+from emu_ct.base_classes.config import BackendConfig
 from emu_ct.base_classes.state import State
-from emu_ct.base_classes.results import Results
 from emu_ct.base_classes.operator import Operator, OperatorString
+from emu_ct.base_classes.common import apply_measurement_errors
 from copy import deepcopy
-
-
-class Callback(ABC):
-    def __init__(self, times: set[int]):
-        self.times = times
-
-    def __call__(self, t: int, state: State, H: Operator, result: Results) -> None:
-        if t in self.times:
-            result[self.name()][t] = self.apply(t, state, H)
-
-    @abstractmethod
-    def name(self) -> str:
-        # return the name of the observable
-        pass
-
-    @abstractmethod
-    def apply(self, t: int, state: State, H: Operator) -> Any:
-        pass
 
 
 class StateResult(Callback):
@@ -32,7 +15,7 @@ class StateResult(Callback):
     def name(self) -> str:
         return "state"
 
-    def apply(self, t: int, state: State, H: Operator) -> Any:
+    def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         return deepcopy(state)
 
 
@@ -44,8 +27,23 @@ class BitStrings(Callback):
     def name(self) -> str:
         return "bitstrings"
 
-    def apply(self, t: int, state: State, H: Operator) -> Any:
-        return state.sample(self.num_shots)
+    def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
+        bitstrings = state.sample(self.num_shots)
+
+        if (
+            config.noise_model is not None
+            and "SPAM" in config.noise_model.noise_types
+            and (
+                config.noise_model.p_false_pos > 0.0
+                or config.noise_model.p_false_neg > 0.0
+            )
+        ):
+            bitstrings = apply_measurement_errors(
+                bitstrings,
+                p_false_pos=config.noise_model.p_false_pos,
+                p_false_neg=config.noise_model.p_false_neg,
+            )
+        return bitstrings
 
 
 _fidelity_counter = -1
@@ -62,12 +60,12 @@ class Fidelity(Callback):
     def name(self) -> str:
         return f"fidelity_{self.index}"
 
-    def apply(self, t: int, state: State, H: Operator) -> Any:
+    def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         return self.state.inner(state)
 
 
 class CorrelationMatrix(Callback):
-    def __init__(self, times: set[int], basis: tuple[str], qubits: list[QubitId]):
+    def __init__(self, times: set[int], basis: tuple[str, ...], qubits: list[QubitId]):
         super().__init__(times)
         self.operators: list[list[Operator]] | None = None
         assert set(basis) == {
@@ -80,7 +78,7 @@ class CorrelationMatrix(Callback):
     def name(self) -> str:
         return "correlation_matrix"
 
-    def apply(self, t: int, state: State, H: Operator) -> Any:
+    def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         if self.operators is None or not isinstance(self.operators[0], type(H)):
             self.operators = [
                 [
@@ -97,7 +95,7 @@ class CorrelationMatrix(Callback):
 
 
 class QubitDensity(Callback):
-    def __init__(self, times: set[int], basis: tuple[str], qubits: list[QubitId]):
+    def __init__(self, times: set[int], basis: tuple[str, ...], qubits: list[QubitId]):
         super().__init__(times)
         self.operators: list[Operator] | None = None
         assert set(basis) == {"r", "g"}, "Qubit density is only defined on rydberg-ground"
@@ -107,7 +105,7 @@ class QubitDensity(Callback):
     def name(self) -> str:
         return "qubit_density"
 
-    def apply(self, t: int, state: State, H: Operator) -> Any:
+    def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         if self.operators is None or not isinstance(self.operators[0], type(H)):
             self.operators = [
                 H.from_operator_string(
@@ -125,7 +123,7 @@ class Energy(Callback):
     def name(self) -> str:
         return "energy"
 
-    def apply(self, t: int, state: State, H: Operator) -> Any:
+    def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         return state.inner(H * state).real
 
 
@@ -136,6 +134,6 @@ class EnergyVariance(Callback):
     def name(self) -> str:
         return "energy_variance"
 
-    def apply(self, t: int, state: State, H: Operator) -> Any:
+    def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         h_state = H * state
-        return h_state.inner(h_state).real - (state.inner(H * state).real) ** 2
+        return h_state.inner(h_state).real - state.inner(H * state).real ** 2

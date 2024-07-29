@@ -42,7 +42,7 @@ class Operator(ABC):
     @staticmethod
     @abstractmethod
     def from_operator_string(
-        basis: tuple[str],
+        basis: tuple[str, ...],
         qubits: list[QubitId],
         operations: list[TargetedOperatorString],
         operators: dict[str, OperatorString] = {},

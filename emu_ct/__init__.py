@@ -1,7 +1,7 @@
 from .mps import MPS, inner
 from .mpo import MPO
-from .base_classes.callbacks import (
-    Callback,
+from .base_classes.callback import Callback
+from .base_classes.default_callbacks import (
     StateResult,
     BitStrings,
     QubitDensity,
