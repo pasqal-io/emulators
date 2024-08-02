@@ -3,6 +3,9 @@ from typing import Tuple
 import torch
 import math
 
+from pulser.noise_model import NoiseModel
+from emu_mps.lindblad_operators import get_lindblad_operators
+
 
 def get_qubit_positions(
     register: pulser.Register,
@@ -104,3 +107,18 @@ def extract_omega_delta_phi(
         t = int((step + 1 / 2) * dt)
 
     return omega, delta, phi
+
+
+_NON_LINDBLADIAN_NOISE = ["SPAM", "doppler", "amplitude"]
+
+
+def get_all_lindblad_noise_operators(noise_model: NoiseModel) -> list[torch.Tensor]:
+    if noise_model is None:
+        return []
+
+    return [
+        op
+        for noise_type in noise_model.noise_types
+        if noise_type not in _NON_LINDBLADIAN_NOISE
+        for op in get_lindblad_operators(noise_type=noise_type, noise_model=noise_model)
+    ]

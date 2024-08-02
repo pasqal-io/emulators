@@ -1,7 +1,11 @@
-from emu_mps.pulser_adapter import extract_omega_delta_phi
+from emu_mps.pulser_adapter import (
+    extract_omega_delta_phi,
+    get_all_lindblad_noise_operators,
+)
 from unittest.mock import patch, MagicMock
 import pytest
 import torch
+from pulser.noise_model import NoiseModel
 
 TEST_DURATION = 31
 TEST_QUBIT_IDS = ["test_qubit_0", "test_qubit_1", "test_qubit_2"]
@@ -231,3 +235,87 @@ def test_multiple_channels_together_on_same_qubit(mock_pulser_sample):
         dt = 2
         extract_omega_delta_phi(sequence, dt, False)
     assert "multiple pulses acting on same qubit" in str(exception_info.value)
+
+
+def test_get_all_lindblad_operators_no_noise():
+    noise_model = NoiseModel()
+
+    assert get_all_lindblad_noise_operators(noise_model) == []
+
+
+def test_get_all_lindblad_operators():
+    random_collapse = torch.rand(2, 2, dtype=torch.complex128)
+
+    noise_model = NoiseModel(
+        # FIXME: remove below line when Pulser is upgraded
+        # past 1b3735df935f8ee37fcaee5055b40e801d794466
+        noise_types=("depolarizing", "dephasing", "eff_noise"),
+        depolarizing_rate=0.16,
+        dephasing_rate=0.005,
+        # FIXME: remove below line when Pulser is upgraded
+        # past 1b3735df935f8ee37fcaee5055b40e801d794466
+        hyperfine_dephasing_rate=0.0,
+        eff_noise_rates=(0.0036,),
+        eff_noise_opers=(random_collapse,),
+    )
+
+    ops = get_all_lindblad_noise_operators(noise_model)
+
+    assert len(ops) == 5
+
+    # Depolarizing
+    assert torch.allclose(
+        ops[0],
+        torch.tensor(
+            [
+                [0, 0.2],
+                [0.2, 0],
+            ],
+            dtype=torch.complex128,
+        ),
+    )
+
+    assert torch.allclose(
+        ops[1],
+        torch.tensor(
+            [
+                [0, 0.2j],
+                [-0.2j, 0],
+            ],
+            dtype=torch.complex128,
+        ),
+    )
+
+    assert torch.allclose(
+        ops[2],
+        torch.tensor(
+            [
+                [-0.2, 0],
+                [0, 0.2],
+            ],
+            dtype=torch.complex128,
+        ),
+    )
+
+    # Dephasing
+    assert torch.allclose(
+        ops[3],
+        torch.tensor(
+            [
+                [-0.05, 0],
+                [0, 0.05],
+            ],
+            dtype=torch.complex128,
+        ),
+    )
+
+    # Effective noise
+    assert torch.allclose(
+        torch.tensor(
+            [
+                [ops[4][1, 1], ops[4][1, 0]],
+                [ops[4][0, 1], ops[4][0, 0]],
+            ]
+        ),
+        0.06 * random_collapse,
+    )

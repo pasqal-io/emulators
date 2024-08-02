@@ -13,7 +13,10 @@ from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
 from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
-from emu_mps.pulser_adapter import extract_omega_delta_phi
+from emu_mps.pulser_adapter import (
+    extract_omega_delta_phi,
+    get_all_lindblad_noise_operators,
+)
 from emu_mps.tdvp import evolve_tdvp
 from emu_mps.utils import extended_mpo_factors, extended_mps_factors
 
@@ -78,8 +81,11 @@ class _RunImpl:
             self.phi = self.phi[:, self.well_prepared_qubits_filter]
 
     def init_lindblad_noise(self) -> None:
+        self.lindblad_ops = get_all_lindblad_noise_operators(self.config.noise_model)
+
         # Work in progress.
-        self.lindblad_ops = []
+        if self.lindblad_ops:
+            raise NotImplementedError("Lindbladian noise is not supported yet")
 
         self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
 

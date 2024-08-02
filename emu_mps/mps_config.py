@@ -4,7 +4,6 @@ import torch
 
 from emu_mps.base_classes.config import BackendConfig
 from emu_mps.base_classes.state import State
-
 from .utils import DEVICE_COUNT
 
 
@@ -24,7 +23,7 @@ class MPSConfig(BackendConfig):
         extra_krylov_tolerance: float = 1e-3,
         num_devices_to_use: int = DEVICE_COUNT,
         interaction_matrix: torch.Tensor | None = None,
-        **kwargs: Any
+        **kwargs: Any,
     ):
         super().__init__(**kwargs)
         self.initial_state = initial_state
@@ -37,8 +36,9 @@ class MPSConfig(BackendConfig):
         self.extra_krylov_tolerance = extra_krylov_tolerance
 
         if self.noise_model is not None:
-            if not set(self.noise_model.noise_types).issubset({"SPAM"}):
+            if unsupported := (
+                {"doppler", "amplitude"} & set(self.noise_model.noise_types)
+            ):
                 raise NotImplementedError(
-                    "Unsupported noise type(s): "
-                    + str(set(self.noise_model.noise_types) - {"SPAM"})
+                    "Unsupported noise type(s): " + str(unsupported)
                 )
