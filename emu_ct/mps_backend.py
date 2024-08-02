@@ -2,6 +2,7 @@ from pulser import Sequence
 from time import time
 import torch
 from resource import getrusage, RUSAGE_SELF
+from typing import Optional
 
 from emu_ct.mps import MPS
 from emu_ct.hamiltonian import make_H, rydberg_interaction
@@ -13,7 +14,140 @@ from emu_ct.base_classes.backend import Backend
 from emu_ct.pulser_adapter import extract_omega_delta
 from emu_ct.base_classes.results import Results
 from emu_ct.utils import extended_mps_factors, extended_mpo_factors
-from emu_ct.noise import pick_well_prepared_qubits
+from emu_ct.noise import pick_well_prepared_qubits, compute_noise_from_lindbladians
+
+
+class _RunImpl:
+    well_prepared_qubits_filter: Optional[list[bool]]
+    hamiltonian: MPO
+    lindblad_ops: list[torch.Tensor]
+    lindblad_noise: torch.Tensor
+
+    def __init__(self, sequence: Sequence, mps_config: MPSConfig):
+        self.sequence = sequence
+        self.config = mps_config
+
+        self.dt = self.config.dt
+        self.qubit_count = len(sequence.register.qubit_ids)
+
+        assert (
+            mps_config.interaction_matrix is None
+            or mps_config.interaction_matrix.size(dim=0) == self.qubit_count
+        ), (
+            "The number of qubits in the register should be the same as the size of "
+            "the interaction matrix"
+        )
+
+        self.omega, self.delta = extract_omega_delta(
+            self.sequence, self.dt, self.config.with_modulation
+        )
+        self.timestep_count = self.omega.shape[0]
+        self.interaction_matrix = self.config.interaction_matrix or rydberg_interaction(
+            sequence
+        )
+
+        self.init_dark_qubits()
+        self.init_lindblad_noise()
+
+        self.state = self.make_initial_state()
+
+    def init_dark_qubits(self) -> None:
+        has_state_preparation_error: bool = (
+            self.config.noise_model is not None
+            and "SPAM" in self.config.noise_model.noise_types
+            and self.config.noise_model.state_prep_error != 0.0
+        )
+
+        self.well_prepared_qubits_filter = (
+            pick_well_prepared_qubits(
+                self.config.noise_model.state_prep_error, self.qubit_count
+            )
+            if has_state_preparation_error
+            else None
+        )
+
+        if self.well_prepared_qubits_filter is not None:
+            self.interaction_matrix = self.interaction_matrix[
+                self.well_prepared_qubits_filter, :
+            ][:, self.well_prepared_qubits_filter]
+            self.omega = self.omega[:, self.well_prepared_qubits_filter]
+            self.delta = self.delta[:, self.well_prepared_qubits_filter]
+
+    def init_lindblad_noise(self) -> None:
+        # Work in progress.
+        self.lindblad_ops = []
+
+        self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
+
+    def make_initial_state(self) -> MPS:
+        # TODO: take the initial state from configuration.
+        well_prepared_qubits_count: int = (
+            self.qubit_count
+            if self.well_prepared_qubits_filter is None
+            else sum(1 for x in self.well_prepared_qubits_filter if x)
+        )
+
+        return MPS(
+            well_prepared_qubits_count,
+            truncate=False,
+            precision=self.config.precision,
+            max_bond_dim=self.config.max_bond_dim,
+            num_devices_to_use=self.config.num_devices_to_use,
+        )
+
+    def do_time_step(self, step: int) -> None:
+        """
+        Updates hamiltonian and evolves state by dt.
+        """
+        self.hamiltonian = make_H(
+            interaction_matrix=self.interaction_matrix,
+            omega=self.omega[step, :],
+            delta=self.delta[step, :],
+            num_devices_to_use=self.config.num_devices_to_use,
+            noise=self.lindblad_noise,
+        )
+
+        _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
+        evolve_tdvp(
+            -_TIME_CONVERSION_COEFF * self.dt * 1j,
+            self.state,
+            self.hamiltonian,
+            self.config.extra_krylov_tolerance,
+            self.config.max_krylov_dim,
+        )
+
+    def fill_results(self, results: Results, step: int) -> None:
+        t = (step + 1) * self.dt  # we are now after the time-step, so use step+1
+        for callback in self.config.callbacks:
+            if self.well_prepared_qubits_filter is None:
+                callback(self.config, t, self.state, self.hamiltonian, results)
+            elif t in callback.times:
+                full_mpo = MPO(
+                    extended_mpo_factors(
+                        self.hamiltonian.factors, self.well_prepared_qubits_filter
+                    )
+                )
+                full_state = MPS(
+                    extended_mps_factors(
+                        self.state.factors, self.well_prepared_qubits_filter
+                    ),
+                    keep_devices=True,
+                )
+                callback(self.config, t, full_state, full_mpo, results)
+
+    def print_step_statistics(self, *, step: int, duration: float) -> None:
+        mem = (
+            torch.cuda.max_memory_allocated() * 1e-6
+            if self.state.factors[0].is_cuda
+            else getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+        )
+        print(
+            f"step = {step + 1}/{self.timestep_count},",
+            f"χ = {self.state.get_max_bond_dim()},",
+            f"|ψ| = {self.state.get_memory_footprint():.3f} MB,",
+            f"RSS = {mem:.3f} MB,",
+            f"Δt = {duration:.3f} s",
+        )
 
 
 class MPSBackend(Backend):
@@ -37,98 +171,19 @@ class MPSBackend(Backend):
 
         self.validate_sequence(sequence)
 
-        coeff = 0.001  # Omega and delta are given in rad/ms, dt in ns
-        dt = mps_config.dt
-        omega, delta = extract_omega_delta(sequence, dt, mps_config.with_modulation)
+        results = Results()
 
-        qubit_count = len(sequence.register.qubit_ids)
+        impl = _RunImpl(sequence, mps_config)
 
-        if mps_config.interaction_matrix is not None:
-            assert mps_config.interaction_matrix.size(dim=1) == qubit_count, (
-                "The number of qubits in the register should be the same as the dimension of "
-                "the columns of the interaction matrix"
-            )
-
-        interaction_matrix = (
-            rydberg_interaction(sequence)
-            if mps_config.interaction_matrix is None
-            else mps_config.interaction_matrix
-        )
-
-        has_dark_qubit: bool = (
-            mps_config.noise_model is not None
-            and "SPAM" in mps_config.noise_model.noise_types
-            and mps_config.noise_model.state_prep_error != 0.0
-        )
-
-        well_prepared_qubits_filter = (
-            pick_well_prepared_qubits(
-                mps_config.noise_model.state_prep_error, len(sequence.register.qubits)
-            )
-            if has_dark_qubit
-            else slice(None, None, None)
-        )
-
-        well_prepared_qubits_count: int = (
-            sum(1 for x in well_prepared_qubits_filter if x)  # type: ignore
-            if has_dark_qubit
-            else qubit_count
-        )
-
-        state = MPS(
-            well_prepared_qubits_count,
-            truncate=False,
-            precision=mps_config.precision,
-            max_bond_dim=mps_config.max_bond_dim,
-            num_devices_to_use=mps_config.num_devices_to_use,
-        )  # TODO: take the initial state from configuration.
-
-        result = Results()
-
-        for step in range(omega.shape[0]):
+        for step in range(impl.timestep_count):
             start = time()
-            mpo = make_H(
-                interaction_matrix=interaction_matrix[well_prepared_qubits_filter, :][
-                    :, well_prepared_qubits_filter
-                ],
-                omega=omega[step, well_prepared_qubits_filter],
-                delta=delta[step, well_prepared_qubits_filter],
-                num_devices_to_use=mps_config.num_devices_to_use,
-            )
-            evolve_tdvp(
-                -coeff * dt * 1j,
-                state,
-                mpo,
-                mps_config.extra_krylov_tolerance,
-                mps_config.max_krylov_dim,
-            )
 
-            t = (step + 1) * dt  # we are now after the time-step, so use step+1
-            for callback in mps_config.callbacks:
-                if not has_dark_qubit:
-                    callback(mps_config, t, state, mpo, result)
-                elif t in callback.times:
-                    assert isinstance(well_prepared_qubits_filter, list)  # For mypy.
-                    full_mpo = MPO(
-                        extended_mpo_factors(mpo.factors, well_prepared_qubits_filter)
-                    )
-                    full_state = MPS(
-                        extended_mps_factors(state.factors, well_prepared_qubits_filter),
-                        keep_devices=True,
-                    )
-                    callback(mps_config, t, full_state, full_mpo, result)
+            impl.do_time_step(step)
+
+            impl.fill_results(results, step)
+
             end = time()
-            mem = (
-                torch.cuda.max_memory_allocated() * 1e-6
-                if state.factors[0].is_cuda
-                else getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
-            )
-            print(
-                f"step = {step+1}/{omega.shape[0]},",
-                f"χ = {state.get_max_bond_dim()},",
-                f"|ψ| = {state.get_memory_footprint():.3f} MB,",
-                f"RSS = {mem:.3f} MB,",
-                f"Δt = {end - start} s",
-            )
 
-        return result
+            impl.print_step_statistics(step=step, duration=end - start)
+
+        return results
