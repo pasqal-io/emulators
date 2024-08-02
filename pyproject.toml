@@ -21,9 +21,8 @@ classifiers=[
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pulser-core>=0.19",
-  "torch"
-]
+  "pulser-core>=0.19.0",
+  "torch"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -32,15 +31,20 @@ allow-ambiguous-features = true
 [tool.hatch.envs.default]
 dependencies = [
   "pytest",
+  "nbmake",
   "pytest-cov",
   "pre-commit",
   "flake8",
   "black",
   "isort",
+  "jupyter",
+  "jupyter-black"
 ]
 
 [tool.hatch.envs.default.scripts]
 test = "pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_ct {args}"
+test_notebooks = "pytest --nbmake **/*ipynb"
+coverage_readme = "readme-cov"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["38", "39", "310", "311"]

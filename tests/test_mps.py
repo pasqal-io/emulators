@@ -3,6 +3,8 @@ import torch
 import pytest
 import math
 from .utils_testing import ghz_state_factors
+from unittest.mock import patch
+import io
 
 
 def test_init():
@@ -196,3 +198,64 @@ def test_mps_algebra():
 
     for a, b in zip(mps_sum.factors, mps_rmul.factors):
         assert torch.equal(a, b)
+
+
+def test_from_string_bell_state():
+    afm_string_state = {"rrr": 1.0 / math.sqrt(2), "ggg": 1.0 / math.sqrt(2)}
+    afm_mps_state = MPS.from_state_string(
+        basis=("r", "g"), qubits=["q0", "q1", "q2"], strings=afm_string_state
+    )
+    expected_bell_state = MPS(ghz_state_factors(3))
+
+    assert torch.allclose(afm_mps_state.factors[0], expected_bell_state.factors[0])
+    assert torch.allclose(afm_mps_state.factors[1], expected_bell_state.factors[1])
+    assert torch.allclose(afm_mps_state.factors[2], expected_bell_state.factors[2])
+
+
+@patch("sys.stdout", new_callable=io.StringIO)
+def test_from_string_not_normalized_state(mock_print):
+
+    afm_not_normalized = {"rrr": 1 / math.sqrt(2), "ggg": 0.1 / math.sqrt(2)}
+
+    afm_mps_state_normalized = MPS.from_state_string(
+        basis=("r", "g"), qubits=["q0", "q1", "q2"], strings=afm_not_normalized
+    )
+
+    assert "The state is not normalized, normalizing it for you" in mock_print.getvalue()
+
+    assert torch.allclose(
+        afm_mps_state_normalized.factors[0],
+        torch.tensor(
+            [[0.0995, 0.0], [0.0, 0.9950]],
+            dtype=torch.complex128,
+            device=afm_mps_state_normalized.factors[0].device,
+        ),
+        atol=1e-4,
+    )
+    assert torch.allclose(
+        afm_mps_state_normalized.factors[1],
+        torch.tensor(
+            [[[1.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 1.0]]],
+            dtype=torch.complex128,
+            device=afm_mps_state_normalized.factors[1].device,
+        ),
+    )
+    assert torch.allclose(
+        afm_mps_state_normalized.factors[2],
+        torch.tensor(
+            [[[1.0], [0.0]], [[0.0], [1.0]]],
+            dtype=torch.complex128,
+            device=afm_mps_state_normalized.factors[2].device,
+        ),
+    )
+
+
+def test_wrong_basis_string_state():
+    afm_string_state = {"rrr": 1.0 / math.sqrt(2), "ggg": 1.0 / math.sqrt(2)}
+
+    with pytest.raises(ValueError) as ve:
+        MPS.from_state_string(
+            basis=("0", "1"), qubits=["q0", "q1", "q2"], strings=afm_string_state
+        )
+    msg = "Only the rydberg-ground basis is currently supported"
+    assert str(ve.value) == msg

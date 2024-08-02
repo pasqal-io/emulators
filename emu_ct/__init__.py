@@ -1,3 +1,5 @@
+from importlib.metadata import version
+
 from .mps import MPS, inner
 from .mpo import MPO
 from .base_classes.callback import Callback
@@ -33,3 +35,6 @@ __all__ = [
     "Energy",
     "EnergyVariance",
 ]
+
+
+__version__ = version("emu_ct")

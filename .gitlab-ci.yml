@@ -37,10 +37,13 @@ lint:
     - pre-commit install
     - pre-commit run --all-files
 
+
 .test:
     script:
-    - pip install hatch
+    - pip install hatch readme-coverage-badger
     - hatch run test
+    - hatch run test_notebooks
+    - hatch run coverage_readme
     coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
 
 test-py3.10:

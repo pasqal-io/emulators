@@ -6,8 +6,8 @@ from typing import Union, List
 from emu_ct.utils import split_tensor, assign_devices, DEVICE_COUNT
 from emu_ct.base_classes.state import State
 from collections import Counter
-from numbers import Number
 from emu_ct.algebra import _add_factors, _mul_factors
+from pulser.register.base_register import QubitId
 
 
 class MPS(State):
@@ -207,7 +207,7 @@ class MPS(State):
             keep_devices=True,
         )
 
-    def __rmul__(self, scalar: Number) -> State:
+    def __rmul__(self, scalar: complex) -> State:
         """
         Multiply an MPS by scalar.
         Assumes the MPS is orthogonalized on the site 0.
@@ -219,6 +219,48 @@ class MPS(State):
             max_bond_dim=self.max_bond_dim,
             keep_devices=True,
         )
+
+    @staticmethod
+    def from_state_string(
+        *, basis: tuple[str], qubits: list[QubitId], strings: dict[str, complex]
+    ) -> State:
+        """Transforms a state given by a string into an MPS.
+
+        For example, 1/sqrt(2)*(|000>+|111>) -> emu_ct.MPS
+
+        Args:
+            basis: A tuple containing the basis states (e.g., ('r', 'g')).
+            qubits: A list of qubit ids.
+            strings: A dictionary mapping state strings to complex or floats amplitudes.
+
+        Return:
+            State: The resulting MPS representation of the state.
+        """
+
+        if set(basis) != {"r", "g"}:
+            raise ValueError("Only the rydberg-ground basis is currently supported")
+
+        num_qubits = len(qubits)
+
+        values = list(strings.values())
+        norm_state = math.sqrt(sum((ampli * ampli.conjugate()).real for ampli in values))
+
+        if not math.isclose(1.0, norm_state, rel_tol=1e-5, abs_tol=0.0):
+            print("\nThe state is not normalized, normalizing it for you.")
+            strings = {key: value / norm_state for key, value in strings.items()}
+
+        basis_g = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)  # ground state
+        basis_r = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state
+
+        accum_mps: State = MPS(
+            [torch.zeros((1, 2, 1), dtype=torch.complex128)] * num_qubits
+        )
+
+        for state, amplitude in strings.items():
+            factors = [basis_r if ch == "r" else basis_g for ch in state]
+            accum_mps += amplitude * MPS(factors)
+
+        return accum_mps
 
 
 def inner(left: MPS, right: MPS) -> float | complex:

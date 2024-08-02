@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections import Counter
-from numbers import Number
+from pulser.register.base_register import QubitId
 
 """
 note that self is the left state in the inner product,
@@ -23,5 +23,12 @@ class State(ABC):
         pass
 
     @abstractmethod
-    def __rmul__(self, scalar: Number) -> State:
+    def __rmul__(self, scalar: complex) -> State:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def from_state_string(
+        *, basis: tuple[str], qubits: list[QubitId], strings: dict[str, complex]
+    ) -> State:
         pass
