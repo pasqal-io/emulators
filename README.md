@@ -1,11 +1,11 @@
 
 <div align="center">
-  <img src="docs/images/LogoTaglineSoftGreen.svg">
+  <img src="docs/logos/LogoTaglineSoftGreen.svg">
 
   # Emu-MPS
+
+  ![Code Coverage](https://img.shields.io/badge/Coverage-95%25-brightgreen.svg)
 </div>
-
-
 
 **Emu-mps** is a Pulser backend, designed to **emu**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**MPS**). It allows users to increase the number of qubits and reduce computation time.
 
@@ -100,6 +100,6 @@ pip install -e .
 
 For more information, you can check the tutorials and examples located in the [examples folder](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct/-/tree/main/examples?ref_type=heads)
 
-##
+## Benchmarks
 
-![Code Coverage](https://img.shields.io/badge/Coverage-95%25-brightgreen.svg)
+For info about the expected performance, please, check the [benchmark](./docs/benchmarks/benchmarks.md) page.
