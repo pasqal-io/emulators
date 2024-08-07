@@ -1,20 +1,21 @@
-from pulser import Sequence
+from resource import RUSAGE_SELF, getrusage
 from time import time
-import torch
-from resource import getrusage, RUSAGE_SELF
 from typing import Optional
 
-from emu_ct.mps import MPS
-from emu_ct.hamiltonian import make_H, rydberg_interaction
-from emu_ct.mpo import MPO
-from emu_ct.tdvp import evolve_tdvp
-from emu_ct.mps_config import MPSConfig
-from emu_ct.base_classes.config import BackendConfig
-from emu_ct.base_classes.backend import Backend
-from emu_ct.pulser_adapter import extract_omega_delta
-from emu_ct.base_classes.results import Results
-from emu_ct.utils import extended_mps_factors, extended_mpo_factors
-from emu_ct.noise import pick_well_prepared_qubits, compute_noise_from_lindbladians
+import torch
+from pulser import Sequence
+
+from emu_mps.base_classes.backend import Backend
+from emu_mps.base_classes.config import BackendConfig
+from emu_mps.base_classes.results import Results
+from emu_mps.hamiltonian import make_H, rydberg_interaction
+from emu_mps.mpo import MPO
+from emu_mps.mps import MPS
+from emu_mps.mps_config import MPSConfig
+from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
+from emu_mps.pulser_adapter import extract_omega_delta
+from emu_mps.tdvp import evolve_tdvp
+from emu_mps.utils import extended_mpo_factors, extended_mps_factors
 
 
 class _RunImpl:

@@ -1,9 +1,10 @@
-from emu_ct.base_classes.callback import Callback
-from typing import Any
-from emu_ct.base_classes.config import BackendConfig
-from emu_ct.base_classes.state import State
-from emu_ct.base_classes.operator import Operator
 from copy import deepcopy
+from typing import Any
+
+from emu_mps.base_classes.callback import Callback
+from emu_mps.base_classes.config import BackendConfig
+from emu_mps.base_classes.operator import Operator
+from emu_mps.base_classes.state import State
 
 
 class StateResult(Callback):

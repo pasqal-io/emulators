@@ -1,7 +1,10 @@
-from emu_ct.pulser_adapter import extract_omega_delta
-import torch
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import pytest
+import torch
+
+from emu_mps.pulser_adapter import extract_omega_delta
+
 
 TEST_DURATION = 31
 TEST_QUBIT_IDS = ["test_qubit_0", "test_qubit_1", "test_qubit_2"]
@@ -59,7 +62,7 @@ sequence = MagicMock()
 sequence.register.qubit_ids = TEST_QUBIT_IDS
 
 
-@patch("emu_ct.pulser_adapter.pulser.sampler.sampler.sample")
+@patch("emu_mps.pulser_adapter.pulser.sampler.sampler.sample")
 def test_single_channel(mock_pulser_sample):
     mock_pulser_sample.return_value = make_sequence_samples_mock(
         {
@@ -92,7 +95,7 @@ def test_single_channel(mock_pulser_sample):
     assert torch.allclose(actual_delta, expected_delta)
 
 
-# @patch("emu_ct.pulser_adapter.pulser.sampler.sampler.sample")
+# @patch("emu_mps.pulser_adapter.pulser.sampler.sampler.sample")
 # def test_autograd(mock_pulser_sample):
 #    mock_pulser_sample.return_value = make_sequence_samples_mock(
 #        {
@@ -111,7 +114,7 @@ def test_single_channel(mock_pulser_sample):
 #    assert torch.allclose(res[0], expected)
 
 
-@patch("emu_ct.pulser_adapter.pulser.sampler.sampler.sample")
+@patch("emu_mps.pulser_adapter.pulser.sampler.sampler.sample")
 def test_multiple_channels(mock_pulser_sample):
     mock_pulser_sample.return_value = make_sequence_samples_mock(
         {
@@ -147,7 +150,7 @@ def test_multiple_channels(mock_pulser_sample):
     assert torch.allclose(actual_delta, expected_delta)
 
 
-@patch("emu_ct.pulser_adapter.pulser.sampler.sampler.sample")
+@patch("emu_mps.pulser_adapter.pulser.sampler.sampler.sample")
 def test_multiple_channels_together(mock_pulser_sample):
     mock_pulser_sample.return_value = make_sequence_samples_mock(
         {
@@ -174,7 +177,7 @@ def test_multiple_channels_together(mock_pulser_sample):
     assert torch.allclose(actual_delta, expected_delta)
 
 
-@patch("emu_ct.pulser_adapter.pulser.sampler.sampler.sample")
+@patch("emu_mps.pulser_adapter.pulser.sampler.sampler.sample")
 def test_multiple_channels_together_on_same_qubit(mock_pulser_sample):
     mock_pulser_sample.return_value = make_sequence_samples_mock(
         {

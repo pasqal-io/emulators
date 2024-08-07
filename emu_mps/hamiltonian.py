@@ -3,11 +3,12 @@ This file deals with creation of the MPO corresponding
 to the Hamiltonian of a neutral atoms quantum processor.
 """
 
-import torch
-from emu_ct.mpo import MPO
-from emu_ct.utils import dist2, DEVICE_COUNT
-from emu_ct.pulser_adapter import get_qubit_positions
 import pulser
+import torch
+
+from emu_mps.mpo import MPO
+from emu_mps.pulser_adapter import get_qubit_positions
+from emu_mps.utils import DEVICE_COUNT, dist2
 
 
 def _first_factor(gate: torch.Tensor) -> torch.Tensor:

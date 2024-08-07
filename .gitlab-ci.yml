@@ -4,6 +4,7 @@ variables:
   PACKAGE: "emu-ct"
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
+
 .default_rules:
   rules:
     #don't run if were the scheduled pipeline that defines the below variable
@@ -26,6 +27,7 @@ stages:
   - lint
   - test
   - benchmarks
+  - pages
 
 lint:
   extends:
@@ -68,3 +70,14 @@ benchmarks:
   script:
     - sed -ie "s|BRANCH|$CI_COMMIT_BRANCH|g" ./benchmarks/download_and_benchmark.sh
     - 'ssh -vvv -o StrictHostKeyChecking=accept-new -o ProxyCommand="ssh -o StrictHostKeyChecking=accept-new -W %h:%p -q $JUMPHOST@$VM_IPADDRESS" $BENCHUSER@$DGX_IP < ./benchmarks/download_and_benchmark.sh'
+
+pages:
+  stage: pages
+  image: python:3.10
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+  script:
+    - python -m hatch -v run docs:build --site-dir public

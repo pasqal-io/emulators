@@ -1,16 +1,11 @@
-from emu_ct.tdvp import (
-    left_baths,
-    right_baths,
-    apply_effective_Hamiltonian,
-    evolve_tdvp,
-)
-from emu_ct.math import krylov_exp
-from emu_ct import MPS, MPO, inner
-from emu_ct.hamiltonian import make_H, rydberg_interaction
+from unittest.mock import MagicMock, patch
 
 import torch
 
-from unittest.mock import patch, MagicMock
+from emu_mps import MPO, MPS, inner
+from emu_mps.hamiltonian import make_H, rydberg_interaction
+from emu_mps.math import krylov_exp
+from emu_mps.tdvp import apply_effective_Hamiltonian, evolve_tdvp, left_baths, right_baths
 
 
 def test_left_baths_bell():
@@ -287,7 +282,7 @@ def test_evolve_tdvp():
     assert abs(inner(state, expected) - 1) < 1e-8
 
 
-@patch("emu_ct.hamiltonian.pulser.sequence.Sequence")
+@patch("emu_mps.hamiltonian.pulser.sequence.Sequence")
 def test_tdvp_state_vector(mock_sequence):
     nqubits = 9
     c6 = 5420158.53  # mock device c6

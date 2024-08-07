@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import Any
 from abc import ABC, abstractmethod
-from emu_ct.base_classes.state import State
+from typing import Any
+
+from emu_mps.base_classes.state import State
+
 
 QuditOp = dict[str, complex]  # single qubit operator
 TensorOp = list[tuple[QuditOp, list[int]]]  # QuditOp applied to list of qubits

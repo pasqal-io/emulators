@@ -1,10 +1,13 @@
-from emu_ct import MPS, inner
-import torch
-import pytest
-import math
-from .utils_testing import ghz_state_factors
-from unittest.mock import patch
 import io
+import math
+from unittest.mock import patch
+
+import pytest
+import torch
+
+from emu_mps import MPS, inner
+
+from .utils_testing import ghz_state_factors
 
 
 def test_init():

@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Any
-from emu_ct.base_classes.config import BackendConfig
-from emu_ct.base_classes.state import State
-from emu_ct.base_classes.results import Results
-from emu_ct.base_classes.operator import Operator
+
+from emu_mps.base_classes.config import BackendConfig
+from emu_mps.base_classes.operator import Operator
+from emu_mps.base_classes.results import Results
+from emu_mps.base_classes.state import State
 
 
 class Callback(ABC):

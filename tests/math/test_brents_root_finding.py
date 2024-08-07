@@ -1,7 +1,10 @@
-from emu_ct.math.brents_root_finding import find_root_brents
 import random
 from unittest.mock import MagicMock
+
 import torch
+
+from emu_mps.math.brents_root_finding import find_root_brents
+
 
 test_tolerance = 1e-10
 

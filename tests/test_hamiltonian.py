@@ -1,12 +1,10 @@
-from emu_ct.hamiltonian import make_H, rydberg_interaction
-from emu_ct.noise import compute_noise_from_lindbladians
-
+from functools import reduce
+from unittest.mock import MagicMock, patch
 
 import torch
-from functools import reduce
 
-
-from unittest.mock import patch, MagicMock
+from emu_mps.hamiltonian import make_H, rydberg_interaction
+from emu_mps.noise import compute_noise_from_lindbladians
 
 
 #########################################
@@ -67,7 +65,7 @@ def sv_hamiltonian(
 #########################################
 
 
-@patch("emu_ct.hamiltonian.pulser.sequence.Sequence")
+@patch("emu_mps.hamiltonian.pulser.sequence.Sequence")
 def test_rydberg_interaction(mock_sequence):
     q = [torch.tensor([0.0, 0.0]), torch.tensor([10.0, 0.0]), torch.tensor([20.0, 0.0])]
 
@@ -198,7 +196,7 @@ def test_5_qubit():
     )
 
 
-@patch("emu_ct.hamiltonian.pulser.sequence.Sequence")
+@patch("emu_mps.hamiltonian.pulser.sequence.Sequence")
 def test_9_qubit_noise(mock_sequence):
     omega = [torch.tensor([12.566370614359172], dtype=dtype)] * 9
     delta = [torch.tensor([10.771174812307862], dtype=dtype)] * 9

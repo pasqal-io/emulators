@@ -1,22 +1,17 @@
-import emu_ct.base_classes
-import emu_ct.base_classes.default_callbacks
-import torch
-import emu_ct
-from emu_ct import (
-    MPS,
-    MPSBackend,
-    MPSConfig,
-    BitStrings,
-    StateResult,
-    Fidelity,
-)
+from unittest.mock import ANY, MagicMock, patch
 
-from .utils_testing import pulser_afm_sequence_ring, pulser_afm_sequence_grid
-
-from pytest import approx
-from unittest.mock import patch, ANY, MagicMock
-import pytest
 import pulser
+import pytest
+import torch
+from pytest import approx
+
+import emu_mps
+import emu_mps.base_classes
+import emu_mps.base_classes.default_callbacks
+from emu_mps import MPS, BitStrings, Fidelity, MPSBackend, MPSConfig, StateResult
+
+from .utils_testing import pulser_afm_sequence_grid, pulser_afm_sequence_ring
+
 
 seed = 1337
 
@@ -115,7 +110,7 @@ def test_end_to_end_afm_ring():
     bitstrings = result["bitstrings"][final_time]
     final_state = result["state"][final_time]
     final_fidelity = result[
-        f"fidelity_{emu_ct.base_classes.default_callbacks._fidelity_counter}"
+        f"fidelity_{emu_mps.base_classes.default_callbacks._fidelity_counter}"
     ][final_time]
     max_bond_dim = final_state.get_max_bond_dim()
     fidelity_state = create_antiferromagnetic_mps(num_qubits)
@@ -130,7 +125,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
     torch.manual_seed(seed)
 
     with patch(
-        "emu_ct.mps_backend.pick_well_prepared_qubits"
+        "emu_mps.mps_backend.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [True, True, True, False]
         final_time, result = simulate_line(4, state_prep_error=0.1)
@@ -142,7 +137,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
 
     # A dark qubit at the end of the line gives the same result as a line with one less qubit.
     with patch(
-        "emu_ct.mps_backend.pick_well_prepared_qubits"
+        "emu_mps.mps_backend.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         final_time, result = simulate_line(3)
         final_state = result["state"][final_time]
@@ -151,7 +146,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
         assert get_proba(final_state, "101") == approx(0.43, abs=1e-2)
 
     with patch(
-        "emu_ct.mps_backend.pick_well_prepared_qubits"
+        "emu_mps.mps_backend.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [True, False, True, True]
         final_time, result = simulate_line(4, state_prep_error=0.1)
@@ -165,7 +160,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
     assert get_proba(final_state, "11") == approx(0.95, abs=1e-2)
 
     with patch(
-        "emu_ct.mps_backend.pick_well_prepared_qubits"
+        "emu_mps.mps_backend.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [False, True, True, False]
         final_time, result = simulate_line(4, state_prep_error=0.1)
@@ -175,7 +170,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
 
     # FIXME: When n-1 qubits are dark, the simulation fails!
     with patch(
-        "emu_ct.mps_backend.pick_well_prepared_qubits"
+        "emu_mps.mps_backend.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         with pytest.raises(ValueError) as exception_info:
             pick_well_prepared_qubits_mock.return_value = [False, False, True, False]
@@ -186,7 +181,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
 
 
 def test_end_to_end_afm_line_with_measurement_errors():
-    with patch("emu_ct.mps.apply_measurement_errors") as apply_measurement_errors_mock:
+    with patch("emu_mps.mps.apply_measurement_errors") as apply_measurement_errors_mock:
         bitstrings = MagicMock()
         apply_measurement_errors_mock.return_value = bitstrings
         final_time, results = simulate_line(4, p_false_pos=0.0, p_false_neg=0.5)

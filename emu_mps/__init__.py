@@ -1,20 +1,20 @@
 from importlib.metadata import version
 
-from .mps import MPS, inner
-from .mpo import MPO
 from .base_classes.callback import Callback
 from .base_classes.default_callbacks import (
-    StateResult,
     BitStrings,
-    QubitDensity,
     CorrelationMatrix,
-    Expectation,
-    Fidelity,
     Energy,
     EnergyVariance,
+    Expectation,
+    Fidelity,
+    QubitDensity,
+    StateResult,
 )
-from .mps_config import MPSConfig
+from .mpo import MPO
+from .mps import MPS, inner
 from .mps_backend import MPSBackend
+from .mps_config import MPSConfig
 
 
 __all__ = [
@@ -36,4 +36,4 @@ __all__ = [
 ]
 
 
-__version__ = version("emu_ct")
+__version__ = version("emu_mps")

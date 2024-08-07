@@ -22,7 +22,7 @@ Join us on [Slack](https://pasqalworkspace.slack.com/archives/C0389KD4ZKQ) or by
 git clone this [repository ](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct)
 
 
-Inside the `emu_ct` folder
+Inside the `emu_mps` folder
 
 ```bash
 pip install .
@@ -61,7 +61,7 @@ We always recommend using a virtual environment.
 
   - On Windows: C:\> /path/to/new/virtual/environment/Scripts/activate
 
-  Remember to replace `/path/to/new/virtual/environment` with the actual path to your virtual environment. Once the environment is activated, you can clone emu_ct and install it using
+  Remember to replace `/path/to/new/virtual/environment` with the actual path to your virtual environment. Once the environment is activated, you can clone emu_mps and install it using
 
 </details>
 
@@ -69,7 +69,7 @@ We always recommend using a virtual environment.
 
 <details>
   <summary>Guidelines for developers </summary>
-  We recommend using an environment, git clone the repository, then inside the `emu_ct` folder
+  We recommend using an environment, git clone the repository, then inside the `emu_mps` folder
 
 ```bash
 pip install -e .

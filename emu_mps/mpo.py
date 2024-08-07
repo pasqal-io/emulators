@@ -1,10 +1,12 @@
-from typing import Any, List, cast
 import itertools
-from emu_ct.mps import MPS
+from typing import Any, List, cast
+
 import torch
-from emu_ct.base_classes.state import State
-from emu_ct.base_classes.operator import Operator, FullOp, QuditOp
-from emu_ct.algebra import _add_factors, _mul_factors
+
+from emu_mps.algebra import _add_factors, _mul_factors
+from emu_mps.base_classes.operator import FullOp, Operator, QuditOp
+from emu_mps.base_classes.state import State
+from emu_mps.mps import MPS
 
 
 def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:

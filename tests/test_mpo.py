@@ -1,6 +1,7 @@
-from emu_ct import MPS, MPO, inner
-import torch
 import pytest
+import torch
+
+from emu_mps import MPO, MPS, inner
 
 
 def test_mul():

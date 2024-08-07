@@ -1,8 +1,11 @@
 from typing import Any
-from emu_ct.base_classes.config import BackendConfig
-from emu_ct.base_classes.state import State
-from .utils import DEVICE_COUNT
+
 import torch
+
+from emu_mps.base_classes.config import BackendConfig
+from emu_mps.base_classes.state import State
+
+from .utils import DEVICE_COUNT
 
 
 class MPSConfig(BackendConfig):

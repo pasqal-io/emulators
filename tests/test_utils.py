@@ -1,21 +1,23 @@
+import math
+import random
+from collections import Counter
+from typing import List
+from unittest.mock import call, patch
+
 import pytest
 import torch
-import math
-from typing import List
-from emu_ct.utils import (
-    split_tensor,
-    assign_devices,
-    extended_mps_factors,
-    extended_mpo_factors,
+
+from emu_mps.utils import (
     apply_measurement_errors,
+    assign_devices,
+    extended_mpo_factors,
+    extended_mps_factors,
     readout_with_error,
+    split_tensor,
 )
-from collections import Counter
-import random
-from unittest.mock import patch, call
 
 
-@patch("emu_ct.noise.random.random")
+@patch("emu_mps.noise.random.random")
 def test_readout_with_error(random_mock):
     random_mock.side_effect = [0.6, 0.08, 0.4, 0.1, 0.04]
 
@@ -44,7 +46,7 @@ def test_add_measurement_errors():
     # Error probability is not null
     p_false_pos = 0.1
     p_false_neg = 0.2
-    with patch("emu_ct.utils.readout_with_error") as readout_with_error_mock:
+    with patch("emu_mps.utils.readout_with_error") as readout_with_error_mock:
         readout_with_error_mock.side_effect = [
             "1",
             "0",

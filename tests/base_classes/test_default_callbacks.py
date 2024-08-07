@@ -1,20 +1,22 @@
+from collections import Counter
+from unittest.mock import MagicMock, Mock
+
 import torch
-from emu_ct import (
-    StateResult,
+
+from emu_mps import (
+    MPO,
+    MPS,
     BitStrings,
-    QubitDensity,
     CorrelationMatrix,
-    Expectation,
-    Fidelity,
     Energy,
     EnergyVariance,
+    Expectation,
+    Fidelity,
     MPSConfig,
-    MPS,
-    MPO,
+    QubitDensity,
+    StateResult,
 )
-from emu_ct.base_classes.results import Results
-from unittest.mock import MagicMock, Mock
-from collections import Counter
+from emu_mps.base_classes.results import Results
 
 
 def test_state_result():

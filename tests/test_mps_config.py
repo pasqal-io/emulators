@@ -1,6 +1,7 @@
-from emu_ct.mps_config import MPSConfig
-import pytest
 import pulser
+import pytest
+
+from emu_mps.mps_config import MPSConfig
 
 
 def test_unsupported_noise():

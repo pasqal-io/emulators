@@ -1,13 +1,19 @@
 from __future__ import annotations
 
-import torch
 import math
-from typing import Union, List, Any
-from emu_ct.utils import split_tensor, assign_devices, DEVICE_COUNT
-from emu_ct.base_classes.state import State
 from collections import Counter
-from emu_ct.algebra import _add_factors, _mul_factors
-from emu_ct.utils import apply_measurement_errors
+from typing import Any, List, Union
+
+import torch
+
+from emu_mps.algebra import _add_factors, _mul_factors
+from emu_mps.base_classes.state import State
+from emu_mps.utils import (
+    DEVICE_COUNT,
+    apply_measurement_errors,
+    assign_devices,
+    split_tensor,
+)
 
 
 class MPS(State):
@@ -235,7 +241,7 @@ class MPS(State):
     ) -> State:
         """Transforms a state given by a string into an MPS.
 
-        For example, 1/sqrt(2)*(|000>+|111>) -> emu_ct.MPS
+        For example, 1/sqrt(2)*(|000>+|111>) -> emu_mps.MPS
 
         Args:
             basis: A tuple containing the basis states (e.g., ('r', 'g')).

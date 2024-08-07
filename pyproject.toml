@@ -3,12 +3,12 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "emu-ct"
-description = "Pasqal cutensornet based pulse emulator"
+name = "emu-mps"
+description = "Pasqal MPS based pulse emulator built on PyTorch"
 readme = "README.md"
 authors = [
     { name = "Anton Quelle", email = "anton.quelle@pasqal.com"},
-    {name = "Mauro Mendizabal", email="mauro.mendizabal-pico@pasqal.com" }
+    { name = "Mauro Mendizabal", email="mauro.mendizabal-pico@pasqal.com" }
 ]
 url="https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct"
 requires-python = ">=3.10"
@@ -42,9 +42,27 @@ dependencies = [
 ]
 
 [tool.hatch.envs.default.scripts]
-test = "pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_ct {args}"
+test = "pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps {args}"
 test_notebooks = "pytest --nbmake **/*ipynb"
 coverage_readme = "readme-cov"
+
+[tool.hatch.envs.docs]
+dependencies = [
+  "mkdocs",
+  "mkdocs-material",
+  "mkdocstrings",
+  "mkdocstrings-python",
+  "mkdocs-section-index",
+  "mkdocs-jupyter",
+  "mkdocs-exclude",
+  "notebook<7",
+  "markdown-exec",
+  "jupyter_contrib_nbextensions",
+]
+
+[tool.hatch.envs.docs.scripts]
+build = "mkdocs build --clean --strict {args}"
+serve = "mkdocs serve --dev-addr localhost:8000"
 
 [[tool.hatch.envs.test.matrix]]
 python = ["38", "39", "310", "311"]
@@ -59,7 +77,7 @@ exclude = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["emu_ct"]
+packages = ["emu_mps"]
 
 [tool.coverage.run]
 branch = true

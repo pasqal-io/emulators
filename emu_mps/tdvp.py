@@ -1,8 +1,9 @@
 import torch
-from emu_ct.mps import MPS
-from emu_ct.mpo import MPO
-from emu_ct.utils import split_tensor
-from emu_ct.math.krylov_exp import krylov_exp, DEFAULT_MAX_KRYLOV_DIM
+
+from emu_mps.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
+from emu_mps.mpo import MPO
+from emu_mps.mps import MPS
+from emu_mps.utils import split_tensor
 
 
 def new_left_bath(

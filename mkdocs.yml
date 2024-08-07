@@ -1,0 +1,95 @@
+site_name: Emu-MPS
+repo_url: "https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct"
+repo_name: "emu-mps"
+
+nav:
+  - Emu-MPS:
+    - index.md
+  - API:
+    - api/index.md
+  - Benchmarks:
+    - benchmarks/index.md
+
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+  - content.code.annotate
+  - content.action.view
+  - content.action.edit
+  - navigation.tabs
+  - navigation.indexes
+  - navigation.sections
+  - content.code.copy
+  - content.code.annotate
+
+  palette:
+  - media: "(prefers-color-scheme: light)"
+    scheme: default
+    primary: custom
+    accent: custom
+    toggle:
+      icon: material/weather-sunny
+      name: Switch to dark mode
+  - media: "(prefers-color-scheme: dark)"
+    scheme: slate
+    primary: custom
+    accent: custom
+    toggle:
+      icon: material/weather-night
+      name: Switch to light mode
+
+markdown_extensions:
+- admonition  # for notes
+- footnotes
+- pymdownx.arithmatex: # for mathjax
+    generic: true
+- pymdownx.highlight:
+    anchor_linenums: true
+- pymdownx.inlinehilite
+- pymdownx.snippets
+- pymdownx.details
+- pymdownx.superfences:
+    custom_fences:
+    - name: python
+      class: python
+      validator: "!!python/name:markdown_exec.validator"
+      format: "!!python/name:markdown_exec.formatter"
+
+plugins:
+- search
+- section-index
+- mkdocstrings:
+    default_handler: python
+    handlers:
+      python:
+        selection:
+          filters:
+            - "!^_"  # exlude all members starting with _
+            - "^__init__$"  # but always include __init__ modules and methods
+            - "^__new__$"  # but always include __init__ modules and methods
+        options:
+          show_root_toc_entry: false
+          heading_level: 3
+          merge_init_into_class: true
+          docstring_section_style: spacy
+
+- mkdocs-jupyter:
+    theme: light
+- markdown-exec
+
+# To get nice tabs
+extra_css:
+- extras/css/mkdocstrings.css
+- extras/css/colors.css
+- extras/css/home.css
+
+# For mathjax
+extra_javascript:
+  - extras/javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+watch:
+  - emu_mps

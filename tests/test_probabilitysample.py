@@ -1,5 +1,6 @@
 import torch
-from emu_ct import MPS
+
+from emu_mps import MPS
 
 from .utils_testing import ghz_state_factors
 

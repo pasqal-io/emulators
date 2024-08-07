@@ -1,6 +1,8 @@
-import torch
 import pytest
-from emu_ct.algebra import _add_factors, _mul_factors
+import torch
+
+from emu_mps.algebra import _add_factors, _mul_factors
+
 
 dtype = torch.complex128
 

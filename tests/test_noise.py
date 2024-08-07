@@ -1,10 +1,9 @@
-from emu_ct.noise import (
-    compute_noise_from_lindbladians,
-    pick_well_prepared_qubits,
-)
-import torch
-import pytest
 from unittest.mock import patch
+
+import pytest
+import torch
+
+from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
 
 
 def test_compute_noise_from_lindbladians_empty():
@@ -36,7 +35,7 @@ def test_compute_noise_from_lindbladians():
     )
 
 
-@patch("emu_ct.noise.random.random")
+@patch("emu_mps.noise.random.random")
 def test_pick_well_prepared_qubits(random_mock):
     random_values = [0.1, 0.8, 0.2, 0.4, 0.5]
 

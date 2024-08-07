@@ -1,7 +1,6 @@
-from emu_ct.math.krylov_exp import (
-    krylov_exp_impl,
-)
 import torch
+
+from emu_mps.math.krylov_exp import krylov_exp_impl
 
 
 def make_hermitian(m: torch.Tensor) -> torch.Tensor:
