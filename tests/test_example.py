@@ -9,8 +9,6 @@ from typing import Iterable
 
 import pytest
 
-expected_fail: dict = {}
-
 
 def get_py_files(dir: Path) -> Iterable[Path]:
     files = []
@@ -27,13 +25,6 @@ examples_dir = Path(__file__).parent.parent.joinpath("examples").resolve()
 assert examples_dir.exists()
 examples = get_py_files(examples_dir)
 example_names = [f"{example.relative_to(examples_dir)}" for example in examples]
-for example, reason in expected_fail.items():
-    try:
-        examples[example_names.index(example)] = pytest.param(  # type: ignore
-            example, marks=pytest.mark.xfail(reason=reason)
-        )
-    except ValueError:
-        pass
 
 
 @pytest.mark.parametrize("example", examples, ids=example_names)

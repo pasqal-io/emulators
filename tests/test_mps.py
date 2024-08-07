@@ -203,7 +203,7 @@ def test_mps_algebra():
 def test_from_string_bell_state():
     afm_string_state = {"rrr": 1.0 / math.sqrt(2), "ggg": 1.0 / math.sqrt(2)}
     afm_mps_state = MPS.from_state_string(
-        basis=("r", "g"), qubits=["q0", "q1", "q2"], strings=afm_string_state
+        basis=("r", "g"), nqubits=3, strings=afm_string_state
     )
     expected_bell_state = MPS(ghz_state_factors(3))
 
@@ -218,7 +218,7 @@ def test_from_string_not_normalized_state(mock_print):
     afm_not_normalized = {"rrr": 1 / math.sqrt(2), "ggg": 0.1 / math.sqrt(2)}
 
     afm_mps_state_normalized = MPS.from_state_string(
-        basis=("r", "g"), qubits=["q0", "q1", "q2"], strings=afm_not_normalized
+        basis=("r", "g"), nqubits=3, strings=afm_not_normalized
     )
 
     assert "The state is not normalized, normalizing it for you" in mock_print.getvalue()
@@ -254,8 +254,6 @@ def test_wrong_basis_string_state():
     afm_string_state = {"rrr": 1.0 / math.sqrt(2), "ggg": 1.0 / math.sqrt(2)}
 
     with pytest.raises(ValueError) as ve:
-        MPS.from_state_string(
-            basis=("0", "1"), qubits=["q0", "q1", "q2"], strings=afm_string_state
-        )
+        MPS.from_state_string(basis=("0", "1"), nqubits=3, strings=afm_string_state)
     msg = "Only the rydberg-ground basis is currently supported"
     assert str(ve.value) == msg

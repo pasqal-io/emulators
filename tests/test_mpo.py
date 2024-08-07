@@ -1,10 +1,9 @@
-from emu_ct import MPS, MPO, OperatorString, inner
+from emu_ct import MPS, MPO, inner
 import torch
 import pytest
 
 
 def test_mul():
-
     num_sites = 3
 
     mps = MPS(num_sites)
@@ -23,14 +22,19 @@ def test_mul():
 
 
 def test_from_operator_string():
-    x = OperatorString([1.0, 1.0], ["sigma_gr", "sigma_rg"])
-    z = OperatorString([1.0, -1.0], ["sigma_gg", "sigma_rr"])
+    x = {"sigma_gr": 1.0, "sigma_rg": 1.0}
+    z = {"sigma_gg": 1.0, "sigma_rr": -1.0}
     operators = {"X": x, "Z": z}
     operations = [
-        (OperatorString([2.0], ["X"]), ["q0", "q2"]),
-        (OperatorString([3], ["Z"]), ["q1"]),
+        (
+            1.0,
+            [
+                ({"X": 2.0}, [0, 2]),
+                ({"Z": 3.0}, [1]),
+            ],
+        )
     ]
-    mpo = MPO.from_operator_string(("r", "g"), ["q0", "q1", "q2"], operations, operators)
+    mpo = MPO.from_operator_string(("r", "g"), 3, operations, operators)
     assert torch.allclose(
         mpo.factors[0],
         torch.tensor(

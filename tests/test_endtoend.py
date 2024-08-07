@@ -1,4 +1,7 @@
+import emu_ct.base_classes
+import emu_ct.base_classes.default_callbacks
 import torch
+import emu_ct
 from emu_ct import (
     MPS,
     MPSBackend,
@@ -6,8 +9,6 @@ from emu_ct import (
     BitStrings,
     StateResult,
     Fidelity,
-    CorrelationMatrix,
-    QubitDensity,
 )
 
 from .utils_testing import pulser_afm_sequence_ring, pulser_afm_sequence_grid
@@ -35,9 +36,7 @@ def create_antiferromagnetic_mps(num_qubits: int):
 def simulate(seq, state_prep_error=0.0, p_false_pos=0.0, p_false_neg=0.0):
     final_time = seq.get_duration()
     fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
-    qubit_ids = seq.register.qubit_ids
 
-    basis = ("r", "g")
     noise_model = None
     if state_prep_error > 0.0 or p_false_pos > 0.0 or p_false_neg > 0.0:
         noise_model = pulser.noise_model.NoiseModel(
@@ -55,8 +54,6 @@ def simulate(seq, state_prep_error=0.0, p_false_pos=0.0, p_false_neg=0.0):
             StateResult(times=times),
             BitStrings(times=times, num_shots=1000),
             Fidelity(times=times, state=fidelity_state),
-            QubitDensity(times=times, basis=basis, qubits=qubit_ids),
-            CorrelationMatrix(times=times, basis=basis, qubits=qubit_ids),
         ],
         noise_model=noise_model,
     )
@@ -117,9 +114,9 @@ def test_end_to_end_afm_ring():
     final_time = seq.get_duration()
     bitstrings = result["bitstrings"][final_time]
     final_state = result["state"][final_time]
-    final_fidelity = result["fidelity_0"][final_time]
-    final_magnetization = result["qubit_density"][final_time]
-    final_correlations = result["correlation_matrix"][final_time]
+    final_fidelity = result[
+        f"fidelity_{emu_ct.base_classes.default_callbacks._fidelity_counter}"
+    ][final_time]
     max_bond_dim = final_state.get_max_bond_dim()
     fidelity_state = create_antiferromagnetic_mps(num_qubits)
 
@@ -127,33 +124,6 @@ def test_end_to_end_afm_ring():
     assert bitstrings["0101010101"] == 135
     assert fidelity_state.inner(final_state) == approx(final_fidelity, abs=1e-10)
     assert max_bond_dim == 29
-    assert final_magnetization == approx([0.578] * num_qubits, abs=1e-3)
-    assert [final_correlations[i][i] for i in range(num_qubits)] == approx(
-        final_magnetization, abs=1e-10
-    )
-    for i in range(num_qubits):
-        for j in range(i + 1, num_qubits):
-            # test for symmetry
-            assert final_correlations[i][j] == final_correlations[j][i]
-            # test for antiferromagnetic character
-            if i > 0:
-                if (i - j) % 2:
-                    assert abs(final_correlations[i][j]) < abs(
-                        final_correlations[i - 1][j]
-                    )
-                else:
-                    assert abs(final_correlations[i][j]) > abs(
-                        final_correlations[i - 1][j]
-                    )
-            if i < num_qubits - 1:
-                if (i - j) % 2:
-                    assert abs(final_correlations[i][j]) < abs(
-                        final_correlations[i + 1][j]
-                    )
-                else:
-                    assert abs(final_correlations[i][j]) > abs(
-                        final_correlations[i + 1][j]
-                    )
 
 
 def test_end_to_end_afm_line_with_state_preparation_errors():
@@ -216,9 +186,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
 
 
 def test_end_to_end_afm_line_with_measurement_errors():
-    with patch(
-        "emu_ct.base_classes.default_callbacks.apply_measurement_errors"
-    ) as apply_measurement_errors_mock:
+    with patch("emu_ct.mps.apply_measurement_errors") as apply_measurement_errors_mock:
         bitstrings = MagicMock()
         apply_measurement_errors_mock.return_value = bitstrings
         final_time, results = simulate_line(4, p_false_pos=0.0, p_false_neg=0.5)

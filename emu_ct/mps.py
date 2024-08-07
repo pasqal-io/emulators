@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import torch
 import math
-from typing import Union, List
+from typing import Union, List, Any
 from emu_ct.utils import split_tensor, assign_devices, DEVICE_COUNT
 from emu_ct.base_classes.state import State
 from collections import Counter
 from emu_ct.algebra import _add_factors, _mul_factors
-from pulser.register.base_register import QubitId
+from emu_ct.utils import apply_measurement_errors
 
 
 class MPS(State):
@@ -122,15 +122,24 @@ class MPS(State):
         """
         return max((x.shape[2] for x in self.factors), default=0)
 
-    def sample(self, num_shots: int) -> Counter[str]:
+    def sample(
+        self, num_shots: int, p_false_pos: float = 0.0, p_false_neg: float = 0.0
+    ) -> Counter[str]:
         """
         Returns bitstring distribution for a given number of samples or shots.
         """
         num_qubits = len(self.factors)
         rnd_matrix = torch.rand(num_shots, num_qubits)
-        return Counter(
+        bitstrings = Counter(
             self._sample_implementation(rnd_matrix[x, :]) for x in range(num_shots)
         )
+        if p_false_neg > 0 or p_false_pos > 0:
+            bitstrings = apply_measurement_errors(
+                bitstrings,
+                p_false_pos=p_false_pos,
+                p_false_neg=p_false_neg,
+            )
+        return bitstrings
 
     def _sample_implementation(self, rnd_vector: torch.Tensor) -> str:
         """
@@ -222,7 +231,7 @@ class MPS(State):
 
     @staticmethod
     def from_state_string(
-        *, basis: tuple[str], qubits: list[QubitId], strings: dict[str, complex]
+        *, basis: tuple[str], nqubits: int, strings: dict[str, complex], **kwargs: Any
     ) -> State:
         """Transforms a state given by a string into an MPS.
 
@@ -240,8 +249,6 @@ class MPS(State):
         if set(basis) != {"r", "g"}:
             raise ValueError("Only the rydberg-ground basis is currently supported")
 
-        num_qubits = len(qubits)
-
         values = list(strings.values())
         norm_state = math.sqrt(sum((ampli * ampli.conjugate()).real for ampli in values))
 
@@ -253,12 +260,12 @@ class MPS(State):
         basis_r = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state
 
         accum_mps: State = MPS(
-            [torch.zeros((1, 2, 1), dtype=torch.complex128)] * num_qubits
+            [torch.zeros((1, 2, 1), dtype=torch.complex128)] * nqubits, **kwargs
         )
 
         for state, amplitude in strings.items():
             factors = [basis_r if ch == "r" else basis_g for ch in state]
-            accum_mps += amplitude * MPS(factors)
+            accum_mps += amplitude * MPS(factors, **kwargs)
 
         return accum_mps
 

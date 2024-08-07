@@ -8,11 +8,11 @@ from .base_classes.default_callbacks import (
     BitStrings,
     QubitDensity,
     CorrelationMatrix,
+    Expectation,
     Fidelity,
     Energy,
     EnergyVariance,
 )
-from .base_classes.operator import OperatorString, TargetedOperatorString
 from .mps_config import MPSConfig
 from .mps_backend import MPSBackend
 
@@ -27,10 +27,9 @@ __all__ = [
     "StateResult",
     "BitStrings",
     "StateString",
-    "OperatorString",
-    "TargetedOperatorString",
     "QubitDensity",
     "CorrelationMatrix",
+    "Expectation",
     "Fidelity",
     "Energy",
     "EnergyVariance",

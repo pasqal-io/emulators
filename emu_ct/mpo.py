@@ -3,27 +3,26 @@ import itertools
 from emu_ct.mps import MPS
 import torch
 from emu_ct.base_classes.state import State
-from emu_ct.base_classes.operator import Operator, OperatorString, TargetedOperatorString
-from pulser.register.base_register import QubitId
-import emu_ct.algebra
+from emu_ct.base_classes.operator import Operator, FullOp, QuditOp
+from emu_ct.algebra import _add_factors, _mul_factors
 
 
-def _validate_qubit_ids(
-    operations: list[TargetedOperatorString], qubit_ids: list[QubitId]
-) -> None:
-    target_qids = [operation[1] for operation in operations]
-    assert "global" not in target_qids, "global is not supported yet."
-    target_qids_list = list(itertools.chain(*target_qids))
-    target_qids_set = set(target_qids_list)
-    if len(target_qids_set) < len(target_qids_list):
-        # Either the qubit id has been defined twice in an operation:
-        for qids in target_qids:
-            if len(set(qids)) < len(qids):
-                raise ValueError("Duplicate atom ids in argument list.")
-        # Or it was defined in two different operations
-        raise ValueError("Each qubit can be targeted by only one operation.")
-    if not target_qids_set.issubset(qubit_ids):
-        raise ValueError("Invalid qubit names: " f"{target_qids_set - set(qubit_ids)}")
+def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:
+    for tensorop in operations:
+        target_qids = (factor[1] for factor in tensorop[1])
+        target_qids_list = list(itertools.chain(*target_qids))
+        target_qids_set = set(target_qids_list)
+        if len(target_qids_set) < len(target_qids_list):
+            # Either the qubit id has been defined twice in an operation:
+            for qids in target_qids:
+                if len(set(qids)) < len(qids):
+                    raise ValueError("Duplicate atom ids in argument list.")
+            # Or it was defined in two different operations
+            raise ValueError("Each qubit can be targeted by only one operation.")
+        if max(target_qids_set) >= nqubits:
+            raise ValueError(
+                "The operation targets more qubits than there are in the register."
+            )
 
 
 class MPO(Operator):
@@ -94,15 +93,23 @@ class MPO(Operator):
         Returns the sum of two MPOs, computed with a direct algorithm.
         """
         assert isinstance(other, MPO), "MPO can only be added to another MPO"
-        sum_factors = emu_ct.algebra._add_factors(self.factors, other.factors)
+        sum_factors = _add_factors(self.factors, other.factors)
         return MPO(sum_factors)
+
+    def __rmul__(self, scalar: complex) -> Operator:
+        """
+        Multiply an MPS by scalar.
+        Assumes the MPS is orthogonalized on the site 0.
+        """
+        factors = _mul_factors(self.factors, scalar)
+        return MPO(factors)
 
     @staticmethod
     def from_operator_string(
         basis: tuple[str, ...],
-        qubits: list[QubitId],
-        operations: list[TargetedOperatorString],
-        operators: dict[str, OperatorString] = {},
+        nqubits: int,
+        operations: FullOp,
+        operators: dict[str, QuditOp] = {},
         /,
         **kwargs: Any,
     ) -> Operator:
@@ -110,50 +117,47 @@ class MPO(Operator):
             "r",
             "g",
         }, "only the rydberg-ground basis is currently supported"
-        _validate_qubit_ids(operations, qubits)
-        nqubits = len(qubits)
+        _validate_operator_targets(operations, nqubits)
+        nqubits
+        mpos = []
+        for (coeff, tensorop) in operations:
+            # operators will now contain the 'sigma_ij' elements defined, and potentially
+            # user defined strings in terms of the 'sigma_ij'
+            operators |= {
+                "sigma_gg": torch.tensor(
+                    [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
+                ).reshape(1, 2, 2, 1),
+                "sigma_gr": torch.tensor(
+                    [[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128
+                ).reshape(1, 2, 2, 1),
+                "sigma_rg": torch.tensor(
+                    [[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128
+                ).reshape(1, 2, 2, 1),
+                "sigma_rr": torch.tensor(
+                    [[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128
+                ).reshape(1, 2, 2, 1),
+            }
 
-        id_to_idx: dict[str, int] = {}
-        for i, name in enumerate(qubits):
-            id_to_idx[name] = i
-        operations_indexed = [
-            (op[0], set(id_to_idx[target] for target in op[1])) for op in operations
-        ]
+            # this function will recurse through the operators, and replace any definitions
+            # in terms of strings by the computed tensor
+            def replace_operator_string(op: QuditOp | torch.Tensor) -> torch.Tensor:
+                if isinstance(op, dict):
+                    for (opstr, coeff) in op.items():
+                        tensor = replace_operator_string(operators[opstr])
+                        operators[opstr] = tensor
+                        op[opstr] = tensor * coeff
+                    op = sum(cast(list[torch.Tensor], op.values()))
+                return op
 
-        # operators will now contain the 'sigma_ij' elements defined, and potentially
-        # user defined strings in terms of the 'sigma_ij'
-        operators |= {
-            "sigma_gg": torch.tensor(
-                [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
-            ).reshape(1, 2, 2, 1),
-            "sigma_gr": torch.tensor(
-                [[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128
-            ).reshape(1, 2, 2, 1),
-            "sigma_rg": torch.tensor(
-                [[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128
-            ).reshape(1, 2, 2, 1),
-            "sigma_rr": torch.tensor(
-                [[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128
-            ).reshape(1, 2, 2, 1),
-        }
+            factors = [
+                torch.eye(2, 2, dtype=torch.complex128).reshape(1, 2, 2, 1)
+            ] * nqubits
 
-        # this function will recurse through the operators, and replace any definitions
-        # in terms of strings by the computed tensor
-        def replace_operator_string(op: OperatorString | torch.Tensor) -> torch.Tensor:
-            if isinstance(op, OperatorString):
-                for i, factor in enumerate(op.operators):
-                    tensor = replace_operator_string(operators[factor])
-                    operators[factor] = tensor
-                    op.operators[i] = tensor * op.coefficients[i]
-                op = sum(cast(list[torch.Tensor], op.operators))
-            return op
+            for i, op in enumerate(tensorop):
+                tensorop[i] = (replace_operator_string(op[0]), op[1])
 
-        factors = [torch.eye(2, 2, dtype=torch.complex128).reshape(1, 2, 2, 1)] * nqubits
-
-        for i, op in enumerate(operations_indexed):
-            operations_indexed[i] = (replace_operator_string(op[0]), op[1])
-
-        for op in operations_indexed:
-            for i in op[1]:
-                factors[i] = op[0]
-        return MPO(factors, **kwargs)
+            for op in tensorop:
+                for i in op[1]:
+                    factors[i] = op[0]
+            mpos.append(coeff * MPO(factors, **kwargs))
+        return sum(mpos[1:], start=mpos[0])
