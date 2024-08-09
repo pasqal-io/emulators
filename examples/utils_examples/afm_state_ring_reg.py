@@ -11,14 +11,15 @@ def afm_sequence_from_register(
     t_fall: float,
     factor_sweep: int,
     device: pulser.devices = pulser.devices.MockDevice,
-):
-    """Sequence that creates AntiFerromagnetic State (AFM) using pulser
+) -> pulser.Sequence:
+    """Sequence that creates AntiFerromagnetic State (AFM) for 1d chain of atoms using pulser.
     This function constructs a sequence of pulses to transition a system of qubits
-    (represented by `reg`) into an AFM state using a specified device. The sequence
-    consists of three phases: a rise, a sweep, and a fall."""
+    distributed in a 1d chain (represented by `reg`) into an AFM state using a specified device.
+    The sequence consists of three phases: a rise, a sweep, and a fall.
+    For more information, check Pulser
+    [tutorial](https://pulser.readthedocs.io/en/stable/tutorials/afm_prep.html)."""
 
     t_sweep = (delta_f - delta_0) / (2 * np.pi * 10) * 1000 * factor_sweep
-    print(t_sweep)
     rise = pulser.Pulse.ConstantDetuning(
         pulser.waveforms.RampWaveform(t_rise, 0.0, Omega_max), delta_0, 0.0
     )

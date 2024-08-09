@@ -8,7 +8,7 @@ import torch
 
 from emu_mps.mpo import MPO
 from emu_mps.pulser_adapter import get_qubit_positions
-from emu_mps.utils import DEVICE_COUNT, dist2
+from emu_mps.utils import dist2
 
 
 def _first_factor(gate: torch.Tensor) -> torch.Tensor:
@@ -134,15 +134,40 @@ def make_H(
     interaction_matrix: torch.tensor,
     omega: torch.Tensor,
     delta: torch.Tensor,
-    num_devices_to_use: int = DEVICE_COUNT,
+    phi: torch.Tensor,
     noise: torch.Tensor = torch.zeros(2, 2),
 ) -> MPO:
-    """
-    Returns an MPO representing the neutral atoms Hamiltonian specified by omega and delta.
+    r"""
+    Constructs and returns a Matrix Product Operator (MPO) representing the
+    neutral atoms Hamiltonian, parameterized by `omega`, `delta`, and `phi`.
 
-    `noise` should be the single-qubit noise term -0.5i∑L†L
-    as computed by `compute_noise_from_lindbladians`.
-    The same noise is applied to all qubits.
+    The Hamiltonian H is given by:
+    H = ∑ⱼΩⱼ[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] - ∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼC⁶/rᵢⱼ⁶ nᵢnⱼ
+
+    If noise is considered, the Hamiltonian includes an additional term to support
+    the Monte Carlo WaveFunction algorithm:
+    H = ∑ⱼΩⱼ[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] - ∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼC⁶/rᵢⱼ⁶ nᵢnⱼ - 0.5i∑ₘ ∑ᵤ Lₘᵘ⁺ Lₘᵘ
+    where Lₘᵘ are the Lindblad operators representing the noise, m for noise channel
+    and u for the number of atoms
+
+    Args:
+        interaction_matrix (torch.Tensor): The interaction matrix describing the interactions
+        between qubits.
+        omega (torch.Tensor): Rabi frequency Ωⱼ for each qubit.
+        delta (torch.Tensor): The detuning value Δⱼ for each qubit.
+        phi (torch.Tensor): The phase ϕⱼ corresponding to each qubit.
+        noise (torch.Tensor, optional): The single-qubit noise
+        term -0.5i∑ⱼLⱼ†Lⱼ applied to all qubits.
+        This can be computed using the `compute_noise_from_lindbladians` function.
+        Defaults to a zero tensor.
+
+    Returns:
+        MPO: A Matrix Product Operator (MPO) representing the specified Hamiltonian.
+
+    Note:
+    For more information about the Hamiltonian and its usage, refer to the
+    [Pulser documentation](https://pulser.readthedocs.io/en/stable/conventions.html#hamiltonians).
+
     """
     assert noise.shape == (2, 2)
 
@@ -151,15 +176,23 @@ def make_H(
     device = omega[0].device
 
     sx = torch.tensor([[0, 0.5], [0.5, 0]], dtype=dtype, device=device)
+    sy = torch.tensor([[0, -0.5j], [0.5j, 0]], dtype=dtype, device=device)
     pu = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype, device=device)
-    cores = [_first_factor(omega[0] * sx - delta[0] * pu + noise)]
+
+    a = torch.tensordot(omega * torch.cos(phi), sx, dims=0)
+    c = torch.tensordot(delta, pu, dims=0)
+    b = torch.tensordot(omega * torch.sin(phi), sy, dims=0)
+
+    single_qubit_terms = a - b - c + noise
+
+    cores = [_first_factor(single_qubit_terms[0])]
 
     if nqubits > 2:
         for i in range(1, nqubits // 2):
 
             cores.append(
                 _left_factor(
-                    omega[i] * sx - delta[i] * pu + noise,
+                    single_qubit_terms[i],
                     [interaction_matrix[j, i] for j in range(i)],
                 )
             )
@@ -167,7 +200,7 @@ def make_H(
         i = nqubits // 2
         cores.append(
             _middle_factor(
-                omega[i] * sx - delta[i] * pu + noise,
+                single_qubit_terms[i],
                 [interaction_matrix[j, i] for j in range(i)],
                 [interaction_matrix[i, j] for j in range(i + 1, nqubits)],
                 [
@@ -180,7 +213,7 @@ def make_H(
         for i in range(nqubits // 2 + 1, nqubits - 1):
             cores.append(
                 _right_factor(
-                    omega[i] * sx - delta[i] * pu + noise,
+                    single_qubit_terms[i],
                     [interaction_matrix[i, j] for j in range(i + 1, nqubits)],
                 )
             )
@@ -188,5 +221,10 @@ def make_H(
     scale = 1.0
     if nqubits == 2:
         scale = interaction_matrix[0, 1]
-    cores.append(_last_factor(omega[-1] * sx - delta[-1] * pu + noise, scale))
+    cores.append(
+        _last_factor(
+            single_qubit_terms[-1],
+            scale,
+        )
+    )
     return MPO(cores)

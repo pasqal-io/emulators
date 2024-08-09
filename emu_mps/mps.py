@@ -237,7 +237,11 @@ class MPS(State):
 
     @staticmethod
     def from_state_string(
-        *, basis: tuple[str], nqubits: int, strings: dict[str, complex], **kwargs: Any
+        *,
+        basis: tuple[str, ...],
+        nqubits: int,
+        strings: dict[str, complex],
+        **kwargs: Any,
     ) -> State:
         """Transforms a state given by a string into an MPS.
 

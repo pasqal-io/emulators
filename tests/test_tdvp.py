@@ -292,9 +292,9 @@ def test_tdvp_state_vector(mock_sequence):
         for j in range(3):
             qubit_positions.append(torch.tensor([7.0 * i, 7.0 * j]))
 
-    omegas = [torch.tensor([12.566370614359172], dtype=torch.complex128)] * nqubits
-    deltas = [torch.tensor([10.771174812307862], dtype=torch.complex128)] * nqubits
-
+    omegas = torch.tensor([12.566370614359172] * nqubits, dtype=torch.complex128)
+    deltas = torch.tensor([10.771174812307862] * nqubits, dtype=torch.complex128)
+    phi = torch.tensor([1.570796327] * nqubits, dtype=torch.complex128)
     mock_device = MagicMock(interaction_coeff=c6)
     mock_sequence.device = mock_device
 
@@ -306,7 +306,9 @@ def test_tdvp_state_vector(mock_sequence):
     mock_sequence.register = mock_register
     interaction_matrix = rydberg_interaction(mock_sequence)
 
-    ham = make_H(interaction_matrix=interaction_matrix, omega=omegas, delta=deltas)
+    ham = make_H(
+        interaction_matrix=interaction_matrix, omega=omegas, delta=deltas, phi=phi
+    )
 
     # |000000000>
     state = MPS(

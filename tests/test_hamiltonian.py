@@ -27,6 +27,11 @@ def sigma_x(i: int, nqubits: int) -> torch.Tensor:
     return single_gate(i, nqubits, σ_x)
 
 
+def sigma_y(i: int, nqubits: int) -> torch.Tensor:
+    σ_y = torch.tensor([[0.0, -1.0j], [1.0j, 0.0]], dtype=dtype)
+    return single_gate(i, nqubits, σ_y)
+
+
 def pu(i, nqubits):
     n = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
     return single_gate(i, nqubits, n)
@@ -47,13 +52,21 @@ def sv_hamiltonian(
     inter_matrix: torch.Tensor,
     omega: list[torch.Tensor],
     delta: list[torch.Tensor],
+    phi: list[torch.Tensor],
     noise: torch.Tensor = torch.zeros(2, 2),
 ) -> torch.Tensor:
     n_qubits = inter_matrix.size(dim=1)
     device = omega[0].device
     h = torch.zeros(2**n_qubits, 2**n_qubits, dtype=dtype, device=device)
     for i in range(n_qubits):
-        h += omega[i] * sigma_x(i, n_qubits).to(dtype=dtype, device=device) / 2
+        h += (
+            omega[i]
+            * (
+                torch.cos(phi[i]) * sigma_x(i, n_qubits)
+                - torch.sin(phi[i]) * sigma_y(i, n_qubits)
+            ).to(dtype=dtype, device=device)
+            / 2
+        )
         h -= delta[i] * pu(i, n_qubits).to(dtype=dtype, device=device)
         h += single_gate(i, n_qubits, noise)
 
@@ -102,24 +115,25 @@ def test_rydberg_interaction(mock_sequence):
 # works for nqubits < 6
 # uses the first 10 primes for identifying terms
 # when eyeballing the matrices
-def create_omega_delta(nqubits: int):
+def create_omega_delta_phi(nqubits: int):
     omega = torch.tensor([2, 3, 4, 5, 7, 11], dtype=dtype)
     delta = torch.tensor([13, 17, 19, 23, 29], dtype=dtype)
-    return omega[:nqubits], delta[:nqubits]
+    phi = torch.tensor([1.57, 1.58, 1.59, 1.60, 1.61])
+    return omega[:nqubits], delta[:nqubits], phi[:nqubits]
 
 
 def test_2_qubit():
-    omega, delta = create_omega_delta(2)
+    omega, delta, phi = create_omega_delta_phi(2)
 
     interaction_matrix = torch.tensor([[0.0000, 5.4202], [0.0000, 0.0000]])
 
-    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta)
+    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta, phi=phi)
     assert ham.factors[0].shape == (1, 2, 2, 3)
     assert ham.factors[1].shape == (3, 2, 2, 1)
 
     sv = torch.einsum("ijkl,lmno->ijmkno", *(ham.factors)).reshape(4, 4)
     dev = sv.device  # could be cpu or gpu depending on Config
-    expected = sv_hamiltonian(interaction_matrix, omega, delta).to(dev)
+    expected = sv_hamiltonian(interaction_matrix, omega, delta, phi).to(dev)
     assert torch.allclose(
         sv,
         expected,
@@ -129,6 +143,7 @@ def test_2_qubit():
 def test_noise():
     omega = torch.tensor([0.0, 0.0], dtype=dtype)
     delta = torch.tensor([0.0, 0.0], dtype=dtype)
+    phi = torch.tensor([0.0, 0.0], dtype=dtype)
 
     # Interaction term [0,1] = 0.0 to erase the interaction
     interaction_matrix = torch.tensor([[0.0, 0.0], [0.0, 0.0]])
@@ -137,11 +152,17 @@ def test_noise():
     noise = -1j / 2.0 * torch.tensor([[0, 0], [0, rate]], dtype=dtype)
 
     ham = make_H(
-        interaction_matrix=interaction_matrix, omega=omega, delta=delta, noise=noise
+        interaction_matrix=interaction_matrix,
+        omega=omega,
+        delta=delta,
+        phi=phi,
+        noise=noise,
     )
 
     sv = torch.einsum("ijkl,lmno->ijmkno", *(ham.factors)).reshape(4, 4)
-    expected = sv_hamiltonian(interaction_matrix, omega, delta, noise=noise).to(sv.device)
+    expected = sv_hamiltonian(interaction_matrix, omega, delta, phi, noise=noise).to(
+        sv.device
+    )
 
     assert abs(sv[1, 1] - (-1j / 2.0 * rate)) < 1e-10
 
@@ -152,11 +173,11 @@ def test_noise():
 
 
 def test_4_qubit():
-    omega, delta = create_omega_delta(4)
+    omega, delta, phi = create_omega_delta_phi(4)
 
     interaction_matrix = torch.randn(4, 4, dtype=torch.float64)
 
-    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta)
+    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta, phi=phi)
     assert ham.factors[0].shape == (1, 2, 2, 3)
     assert ham.factors[1].shape == (3, 2, 2, 4)
     assert ham.factors[2].shape == (4, 2, 2, 3)
@@ -164,7 +185,7 @@ def test_4_qubit():
 
     sv = torch.einsum("ijkl,lmno,opqr,rstu->ijmpsknqtu", *(ham.factors)).reshape(16, 16)
     dev = sv.device  # could be cpu or gpu depending on Config
-    expected = sv_hamiltonian(interaction_matrix, omega, delta).to(dev)
+    expected = sv_hamiltonian(interaction_matrix, omega, delta, phi).to(dev)
 
     assert torch.allclose(
         sv,
@@ -173,11 +194,11 @@ def test_4_qubit():
 
 
 def test_5_qubit():
-    omega, delta = create_omega_delta(5)
+    omega, delta, phi = create_omega_delta_phi(5)
 
     interaction_matrix = torch.randn(5, 5, dtype=torch.float64)
 
-    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta)
+    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta, phi=phi)
     assert ham.factors[0].shape == (1, 2, 2, 3)
     assert ham.factors[1].shape == (3, 2, 2, 4)
     assert ham.factors[2].shape == (4, 2, 2, 4)
@@ -188,7 +209,7 @@ def test_5_qubit():
         32, 32
     )
     dev = sv.device  # could be cpu or gpu depending on Config
-    expected = sv_hamiltonian(interaction_matrix, omega, delta).to(dev)
+    expected = sv_hamiltonian(interaction_matrix, omega, delta, phi).to(dev)
 
     assert torch.allclose(
         sv,
@@ -198,8 +219,9 @@ def test_5_qubit():
 
 @patch("emu_mps.hamiltonian.pulser.sequence.Sequence")
 def test_9_qubit_noise(mock_sequence):
-    omega = [torch.tensor([12.566370614359172], dtype=dtype)] * 9
-    delta = [torch.tensor([10.771174812307862], dtype=dtype)] * 9
+    omega = torch.tensor([12.566370614359172] * 9, dtype=dtype)
+    delta = torch.tensor([10.771174812307862] * 9, dtype=dtype)
+    phi = torch.tensor([0.0] * 9, dtype=dtype)
 
     interaction_matrix = torch.randn(9, 9, dtype=torch.float64)
 
@@ -212,7 +234,11 @@ def test_9_qubit_noise(mock_sequence):
     noise = compute_noise_from_lindbladians(lindbladians)
 
     ham = make_H(
-        interaction_matrix=interaction_matrix, omega=omega, delta=delta, noise=noise
+        interaction_matrix=interaction_matrix,
+        omega=omega,
+        delta=delta,
+        phi=phi,
+        noise=noise,
     )
 
     sv = torch.einsum(
@@ -221,7 +247,7 @@ def test_9_qubit_noise(mock_sequence):
     ).reshape(512, 512)
 
     dev = sv.device  # could be cpu or gpu depending on Config
-    expected = sv_hamiltonian(interaction_matrix, omega, delta, noise=noise).to(dev)
+    expected = sv_hamiltonian(interaction_matrix, omega, delta, phi, noise).to(dev)
 
     assert torch.allclose(
         sv,
@@ -233,6 +259,7 @@ def test_differentiation():
     n = 5
     omega = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
     delta = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
+    phi = torch.tensor([0.0] * n, dtype=dtype, requires_grad=True)
 
     interaction_matrix = torch.tensor(
         [
@@ -244,7 +271,7 @@ def test_differentiation():
         ]
     )
 
-    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta)
+    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta, phi=phi)
 
     sv = torch.einsum("abcd,defg,ghij,jklm,mnop->abehkncfilop", *(ham.factors)).reshape(
         1 << n, 1 << n
@@ -276,3 +303,4 @@ def test_differentiation():
                 torch.autograd.grad(sv[i, j].real, omega, retain_graph=True)[0],
                 expected_omega_diff,
             )
+            #   TODO: add a phi test for gradient

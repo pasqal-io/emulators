@@ -13,7 +13,7 @@ from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
 from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
-from emu_mps.pulser_adapter import extract_omega_delta
+from emu_mps.pulser_adapter import extract_omega_delta_phi
 from emu_mps.tdvp import evolve_tdvp
 from emu_mps.utils import extended_mpo_factors, extended_mps_factors
 
@@ -39,13 +39,15 @@ class _RunImpl:
             "the interaction matrix"
         )
 
-        self.omega, self.delta = extract_omega_delta(
+        self.omega, self.delta, self.phi = extract_omega_delta_phi(
             self.sequence, self.dt, self.config.with_modulation
         )
         self.timestep_count = self.omega.shape[0]
-        self.interaction_matrix = self.config.interaction_matrix or rydberg_interaction(
-            sequence
-        )
+
+        if self.config.interaction_matrix is None:
+            self.interaction_matrix = rydberg_interaction(sequence)
+        else:
+            self.interaction_matrix = self.config.interaction_matrix
 
         self.init_dark_qubits()
         self.init_lindblad_noise()
@@ -73,6 +75,7 @@ class _RunImpl:
             ][:, self.well_prepared_qubits_filter]
             self.omega = self.omega[:, self.well_prepared_qubits_filter]
             self.delta = self.delta[:, self.well_prepared_qubits_filter]
+            self.phi = self.phi[:, self.well_prepared_qubits_filter]
 
     def init_lindblad_noise(self) -> None:
         # Work in progress.
@@ -104,7 +107,7 @@ class _RunImpl:
             interaction_matrix=self.interaction_matrix,
             omega=self.omega[step, :],
             delta=self.delta[step, :],
-            num_devices_to_use=self.config.num_devices_to_use,
+            phi=self.phi[step, :],
             noise=self.lindblad_noise,
         )
 

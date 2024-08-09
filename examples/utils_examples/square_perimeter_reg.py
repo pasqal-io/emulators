@@ -2,7 +2,7 @@ import numpy as np
 import math
 
 
-def square_perimeter_points(L):
+def square_perimeter_points(L: int) -> np.ndarray:
 
     """
     Calculate the coordinates of the points located on the perimeter of a square of size L.
