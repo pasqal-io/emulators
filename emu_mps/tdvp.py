@@ -137,6 +137,7 @@ def evolve_tdvp(
         lh = Hamiltonian.factors[i]
         lhs = lh.shape
         rh = Hamiltonian.factors[i + 1].to(lh.device)
+        rb = rbs.pop()
 
         h = (
             torch.tensordot(lh, rh, dims=1)
@@ -145,9 +146,7 @@ def evolve_tdvp(
             .to(s.device)
         )
 
-        op = lambda x: t * apply_effective_Hamiltonian(
-            x, h, lbs[i], rbs[-1 - i].to(s.device)
-        )
+        op = lambda x: t * apply_effective_Hamiltonian(x, h, lbs[i], rb.to(s.device))
 
         evol = krylov_exp(
             op,
@@ -169,7 +168,7 @@ def evolve_tdvp(
             new_left_bath(lbs[i], state.factors[i], lh).to(state.factors[i + 1].device)
         )
         h = Hamiltonian.factors[i + 1].to(state.factors[i + 1].device)
-        op = lambda x: -t * apply_effective_Hamiltonian(x, h, lbs[i + 1], rbs[-1 - i])
+        op = lambda x: -t * apply_effective_Hamiltonian(x, h, lbs[i + 1], rb)
 
         evol = krylov_exp(
             op,
@@ -193,6 +192,7 @@ def evolve_tdvp(
         lh = Hamiltonian.factors[i]
         rh = Hamiltonian.factors[i + 1].to(lh.device)
         lhs = lh.shape
+        lb = lbs.pop()
 
         h = (
             torch.tensordot(lh, rh, dims=1)
@@ -202,7 +202,7 @@ def evolve_tdvp(
         )
 
         op = lambda x: t * apply_effective_Hamiltonian(
-            x, h, lbs[i].to(s.device), rbs[nfactors - 2 - i]
+            x, h, lb.to(s.device), rbs[nfactors - 2 - i]
         )
 
         evol = krylov_exp(
@@ -231,7 +231,7 @@ def evolve_tdvp(
         )
 
         h = Hamiltonian.factors[i].to(state.factors[i].device)
-        op = lambda x: -t * apply_effective_Hamiltonian(x, h, lbs[i], rbs[-1])
+        op = lambda x: -t * apply_effective_Hamiltonian(x, h, lb, rbs[-1])
 
         evol = krylov_exp(
             op,
