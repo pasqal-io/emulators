@@ -63,7 +63,7 @@ def sv_hamiltonian(
             omega[i]
             * (
                 torch.cos(phi[i]) * sigma_x(i, n_qubits)
-                - torch.sin(phi[i]) * sigma_y(i, n_qubits)
+                + torch.sin(phi[i]) * sigma_y(i, n_qubits)
             ).to(dtype=dtype, device=device)
             / 2
         )

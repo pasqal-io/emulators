@@ -183,7 +183,7 @@ def make_H(
     c = torch.tensordot(delta, pu, dims=0)
     b = torch.tensordot(omega * torch.sin(phi), sy, dims=0)
 
-    single_qubit_terms = a - b - c + noise
+    single_qubit_terms = a + b - c + noise
 
     cores = [_first_factor(single_qubit_terms[0])]
 
