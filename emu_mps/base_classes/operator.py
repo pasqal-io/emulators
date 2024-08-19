@@ -40,3 +40,7 @@ class Operator(ABC):
     @abstractmethod
     def __rmul__(self, scalar: complex) -> Operator:
         pass
+
+    @abstractmethod
+    def __matmul__(self, other: Operator) -> Operator:
+        pass

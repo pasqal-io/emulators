@@ -114,3 +114,48 @@ def test_add_expectation_values():
     observable = inner(mps, mpo_sum * mps)
 
     assert observable == pytest.approx(observable_expected, 1e-12)
+
+
+def test_matmul():
+    dtype = torch.complex128
+    # make random MPS
+    mps = MPS(
+        [
+            torch.rand(1, 2, 2, dtype=dtype),
+            torch.rand(2, 2, 6, dtype=dtype),
+            torch.rand(6, 2, 5, dtype=dtype),
+            torch.rand(5, 2, 1, dtype=dtype),
+        ],
+        truncate=True,
+    )
+    # normalize
+    norm = torch.linalg.norm(mps.factors[0])
+    mps = (1 / norm) * mps
+
+    # make random MPO1
+    mpo1 = MPO(
+        [
+            torch.rand(1, 2, 2, 4, dtype=dtype),
+            torch.rand(4, 2, 2, 6, dtype=dtype),
+            torch.rand(6, 2, 2, 5, dtype=dtype),
+            torch.rand(5, 2, 2, 1, dtype=dtype),
+        ]
+    )
+    # make random MPO2
+    mpo2 = MPO(
+        [
+            torch.rand(1, 2, 2, 7, dtype=dtype),
+            torch.rand(7, 2, 2, 6, dtype=dtype),
+            torch.rand(6, 2, 2, 8, dtype=dtype),
+            torch.rand(8, 2, 2, 1, dtype=dtype),
+        ]
+    )
+
+    # test (O @ O)*|Ψ〉= O*(O*|Ψ〉)
+    matmul_mps = (mpo1 @ mpo2) * mps
+    mul_mps = mpo1 * (mpo2 * mps)
+
+    # assert same projection on initial state |Ψ〉
+    expected = mps.inner(matmul_mps)
+    obtained = mps.inner(mul_mps)
+    assert obtained == pytest.approx(expected)

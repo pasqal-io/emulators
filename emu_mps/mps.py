@@ -6,7 +6,7 @@ from typing import Any, List, Union
 
 import torch
 
-from emu_mps.algebra import _add_factors, _mul_factors
+from emu_mps.algebra import add_factors, mul_factors
 from emu_mps.base_classes.state import State
 from emu_mps.utils import (
     DEVICE_COUNT,
@@ -213,7 +213,7 @@ class MPS(State):
         up to `self.precision`.
         """
         assert isinstance(other, MPS), "Other state also needs to be an MPS"
-        new_tt = _add_factors(self.factors, other.factors)
+        new_tt = add_factors(self.factors, other.factors)
         return MPS(
             new_tt,
             truncate=True,
@@ -227,7 +227,7 @@ class MPS(State):
         Multiply an MPS by scalar.
         Assumes the MPS is orthogonalized on the site 0.
         """
-        factors = _mul_factors(self.factors, scalar)
+        factors = mul_factors(self.factors, scalar)
         return MPS(
             factors,
             precision=self.precision,

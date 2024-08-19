@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import torch
+import math
+import emu_mps.utils
 
 
-def _add_factors(
+def add_factors(
     left: list[torch.tensor], right: list[torch.tensor]
 ) -> list[torch.tensor]:
     """
@@ -45,9 +47,133 @@ def _add_factors(
     return new_tt
 
 
-def _mul_factors(factors: list[torch.tensor], scalar: complex) -> list[torch.tensor]:
+def mul_factors(factors: list[torch.tensor], scalar: complex) -> list[torch.tensor]:
     """
     Returns the tensor train (MPS/MPO) multiplied by a scalar.
     Assumes the orthogonal centre of the train is on the factor 0.
     """
     return [scalar * factors[0], *factors[1:]]
+
+
+def zip_right_step(
+    slider: torch.tensor,
+    top: torch.tensor,
+    bottom: torch.tensor,
+) -> torch.tensor:
+    """
+    Returns a new `MPS/O` factor of the result of the multiplication MPO @ MPS/O,
+    and the updated slider, performing a single step of the
+    [zip-up algorithm](https://tensornetwork.org/mps/algorithms/zip_up_mpo/).
+
+    Args:
+    - `slider`: utility tensor for the zip-up algorithm.
+    - `top`: factor of the applied MPO.
+    - `bottom`: factor of the MPS/O to which the MPO is being applied.
+
+    First, moves all tensors to `bottom.device`.
+    Second, it contracts `top` and then `bottom` to `slider`.
+    The resulting tensor is then QR factorized into a
+    new factor and the updated slider for the next zip step.
+
+    Note:
+    The method assumes that:
+        - `top` is a valid MPO factor of shape
+    (left_link_dim, out_site_dim, in_site_dim, right_link_dim).
+        - `bottom` is a valid MPO/S factor
+    """
+    if slider.shape[1:] != (top.shape[0], bottom.shape[0]):
+        msg = (
+            f"Contracted dimensions between the slider, {slider.shape[1:]} on dims 1 and 2, "
+            f"and the two factors, {(top.shape[0], bottom.shape[0])} on dim 0, need to match."
+        )
+        raise ValueError(msg)
+
+    slider = slider.to(bottom.device)
+    top = top.to(bottom.device)
+
+    # merge top and bottom into slider
+    slider = torch.tensordot(slider, top, dims=([1], [0]))
+    slider = torch.tensordot(slider, bottom, dims=([3, 1], [1, 0]))
+
+    if len(bottom.shape) == 4:  # MPO factor
+        slider = slider.transpose(2, 3)
+
+    # reshape slider as matrix
+    left_inds = (slider.shape[0], *bottom.shape[1:-1])
+    right_inds = (top.shape[-1], bottom.shape[-1])
+    slider = slider.reshape(math.prod(left_inds), math.prod(right_inds))
+
+    L, slider = torch.linalg.qr(slider)
+
+    # reshape slider to its original shape
+    slider = slider.reshape((-1, *right_inds))
+    # reshape left as MPS/O factor and
+    return L.reshape(*left_inds, -1), slider
+
+
+def zip_right(
+    top_factors: list[torch.tensor],
+    bottom_factors: list[torch.tensor],
+    max_error: float = 1e-5,
+    max_rank: int = 1024,
+) -> list[torch.tensor]:
+    """
+    Returns a new matrix product, resulting from applying `top` to `bottom`.
+    The resulting factors are:
+     - of the same order as `bottom` factors
+     - on the same device of `bottom` factors
+     - orthogonalized on the first element
+     - truncated to `max_error`/`max_rank`
+
+    Args:
+    - `top`: MPO factors to be applied.
+    - `bottom`: MPS/O factors to which the MPO factors are being applied.
+
+    Note:
+        Implements a general [zip-up](https://tensornetwork.org/mps/algorithms/zip_up_mpo/)
+        algorithm for applying MPO factors to both MPO and MPS factors.
+        A final truncation sweep, from right to left,
+        moves back the orthogonal center to the first element.
+    """
+    if len(top_factors) != len(bottom_factors):
+        raise ValueError("Cannot multiply two matrix products of different lengths.")
+
+    slider = torch.ones(1, 1, 1, dtype=torch.complex128)
+    new_factors = []
+    for top, bottom in zip(top_factors, bottom_factors):
+        res, slider = zip_right_step(slider, top, bottom)
+        new_factors.append(res)
+    new_factors[-1] @= slider[:, :, 0]
+
+    truncate(new_factors, max_error=max_error, max_rank=max_rank)
+
+    return new_factors
+
+
+def truncate(
+    factors: list[torch.tensor],
+    max_error: float = 1e-5,
+    max_rank: int = 1024,
+) -> None:
+    """
+    Eigenvalues-based truncation of a matrix product.
+    An in-place operation.
+
+    Note:
+        Sweeps from right to left.
+        At each step moves the orthogonal center to the left while truncating.
+    """
+    for i in range(len(factors) - 1, 0, -1):
+        factor_shape = factors[i].shape
+
+        l, r = emu_mps.utils.split_tensor(
+            factors[i].reshape(factor_shape[0], -1),
+            max_error=max_error,
+            max_rank=max_rank,
+            orth_center_right=False,
+        )
+
+        factors[i] = r.reshape(-1, *factor_shape[1:])
+        factors[i - 1] = torch.tensordot(
+            factors[i - 1], l.to(factors[i - 1].device), dims=([-1], [0])
+        )

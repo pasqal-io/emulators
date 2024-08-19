@@ -3,7 +3,7 @@ from typing import Any, List, cast
 
 import torch
 
-from emu_mps.algebra import _add_factors, _mul_factors
+from emu_mps.algebra import add_factors, mul_factors, zip_right
 from emu_mps.base_classes.operator import FullOp, Operator, QuditOp
 from emu_mps.base_classes.state import State
 from emu_mps.mps import MPS
@@ -95,7 +95,7 @@ class MPO(Operator):
         Returns the sum of two MPOs, computed with a direct algorithm.
         """
         assert isinstance(other, MPO), "MPO can only be added to another MPO"
-        sum_factors = _add_factors(self.factors, other.factors)
+        sum_factors = add_factors(self.factors, other.factors)
         return MPO(sum_factors)
 
     def __rmul__(self, scalar: complex) -> Operator:
@@ -103,7 +103,15 @@ class MPO(Operator):
         Multiply an MPS by scalar.
         Assumes the MPS is orthogonalized on the site 0.
         """
-        factors = _mul_factors(self.factors, scalar)
+        factors = mul_factors(self.factors, scalar)
+        return MPO(factors)
+
+    def __matmul__(self, other: Operator) -> Operator:
+        """
+        Returns the multiplication of two MPOs.
+        """
+        assert isinstance(other, MPO), "MPO can only be applied to another MPO"
+        factors = zip_right(self.factors, other.factors)
         return MPO(factors)
 
     @staticmethod
@@ -122,7 +130,7 @@ class MPO(Operator):
         _validate_operator_targets(operations, nqubits)
         nqubits
         mpos = []
-        for (coeff, tensorop) in operations:
+        for coeff, tensorop in operations:
             # operators will now contain the 'sigma_ij' elements defined, and potentially
             # user defined strings in terms of the 'sigma_ij'
             operators |= {
@@ -144,7 +152,7 @@ class MPO(Operator):
             # in terms of strings by the computed tensor
             def replace_operator_string(op: QuditOp | torch.Tensor) -> torch.Tensor:
                 if isinstance(op, dict):
-                    for (opstr, coeff) in op.items():
+                    for opstr, coeff in op.items():
                         tensor = replace_operator_string(operators[opstr])
                         operators[opstr] = tensor
                         op[opstr] = tensor * coeff
