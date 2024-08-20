@@ -12,7 +12,7 @@ from emu_mps.utils import (
     DEVICE_COUNT,
     apply_measurement_errors,
     assign_devices,
-    split_tensor,
+    truncate_impl,
 )
 
 
@@ -101,26 +101,15 @@ class MPS(State):
 
     def _truncate(self) -> None:
         """
-        SVD based truncation of the state.
+        Eigenvalues based truncation of the state.
         An in-place operation.
         """
         self.orthogonalize()
-
-        for i in range(self.num_sites - 1, 0, -1):
-            factor_shape = self.factors[i].shape
-
-            l, r = split_tensor(
-                self.factors[i].reshape(factor_shape[0], -1),
-                max_error=self.precision,
-                max_rank=self.max_bond_dim,
-                orth_center_right=False,
-            )
-
-            r = r.reshape(-1, factor_shape[1], factor_shape[2])
-            self.factors[i] = r
-            self.factors[i - 1] = torch.tensordot(
-                self.factors[i - 1], l.to(self.factors[i - 1].device), dims=1
-            )
+        truncate_impl(
+            self.factors,
+            max_error=self.precision,
+            max_rank=self.max_bond_dim,
+        )
 
     def get_max_bond_dim(self) -> int:
         """

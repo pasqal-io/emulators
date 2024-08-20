@@ -145,35 +145,6 @@ def zip_right(
         new_factors.append(res)
     new_factors[-1] @= slider[:, :, 0]
 
-    truncate(new_factors, max_error=max_error, max_rank=max_rank)
+    emu_mps.utils.truncate_impl(new_factors, max_error=max_error, max_rank=max_rank)
 
     return new_factors
-
-
-def truncate(
-    factors: list[torch.tensor],
-    max_error: float = 1e-5,
-    max_rank: int = 1024,
-) -> None:
-    """
-    Eigenvalues-based truncation of a matrix product.
-    An in-place operation.
-
-    Note:
-        Sweeps from right to left.
-        At each step moves the orthogonal center to the left while truncating.
-    """
-    for i in range(len(factors) - 1, 0, -1):
-        factor_shape = factors[i].shape
-
-        l, r = emu_mps.utils.split_tensor(
-            factors[i].reshape(factor_shape[0], -1),
-            max_error=max_error,
-            max_rank=max_rank,
-            orth_center_right=False,
-        )
-
-        factors[i] = r.reshape(-1, *factor_shape[1:])
-        factors[i - 1] = torch.tensordot(
-            factors[i - 1], l.to(factors[i - 1].device), dims=([-1], [0])
-        )
