@@ -10,6 +10,7 @@ from .base_classes.default_callbacks import (
     Fidelity,
     QubitDensity,
     StateResult,
+    SecondMomentOfEnergy,
 )
 from .mpo import MPO
 from .mps import MPS, inner
@@ -33,6 +34,7 @@ __all__ = [
     "Fidelity",
     "Energy",
     "EnergyVariance",
+    "SecondMomentOfEnergy",
 ]
 
 

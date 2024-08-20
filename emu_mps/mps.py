@@ -158,6 +158,11 @@ class MPS(State):
             )
         return bitstrings
 
+    def norm(self) -> float:  # FIXME: rename this method to account for the requirement?
+        """Computes the norm, assuming the first qubit is orthogonality center.
+        The above is not checked."""
+        return float(torch.linalg.norm(self.factors[0].to("cpu")).item())
+
     def _sample_implementation(self, rnd_vector: torch.Tensor) -> str:
         """
         Samples this MPS once, returning the resulting bitstring.
@@ -314,6 +319,54 @@ class MPS(State):
             accum_mps += amplitude * MPS(factors, **kwargs)
 
         return accum_mps
+
+    def expect(self, single_qubit_operators: torch.Tensor) -> torch.Tensor:
+        """
+        Computes expectation values for each qubit and each single qubit operator in
+        the batched input tensor.
+
+        Assumes orthogonality center at qubit #0.
+        Does not modify self!
+
+        Returns a tensor T such that T[q, i] is the expectation value for qubit #q
+        and operator single_qubit_operators[i].
+        """
+        result = torch.zeros(
+            self.num_sites, single_qubit_operators.shape[0], dtype=torch.complex128
+        )
+        f = self.factors[0]
+        for qubit_index in range(self.num_sites):
+            temp = torch.tensordot(f.conj(), f, ([0, 2], [0, 2]))
+
+            result[qubit_index] = torch.tensordot(
+                single_qubit_operators.to(temp.device), temp, dims=2
+            )
+
+            if qubit_index < self.num_sites - 1:
+                q, r = torch.linalg.qr(f.reshape(-1, f.shape[2]))
+                f = torch.tensordot(r, self.factors[qubit_index + 1].to(r.device), dims=1)
+
+        return result
+
+    def apply(self, qubit_index: int, single_qubit_operator: torch.Tensor) -> None:
+        """
+        Assumes orthogonality center at qubit #0.
+        Leaves the MPS with orthogonality center at qubit #0.
+        """
+        self.factors[qubit_index] = torch.tensordot(
+            self.factors[qubit_index],
+            single_qubit_operator.to(self.factors[qubit_index].device),
+            ([1], [1]),
+        ).transpose(1, 2)
+
+        for i in range(qubit_index, 0, -1):
+            q, r = torch.linalg.qr(
+                self.factors[i].reshape(self.factors[i].shape[0], -1).mT,
+            )
+            self.factors[i] = q.mT.reshape(q.shape[1], 2, -1)
+            self.factors[i - 1] = torch.tensordot(
+                self.factors[i - 1], r.to(self.factors[i - 1].device), ([2], [1])
+            )
 
 
 def inner(left: MPS, right: MPS) -> float | complex:

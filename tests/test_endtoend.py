@@ -3,6 +3,7 @@ from unittest.mock import ANY, MagicMock, patch
 import pulser
 import pytest
 import torch
+import random
 from pytest import approx
 
 import emu_mps
@@ -28,12 +29,21 @@ def create_antiferromagnetic_mps(num_qubits: int):
     return MPS(factors)
 
 
-def simulate(seq, state_prep_error=0.0, p_false_pos=0.0, p_false_neg=0.0):
+def simulate(
+    seq,
+    *,
+    noise_model=None,
+    state_prep_error=0.0,
+    p_false_pos=0.0,
+    p_false_neg=0.0,
+    initial_state=None,
+):
     final_time = seq.get_duration()
     fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
 
-    noise_model = None
     if state_prep_error > 0.0 or p_false_pos > 0.0 or p_false_neg > 0.0:
+        assert noise_model is None, "Provide either noise_model or SPAM values"
+
         noise_model = pulser.noise_model.NoiseModel(
             noise_types=("SPAM",),
             state_prep_error=state_prep_error,
@@ -43,6 +53,7 @@ def simulate(seq, state_prep_error=0.0, p_false_pos=0.0, p_false_neg=0.0):
 
     times = {final_time}
     mps_config = MPSConfig(
+        initial_state=initial_state,
         dt=100,
         precision=1e-5,
         observables=[
@@ -211,3 +222,75 @@ def test_initial_state():
     results = backend.run(seq, config)
     # assert that the initial state was used by the emulator
     assert results[state_result.name()][10].inner(state).real == approx(1.0)
+
+
+def test_end_to_end_afm_ring_with_noise():
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+
+    num_qubits = 6
+    seq = pulser_afm_sequence_ring(
+        num_qubits=num_qubits,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=t_rise,
+        t_fall=t_fall,
+    )
+
+    noise_model = pulser.noise_model.NoiseModel(
+        noise_types=("depolarizing",),
+        depolarizing_rate=0.1,
+    )
+
+    result = simulate(seq, noise_model=noise_model)
+
+    final_time = seq.get_duration()
+    bitstrings = result["bitstrings"][final_time]
+    final_state = result["state"][final_time]
+    max_bond_dim = final_state.get_max_bond_dim()
+
+    assert bitstrings["101010"] == 472
+    assert bitstrings["010101"] == 510
+    assert max_bond_dim == 8
+
+
+def test_end_to_end_spontaneous_emission():
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+
+    # Sequence with no driving.
+    duration = 10000
+    rows, cols = 3, 4
+    reg = pulser.Register.rectangle(
+        rows, cols, pulser.devices.MockDevice.rydberg_blockade_radius(U), prefix="q"
+    )
+    seq = pulser.Sequence(reg, pulser.devices.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(
+        pulser.Pulse.ConstantAmplitude(
+            amplitude=0.0,
+            detuning=pulser.waveforms.ConstantWaveform(duration=duration, value=0.0),
+            phase=0.0,
+        ),
+        "ising_global",
+    )
+
+    noise_model = pulser.noise_model.NoiseModel(
+        noise_types=("relaxation",),
+        relaxation_rate=0.1,
+    )
+
+    initial_state = emu_mps.MPS.from_state_string(
+        basis=("r", "g"), nqubits=12, strings={"rrrrrrrrrrrr": 1.0}
+    )
+    result = simulate(seq, noise_model=noise_model, initial_state=initial_state)
+
+    final_time = seq.get_duration()
+    final_state = result["state"][final_time]
+
+    assert get_proba(final_state, "100000110000") == approx(1, abs=1e-2)
+
+    # Aggregating results of many runs to check the exponential decrease of qubit density
+    # would be too much for this unit test.

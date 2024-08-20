@@ -168,6 +168,20 @@ benchmark_afm_state_fidelity:
     SCHEDULER_PARAMETERS: "-N1 -c 16"
     JOB_NAME: "afm_state_fidelity"
 
+benchmark_afm_state_fidelity_with_noise:
+  extends: .benchmark
+  before_script:
+    - module purge
+    - !reference [.template-jacamar-minimal, before_script]
+    - !reference [.benchmark, before_script]
+  script:
+    - python3 benchmark.py | tee ${JOB_NAME}.out
+  after_script:
+    - !reference [.template-jacamar-minimal, after_script]
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 16"
+    JOB_NAME: "afm_state_fidelity_with_noise"
+
 benchmark_qubit_shuffling_cpu:
   extends: .benchmark
   before_script:

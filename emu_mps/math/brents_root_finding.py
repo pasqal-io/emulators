@@ -3,20 +3,21 @@ from typing import Callable
 
 def find_root_brents(
     f: Callable[[float], float],
-    a: float,
-    b: float,
-    fa: float | None = None,
-    fb: float | None = None,
-    /,
     *,
+    start: float,
+    end: float,
+    f_start: float | None = None,
+    f_end: float | None = None,
     tolerance: float = 1e-6,
     epsilon: float = 1e-6,
 ) -> float:
     """
     Approximates and returns the zero of a scalar function using Brent's method.
     """
-    fa = fa or f(a)
-    fb = fb or f(b)
+    assert start <= end
+    a, b = start, end
+    fa = f_start or f(start)
+    fb = f_end or f(end)
 
     assert fa * fb < 0, "Function root needs to be between a and b"
 

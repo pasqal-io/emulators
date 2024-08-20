@@ -1,3 +1,4 @@
+import random
 from resource import RUSAGE_SELF, getrusage
 from time import time
 from typing import Optional
@@ -9,6 +10,7 @@ from emu_mps.base_classes.backend import Backend
 from emu_mps.base_classes.config import BackendConfig
 from emu_mps.base_classes.results import Results
 from emu_mps.hamiltonian import make_H, rydberg_interaction
+from emu_mps.math.brents_root_finding import find_root_brents
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
@@ -23,15 +25,19 @@ from emu_mps.utils import extended_mpo_factors, extended_mps_factors
 
 class _RunImpl:
     well_prepared_qubits_filter: Optional[list[bool]]
-    hamiltonian: MPO
     lindblad_ops: list[torch.Tensor]
     lindblad_noise: torch.Tensor
+    collapse_threshold: float
+    aggregated_lindblad_ops: Optional[torch.Tensor]
 
     def __init__(self, sequence: Sequence, mps_config: MPSConfig):
         self.sequence = sequence
         self.config = mps_config
 
         self.dt = self.config.dt
+        self.t: float = (
+            0.0  # While dt is an integer, noisy collapse can happen at non-integer times.
+        )
         self.qubit_count = len(sequence.register.qubit_ids)
 
         assert (
@@ -83,11 +89,14 @@ class _RunImpl:
     def init_lindblad_noise(self) -> None:
         self.lindblad_ops = get_all_lindblad_noise_operators(self.config.noise_model)
 
-        # Work in progress.
+        self.aggregated_lindblad_ops = None
         if self.lindblad_ops:
-            raise NotImplementedError("Lindbladian noise is not supported yet")
+            stacked = torch.stack(self.lindblad_ops)
+            # The below is used for batch computation of noise collapse weights.
+            self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
 
         self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
+        self.collapse_threshold = random.random()
 
     def make_initial_state(self) -> MPS:
         if self.config.initial_state is None:
@@ -123,7 +132,7 @@ class _RunImpl:
         """
         Updates hamiltonian and evolves state by dt.
         """
-        self.hamiltonian = make_H(
+        noisy_hamiltonian = make_H(
             interaction_matrix=self.interaction_matrix,
             omega=self.omega[step, :],
             delta=self.delta[step, :],
@@ -132,28 +141,82 @@ class _RunImpl:
         )
 
         _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
-        evolve_tdvp(
-            -_TIME_CONVERSION_COEFF * self.dt * 1j,
-            self.state,
-            self.hamiltonian,
-            self.config.extra_krylov_tolerance,
-            self.config.max_krylov_dim,
+
+        target_time = (step + 1) * self.dt
+        while self.t != target_time:
+            assert self.t < target_time
+
+            time_at_begin = self.t
+            squared_norm_at_begin = self.state.norm() ** 2
+            assert self.collapse_threshold <= squared_norm_at_begin
+
+            def f(intermediate_t: float) -> float:
+                delta = intermediate_t - self.t
+                evolve_tdvp(
+                    -_TIME_CONVERSION_COEFF * delta * 1j,
+                    self.state,
+                    noisy_hamiltonian,
+                    self.config.extra_krylov_tolerance,
+                    self.config.max_krylov_dim,
+                )
+                self.t = intermediate_t
+                return self.state.norm() ** 2 - self.collapse_threshold
+
+            f_end = f(float(target_time))
+
+            if f_end < 0:
+                find_root_brents(
+                    f=f,
+                    start=time_at_begin,
+                    end=target_time,
+                    f_start=squared_norm_at_begin - self.collapse_threshold,
+                    f_end=f_end,
+                    tolerance=1.0,
+                )
+                self.random_noise_collapse()
+                self.collapse_threshold = random.random()
+
+        assert self.t == target_time
+
+    def random_noise_collapse(self) -> None:
+        collapse_weights = self.state.expect(self.aggregated_lindblad_ops).real
+
+        ((collapsed_qubit_index, collapse_operator),) = random.choices(
+            [
+                (qubit, op)
+                for qubit in range(self.state.num_sites)
+                for op in self.lindblad_ops
+            ],
+            collapse_weights.reshape(-1),
         )
+
+        self.state.apply(collapsed_qubit_index, collapse_operator)
+        self.state = (1 / self.state.norm()) * self.state
+
+        assert abs(1 - self.state.norm()) < 1e-10
 
     def fill_results(self, results: Results, step: int) -> None:
         t = (step + 1) * self.dt  # we are now after the time-step, so use step+1
+        noiseless_hamiltonian = make_H(
+            interaction_matrix=self.interaction_matrix,
+            omega=self.omega[step, :],
+            delta=self.delta[step, :],
+            phi=self.phi[step, :],
+        )
+
+        normalized_state = 1 / self.state.norm() * self.state
         for callback in self.config.callbacks:
             if self.well_prepared_qubits_filter is None:
-                callback(self.config, t, self.state, self.hamiltonian, results)
+                callback(self.config, t, normalized_state, noiseless_hamiltonian, results)
             elif t in callback.evaluation_times:
                 full_mpo = MPO(
                     extended_mpo_factors(
-                        self.hamiltonian.factors, self.well_prepared_qubits_filter
+                        noiseless_hamiltonian.factors, self.well_prepared_qubits_filter
                     )
                 )
                 full_state = MPS(
                     extended_mps_factors(
-                        self.state.factors, self.well_prepared_qubits_filter
+                        normalized_state.factors, self.well_prepared_qubits_filter
                     ),
                     keep_devices=True,
                 )

@@ -15,11 +15,11 @@ Returns the result of `find_root_brents` but also the number of times `f` was ca
 
 def find_root_brents_instrumented(
     f,
-    a,
-    b,
-    fa: float | None = None,
-    fb: float | None = None,
     *,
+    start,
+    end,
+    f_start: float | None = None,
+    f_end: float | None = None,
     tolerance: float = 1e-6,
     epsilon: float = 1e-6,
 ) -> (float, int):
@@ -27,7 +27,13 @@ def find_root_brents_instrumented(
     mock_f.side_effect = f
 
     result_root = find_root_brents(
-        mock_f, a, b, fa, fb, tolerance=tolerance, epsilon=epsilon
+        mock_f,
+        start=start,
+        end=end,
+        f_start=f_start,
+        f_end=f_end,
+        tolerance=tolerance,
+        epsilon=epsilon,
     )
     result_call_count = mock_f.call_count
 
@@ -37,7 +43,7 @@ def find_root_brents_instrumented(
 def test_find_root_polynomial():
     P = lambda x: (x + 3) * (x - 1) ** 2
 
-    actual_root, call_count = find_root_brents_instrumented(P, -4, 4 / 3.0)
+    actual_root, call_count = find_root_brents_instrumented(P, start=-4, end=4 / 3.0)
 
     expected_root = -3
 
@@ -51,7 +57,7 @@ def test_find_root_segments():
             return -1
         return -1 + x * 10
 
-    actual_root, call_count = find_root_brents_instrumented(f, -10, 10)
+    actual_root, call_count = find_root_brents_instrumented(f, start=-10, end=10)
 
     expected_root = 0.1
 
@@ -98,7 +104,7 @@ def test_find_root_integral():
 
     expected_root = i * slice_size - acc / diff_values[i]
 
-    actual_root, call_count = find_root_brents_instrumented(f, 0, 1)
+    actual_root, call_count = find_root_brents_instrumented(f, start=0, end=1)
 
     assert abs(actual_root - expected_root) < test_tolerance
     assert call_count == 18
@@ -133,7 +139,7 @@ def test_find_root_store_intermediate_result():
 
         return psi_evolved.norm() - target_norm
 
-    found_root, call_count = find_root_brents_instrumented(f, 0, 20)
+    found_root, call_count = find_root_brents_instrumented(f, start=0, end=20)
 
     assert abs(f(found_root)) < test_tolerance
     assert (psi_evolved.norm() - target_norm) < test_tolerance

@@ -13,6 +13,7 @@ def run_with_pulser(
     timestep: float = 10.0,
     skip_write_output: bool = True,
     hardware_modulation: bool = False,
+    sim_config=None,
 ):
     """
     Returns the final state as a quitip QObj and a dictionary
@@ -43,6 +44,10 @@ def run_with_pulser(
         evaluation_times=times / 1000,
         with_modulation=hardware_modulation,
     )
+
+    if sim_config:
+        sim.set_config(sim_config)
+
     results = sim.run()
 
     # final state

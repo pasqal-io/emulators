@@ -114,7 +114,7 @@ def get_bit(i: int, bit_index: int) -> int:
 
 def get_bistring_coeff(mps: MPS, bitstring: int) -> float | complex:
     """
-    Returns the value of the MPS at the physical indexes specified by the bistring.
+    Returns the value of the MPS at the physical indexes specified by the bitstring.
     Useful way to check single components of the MPS that does not depend on inner.
     """
     N = mps.num_sites
@@ -260,3 +260,81 @@ def test_wrong_basis_string_state():
         MPS.from_state_string(basis=("0", "1"), nqubits=3, strings=afm_string_state)
     msg = "Only the rydberg-ground basis is currently supported"
     assert str(ve.value) == msg
+
+
+def test_norm():
+    f1 = torch.rand(1, 2, 2, dtype=torch.complex128)
+    f2 = torch.rand(2, 2, 3, dtype=torch.complex128)
+    f3 = torch.rand(3, 2, 1, dtype=torch.complex128)
+
+    state = MPS([f1, f2, f3], truncate=True)
+
+    assert state.norm() == pytest.approx(math.sqrt(inner(state, state).real))
+
+
+def test_expect():
+    f1 = torch.rand(1, 2, 2, dtype=torch.complex128)
+    f2 = torch.rand(2, 2, 3, dtype=torch.complex128)
+    f3 = torch.rand(3, 2, 1, dtype=torch.complex128)
+
+    state = MPS([f1, f2, f3], truncate=True)
+
+    op0 = torch.rand(2, 2, dtype=torch.complex128)
+    op1 = torch.rand(2, 2, dtype=torch.complex128)
+
+    ops = torch.stack([op0, op1])
+
+    actual = state.expect(ops)
+
+    expected_00 = torch.einsum(
+        "abc,cde,efg,bh,ihj,jdk,kfl",
+        f1.conj(),
+        f2.conj(),
+        f3.conj(),
+        op0,
+        f1,
+        f2,
+        f3,
+    ).item()
+    assert expected_00 == pytest.approx(actual[0][0].item())
+
+    expected_11 = torch.einsum(
+        "abc,cde,efg,dh,ibj,jhk,kfl",
+        f1.conj(),
+        f2.conj(),
+        f3.conj(),
+        op1,
+        f1,
+        f2,
+        f3,
+    )
+    assert expected_11.item() == pytest.approx(actual[1][1].item())
+
+
+def test_apply():
+    state = MPS(4)
+    hadamard = (
+        1.0 / math.sqrt(2) * torch.tensor([[1, 1], [1, -1]], dtype=torch.complex128)
+    )
+    state.apply(1, hadamard)
+    state.apply(2, hadamard)
+
+    assert get_bistring_coeff(state, 0b0000) == pytest.approx(0.5)
+    assert get_bistring_coeff(state, 0b0100) == pytest.approx(0.5)
+    assert get_bistring_coeff(state, 0b0010) == pytest.approx(0.5)
+    assert get_bistring_coeff(state, 0b0110) == pytest.approx(0.5)
+
+    # Check orthogonality center is on qubit #0.
+    f1, f2, f3, f4 = state.factors
+    assert torch.allclose(
+        torch.einsum(
+            "abc,cde,efg,hbi,idj,jfg",
+            f2.conj().cpu(),
+            f3.conj().cpu(),
+            f4.conj().cpu(),
+            f2.cpu(),
+            f3.cpu(),
+            f4.cpu(),
+        ),
+        torch.eye(f1.shape[2], dtype=torch.complex128),
+    )
