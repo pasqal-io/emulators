@@ -1,6 +1,6 @@
 from collections import Counter
 from unittest.mock import MagicMock, Mock
-
+from pytest import approx
 import torch
 
 from emu_mps import (
@@ -122,7 +122,7 @@ def test_expectation():
     callback(config, 10, state, H, result)
 
     output = result[callback.name()][10]
-    assert output == 2 * (6**nqubits)
+    assert output == approx(2 * (6**nqubits))
 
 
 def test_fidelity():
@@ -170,7 +170,7 @@ def test_energy():
     callback(config, 10, state, H, result)
 
     output = result[callback.name()][10]
-    assert output == 2 * (6**nqubits)
+    assert output == approx(2 * (6**nqubits))
 
 
 def test_energy_variance():
@@ -194,4 +194,4 @@ def test_energy_variance():
     callback(config, 10, state, H, result)
 
     output = result[callback.name()][10]
-    assert output == state.inner(state) - 4 * 6 ** (2 * nqubits)
+    assert output == approx(state.inner(state) - 4 * 6 ** (2 * nqubits))

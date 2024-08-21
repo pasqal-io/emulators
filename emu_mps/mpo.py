@@ -58,37 +58,20 @@ class MPO(Operator):
     def __mul__(self, other: State) -> MPS:
         """
         Applies this MPO to the given MPS.
+
+        The returned MPS is:
+            - othogonal on the first site
+            - truncated up to `other.precision`
+            - distributed on the same devices of `other`
         """
         assert isinstance(other, MPS), "MPO can only be multiplied with MPS"
-        assert (
-            self.num_sites == other.num_sites
-        ), "MPO and MPS don't have the same number of sites"
-
-        # Move own factors to the same devices as the MPS's factors
-        self.factors = [
-            self.factors[i].to(other.factors[i].device) for i in range(self.num_sites)
-        ]
-
-        out_factors = []
-        # to keep track of the bond dimensions of the output mps
-        # so we can do the logic in a single sweep from either left-to-right or vice-versa
-        left_bond_size = 1
-        for i in range(self.num_sites):
-            factor, left_bond_size = self._contract_factors(
-                self.factors[i], other.factors[i], left_bond_size
-            )
-            out_factors.append(factor)
-        mps = MPS(out_factors)
-        return mps
-
-    @staticmethod
-    def _contract_factors(
-        mpo_factor: Any, mps_factor: Any, left_bond_size: int
-    ) -> tuple[Any, int]:
-        factor = torch.einsum("ijkl,mko->imjlo", mpo_factor, mps_factor)
-        factor = factor.reshape(left_bond_size, 2, -1)
-        left_bond_size = factor.shape[-1]
-        return factor, left_bond_size
+        factors = zip_right(
+            self.factors,
+            other.factors,
+            max_error=other.precision,
+            max_rank=other.max_bond_dim,
+        )
+        return MPS(factors)
 
     def __add__(self, other: Operator) -> Operator:
         """
