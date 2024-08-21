@@ -1,6 +1,6 @@
-# emu-mps benchmarks
+# EMU-MPS benchmarks
 
-Users should expect _emu-mps_ to emulate the QPU for<sup>[[1]](#disclaimer)</sup>
+Users should expect _emu-mps_ to emulate the QPU for<sup>[[1]](#performance)</sup>
 - 2d systems up to 30 atoms for quenches and 50 adiabatic sequences
 - Realistic sequences (~μs)
 
@@ -11,7 +11,8 @@ At this point, the maximum number of atoms is mostly limited by available memory
 ---
 
 Benchmark efforts, as documented here, are meant to provide insights to _emu-mps_ users about the expected
-- **Performance**: runtime, allocations, number of qubits, bond dimension<sup>[[2]](#bonddimension)</sup>
+
+- **Performance**: runtime, allocations, number of qubits, bond dimension<sup>[[2]](#bond-dimension)</sup>
 - **Accuracy**: different precision levels as compared to state vector solvers
 
 given a set of meaningful sequences of interest (quench, adiabatic and use-case sequences) that we are going to introduce case by case. Finally, we will only focus on 2d atomic registers as they represent the most numerically challenging and interesting case to study.
@@ -32,12 +33,12 @@ A first class of benchmarks covers the minimal meaningful pulse sequences that c
 - __Adiabatic time evolution:__ the evolution is _slow enough_ to guarantee that the evolved state is always an equilibrium state.
 - __Quench:__ The system is strongly driven out of equilibrium
 
-Both are interesting and they complement each other. Quenches, in particular, are typically computationally harder to emulate. For more details, please, have a look at insight [[3]](#qpu_h_and_seqs).
+Both are interesting and they complement each other. Quenches, in particular, are typically computationally harder to emulate. For more details, please, have a look at insight [[3]](#qpu-hamiltonian).
 
 ### I.a Performance
 
 As anticipated, in the performance benchmarks, we will track several relevant metrics:
-- __Bond dimension $\chi$:__ the maximum internal link dimension of the MPS representation of the time evolved state<sup>[[2]](#bonddimension)</sup>.
+- __Bond dimension $\chi$:__ the maximum internal link dimension of the MPS representation of the time evolved state<sup>[[2]](#bond-dimension)</sup>.
 - __State size $|\psi|$:__ memory footprint of the state (in MB).
 - __RSS:__ resident set size allocated by the emulation.
 - $\Delta t$: CPU/GPU time to complete a time step.
@@ -49,7 +50,7 @@ We run an adiabatic sequence to make an antiferromagnetic (AFM) state, as taken 
 [put the pulser seq and register here]
 
 Performance metrics, for the defined sequence and for the biggest register are shown below, in the left column of the figures, for CPU and GPU workloads.
-From the plots it is easy to understand that all the metrics heavily correlate with each other. Specifically a higher bond dimension will translate in higher memory footprint and runtimes<sup>[[2]](#bonddimension)</sup>.
+From the plots it is easy to understand that all the metrics heavily correlate with each other. Specifically a higher bond dimension will translate in higher memory footprint and runtimes<sup>[[2]](#bond-dimension)</sup>.
 
 <img src="./benchmark_plots/adiabatic_afm_state_cpu.png"  width="49.7%">
 <img src="./benchmark_plots/adiabatic_afm_state_gpu.png"  width="49.7%">
@@ -67,11 +68,11 @@ The overall metrics, as before, both for a single run (left) and for multiple ru
 <img src="./benchmark_plots/quench_performance_cpu.png"  width="49.7%">
 <img src="./benchmark_plots/quench_performance_gpu.png"  width="49.7%">
 
-As expected<sup>[[3]](#qpu_h_and_seqs)</sup>, the quench requires significantly more memory to run compared to the adiabatic sequence.
+As expected<sup>[[3]](#qpu-hamiltonian)</sup>, the quench requires significantly more memory to run compared to the adiabatic sequence.
 
 #### Qubit shuffling
 
-A seemingly innocuous operation like reordering the register labels can actually affect the performance, as a consequence of the MPS representation<sup>[[2]](#bonddimension)</sup>. In simple terms, the additional memory cost, and thus performance, comes from representing for example two strongly interacting atoms, in two far apart tensors in the MPS, since all the intermediate tensors in the chain have to somehow pass that information between them.
+A seemingly innocuous operation like reordering the register labels can actually affect the performance, as a consequence of the MPS representation<sup>[[2]](#bond-dimension)</sup>. In simple terms, the additional memory cost, and thus performance, comes from representing for example two strongly interacting atoms, in two far apart tensors in the MPS, since all the intermediate tensors in the chain have to somehow pass that information between them.
 
 To be more quantitative, in the following benchmark case, we run the same AFM sequence from before, but shuffling the qubit labeling order.
 
@@ -96,7 +97,7 @@ Accuracy, here, specifically refer to observables:
 - __Magnetization:__ $P_{r}^j = |\langle r^j|\psi\rangle|^2$
 
 The emulated sequences are going to be the same as before, an adiabatic and a quench. We will check accuracy against two main tunable parameters in _emu-mps_:
-- `precision`<sup>[[4]](#timestepprecision)</sup>: at each step, throw away components of the state whose sum weighs less that the specified precision.
+- `precision`<sup>[[4]](#timestep-size-and-precision)</sup>: at each step, throw away components of the state whose sum weighs less that the specified precision.
 - time step `dt`: sampling time of the sequence.
 
 <img src="./benchmark_plots/afm_state_fidelity.png"  width="49.7%">
@@ -115,9 +116,7 @@ Coming soon...
 Coming soon...
 
 # Insights
-<details>
-<summary>[1] Performance will depend several factors <a name="disclaimer"></a></summary>
-<blockquote>
+## Performance
 
 <b>a. Matrix product representation</b>
 
@@ -131,7 +130,7 @@ The take-home message is that a reasonable way to assess _emu-mps_ performance i
 
 Different devices can have different $C_6$ coefficients and support for different maximum driving amplitudes $\Omega$ [ref to Hamiltonian here].
 Intuitively, under stronger interactions (rydberg-rydberg and laser-rydberg),
-bond dimension will grow more quickly<sup>[[2]](#bonddimension)</sup>, thus affecting performance of our tensor network based emulator.
+bond dimension will grow more quickly<sup>[[2]](#bond-dimension)</sup>, thus affecting performance of our tensor network based emulator.
 For a list of the available devices and their specifications, please refer to [Pulser documentation](https://pulser.readthedocs.io/en/stable/tutorials/virtual_devices.html).
 
 ----
@@ -157,13 +156,9 @@ MPSConfig(
     )
 ```
 In particular `num_devices_to_use = 0` will run the emulation on CPU, while `num_devices_to_use ≥ 1` on GPU/s.
-</blockquote>
-</details>
 
 
-<details>
-<summary>[2] Bond dimension <a name="bonddimension"></a></summary>
-<blockquote>
+## Bond dimension
 Please, have a look at [http://tensornetwork.org/mps/](http://tensornetwork.org/mps/) for a more general introduction to matrix product states.
 
 The MPS is the best understood factorization of an arbitrary tensor, for which many efficient algorithms have been developed. For a quick understanding, in tensor diagram notation, let's consider the wavefunction of $N$ qubits:
@@ -185,13 +180,9 @@ As a consequence, the real power of the MPS representation is that the bond dime
 The most physically-relevant way to do it in _emu-mps_ is by specifying the `precision` argument during the time evolution. Doing so, at each step, will throw away components of the state whose sum weighs less that the specified precision, achieving a smaller bond dimension and therefore reducing the memory footprint of the state.
 
 As an additional feature, _emu-mps_ also allows to conveniently fix the maximum bond dimension allowed, by specifying the `max_bond_dim` argument. Intuitively, the truncation algorithm will select the `max_bond_dim` most relevant components of the state. The drawback is that the error cannot be estimated anymore a priori.
-</blockquote>
-</details>
 
 
-<details>
-<summary>[3] QPU Hamiltonian & basic sequences <a name="qpu_h_and_seqs"></a></summary>
-<blockquote>
+## QPU Hamiltonian
 In all cases we will refer to $H$ as the rydberg-rydberg Hamiltonian that can be implemented on Pasqal's hardware,
 
 $$
@@ -213,5 +204,6 @@ We then explore two time evolution protocols:
 As anticipated, they typically complement each other.
 Since the matrix product state approach in _emu-mps_ strives to minimize the stored information, keeping track of a single equilibrium state in adiabatic time evolution is typically easier. While this single state can be a complicated object itself, quenches, driving the system out of equilibrium, involves taking into account multiple excited states, thus (again, typically as a rule of thumb), computationally harder to emulate.
 
-</blockquote>
-</details>
+## Timestep size and precision
+
+There is

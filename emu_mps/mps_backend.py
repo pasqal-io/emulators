@@ -131,7 +131,7 @@ class _RunImpl:
         for callback in self.config.callbacks:
             if self.well_prepared_qubits_filter is None:
                 callback(self.config, t, self.state, self.hamiltonian, results)
-            elif t in callback.times:
+            elif t in callback.evaluation_times:
                 full_mpo = MPO(
                     extended_mpo_factors(
                         self.hamiltonian.factors, self.well_prepared_qubits_filter
@@ -172,10 +172,10 @@ class MPSBackend(Backend):
 
         Args:
             sequence: a Pulser sequence to simulate
-            mps_config: the backend's config
+            mps_config: the backends config. Should be of type MPSConfig
 
         Returns:
-            MPSBackendResults: the simulation results
+            the simulation results
         """
         assert isinstance(mps_config, MPSConfig)
 

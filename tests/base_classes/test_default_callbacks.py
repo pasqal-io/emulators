@@ -20,7 +20,7 @@ from emu_mps.base_classes.results import Results
 
 
 def test_state_result():
-    callback = StateResult(times=[10])
+    callback = StateResult(evaluation_times=[10])
     result = Results()
     config = None
     nqubits = 5
@@ -44,7 +44,7 @@ def test_state_result():
 
 
 def test_bit_strings():
-    callback = BitStrings(times=[10], num_shots=1000)
+    callback = BitStrings(evaluation_times=[10], num_shots=1000)
     result = Results()
     mock_noise = MagicMock()
     mock_noise.p_false_pos = 0.1
@@ -66,7 +66,7 @@ def test_bit_strings():
 
 def test_qubit_density():
     nqubits = 5
-    callback = QubitDensity(times=[10], basis={"r", "g"}, nqubits=nqubits)
+    callback = QubitDensity(evaluation_times=[10], basis={"r", "g"}, nqubits=nqubits)
     result = Results()
     config = None
     state = MPS(
@@ -83,7 +83,7 @@ def test_qubit_density():
 
 def test_correlation_matrix():
     nqubits = 5
-    callback = CorrelationMatrix(times=[10], basis={"r", "g"}, nqubits=nqubits)
+    callback = CorrelationMatrix(evaluation_times=[10], basis={"r", "g"}, nqubits=nqubits)
     result = Results()
     config = None
     state = MPS(
@@ -108,7 +108,7 @@ def test_expectation():
     xs = [(x, [i for i in range(nqubits)])]
     op = MPO.from_operator_string(basis, nqubits, [(1.0, xs)])
 
-    callback = Expectation(times=[10], operator=op)
+    callback = Expectation(evaluation_times=[10], operator=op)
     result = Results()
     config = None
 
@@ -131,7 +131,7 @@ def test_fidelity():
     fid_state = MPS(
         [torch.tensor([1, 0], dtype=torch.complex128).reshape(1, 2, 1)] * nqubits
     )
-    callback = Fidelity(times=[10], state=fid_state)
+    callback = Fidelity(evaluation_times=[10], state=fid_state)
 
     result = Results()
     config = None
@@ -157,7 +157,7 @@ def test_energy():
     xs = [(x, [i for i in range(nqubits)])]
     H = MPO.from_operator_string(basis, nqubits, [(1.0, xs)])
 
-    callback = Energy(times=[10])
+    callback = Energy(evaluation_times=[10])
     result = Results()
     config = None
 
@@ -181,7 +181,7 @@ def test_energy_variance():
     xs = [(x, [i for i in range(nqubits)])]
     H = MPO.from_operator_string(basis, nqubits, [(1.0, xs)])
 
-    callback = EnergyVariance(times=[10])
+    callback = EnergyVariance(evaluation_times=[10])
     result = Results()
     config = None
 

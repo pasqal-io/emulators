@@ -1,4 +1,3 @@
-
 <div align="center">
   <img src="docs/logos/LogoTaglineSoftGreen.svg">
 
@@ -7,25 +6,20 @@
   ![Code Coverage](https://img.shields.io/badge/Coverage-95%25-brightgreen.svg)
 </div>
 
-**Emu-mps** is a Pulser backend, designed to **emu**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**MPS**). It allows users to increase the number of qubits and reduce computation time.
+**EMU-MPS** is a Pulser backend, designed to **EMU**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**MPS**). It allows users to increase the number of qubits and reduce computation time.
 
-Join us on [Slack](https://pasqalworkspace.slack.com/archives/C0389KD4ZKQ) or by [e-mail](mailto:emulation@pasqal.com) to give us feedback about how you plan to use Emu-TN or if you require specific feature-upgrades.
+Join us on [Slack](https://pasqalworkspace.slack.com/archives/C0389KD4ZKQ) or by [e-mail](mailto:emulation@pasqal.com) to give us feedback about how you plan to use Emu-MPS or if you require specific feature-upgrades.
 
-## Features
-
-- Supports more than 40 qubits
-- Compatibility with Pulser-core functions
-- Adjustable pulse discretization (default: dt ~ 10 ns)
 
 ## Getting started
 
 git clone this [repository ](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct)
 
 
-Inside the `emu_mps` folder
+Then, `cd` into the root folder of the repo and type
 
 ```bash
-pip install .
+pip install -e .
 ```
 **Warning:** installing emu-mps will update pulser-core
 
@@ -94,12 +88,10 @@ pip install -e .
   ```
 </details>
 
-
-
 ## Check the tutorial notebooks and example scripts
 
 For more information, you can check the tutorials and examples located in the [examples folder](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct/-/tree/main/examples?ref_type=heads)
 
-## Benchmarks
+## Documentation
 
-For info about the expected performance, please, check the [benchmark](./docs/benchmarks/benchmarks.md) page.
+Please check the [documentation](./docs/index.md) page for more info about contributing, the API, benchmarks, etc.

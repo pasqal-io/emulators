@@ -28,6 +28,14 @@ class MPS(State):
     the MPS is in an orthogonal gauge with center on the first qubit
     or put truncate=True (which will do it for you),
     otherwise tdvp will break!
+
+    Args:
+        sites: either the number of sites, or the tensors at each site
+        truncate: whether to truncate at the end of __init__
+        precision: the precision with which to truncate here or in tdvp
+        max_bond_dim: the maximum bond dimension to allow
+        num_devices_to_use: how many gpus to use, 0=cpu
+        keep_devices: when sites is a list of tensors, whether to just keep those devices.
     """
 
     def __init__(
@@ -75,7 +83,7 @@ class MPS(State):
             assign_devices(self.factors, min(DEVICE_COUNT, num_devices_to_use))
 
         if truncate:
-            self._truncate()
+            self.truncate()
 
     def __repr__(self) -> str:
         result = "["
@@ -88,6 +96,7 @@ class MPS(State):
     def orthogonalize(self) -> None:
         """
         Orthogonalize the state with given orthogonality center at the last qubit.
+        Sweeps a series of QR decompositions left-right
         An in-place operation.
         """
         for i in range(self.num_sites - 1):
@@ -99,9 +108,11 @@ class MPS(State):
                 r.to(self.factors[i + 1].device), self.factors[i + 1], dims=1
             )
 
-    def _truncate(self) -> None:
+    def truncate(self) -> None:
         """
-        Eigenvalues based truncation of the state.
+        SVD based truncation of the state. Puts the orthogonality center at the first qubit.
+        Calls orthogonalize, and then sweeps a series of SVDs right-left.
+        Uses self.precision and self.max_bond_dim for determining accuracy.
         An in-place operation.
         """
         self.orthogonalize()
@@ -114,6 +125,9 @@ class MPS(State):
     def get_max_bond_dim(self) -> int:
         """
         Return the max bond dimension of this MPS.
+
+        Returns:
+            the largest bond dimension in the state
         """
         return max((x.shape[2] for x in self.factors), default=0)
 
@@ -121,7 +135,15 @@ class MPS(State):
         self, num_shots: int, p_false_pos: float = 0.0, p_false_neg: float = 0.0
     ) -> Counter[str]:
         """
-        Returns bitstring distribution for a given number of samples or shots.
+        Samples bitstrings, taking into account the specified error rates.
+
+        Args:
+            num_shots: how many bitstrings to sample
+            p_false_pos: the rate at which a 0 is read as a 1
+            p_false_neg: teh rate at which a 1 is read as a 0
+
+        Returns:
+            the measured bitstrings, by count
         """
         num_qubits = len(self.factors)
         rnd_matrix = torch.rand(num_shots, num_qubits)
@@ -171,35 +193,54 @@ class MPS(State):
 
         return bitstring
 
-    def inner(self, right: State) -> float | complex:
+    def inner(self, other: State) -> float | complex:
         """
-        Computes the inner product between this MPS and the argument.
-        """
+        Compute the inner product between this state and other.
+        Note that self is the left state in the inner product,
+        so this function is linear in other, and anti-linear in self
 
-        assert isinstance(right, MPS), "Other state also needs to be an MPS"
+        Args:
+            other: the other state
+
+        Returns:
+            inner product
+        """
+        assert isinstance(other, MPS), "Other state also needs to be an MPS"
         assert (
-            self.num_sites == right.num_sites
+            self.num_sites == other.num_sites
         ), "States do not have the same number of sites"
 
         acc = torch.ones(1, 1, dtype=self.factors[0].dtype, device=self.factors[0].device)
 
         for i in range(self.num_sites):
             acc = acc.to(self.factors[i].device)
-            acc = torch.tensordot(acc, right.factors[i].to(acc.device), dims=1)
+            acc = torch.tensordot(acc, other.factors[i].to(acc.device), dims=1)
             acc = torch.tensordot(self.factors[i].conj(), acc, dims=([0, 1], [0, 1]))
 
         return acc.item()  # type: ignore[no-any-return]
 
     def get_memory_footprint(self) -> float:
+        """
+        Returns the number of MBs of memory occupied to store the state
+
+        Returns:
+            the memory in MBs
+        """
         return (  # type: ignore[no-any-return]
             sum(factor.element_size() * factor.numel() for factor in self.factors) * 1e-6
         )
 
-    def __add__(self, other: State) -> State:
+    def __add__(self, other: State) -> MPS:
         """
         Returns the sum of two MPSs, computed with a direct algorithm.
         The resulting MPS is orthogonalized on the first site and truncated
         up to `self.precision`.
+
+        Args:
+            other: the other state
+
+        Returns:
+            the summed state
         """
         assert isinstance(other, MPS), "Other state also needs to be an MPS"
         new_tt = add_factors(self.factors, other.factors)
@@ -211,10 +252,15 @@ class MPS(State):
             keep_devices=True,
         )
 
-    def __rmul__(self, scalar: complex) -> State:
+    def __rmul__(self, scalar: complex) -> MPS:
         """
         Multiply an MPS by scalar.
-        Assumes the MPS is orthogonalized on the site 0.
+
+        Args:
+            scalar: the scale factor
+
+        Returns:
+            the scaled mps
         """
         factors = mul_factors(self.factors, scalar)
         return MPS(
@@ -231,18 +277,19 @@ class MPS(State):
         nqubits: int,
         strings: dict[str, complex],
         **kwargs: Any,
-    ) -> State:
+    ) -> MPS:
         """Transforms a state given by a string into an MPS.
 
-        For example, 1/sqrt(2)*(|000>+|111>) -> emu_mps.MPS
+        Construct a state from the pulser abstract representation
+        https://pulser.readthedocs.io/en/stable/conventions.html
 
         Args:
             basis: A tuple containing the basis states (e.g., ('r', 'g')).
-            qubits: A list of qubit ids.
+            nqubits: the number of qubits.
             strings: A dictionary mapping state strings to complex or floats amplitudes.
 
-        Return:
-            State: The resulting MPS representation of the state.
+        Returns:
+            The resulting MPS representation of the state.
         """
 
         if set(basis) != {"r", "g"}:
@@ -258,7 +305,7 @@ class MPS(State):
         basis_g = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)  # ground state
         basis_r = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state
 
-        accum_mps: State = MPS(
+        accum_mps = MPS(
             [torch.zeros((1, 2, 1), dtype=torch.complex128)] * nqubits, **kwargs
         )
 
@@ -270,4 +317,14 @@ class MPS(State):
 
 
 def inner(left: MPS, right: MPS) -> float | complex:
+    """
+    Wrapper around MPS.inner.
+
+    Args:
+        left: the anti-linear argument
+        right: the linear argument
+
+    Returns:
+        the inner product
+    """
     return left.inner(right)

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import itertools
 from typing import Any, List, cast
 
@@ -32,6 +33,9 @@ class MPO(Operator):
     Matrix Product Operator.
 
     Each tensor has 4 dimensions ordered as such: (left bond, output, input, right bond).
+
+    Args:
+        factors: the tensors making up the MPO
     """
 
     def __init__(
@@ -58,11 +62,17 @@ class MPO(Operator):
     def __mul__(self, other: State) -> MPS:
         """
         Applies this MPO to the given MPS.
-
         The returned MPS is:
+
             - othogonal on the first site
             - truncated up to `other.precision`
             - distributed on the same devices of `other`
+
+        Args:
+            other: the state to apply this operator to
+
+        Returns:
+            the resulting state
         """
         assert isinstance(other, MPS), "MPO can only be multiplied with MPS"
         factors = zip_right(
@@ -73,25 +83,44 @@ class MPO(Operator):
         )
         return MPS(factors)
 
-    def __add__(self, other: Operator) -> Operator:
+    def __add__(self, other: Operator) -> MPO:
         """
         Returns the sum of two MPOs, computed with a direct algorithm.
+        The result is currently not truncated
+
+        Args:
+            other: the other operator
+
+        Returns:
+            the summed operator
         """
         assert isinstance(other, MPO), "MPO can only be added to another MPO"
         sum_factors = add_factors(self.factors, other.factors)
         return MPO(sum_factors)
 
-    def __rmul__(self, scalar: complex) -> Operator:
+    def __rmul__(self, scalar: complex) -> MPO:
         """
         Multiply an MPS by scalar.
-        Assumes the MPS is orthogonalized on the site 0.
+
+        Args:
+            scalar: the scale factor to multiply with
+
+        Returns:
+            the scaled operator
         """
         factors = mul_factors(self.factors, scalar)
         return MPO(factors)
 
-    def __matmul__(self, other: Operator) -> Operator:
+    def __matmul__(self, other: Operator) -> MPO:
         """
-        Returns the multiplication of two MPOs.
+        Compose two operators. The ordering is that
+        self is applied after other.
+
+        Args:
+            other: the operator to compose with self
+
+        Returns:
+            the composed operator
         """
         assert isinstance(other, MPO), "MPO can only be applied to another MPO"
         factors = zip_right(self.factors, other.factors)
@@ -105,7 +134,23 @@ class MPO(Operator):
         operators: dict[str, QuditOp] = {},
         /,
         **kwargs: Any,
-    ) -> Operator:
+    ) -> MPO:
+        """
+        Create an operator in the backend-specific format from the
+        pulser abstract representation
+        https://www.notion.so/pasqal/Abstract-State-and-Operator-Definition
+        by default it supports strings 'ij', where i and j in basis,
+        to denote |i><j|, but additional symbols can be defined in operators
+
+        Args:
+            basis: the eigenstates in the basis to use e.g. ('r', 'g')
+            nqubits: how many qubits there are in the state
+            operations: which bitstrings make up the state with what weight
+            operators: additional symbols to be used in operations
+
+        Returns:
+            the operator in MPO form.
+        """
         assert set(basis) == {
             "r",
             "g",

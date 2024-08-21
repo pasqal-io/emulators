@@ -100,10 +100,12 @@ afm_mps_state = MPS.from_state_string(
 another_afm_mps = MPS.from_state_string(basis=basis, nqubits=nqubits, strings=another_afm)
 
 
-state_result = StateResult(times=times)
-bitstrings = BitStrings(times=times, num_shots=1000)
-fidelity = Fidelity(times=times, state=afm_mps_state)  # fidelity number 1
-fidelity_another_state = Fidelity(times=times, state=another_afm_mps)  # fidelity number 2
+state_result = StateResult(evaluation_times=times)
+bitstrings = BitStrings(evaluation_times=times, num_shots=1000)
+fidelity = Fidelity(evaluation_times=times, state=afm_mps_state)  # fidelity number 1
+fidelity_another_state = Fidelity(
+    evaluation_times=times, state=another_afm_mps
+)  # fidelity number 2
 
 
 # we give the configuration of the backend and the observables

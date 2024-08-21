@@ -8,8 +8,15 @@ from emu_mps.base_classes.state import State
 
 
 class StateResult(Callback):
-    def __init__(self, times: set[int]):
-        super().__init__(times)
+    """
+    Store the quantum state in whatever format the backend provides
+
+    Args:
+        evaluation_times: the times at which to store the state
+    """
+
+    def __init__(self, evaluation_times: set[int]):
+        super().__init__(evaluation_times)
 
     def name(self) -> str:
         return "state"
@@ -19,8 +26,17 @@ class StateResult(Callback):
 
 
 class BitStrings(Callback):
-    def __init__(self, times: set[int], num_shots: int = 1000):
-        super().__init__(times)
+    """
+    Store bitstrings sampled from the current state. Error rates are taken from the config
+    passed to the run method of the backend.
+
+    Args:
+        evaluation_times: the times at which to sample bitstrings
+        num_shots: how many bitstrings to sample
+    """
+
+    def __init__(self, evaluation_times: set[int], num_shots: int = 1000):
+        super().__init__(evaluation_times)
         self.num_shots = num_shots
 
     def name(self) -> str:
@@ -41,8 +57,18 @@ _fidelity_counter = -1
 
 
 class Fidelity(Callback):
-    def __init__(self, times: set[int], state: State):
-        super().__init__(times)
+    """
+    Store the inner product of the given fidelity state
+    with the current state. The fidelity state is the
+    anti-linear argument to the inner product.
+
+    Args:
+        evaluation_times: the times at which to compute the fidelity
+        state: the fidelity state. Note that this must be of appropriate type for the backend
+    """
+
+    def __init__(self, evaluation_times: set[int], state: State):
+        super().__init__(evaluation_times)
         global _fidelity_counter
         _fidelity_counter += 1
         self.index = _fidelity_counter
@@ -59,8 +85,16 @@ _expectation_counter = -1
 
 
 class Expectation(Callback):
-    def __init__(self, times: set[int], operator: Operator):
-        super().__init__(times)
+    """
+    Store the expectation of the given operator on the current state (i.e. <φ(t)|operator|φ(t)>).
+
+    Args:
+        evaluation_times: the times at which to compute the expectation
+        operator: the operator to measure. Must be of appropriate type for the backend.
+    """
+
+    def __init__(self, evaluation_times: set[int], operator: Operator):
+        super().__init__(evaluation_times)
         global _expectation_counter
         _expectation_counter += 1
         self.index = _expectation_counter
@@ -74,8 +108,21 @@ class Expectation(Callback):
 
 
 class CorrelationMatrix(Callback):
-    def __init__(self, times: set[int], basis: tuple[str, ...], nqubits: int):
-        super().__init__(times)
+    """
+    Store the correlation matrix for the current state.
+    Requires specification of the basis used in the emulation
+    https://pulser.readthedocs.io/en/stable/conventions.html
+    It currently only supports the rydberg basis ('r','g').
+    The diagonal of this matrix is the QubitDensity.
+
+    Args:
+        evaluation_times: the times at which to compute the correlation matrix
+        basis: the basis used by the sequence
+        nqubits: the number of qubits in the Register
+    """
+
+    def __init__(self, evaluation_times: set[int], basis: tuple[str, ...], nqubits: int):
+        super().__init__(evaluation_times)
         self.operators: list[list[Operator]] | None = None
         assert set(basis) == {
             "r",
@@ -104,8 +151,20 @@ class CorrelationMatrix(Callback):
 
 
 class QubitDensity(Callback):
-    def __init__(self, times: set[int], basis: tuple[str, ...], nqubits: int):
-        super().__init__(times)
+    """
+    Requires specification of the basis used in the emulation
+    https://pulser.readthedocs.io/en/stable/conventions.html
+    It currently only supports the rydberg basis ('r','g') and
+    it computer the probability that each qubit is in the r state.
+
+    Args:
+        evaluation_times: the times at which to compute the density
+        basis: the basis used by the sequence
+        nqubits: the number of qubits in the Register
+    """
+
+    def __init__(self, evaluation_times: set[int], basis: tuple[str, ...], nqubits: int):
+        super().__init__(evaluation_times)
         self.operators: list[Operator] | None = None
         assert set(basis) == {"r", "g"}, "Qubit density is only defined on rydberg-ground"
         self.basis = basis
@@ -126,8 +185,15 @@ class QubitDensity(Callback):
 
 
 class Energy(Callback):
-    def __init__(self, times: set[int]):
-        super().__init__(times)
+    """
+    Store the expectation value of the current Hamiltonian (i.e. <φ(t)|H(t)|φ(t)>)
+
+    Args:
+        evaluation_times: the times at which to compute the expectation
+    """
+
+    def __init__(self, evaluation_times: set[int]):
+        super().__init__(evaluation_times)
 
     def name(self) -> str:
         return "energy"
@@ -137,8 +203,15 @@ class Energy(Callback):
 
 
 class EnergyVariance(Callback):
-    def __init__(self, times: set[int]):
-        super().__init__(times)
+    """
+    Store the variance of the current Hamiltonian (i.e. <φ(t)|H(t)^2|φ(t)> - <φ(t)|H(t)|φ(t)>^2)
+
+    Args:
+        evaluation_times: the times at which to compute the variance
+    """
+
+    def __init__(self, evaluation_times: set[int]):
+        super().__init__(evaluation_times)
 
     def name(self) -> str:
         return "energy_variance"

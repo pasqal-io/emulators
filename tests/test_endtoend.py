@@ -46,9 +46,9 @@ def simulate(seq, state_prep_error=0.0, p_false_pos=0.0, p_false_neg=0.0):
         dt=100,
         precision=1e-5,
         observables=[
-            StateResult(times=times),
-            BitStrings(times=times, num_shots=1000),
-            Fidelity(times=times, state=fidelity_state),
+            StateResult(evaluation_times=times),
+            BitStrings(evaluation_times=times, num_shots=1000),
+            Fidelity(evaluation_times=times, state=fidelity_state),
         ],
         noise_model=noise_model,
     )

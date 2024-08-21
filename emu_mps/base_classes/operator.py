@@ -14,10 +14,27 @@ FullOp = list[tuple[complex, TensorOp]]  # weighted sum of TensorOp
 class Operator(ABC):
     @abstractmethod
     def __mul__(self, other: State) -> State:
+        """
+        Apply the operator to a state
+
+        Args:
+            other: the state to apply this operator to
+
+        Returns:
+            state: the resulting state
+        """
         pass
 
     @abstractmethod
     def __add__(self, other: Operator) -> Operator:
+        """
+        Computes the sum of two operators.
+
+        Args:
+            other: the other operator
+        Returns:
+            sum: it's in the name
+        """
         pass
 
     @staticmethod
@@ -31,16 +48,44 @@ class Operator(ABC):
         **kwargs: Any,
     ) -> Operator:
         """
-        create the operator operators[0] otimes operators[1] ...
-        where the identity is filled in for qubits not targeted in any qubits
-        dictionary
+        Create an operator in the backend-specific format from the
+        pulser abstract representation
+        https://www.notion.so/pasqal/Abstract-State-and-Operator-Definition
+        by default it supports strings 'ij', where i and j in basis,
+        to denote |i><j|, but additional symbols can be defined in operators
+
+        Args:
+            basis: the eigenstates in the basis to use
+            nqubits: how many qubits there are in the state
+            operations: which bitstrings make up the state with what weight
+            operators: additional symbols to be used in operations
+        Returns:
+            operator: the operator in whatever format the backend provides.
         """
         pass
 
     @abstractmethod
     def __rmul__(self, scalar: complex) -> Operator:
+        """
+        Scale the operator by a scale factor.
+
+        Args:
+            scalar: the scale factor
+        Returns:
+            scaled operator: it's in the name
+        """
         pass
 
     @abstractmethod
     def __matmul__(self, other: Operator) -> Operator:
+        """
+        Compose two operators. The ordering is that
+        self is applied after other.
+
+        Args:
+            other: the operator to compose with self
+
+        Returns:
+            operator: the composed operator
+        """
         pass

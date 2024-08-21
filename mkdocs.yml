@@ -3,12 +3,14 @@ repo_url: "https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct"
 repo_name: "emu-mps"
 
 nav:
-  - Emu-MPS:
-    - index.md
-  - API:
-    - api/index.md
-  - Benchmarks:
-    - benchmarks/index.md
+  - Emu-MPS in a nutshell: index.md
+  - Base Classes: base_classes.md
+  - API: api.md
+  - Computing Observables: observables.md
+  - Config: config.md
+  - How to Contribute: CONTRIBUTING.md
+  - Code of Conduct: CODE_OF_CONDUCT.md
+  - Benchmarks: benchmarks/index.md
 
 edit_uri: edit/main/docs/
 
@@ -22,7 +24,6 @@ theme:
   - navigation.indexes
   - navigation.sections
   - content.code.copy
-  - content.code.annotate
 
   palette:
   - media: "(prefers-color-scheme: light)"
@@ -68,7 +69,7 @@ plugins:
           filters:
             - "!^_"  # exlude all members starting with _
             - "^__init__$"  # but always include __init__ modules and methods
-            - "^__new__$"  # but always include __init__ modules and methods
+            - "^__new__$"  # but always include __new__ modules and methods
         options:
           show_root_toc_entry: false
           heading_level: 3

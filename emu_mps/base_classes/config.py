@@ -4,9 +4,10 @@ from pulser.noise_model import NoiseModel
 class BackendConfig:
     """The base backend configuration.
 
-    Attributes:
+    Args:
         observables: a list of callbacks to compute observables
         with_modulation: whether or not run the sequence with hardware modulation
+        noise_model: The pulser.NoiseModel to use in the simulation.
     """
 
     def __init__(

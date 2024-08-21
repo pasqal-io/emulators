@@ -8,6 +8,11 @@ from emu_mps.base_classes.results import Results
 
 
 class Backend(ABC):
+    """
+    Base class for different emulation backends.
+    Forces backends to implement a run method.
+    """
+
     @staticmethod
     def validate_sequence(sequence: Sequence) -> None:
         with warnings.catch_warnings():
@@ -30,4 +35,14 @@ class Backend(ABC):
 
     @abstractmethod
     def run(self, sequence: Sequence, config: BackendConfig) -> Results:
+        """
+        Emulates the given sequence.
+
+        Args:
+            sequence: a Pulser sequence to simulate
+            config: the config. Should be of the appropriate type for the backend
+
+        Returns:
+            results: the simulation results
+        """
         pass
