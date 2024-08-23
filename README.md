@@ -2,8 +2,6 @@
   <img src="docs/logos/LogoTaglineSoftGreen.svg">
 
   # Emu-MPS
-
-  ![Code Coverage](https://img.shields.io/badge/Coverage-95%25-brightgreen.svg)
 </div>
 
 **EMU-MPS** is a Pulser backend, designed to **EMU**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**MPS**). It allows users to increase the number of qubits and reduce computation time.
@@ -95,3 +93,6 @@ For more information, you can check the tutorials and examples located in the [e
 ## Documentation
 
 Please check the [documentation](./docs/index.md) page for more info about contributing, the API, benchmarks, etc.
+
+
+![Code Coverage](https://img.shields.io/badge/Coverage-95%25-brightgreen.svg)

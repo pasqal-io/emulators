@@ -2,7 +2,6 @@ import pulser
 from typing import Tuple
 import torch
 import math
-
 from pulser.noise_model import NoiseModel
 from emu_mps.lindblad_operators import get_lindblad_operators
 
@@ -17,19 +16,17 @@ def get_qubit_positions(
 
 
 def _convert_sequence_samples(
-    sequence_samples: pulser.sampler.samples.SequenceSamples,
+    rydberg_dict_numpy: dict,
 ) -> None:
-    for channel_samples in sequence_samples.samples_list:
-        if not isinstance(channel_samples.amp, torch.Tensor):
-            channel_samples.amp = torch.tensor(channel_samples.amp)
-        if not isinstance(channel_samples.det, torch.Tensor):
-            channel_samples.det = torch.tensor(channel_samples.det)
-        if not isinstance(channel_samples.phase, torch.Tensor):
-            channel_samples.phase = torch.tensor(channel_samples.phase)
+    """Convert amp, det and phase with type numpy.ndarray to torch.Tensor"""
+    for a_d_p in rydberg_dict_numpy.values():
+        for key, value in a_d_p.items():
+            if not isinstance(value, torch.Tensor):
+                a_d_p[key] = torch.tensor(value)
 
 
 def extract_omega_delta_phi(
-    sequence: pulser.sequence.sequence.Sequence,
+    sequence: pulser.Sequence,
     dt: int,
     with_modulation: bool,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -47,14 +44,22 @@ def extract_omega_delta_phi(
             "modulation is not supported."
         )
 
-    sequence_samples = pulser.sampler.sampler.sample(
+    sequence_dict = pulser.sampler.sample(
         sequence,
         modulation=with_modulation,
         extended_duration=sequence.get_duration(include_fall_time=with_modulation),
-    )
-    _convert_sequence_samples(sequence_samples)
+    ).to_nested_dict(all_local=True)["Local"]
 
-    max_duration = sequence_samples.max_duration
+    # TODO: from here accept the XY by ["XY"]
+    if "ground-rydberg" in sequence_dict and len(sequence_dict) == 1:
+        locals_rydberg_a_d_p = sequence_dict["ground-rydberg"]
+    else:
+        raise ValueError("Emu-MPS only accepts ground-rydberg channels")
+
+    _convert_sequence_samples(locals_rydberg_a_d_p)
+
+    max_duration = sequence.get_duration(include_fall_time=with_modulation)
+
     nsamples = math.ceil(max_duration / dt - 1 / 2)
     omega = torch.zeros(
         nsamples,
@@ -71,38 +76,16 @@ def extract_omega_delta_phi(
         len(sequence.register.qubit_ids),
         dtype=torch.complex128,
     )
-    number_of_channels = len(sequence_samples.samples_list)
-    current_slot_indices = [0] * number_of_channels
+
     step = 0
     t = int((step + 1 / 2) * dt)
 
     while t < max_duration:
-        seen_qubits = set()
-        for channel_index, slot_index in enumerate(current_slot_indices):
-            channel_samples = sequence_samples.samples_list[channel_index]
-            while (
-                slot_index < len(channel_samples.slots)
-                and t > channel_samples.slots[slot_index].tf
-            ):
-                slot_index += 1
-            current_slot_indices[channel_index] = slot_index
-            if (
-                slot_index >= len(channel_samples.slots)
-                or t < channel_samples.slots[slot_index].ti
-            ):
-                continue
-            for qubit_id in channel_samples.slots[slot_index].targets:
-                qubit_index = sequence.register.qubit_ids.index(qubit_id)
 
-                if qubit_index in seen_qubits:
-                    # FIXME: if amp or det are 0 just ignore??
-                    raise NotImplementedError("multiple pulses acting on same qubit")
-
-                seen_qubits.add(qubit_index)
-
-                omega[step, qubit_index] = channel_samples.amp[t]
-                delta[step, qubit_index] = channel_samples.det[t]
-                phi[step, qubit_index] = channel_samples.phase[t]
+        for q_pos, q_id in enumerate(sequence.register.qubit_ids):
+            omega[step, q_pos] = locals_rydberg_a_d_p[q_id]["amp"][t]
+            delta[step, q_pos] = locals_rydberg_a_d_p[q_id]["det"][t]
+            phi[step, q_pos] = locals_rydberg_a_d_p[q_id]["phase"][t]
         step += 1
         t = int((step + 1 / 2) * dt)
 
