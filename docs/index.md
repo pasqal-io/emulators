@@ -33,7 +33,8 @@ However, without any additional config, the `results` object will be empty.
 
 To actually populate the results, you have to add observables to the `MPSConfig` object as follows:
 
-```python
+```python exec="true" source="above"
+import emu_mps
 dt = 10 #ns
 some_integer_factor = 5
 times = [some_integer_factor * dt]

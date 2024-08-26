@@ -9,6 +9,8 @@ variables:
   HATCH_INDEX_AUTH: $PYPI_PASSWORD
   HATCH_INDEX_REPO: $PYPI_URL
 
+default:
+  interruptible: true
 
 .default_rules:
   rules:
@@ -31,6 +33,12 @@ variables:
       when: never
     - if: $CI_COMMIT_TAG
 
+# Include templates for running jobs on the dgx cluster
+include:
+  - project: pasqal/dgx-cluster-support
+    ref: main
+    file: /gitlab-templates/dgx-runner.yml
+
 cache:
   paths:
     - .cache/pip
@@ -39,8 +47,9 @@ stages:
   - lint
   - test
   - pages
-  - benchmarks
   - publish
+  - benchmarks
+  - package
 
 lint:
   extends:
@@ -52,14 +61,13 @@ lint:
     - pre-commit install
     - pre-commit run --all-files
 
-
 .test:
-    script:
+  script:
     - pip install hatch readme-coverage-badger
     - hatch run test
     - hatch run test_notebooks
     - hatch run coverage_readme
-    coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
 
 test-py3.10:
   extends:
@@ -68,21 +76,186 @@ test-py3.10:
   image: python:3.10
   stage: test
 
-benchmarks:
+.benchmark:
+  artifacts:
+    paths:
+      - benchmarks/${JOB_NAME}/${JOB_NAME}.out
+      - benchmarks/${JOB_NAME}/results/*
+    when: on_success
+    access: all
+    # 7 days as package stage will compile everything and store it for longer time
+    expire_in: "7 days"
   stage: benchmarks
+  tags:
+    - slurm
+  cache:
+    paths:
+      - .cache/pip
+      - benchmarks/framework/benchmarkutils/__pycache__/
   rules:
-    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH&& $CI_PIPELINE_SOURCE == "schedule"
+    # run on schedule
+    - if: $CI_COMMIT_BRANCH=="main" && $CI_PIPELINE_SOURCE == "schedule"
+    # Run manually within an MR
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_TRIGGER_SOURCE == "web"'
+      when: manual
+      allow_failure: true
+    # run on main
+    - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"
   before_script:
-    - apt-get update -y && apt-get install openssh-client -y && apt-get install -y iputils-ping
-    - eval $(ssh-agent -s)
-    - echo "$BENCH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
-    - ssh-keyscan -H $VM_IPADDRESS >> ~/.ssh/known_hosts
-    - chmod 644 ~/.ssh/known_hosts
+    - module load devel/python/${PYTHON_VERSION}
+    - python3 -m venv venv
+    - . venv/bin/activate
+    - cp /home/emuteam/.venv/pip.conf venv/pip.conf
+    - cd benchmarks/${JOB_NAME}/
+    - pip install -e ../framework
+    - pip install -e ../../
+  # Maximum and default runtime on the cluster of a job
+  timeout: 96h
+  variables:
+    PYTHON_VERSION: "3.10.4"
+
+benchmark_adiabatic_afm_state_cpu:
+  extends: .benchmark
+  before_script:
+    - module purge
+    - !reference [.template-jacamar-minimal, before_script]
+    - !reference [.benchmark, before_script]
   script:
-    - sed -ie "s|BRANCH|$CI_COMMIT_BRANCH|g" ./benchmarks/download_and_benchmark.sh
-    - 'ssh -vvv -o StrictHostKeyChecking=accept-new -o ProxyCommand="ssh -o StrictHostKeyChecking=accept-new -W %h:%p -q $JUMPHOST@$VM_IPADDRESS" $BENCHUSER@$DGX_IP < ./benchmarks/download_and_benchmark.sh'
+    - python3 benchmark.py | tee ${JOB_NAME}.out
+  after_script:
+    - !reference [.template-jacamar-minimal, after_script]
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 16"
+    JOB_NAME: "adiabatic_afm_state_cpu"
+
+benchmark_adiabatic_afm_state_gpu:
+  extends: .benchmark
+  before_script:
+    - module purge
+    - !reference [.template-jacamar-minimal, before_script]
+    - !reference [.benchmark, before_script]
+  script:
+    - python3 benchmark.py | tee ${JOB_NAME}.out
+  after_script:
+    - !reference [.template-jacamar-minimal, after_script]
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 1 -G 1"
+    JOB_NAME: "adiabatic_afm_state_gpu"
+
+benchmark_afm_state_fidelity:
+  extends: .benchmark
+  before_script:
+    - module purge
+    - !reference [.template-jacamar-minimal, before_script]
+    - !reference [.benchmark, before_script]
+  script:
+    - python3 benchmark.py | tee ${JOB_NAME}.out
+  after_script:
+    - !reference [.template-jacamar-minimal, after_script]
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 16"
+    JOB_NAME: "afm_state_fidelity"
+
+benchmark_qubit_shuffling_cpu:
+  extends: .benchmark
+  before_script:
+    - module purge
+    - !reference [.template-jacamar-minimal, before_script]
+    - !reference [.benchmark, before_script]
+  script:
+    - python3 benchmark.py | tee ${JOB_NAME}.out
+  after_script:
+    - !reference [.template-jacamar-minimal, after_script]
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 16"
+    JOB_NAME: "qubit_shuffling_cpu"
+
+benchmark_quench_fidelity:
+  extends: .benchmark
+  before_script:
+    - module purge
+    - !reference [.template-jacamar-minimal, before_script]
+    - !reference [.benchmark, before_script]
+  script:
+    - python3 benchmark.py | tee ${JOB_NAME}.out
+  after_script:
+    - !reference [.template-jacamar-minimal, after_script]
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 32"
+    JOB_NAME: "quench_fidelity"
+  timeout: 96h
+
+benchmark_quench_performance_cpu:
+  extends: .benchmark
+  before_script:
+    - module purge
+    - !reference [.template-jacamar-minimal, before_script]
+    - !reference [.benchmark, before_script]
+  script:
+    - python3 benchmark.py | tee ${JOB_NAME}.out
+  after_script:
+    - !reference [.template-jacamar-minimal, after_script]
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 32"
+    JOB_NAME: "quench_performance_cpu"
+
+benchmark_quench_performance_gpu:
+  extends: .benchmark
+  before_script:
+    - module purge
+    - !reference [.template-jacamar-minimal, before_script]
+    - !reference [.benchmark, before_script]
+  script:
+    - python3 benchmark.py | tee ${JOB_NAME}.out
+  after_script:
+    - !reference [.template-jacamar-minimal, after_script]
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 4 -G 1"
+    JOB_NAME: "quench_performance_gpu"
+
+package_benchmark_artifacts:
+  stage: package
+  tags:
+    - slurm
+  rules:
+    # run on schedule
+    - if: $CI_COMMIT_BRANCH=="main" && $CI_PIPELINE_SOURCE == "schedule"
+    # Run after manual benchmarks runned within an MR
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_TRIGGER_SOURCE == "web"'
+      allow_failure: true
+    # run on main
+    - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"
+  script:
+    - echo "packaging everything and backing up on the cluster"
+  after_script:
+    - timestamp=$(date +"%Y%m%dT%H%M")
+    - archivedir=/home/emuteam/archive
+    - mkdir -p ${archivedir}/${timestamp}
+    - cp -rva benchmarks/*/results ${archivedir}/${timestamp}
+    - FILES=$(find $archivedir/$timestamp -type f -name *.png)
+    - for file in $FILES ; do echo -n " -a $file" >> commands.txt ; done
+    - FILES_CMD=$(cat commands.txt)
+    - msg="Hello Emulation Team!\n\nSee attachments for the emu-ct benchmark. \n\nDo not reply to this automatic email."
+    - SUBJECT='[no-reply] Emu-MPS weekly benchmark'
+    - echo $FILES
+    - echo $FILES_CMD
+    - echo -e "$msg" | mailx -s "$SUBJECT" $FILES_CMD emulation@pasqal.com
+    - rm commands.txt
+  needs:
+    - benchmark_adiabatic_afm_state_cpu
+    - benchmark_adiabatic_afm_state_gpu
+    - benchmark_afm_state_fidelity
+    - benchmark_qubit_shuffling_cpu
+    - benchmark_quench_fidelity
+    - benchmark_quench_performance_cpu
+    - benchmark_quench_performance_gpu
+  artifacts:
+    name: all-benchmarks
+    paths:
+      - "benchmarks/**/*.out"
+      - "benchmarks/**/*.png"
+      - "benchmarks/**/*.json"
+    expire_in: "30 days"
 
 pages:
   stage: pages
@@ -100,7 +273,7 @@ publish_cloud_image:
   stage: publish
   image: docker:20.10.18
   extends:
-   - .publish_rules
+    - .publish_rules
   services:
     - docker:20.10.18-dind
   variables:
@@ -114,7 +287,7 @@ publish-package:
   stage: publish
   image: python:3.10
   extends:
-   - .publish_rules
+    - .publish_rules
   script:
     - python -m pip install --upgrade pip
     - python -m pip install hatch

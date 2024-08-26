@@ -9,13 +9,17 @@ import emu_mps
 seq = sys.argv[1]
 seq = pulser.Sequence.from_abstract_repr(seq)
 dt = 10
-times = [dt * (i + 1) for i in range(int(seq.get_duration() / dt))]
+evaluation_times = [dt * (i + 1) for i in range(int(seq.get_duration() / dt))]
 out_file = sys.argv[2]
 
 obs = [
-    emu_mps.QubitDensity(basis={"r", "g"}, qubits=seq.register.qubit_ids, times=times),
-    emu_mps.Energy(times=times),
-    emu_mps.EnergyVariance(times=times),
+    emu_mps.QubitDensity(
+        basis={"r", "g"},
+        nqubits=len(seq.register.qubit_ids),
+        evaluation_times=evaluation_times,
+    ),
+    emu_mps.Energy(evaluation_times=evaluation_times),
+    emu_mps.EnergyVariance(evaluation_times=evaluation_times),
 ]
 
 config = emu_mps.MPSConfig(num_devices_to_use=0, observables=obs)
