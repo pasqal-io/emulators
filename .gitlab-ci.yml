@@ -8,6 +8,7 @@ variables:
   HATCH_INDEX_USER: $PYPI_USERNAME
   HATCH_INDEX_AUTH: $PYPI_PASSWORD
   HATCH_INDEX_REPO: $PYPI_URL
+  PROTECT: "slurm"
 
 default:
   interruptible: true
@@ -88,6 +89,7 @@ test-py3.10:
   stage: benchmarks
   tags:
     - slurm
+    - $PROTECT
   cache:
     paths:
       - .cache/pip
@@ -95,12 +97,16 @@ test-py3.10:
   rules:
     # run on schedule
     - if: $CI_COMMIT_BRANCH=="main" && $CI_PIPELINE_SOURCE == "schedule"
+      variables:
+        PROTECT: protected
     # Run manually within an MR
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_TRIGGER_SOURCE == "web"'
       when: manual
       allow_failure: true
     # run on main
     - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"
+      variables:
+        PROTECT: protected
   before_script:
     - module load devel/python/${PYTHON_VERSION}
     - python3 -m venv venv
@@ -217,14 +223,19 @@ package_benchmark_artifacts:
   stage: package
   tags:
     - slurm
+    - $PROTECT
   rules:
     # run on schedule
     - if: $CI_COMMIT_BRANCH=="main" && $CI_PIPELINE_SOURCE == "schedule"
+      variables:
+        PROTECT: protected
     # Run after manual benchmarks runned within an MR
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_TRIGGER_SOURCE == "web"'
       allow_failure: true
     # run on main
     - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"
+      variables:
+        PROTECT: protected
   script:
     - echo "packaging everything and backing up on the cluster"
   after_script:
