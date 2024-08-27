@@ -90,20 +90,34 @@ class _RunImpl:
         self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
 
     def make_initial_state(self) -> MPS:
-        # TODO: take the initial state from configuration.
-        well_prepared_qubits_count: int = (
-            self.qubit_count
-            if self.well_prepared_qubits_filter is None
-            else sum(1 for x in self.well_prepared_qubits_filter if x)
-        )
+        if self.config.initial_state is None:
+            well_prepared_qubits_count: int = (
+                self.qubit_count
+                if self.well_prepared_qubits_filter is None
+                else sum(1 for x in self.well_prepared_qubits_filter if x)
+            )
 
-        return MPS(
-            well_prepared_qubits_count,
-            truncate=False,
-            precision=self.config.precision,
-            max_bond_dim=self.config.max_bond_dim,
-            num_devices_to_use=self.config.num_devices_to_use,
-        )
+            return MPS(
+                well_prepared_qubits_count,
+                truncate=False,
+                precision=self.config.precision,
+                max_bond_dim=self.config.max_bond_dim,
+                num_devices_to_use=self.config.num_devices_to_use,
+            )
+        else:
+            if self.well_prepared_qubits_filter is not None:
+                raise NotImplementedError(
+                    "Specifying the initial state in the presence of state \
+                        preparation errors is currently not implemented."
+                )
+            assert isinstance(self.config.initial_state, MPS)
+            return MPS(
+                self.config.initial_state.factors,
+                truncate=True,
+                precision=self.config.precision,
+                max_bond_dim=self.config.max_bond_dim,
+                num_devices_to_use=self.config.num_devices_to_use,
+            )
 
     def do_time_step(self, step: int) -> None:
         """

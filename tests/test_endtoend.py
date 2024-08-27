@@ -189,3 +189,25 @@ def test_end_to_end_afm_line_with_measurement_errors():
             ANY, p_false_pos=0.0, p_false_neg=0.5
         )
         assert results["bitstrings"][final_time] is bitstrings
+
+
+def test_initial_state():
+    pulse = pulser.Pulse.ConstantAmplitude(
+        0.0, pulser.waveforms.ConstantWaveform(10.0, 0.0), 0.0
+    )
+    reg = pulser.Register.rectangle(5, 1, spacing=1e10)
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(pulse, "ising_global")  # do nothing in the pulse
+
+    state = emu_mps.MPS.from_state_string(
+        basis=("r", "g"), nqubits=5, strings={"rrrrr": 1.0}
+    )
+    assert state.inner(state).real == approx(1.0)  # assert unit norm
+
+    state_result = emu_mps.StateResult(evaluation_times={10})
+    config = emu_mps.MPSConfig(observables=[state_result], initial_state=state)
+    backend = emu_mps.MPSBackend()
+    results = backend.run(seq, config)
+    # assert that the initial state was used by the emulator
+    assert results[state_result.name()][10].inner(state).real == approx(1.0)
