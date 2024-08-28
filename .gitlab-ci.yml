@@ -13,6 +13,11 @@ variables:
 default:
   interruptible: true
 
+.id_token:
+  id_tokens:
+    CI_JOB_JWT:
+      aud: https://gitlab.example.com
+
 .default_rules:
   rules:
     #don't run if were the scheduled pipeline that defines the below variable
@@ -119,6 +124,7 @@ test-py3.10:
   timeout: 96h
   variables:
     PYTHON_VERSION: "3.10.4"
+  id_tokens: !reference [.id_token, id_tokens]
 
 benchmark_adiabatic_afm_state_cpu:
   extends: .benchmark
@@ -221,6 +227,7 @@ benchmark_quench_performance_gpu:
 
 package_benchmark_artifacts:
   stage: package
+  id_tokens: !reference [.id_token, id_tokens]
   tags:
     - slurm
     - $PROTECT
