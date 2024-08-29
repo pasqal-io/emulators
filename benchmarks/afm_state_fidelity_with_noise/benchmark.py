@@ -68,7 +68,7 @@ try:
         def do_run(run_index):
             return backend.run(seq, config)
 
-        processes_count = os.environ.get("SLURM_JOB_CPUS_PER_NODE", cpu_count()) - 1
+        processes_count = int(os.environ.get("SLURM_JOB_CPUS_PER_NODE", cpu_count())) - 1
 
         with Pool(processes=processes_count) as pool:
             results = pool.map(do_run, range(nruns))
