@@ -115,9 +115,10 @@ Hamiltonian should be Hermitian!
 def evolve_tdvp(
     t: float | complex,
     state: MPS,
-    Hamiltonian: MPO,
+    hamiltonian: MPO,
     extra_krylov_tolerance: float,
     max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+    is_hermitian: bool = True,
 ) -> None:
     t /= 2
     nfactors = len(state.factors)
@@ -127,16 +128,16 @@ def evolve_tdvp(
     lbs = [
         torch.ones(1, 1, 1, dtype=state.factors[0].dtype, device=state.factors[0].device)
     ]
-    rbs = right_baths(state, Hamiltonian, 2)
+    rbs = right_baths(state, hamiltonian, 2)
     for i in range(nfactors - 1):
         ls = state.factors[i]
         lss = ls.shape
         rs = state.factors[i + 1].to(ls.device)
         rss = rs.shape
         s = torch.tensordot(ls, rs, dims=1).reshape(lss[0], 4, rss[-1])
-        lh = Hamiltonian.factors[i]
+        lh = hamiltonian.factors[i]
         lhs = lh.shape
-        rh = Hamiltonian.factors[i + 1].to(lh.device)
+        rh = hamiltonian.factors[i + 1].to(lh.device)
         rb = rbs.pop()
 
         h = (
@@ -154,6 +155,7 @@ def evolve_tdvp(
             exp_tolerance=state.precision * extra_krylov_tolerance,
             norm_tolerance=state.precision * extra_krylov_tolerance,
             max_krylov_dim=max_krylov_dim,
+            is_hermitian=is_hermitian,
         ).reshape(lss[0] * 2, 2 * rss[-1])
 
         l, r = split_tensor(evol, max_error=state.precision, max_rank=state.max_bond_dim)
@@ -167,7 +169,7 @@ def evolve_tdvp(
         lbs.append(
             new_left_bath(lbs[i], state.factors[i], lh).to(state.factors[i + 1].device)
         )
-        h = Hamiltonian.factors[i + 1].to(state.factors[i + 1].device)
+        h = hamiltonian.factors[i + 1].to(state.factors[i + 1].device)
         op = lambda x: -t * apply_effective_Hamiltonian(x, h, lbs[i + 1], rb)
 
         evol = krylov_exp(
@@ -176,6 +178,7 @@ def evolve_tdvp(
             exp_tolerance=state.precision * extra_krylov_tolerance,
             norm_tolerance=state.precision * extra_krylov_tolerance,
             max_krylov_dim=max_krylov_dim,
+            is_hermitian=is_hermitian,
         )
         state.factors[i + 1] = evol
 
@@ -189,8 +192,8 @@ def evolve_tdvp(
         ls = state.factors[i].to(rs.device)
         lss = ls.shape
         s = torch.tensordot(ls, rs, dims=1).reshape(lss[0], 4, rss[-1])
-        lh = Hamiltonian.factors[i]
-        rh = Hamiltonian.factors[i + 1].to(lh.device)
+        lh = hamiltonian.factors[i]
+        rh = hamiltonian.factors[i + 1].to(lh.device)
         lhs = lh.shape
         lb = lbs.pop()
 
@@ -211,6 +214,7 @@ def evolve_tdvp(
             exp_tolerance=state.precision * extra_krylov_tolerance,
             norm_tolerance=state.precision * extra_krylov_tolerance,
             max_krylov_dim=max_krylov_dim,
+            is_hermitian=is_hermitian,
         ).reshape(lss[0] * 2, 2 * rss[-1])
 
         l, r = split_tensor(
@@ -230,7 +234,7 @@ def evolve_tdvp(
             new_right_bath(rbs[-1], state.factors[i + 1], rh).to(state.factors[i].device)
         )
 
-        h = Hamiltonian.factors[i].to(state.factors[i].device)
+        h = hamiltonian.factors[i].to(state.factors[i].device)
         op = lambda x: -t * apply_effective_Hamiltonian(x, h, lb, rbs[-1])
 
         evol = krylov_exp(
@@ -239,6 +243,7 @@ def evolve_tdvp(
             exp_tolerance=state.precision * extra_krylov_tolerance,
             norm_tolerance=state.precision * extra_krylov_tolerance,
             max_krylov_dim=max_krylov_dim,
+            is_hermitian=is_hermitian,
         )
 
         state.factors[i] = evol.reshape(lss[0], 2, -1)

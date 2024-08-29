@@ -31,7 +31,6 @@ def krylov_exp_impl(
     """
     Computes exp(op).v using either the Lanczos or Arnoldi algorithm,
     based on the `is_hermitian` flag.
-    v should be normalized!
     All inputs must be on the same device.
 
     Convergence is checked using the exponential of the "extended T matrix", a criterion
@@ -39,9 +38,9 @@ def krylov_exp_impl(
     (https://www.maths.uq.edu.au/expokit/paper.pdf).
     """
 
-    # assert abs(v.norm() - 1) < norm_tolerance, "Vector needs to be normalized"
+    initial_norm = v.norm()
 
-    lanczos_vectors = [v]
+    lanczos_vectors = [v / initial_norm]
     T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
 
     for j in range(max_krylov_dim):
@@ -59,7 +58,9 @@ def krylov_exp_impl(
         if T[j + 1, j].real < norm_tolerance:
             # Happy breakdown
             expd = torch.linalg.matrix_exp(T[: j + 1, : j + 1])
-            result = sum(a * b for a, b in zip(expd[:, 0], lanczos_vectors))
+            result = initial_norm * sum(
+                a * b for a, b in zip(expd[:, 0], lanczos_vectors)
+            )
             return KrylovExpResult(
                 result=result, converged=True, happy_breakdown=True, iteration_count=j + 1
             )
@@ -78,7 +79,7 @@ def krylov_exp_impl(
 
         if err < exp_tolerance:
             # Converged
-            result = sum(
+            result = initial_norm * sum(
                 a * b for a, b in zip(expd[: len(lanczos_vectors), 0], lanczos_vectors)
             )
             return KrylovExpResult(
@@ -88,7 +89,9 @@ def krylov_exp_impl(
                 iteration_count=j + 1,
             )
 
-    result = sum(a * b for a, b in zip(expd[: len(lanczos_vectors), 0], lanczos_vectors))
+    result = initial_norm * sum(
+        a * b for a, b in zip(expd[: len(lanczos_vectors), 0], lanczos_vectors)
+    )
     return KrylovExpResult(
         result=result,
         converged=False,

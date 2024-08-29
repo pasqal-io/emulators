@@ -1,4 +1,5 @@
 import torch
+import pytest
 
 from emu_mps.math.krylov_exp import krylov_exp_impl
 
@@ -25,9 +26,15 @@ def check(
     norm_tolerance: float,
     exp_tolerance: float,
     max_krylov_dim: int = 80,
+    normalize: bool = True,
 ):
-    v /= v.norm()
-    op = lambda x: torch.tensordot(m, x, dims=1)
+    if normalize:
+        v /= v.norm()
+
+    def op(x):
+        assert x.norm() == pytest.approx(1)  # Check all Lanczos vectors have norm 1.
+        return torch.tensordot(m, x, dims=1)
+
     result = krylov_exp_impl(
         op,
         v,
@@ -156,4 +163,23 @@ def test_converged_non_hermitian():
         iteration_count=7,
         norm_tolerance=1e-20,
         exp_tolerance=1e-15,
+    )
+
+
+def test_converged_non_hermitian_non_normalized():
+    torch.random.manual_seed(1234)
+
+    dim = 1000
+    m = 0.001 * uniform_random_tensor(dim, dim)
+    v = uniform_random_tensor(dim, 1)
+    check(
+        m,
+        v,
+        is_hermitian=False,
+        converged=True,
+        happy_breakdown=False,
+        iteration_count=6,
+        norm_tolerance=1e-20,
+        exp_tolerance=1e-13,
+        normalize=False,
     )

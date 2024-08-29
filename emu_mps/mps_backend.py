@@ -27,8 +27,10 @@ class _RunImpl:
     well_prepared_qubits_filter: Optional[list[bool]]
     lindblad_ops: list[torch.Tensor]
     lindblad_noise: torch.Tensor
+    hamiltonian: MPO
     collapse_threshold: float
-    aggregated_lindblad_ops: Optional[torch.Tensor]
+    aggregated_lindblad_ops: Optional[torch.Tensor] = None
+    is_noisy: bool
 
     def __init__(self, sequence: Sequence, mps_config: MPSConfig):
         self.sequence = sequence
@@ -89,8 +91,9 @@ class _RunImpl:
     def init_lindblad_noise(self) -> None:
         self.lindblad_ops = get_all_lindblad_noise_operators(self.config.noise_model)
 
-        self.aggregated_lindblad_ops = None
-        if self.lindblad_ops:
+        self.is_noisy = self.lindblad_ops != []
+
+        if self.is_noisy:
             stacked = torch.stack(self.lindblad_ops)
             # The below is used for batch computation of noise collapse weights.
             self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
@@ -132,7 +135,7 @@ class _RunImpl:
         """
         Updates hamiltonian and evolves state by dt.
         """
-        noisy_hamiltonian = make_H(
+        self.hamiltonian = make_H(
             interaction_matrix=self.interaction_matrix,
             omega=self.omega[step, :],
             delta=self.delta[step, :],
@@ -153,11 +156,12 @@ class _RunImpl:
             def f(intermediate_t: float) -> float:
                 delta = intermediate_t - self.t
                 evolve_tdvp(
-                    -_TIME_CONVERSION_COEFF * delta * 1j,
-                    self.state,
-                    noisy_hamiltonian,
-                    self.config.extra_krylov_tolerance,
-                    self.config.max_krylov_dim,
+                    t=-_TIME_CONVERSION_COEFF * delta * 1j,
+                    state=self.state,
+                    hamiltonian=self.hamiltonian,
+                    extra_krylov_tolerance=self.config.extra_krylov_tolerance,
+                    max_krylov_dim=self.config.max_krylov_dim,
+                    is_hermitian=not self.is_noisy,
                 )
                 self.t = intermediate_t
                 return self.state.norm() ** 2 - self.collapse_threshold
@@ -174,7 +178,6 @@ class _RunImpl:
                     tolerance=1.0,
                 )
                 self.random_noise_collapse()
-                self.collapse_threshold = random.random()
 
         assert self.t == target_time
 
@@ -195,13 +198,21 @@ class _RunImpl:
 
         assert abs(1 - self.state.norm()) < 1e-10
 
+        self.collapse_threshold = random.random()
+
     def fill_results(self, results: Results, step: int) -> None:
         t = (step + 1) * self.dt  # we are now after the time-step, so use step+1
-        noiseless_hamiltonian = make_H(
-            interaction_matrix=self.interaction_matrix,
-            omega=self.omega[step, :],
-            delta=self.delta[step, :],
-            phi=self.phi[step, :],
+
+        noiseless_hamiltonian = (
+            self.hamiltonian
+            if not self.is_noisy
+            else make_H(
+                interaction_matrix=self.interaction_matrix,
+                omega=self.omega[step, :],
+                delta=self.delta[step, :],
+                phi=self.phi[step, :],
+                # Without noise for the callbacks.
+            )
         )
 
         normalized_state = 1 / self.state.norm() * self.state
