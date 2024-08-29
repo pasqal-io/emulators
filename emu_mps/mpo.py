@@ -100,13 +100,14 @@ class MPO(Operator):
 
     def __rmul__(self, scalar: complex) -> MPO:
         """
-        Multiply an MPS by scalar.
+        Multiply an MPO by scalar.
+        Assumes the orthogonal centre is on the first factor.
 
         Args:
             scalar: the scale factor to multiply with
 
         Returns:
-            the scaled operator
+            the scaled MPO
         """
         factors = mul_factors(self.factors, scalar)
         return MPO(factors)

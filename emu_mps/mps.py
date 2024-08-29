@@ -260,12 +260,13 @@ class MPS(State):
     def __rmul__(self, scalar: complex) -> MPS:
         """
         Multiply an MPS by scalar.
+        Assumes the orthogonal centre is on the first factor.
 
         Args:
             scalar: the scale factor
 
         Returns:
-            the scaled mps
+            the scaled MPS
         """
         factors = mul_factors(self.factors, scalar)
         return MPS(

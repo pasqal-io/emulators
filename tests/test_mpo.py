@@ -1,5 +1,6 @@
 import pytest
 import torch
+import math
 
 from emu_mps import MPO, MPS, inner
 
@@ -129,8 +130,7 @@ def test_matmul():
         truncate=True,
     )
     # normalize
-    norm = torch.linalg.norm(mps.factors[0])
-    mps = (1 / norm) * mps
+    mps = (1 / mps.norm()) * mps
 
     # make random MPO1
     mpo1 = MPO(
@@ -159,3 +159,34 @@ def test_matmul():
     expected = mps.inner(matmul_mps)
     obtained = mps.inner(mul_mps)
     assert obtained == pytest.approx(expected)
+
+
+def test_rmul():
+    dtype = torch.complex128
+    # make random MPS
+    mps = MPS(
+        [
+            torch.rand(1, 2, 2, dtype=dtype),
+            torch.rand(2, 2, 6, dtype=dtype),
+            torch.rand(6, 2, 5, dtype=dtype),
+            torch.rand(5, 2, 1, dtype=dtype),
+        ],
+        truncate=True,
+    )
+    # normalize
+    mps = (1 / mps.norm()) * mps
+
+    # make random MPO
+    mpo = MPO(
+        [
+            torch.rand(1, 2, 2, 4, dtype=dtype),
+            torch.rand(4, 2, 2, 6, dtype=dtype),
+            torch.rand(6, 2, 2, 5, dtype=dtype),
+            torch.rand(5, 2, 2, 1, dtype=dtype),
+        ]
+    )
+    # test 〈Ψ|a*O|Ψ〉== a〈Ψ|O|Ψ〉)
+    unscaled_res = inner(mps, mpo * mps)
+    for scale in [2.0, -math.pi, -1 + 2j, -1 / 4]:
+        scaled_mpo = scale * mpo
+        assert inner(mps, scaled_mpo * mps) == pytest.approx(scale * unscaled_res)

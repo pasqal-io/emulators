@@ -50,7 +50,7 @@ def add_factors(
 def mul_factors(factors: list[torch.tensor], scalar: complex) -> list[torch.tensor]:
     """
     Returns the tensor train (MPS/MPO) multiplied by a scalar.
-    Assumes the orthogonal centre of the train is on the factor 0.
+    Assumes the orthogonal centre is on the first factor.
     """
     return [scalar * factors[0], *factors[1:]]
 
