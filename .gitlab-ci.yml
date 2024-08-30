@@ -277,6 +277,7 @@ package_benchmark_artifacts:
     - benchmark_adiabatic_afm_state_cpu
     - benchmark_adiabatic_afm_state_gpu
     - benchmark_afm_state_fidelity
+    - benchmark_afm_state_fidelity_with_noise
     - benchmark_qubit_shuffling_cpu
     - benchmark_quench_fidelity
     - benchmark_quench_performance_cpu
