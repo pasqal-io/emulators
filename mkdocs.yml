@@ -10,6 +10,7 @@ nav:
   - Config: config.md
   - How to Contribute: CONTRIBUTING.md
   - Code of Conduct: CODE_OF_CONDUCT.md
+  - Errors in TDVP: errors.md
   - Benchmarks: benchmarks/index.md
 
 edit_uri: edit/main/docs/

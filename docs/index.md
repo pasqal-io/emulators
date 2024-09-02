@@ -14,6 +14,28 @@ pip install -e .
 
 We always recommend using a virtual environment.
 
+## Supported features
+
+The following features are currently supported:
+
+- All pulser sequences that use only the rydberg channel
+- MPS and MPO can be constructed using the abstract pulser format.
+- The following noise types
+    - SPAM
+    - Effective noise using Monte Carlo quantum jumps coming very soon
+- Customizable output, with the folowing inbuilt options:
+    - The quantum state in MPS format
+    - Bitstrings
+    - The fidelity with respect to a given state
+    - The expectation of a given operator
+    - The qubit density (magnetization)
+    - The correlation matrix
+    - The mean and variance of the energy
+- Specification of
+    - initial state
+    - various precision parameters (see [API](api.md))
+    - whether to run on cpu or gpu(s)
+
 ## Running A pulser sequence
 
 EMU-MPS is meant to run pulser sequences. Assuming the existence of a pulser sequence called `seq` (see the [pulser docs](https://pulser.readthedocs.io/en/stable/tutorials/creating.html)), you can do the following

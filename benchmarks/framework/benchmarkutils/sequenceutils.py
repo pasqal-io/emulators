@@ -56,7 +56,7 @@ def make_quench_2d_seq(nx: int, ny: int):
     delta = -2 * hz * NN_coeff + 2 * U
     T = np.round(1000 * t / NN_coeff)
 
-    seq = Sequence(reg, MockDevice)
+    seq = Sequence(reg, MockDevice)  # circumvent the register spacing constraints
     seq.declare_channel("ising", "rydberg_global")
 
     # Add the main pulse to the pulse sequence

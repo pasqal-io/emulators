@@ -15,8 +15,6 @@ Then the norm of the state will be $\sum_i d_i^2$ and the entanglement entropy b
 
 The truncation mentioned above functions by throwing away the smallest singular values, until their squared sum exceeds $precision^2$. The result is that the truncation procedure finds the smallest MPS whose distance is less than `precision` away from the original state.
 
-This final interpretation is useful in estimating the error incurred in TDVP through truncation. TDVP sweeps from left two right over neighbouring pairs of qubits, and back. This means that for each timestep, `2*(nqubits-1)` truncations are performed, so by the triangle inequality, TDVP will output a state whose distance is than `2*(nqubits-1)*precision` from the state TDVP would have output without truncation. Note that the truncation errors will not all point in the same direction, so the actual error will likely be closer to `sqrt(2*(nqubits-1))*precision`, similar to the error in a gaussian random walk. It's default value is `1e-5`, meaning that each tdvp step will likely be accurate up to order `1e-4`.
-
 ## max_bond_dim
 
 In addition to the above procedure, at each truncation step, no more than `max_bond_dim` singular values are kept. This parameter will impose a hard cap on the memory consumed by the quantum state, at the cost of losing control over the magnitude of the truncation errors.
