@@ -13,10 +13,25 @@ variables:
 default:
   interruptible: true
 
+# The rules are from Workflows/MergeRequest-Pipelines.gitlab-ci.yml
+# but we can't extend the template so they are duplicated here.
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_PROTECTED != "true"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_TAG
+      variables:
+        PROTECT: "protected"
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+      variables:
+        PROTECT: "protected"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
 .id_token:
   id_tokens:
     CI_JOB_JWT:
-      aud: https://gitlab.example.com
+      aud: https://gitlab.pasqal.com
 
 .default_rules:
   rules:
@@ -94,7 +109,7 @@ test-py3.10:
   stage: benchmarks
   tags:
     - slurm
-    - $PROTECT
+    - ${PROTECT}
   cache:
     paths:
       - .cache/pip
@@ -102,16 +117,12 @@ test-py3.10:
   rules:
     # run on schedule
     - if: $CI_COMMIT_BRANCH=="main" && $CI_PIPELINE_SOURCE == "schedule"
-      variables:
-        PROTECT: protected
     # Run manually within an MR
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_TRIGGER_SOURCE == "web"'
       when: manual
       allow_failure: true
     # run on main
     - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"
-      variables:
-        PROTECT: protected
   before_script:
     - module load devel/python/${PYTHON_VERSION}
     - python3 -m venv venv
@@ -244,19 +255,15 @@ package_benchmark_artifacts:
   id_tokens: !reference [.id_token, id_tokens]
   tags:
     - slurm
-    - $PROTECT
+    - ${PROTECT}
   rules:
     # run on schedule
     - if: $CI_COMMIT_BRANCH=="main" && $CI_PIPELINE_SOURCE == "schedule"
-      variables:
-        PROTECT: protected
     # Run after manual benchmarks runned within an MR
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_TRIGGER_SOURCE == "web"'
       allow_failure: true
     # run on main
     - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"
-      variables:
-        PROTECT: protected
   script:
     - echo "packaging everything and backing up on the cluster"
   after_script:
@@ -269,9 +276,7 @@ package_benchmark_artifacts:
     - FILES_CMD=$(cat commands.txt)
     - msg="Hello Emulation Team!\n\nSee attachments for the emu-ct benchmark. \n\nDo not reply to this automatic email."
     - SUBJECT='[no-reply] Emu-MPS weekly benchmark'
-    - echo $FILES
-    - echo $FILES_CMD
-    - echo -e "$msg" | mailx -s "$SUBJECT" $FILES_CMD emulation@pasqal.com
+    - echo -e "$msg" | mailx -r emuteam@admin-pasqal -s "$SUBJECT" $FILES_CMD emulation@pasqal.com
     - rm commands.txt
   needs:
     - benchmark_adiabatic_afm_state_cpu
