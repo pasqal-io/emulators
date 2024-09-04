@@ -8,7 +8,7 @@ from emu_mps import MPO, MPS, inner
 def test_mul():
     num_sites = 3
 
-    mps = MPS(num_sites)
+    mps = MPS.make(num_sites)
     factors = []
     for _ in range(num_sites):
         tensor = torch.zeros(1, 2, 2, 1, dtype=torch.complex128)
@@ -106,7 +106,6 @@ def test_add_expectation_values():
             torch.rand(2, 2, 6, dtype=dtype),
             torch.rand(6, 2, 1, dtype=dtype),
         ],
-        truncate=True,
     )
 
     # compute 〈Ψ|O|Ψ〉= Σi〈Ψ|Oi|Ψ〉
@@ -127,7 +126,6 @@ def test_matmul():
             torch.rand(6, 2, 5, dtype=dtype),
             torch.rand(5, 2, 1, dtype=dtype),
         ],
-        truncate=True,
     )
     # normalize
     mps = (1 / mps.norm()) * mps
@@ -160,6 +158,17 @@ def test_matmul():
     obtained = mps.inner(mul_mps)
     assert obtained == pytest.approx(expected)
 
+    # assert orthogonality center at qubit #0
+    assert matmul_mps.orthogonality_center == 0
+    assert mul_mps.orthogonality_center == 0
+    assert all(
+        torch.allclose(
+            torch.tensordot(f.conj(), f, dims=([1, 2], [1, 2])),
+            torch.eye(f.shape[0], dtype=torch.complex128, device=f.device),
+        )
+        for f in matmul_mps.factors[1:] + mul_mps.factors[1:]
+    )
+
 
 def test_rmul():
     dtype = torch.complex128
@@ -171,7 +180,6 @@ def test_rmul():
             torch.rand(6, 2, 5, dtype=dtype),
             torch.rand(5, 2, 1, dtype=dtype),
         ],
-        truncate=True,
     )
     # normalize
     mps = (1 / mps.norm()) * mps

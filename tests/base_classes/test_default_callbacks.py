@@ -24,7 +24,7 @@ def test_state_result():
     result = Results()
     config = None
     nqubits = 5
-    state = MPS(nqubits)
+    state = MPS.make(nqubits)
 
     norm2 = state.inner(state)
     H = None

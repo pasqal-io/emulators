@@ -1,8 +1,7 @@
-from typing import List
+from typing import List, Optional
 import torch
 import random
 from collections import Counter
-
 
 DEVICE_COUNT = torch.cuda.device_count()
 
@@ -172,6 +171,33 @@ def extended_mpo_factors(
             factor[:, 1, 1, :] = torch.eye(bond_dimension, bond_dimension)
             result.append(factor)
     return result
+
+
+def get_extended_site_index(
+    where: list[bool], desired_index: Optional[int]
+) -> Optional[int]:
+    """
+    Returns the index in `where` that has `desired_index` preceding True elements.
+
+    This function is used to find the index of the orthogonality center in an MPS obtained
+    with `extended_mps_factors` in the presence of dark qubits:
+        `where` is the mask specifying whether qubits are well-prepared.
+        `desired_index` is the index of the orthogonality center of the MPS without dark qubits.
+        The return value is then the index of the orthogonality center
+        in the full MPS with added dark qubits.
+    """
+
+    if desired_index is None:
+        return None
+
+    index = -1
+    for extended_index, boolean_value in enumerate(where):
+        if boolean_value:
+            index += 1
+            if index == desired_index:
+                return extended_index
+
+    raise ValueError(f"Index {desired_index} does not exist")
 
 
 def readout_with_error(c: str, *, p_false_pos: float, p_false_neg: float) -> str:

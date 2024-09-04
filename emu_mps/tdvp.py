@@ -104,14 +104,6 @@ def apply_effective_Hamiltonian(
     return state
 
 
-"""
-Applies 2 sweep, 2-site tdvp to state in-place
-State should be normalized and in orthogonal gauge with center at qubit 0
-Output state is not normalized (because numerical errors or real part in t)
-Hamiltonian should be Hermitian!
-"""
-
-
 def evolve_tdvp(
     t: float | complex,
     state: MPS,
@@ -120,6 +112,11 @@ def evolve_tdvp(
     max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
     is_hermitian: bool = True,
 ) -> None:
+    """
+    Applies second-order, 2-site TDVP to state in-place.
+    """
+    state.orthogonalize(0)
+
     t /= 2
     nfactors = len(state.factors)
     assert nfactors > 1, "tdvp is not implemented for 1 site, just use state vector"

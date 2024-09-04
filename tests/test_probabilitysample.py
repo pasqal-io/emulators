@@ -15,11 +15,11 @@ def test_sampling_ghz5_mps():
     torch.manual_seed(seed)
     num_qubits = 5
     shots = 1000
-    ghz_mps = MPS(ghz_state_factors(num_qubits, device=device), truncate=True)
-    bitstring = ghz_mps.sample(shots)
+    ghz_mps = MPS(ghz_state_factors(num_qubits, device=device))
+    bitstrings = ghz_mps.sample(shots)
 
-    assert bitstring.get("11111") == 505
-    assert bitstring.get("00000") == 495
+    assert bitstrings.get("11111") == 505
+    assert bitstrings.get("00000") == 495
 
 
 def test_not_orthogonalized_state():
@@ -37,7 +37,7 @@ def test_not_orthogonalized_state():
         / torch.sqrt(torch.tensor(2))
         * torch.tensor([[[1], [0]], [[0], [1]]], dtype=torch.complex128, device=device)
     )
-    bell = MPS([l_factor1, l_factor2, l_factor3], truncate=True)
-    bitstring = bell.sample(shots)
-    assert bitstring.get("111") == 489
-    assert bitstring.get("000") == 511
+    bell = MPS([l_factor1, l_factor2, l_factor3])
+    bitstrings = bell.sample(shots)
+    assert bitstrings.get("111") == 489
+    assert bitstrings.get("000") == 511

@@ -47,12 +47,13 @@ def add_factors(
     return new_tt
 
 
-def mul_factors(factors: list[torch.tensor], scalar: complex) -> list[torch.tensor]:
+def scale_factors(
+    factors: list[torch.tensor], scalar: complex, *, which: int
+) -> list[torch.tensor]:
     """
-    Returns the tensor train (MPS/MPO) multiplied by a scalar.
-    Assumes the orthogonal centre is on the first factor.
+    Returns a new list of factors where the tensor at the given index is scaled by `scalar`.
     """
-    return [scalar * factors[0], *factors[1:]]
+    return [scalar * f if i == which else f for i, f in enumerate(factors)]
 
 
 def zip_right_step(

@@ -14,6 +14,7 @@ from emu_mps.utils import (
     extended_mps_factors,
     readout_with_error,
     split_tensor,
+    get_extended_site_index,
 )
 
 
@@ -285,3 +286,16 @@ def test_extended_mpo_factors():
                     extended[i].shape[0], extended[i].shape[0], dtype=torch.complex128
                 ),
             )
+
+
+def test_get_extended_site_index():
+    T, F = True, False
+    assert get_extended_site_index([T, F, F, T, T, F, T, F], None) is None
+    assert get_extended_site_index([T, F, F, T, T, F, T, F], 0) == 0
+    assert get_extended_site_index([T, F, F, T, T, F, T, F], 1) == 3
+    assert get_extended_site_index([T, F, F, T, T, F, T, F], 2) == 4
+    assert get_extended_site_index([T, F, F, T, T, F, T, F], 3) == 6
+
+    with pytest.raises(ValueError) as e:
+        get_extended_site_index([T, F, F, T, T, F, T, F], 4)
+    assert str(e.value) == "Index 4 does not exist"

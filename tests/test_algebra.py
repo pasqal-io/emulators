@@ -1,7 +1,7 @@
 import pytest
 import torch
 from itertools import product
-from emu_mps.algebra import add_factors, mul_factors, zip_right_step, zip_right
+from emu_mps.algebra import add_factors, scale_factors, zip_right_step, zip_right
 
 dtype = torch.complex128
 
@@ -84,17 +84,23 @@ def test_add_factors_blockdiag():
                 assert torch.equal(pad_2_view, pad_2_expected)
 
 
-def test_mul_factors():
+def test_scale_factors():
     num_sites = 5
     linkdim1 = 8
     for sitedims in [(2,), (2, 2)]:  # MPS/O-like factors
         factors = random_factors(num_sites, sitedims, linkdim=linkdim1, dtype=dtype)
         for scale in [3.0, 2j, -1 / 4]:
-            scaled_factors = mul_factors(factors, scale)
+            scaled_factors = scale_factors(factors, scale, which=0)
             # all but 0 factor unchanged
             assert torch.equal(scaled_factors[0], scale * factors[0])
             for f1, f2 in zip(scaled_factors[1:], factors[1:]):
                 assert f1 is f2
+
+            scaled_factors_second = scale_factors(factors, scale, which=2)
+            # all but 2 factor unchanged
+            assert torch.equal(scaled_factors_second[2], scale * factors[2])
+            for i in [0, 1, 3, 4]:
+                assert scaled_factors_second[i] is factors[i]
 
 
 def test_zip_right_step_mpompo_accuracy():

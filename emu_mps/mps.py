@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Any, List, Union
+from typing import Any, List, Optional
 
 import torch
 
-from emu_mps.algebra import add_factors, mul_factors
+from emu_mps.algebra import add_factors, scale_factors
 from emu_mps.base_classes.state import State
 from emu_mps.utils import (
     DEVICE_COUNT,
@@ -23,67 +23,86 @@ class MPS(State):
     Each tensor has 3 dimensions ordered as such: (left bond, site, right bond).
 
     Only qubits are supported.
-
-    When specifying the MPS from a list of tensors, ensure that
-    the MPS is in an orthogonal gauge with center on the first qubit
-    or put truncate=True (which will do it for you),
-    otherwise tdvp will break!
-
-    Args:
-        sites: either the number of sites, or the tensors at each site
-        truncate: whether to truncate at the end of __init__
-        precision: the precision with which to truncate here or in tdvp
-        max_bond_dim: the maximum bond dimension to allow
-        num_devices_to_use: how many gpus to use, 0=cpu
-        keep_devices: when sites is a list of tensors, whether to just keep those devices.
     """
+
+    DEFAULT_MAX_BOND_DIM: int = 1024
+    DEFAULT_PRECISION: float = 1e-5
 
     def __init__(
         self,
-        sites: Union[int, List[torch.Tensor]],
+        factors: List[torch.Tensor],
         /,
         *,
-        truncate: bool = False,
-        precision: float = 1e-5,
-        max_bond_dim: int = 1024,
-        num_devices_to_use: int = DEVICE_COUNT,
-        keep_devices: bool = False,
+        orthogonality_center: Optional[int] = None,
+        precision: float = DEFAULT_PRECISION,
+        max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
+        num_devices_to_use: Optional[int] = DEVICE_COUNT,
     ):
+        """
+        This constructor creates a MPS directly from a list of tensors. It is for internal use only.
+
+        Args:
+            factors: the tensors for each site
+            orthogonality_center: the orthogonality center of the MPS, or None (in which case
+                it will be orthogonalized when needed)
+            precision: the precision with which to truncate here or in tdvp
+            max_bond_dim: the maximum bond dimension to allow
+            num_devices_to_use: distribute the factors over this many GPUs
+                0=all factors to cpu, None=keep the existing device assignment.
+        """
         self.precision = precision
         self.max_bond_dim = max_bond_dim
-        self.factors: List[torch.Tensor] = []
 
-        if isinstance(sites, int):
-            self.num_sites = sites
-            if not self.num_sites > 1:
-                raise ValueError("For 1 qubit states, do state vector")
+        assert all(
+            factors[i - 1].shape[2] == factors[i].shape[0] for i in range(1, len(factors))
+        ), "The dimensions of consecutive tensors should match"
+        assert (
+            factors[0].shape[0] == 1 and factors[-1].shape[2] == 1
+        ), "The dimension of the left (right) link of the first (last) tensor should be 1"
 
-            for i in range(self.num_sites):
-                tensor = torch.zeros((1, 2, 1), dtype=torch.complex128)
-                tensor[0, 0, 0] = 1.0
-                self.factors.append(tensor)
-        elif isinstance(sites, List):
-            assert all(
-                sites[i - 1].shape[2] == sites[i].shape[0] for i in range(1, len(sites))
-            )
-            if sites[0].shape[0] != 1 or sites[-1].shape[2] != 1:
-                raise ValueError(
-                    "The dimension of the left (right) link of the first (last) tensor should be 1"
-                )
+        self.factors = factors
+        self.num_sites = len(factors)
+        assert self.num_sites > 1  # otherwise, do state vector
 
-            self.factors = sites
-            self.num_sites = len(sites)
-            assert self.num_sites > 1  # otherwise, do state vector
-        else:
-            raise ValueError(
-                "Sites must specify a number of qubits, or a list of tensors representing the MPS"
-            )
+        assert (orthogonality_center is None) or (
+            0 <= orthogonality_center < self.num_sites
+        ), "Invalid orthogonality center provided"
+        self.orthogonality_center = orthogonality_center
 
-        if not keep_devices:
+        if num_devices_to_use is not None:
             assign_devices(self.factors, min(DEVICE_COUNT, num_devices_to_use))
 
-        if truncate:
-            self.truncate()
+    @classmethod
+    def make(
+        cls,
+        num_sites: int,
+        precision: float = DEFAULT_PRECISION,
+        max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
+        num_devices_to_use: int = DEVICE_COUNT,
+    ) -> MPS:
+        """
+        Returns a MPS in ground state |000..0>.
+
+        Args:
+            num_sites: the number of qubits
+            precision: the precision with which to truncate here or in tdvp
+            max_bond_dim: the maximum bond dimension to allow
+            num_devices_to_use: distribute the factors over this many GPUs
+                0=all factors to cpu
+        """
+        if num_sites <= 1:
+            raise ValueError("For 1 qubit states, do state vector")
+
+        return cls(
+            [
+                torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)
+                for _ in range(num_sites)
+            ],
+            precision=precision,
+            max_bond_dim=max_bond_dim,
+            num_devices_to_use=num_devices_to_use,
+            orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
+        )
 
     def __repr__(self) -> str:
         result = "["
@@ -93,34 +112,61 @@ class MPS(State):
         result += "]"
         return result
 
-    def orthogonalize(self) -> None:
+    def orthogonalize(self, desired_orthogonality_center: int = 0) -> int:
         """
-        Orthogonalize the state with given orthogonality center at the last qubit.
-        Sweeps a series of QR decompositions left-right
-        An in-place operation.
+        Orthogonalize the state on the given orthogonality center.
+
+        Returns the new orthogonality center index as an integer,
+        this is convenient for type-checking purposes.
         """
-        for i in range(self.num_sites - 1):
-            factor = self.factors[i]
-            factor_shape = factor.shape
-            q, r = torch.linalg.qr(factor.reshape(-1, factor.shape[2]))
-            self.factors[i] = q.reshape(factor_shape[0], factor_shape[1], -1)
+        assert (
+            0 <= desired_orthogonality_center < self.num_sites
+        ), f"Cannot move orthogonality center to nonexistent qubit #{desired_orthogonality_center}"
+
+        lr_swipe_start = (
+            self.orthogonality_center if self.orthogonality_center is not None else 0
+        )
+
+        for i in range(lr_swipe_start, desired_orthogonality_center):
+            q, r = torch.linalg.qr(self.factors[i].reshape(-1, self.factors[i].shape[2]))
+            self.factors[i] = q.reshape(self.factors[i].shape[0], 2, -1)
             self.factors[i + 1] = torch.tensordot(
                 r.to(self.factors[i + 1].device), self.factors[i + 1], dims=1
             )
 
+        rl_swipe_start = (
+            self.orthogonality_center
+            if self.orthogonality_center is not None
+            else (self.num_sites - 1)
+        )
+
+        for i in range(rl_swipe_start, desired_orthogonality_center, -1):
+            q, r = torch.linalg.qr(
+                self.factors[i].reshape(self.factors[i].shape[0], -1).mT,
+            )
+            self.factors[i] = q.mT.reshape(-1, 2, self.factors[i].shape[2])
+            self.factors[i - 1] = torch.tensordot(
+                self.factors[i - 1], r.to(self.factors[i - 1].device), ([2], [1])
+            )
+
+        self.orthogonality_center = desired_orthogonality_center
+
+        return desired_orthogonality_center
+
     def truncate(self) -> None:
         """
         SVD based truncation of the state. Puts the orthogonality center at the first qubit.
-        Calls orthogonalize, and then sweeps a series of SVDs right-left.
+        Calls orthogonalize on the last qubit, and then sweeps a series of SVDs right-left.
         Uses self.precision and self.max_bond_dim for determining accuracy.
         An in-place operation.
         """
-        self.orthogonalize()
+        self.orthogonalize(self.num_sites - 1)
         truncate_impl(
             self.factors,
             max_error=self.precision,
             max_rank=self.max_bond_dim,
         )
+        self.orthogonality_center = 0
 
     def get_max_bond_dim(self) -> int:
         """
@@ -145,6 +191,8 @@ class MPS(State):
         Returns:
             the measured bitstrings, by count
         """
+        self.orthogonalize(0)
+
         num_qubits = len(self.factors)
         rnd_matrix = torch.rand(num_shots, num_qubits)
         bitstrings = Counter(
@@ -158,16 +206,24 @@ class MPS(State):
             )
         return bitstrings
 
-    def norm(self) -> float:  # FIXME: rename this method to account for the requirement?
-        """Computes the norm, assuming the first qubit is orthogonality center.
-        The above is not checked."""
-        return float(torch.linalg.norm(self.factors[0].to("cpu")).item())
+    def norm(self) -> float:
+        """Computes the norm of the MPS."""
+        orthogonality_center = (
+            self.orthogonality_center
+            if self.orthogonality_center is not None
+            else self.orthogonalize(0)
+        )
+
+        return float(
+            torch.linalg.norm(self.factors[orthogonality_center].to("cpu")).item()
+        )
 
     def _sample_implementation(self, rnd_vector: torch.Tensor) -> str:
         """
         Samples this MPS once, returning the resulting bitstring.
         """
         assert rnd_vector.shape == (self.num_sites,)
+        assert self.orthogonality_center == 0
 
         num_qubits = len(self.factors)
 
@@ -249,18 +305,19 @@ class MPS(State):
         """
         assert isinstance(other, MPS), "Other state also needs to be an MPS"
         new_tt = add_factors(self.factors, other.factors)
-        return MPS(
+        result = MPS(
             new_tt,
-            truncate=True,
             precision=self.precision,
             max_bond_dim=self.max_bond_dim,
-            keep_devices=True,
+            num_devices_to_use=None,
+            orthogonality_center=None,  # Orthogonality is lost.
         )
+        result.truncate()
+        return result
 
     def __rmul__(self, scalar: complex) -> MPS:
         """
-        Multiply an MPS by scalar.
-        Assumes the orthogonal centre is on the first factor.
+        Multiply an MPS by a scalar.
 
         Args:
             scalar: the scale factor
@@ -268,12 +325,18 @@ class MPS(State):
         Returns:
             the scaled MPS
         """
-        factors = mul_factors(self.factors, scalar)
+        which = (
+            self.orthogonality_center
+            if self.orthogonality_center is not None
+            else 0  # No need to orthogonalize for scaling.
+        )
+        factors = scale_factors(self.factors, scalar, which=which)
         return MPS(
             factors,
             precision=self.precision,
             max_bond_dim=self.max_bond_dim,
-            keep_devices=True,
+            num_devices_to_use=None,
+            orthogonality_center=self.orthogonality_center,
         )
 
     @staticmethod
@@ -312,7 +375,9 @@ class MPS(State):
         basis_r = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state
 
         accum_mps = MPS(
-            [torch.zeros((1, 2, 1), dtype=torch.complex128)] * nqubits, **kwargs
+            [torch.zeros((1, 2, 1), dtype=torch.complex128)] * nqubits,
+            orthogonality_center=0,
+            **kwargs,
         )
 
         for state, amplitude in strings.items():
@@ -326,48 +391,64 @@ class MPS(State):
         Computes expectation values for each qubit and each single qubit operator in
         the batched input tensor.
 
-        Assumes orthogonality center at qubit #0.
-        Does not modify self!
-
         Returns a tensor T such that T[q, i] is the expectation value for qubit #q
         and operator single_qubit_operators[i].
         """
+        orthogonality_center = (
+            self.orthogonality_center
+            if self.orthogonality_center is not None
+            else self.orthogonalize(0)
+        )
+
         result = torch.zeros(
             self.num_sites, single_qubit_operators.shape[0], dtype=torch.complex128
         )
-        f = self.factors[0]
-        for qubit_index in range(self.num_sites):
-            temp = torch.tensordot(f.conj(), f, ([0, 2], [0, 2]))
+
+        center_factor = self.factors[orthogonality_center]
+        for qubit_index in range(orthogonality_center, self.num_sites):
+            temp = torch.tensordot(center_factor.conj(), center_factor, ([0, 2], [0, 2]))
 
             result[qubit_index] = torch.tensordot(
                 single_qubit_operators.to(temp.device), temp, dims=2
             )
 
             if qubit_index < self.num_sites - 1:
-                q, r = torch.linalg.qr(f.reshape(-1, f.shape[2]))
-                f = torch.tensordot(r, self.factors[qubit_index + 1].to(r.device), dims=1)
+                _, r = torch.linalg.qr(center_factor.reshape(-1, center_factor.shape[2]))
+                center_factor = torch.tensordot(
+                    r, self.factors[qubit_index + 1].to(r.device), dims=1
+                )
+
+        center_factor = self.factors[orthogonality_center]
+        for qubit_index in range(orthogonality_center - 1, -1, -1):
+            _, r = torch.linalg.qr(
+                center_factor.reshape(center_factor.shape[0], -1).mT,
+            )
+            center_factor = torch.tensordot(
+                self.factors[qubit_index],
+                r.to(self.factors[qubit_index].device),
+                ([2], [1]),
+            )
+
+            temp = torch.tensordot(center_factor.conj(), center_factor, ([0, 2], [0, 2]))
+
+            result[qubit_index] = torch.tensordot(
+                single_qubit_operators.to(temp.device), temp, dims=2
+            )
 
         return result
 
     def apply(self, qubit_index: int, single_qubit_operator: torch.Tensor) -> None:
         """
-        Assumes orthogonality center at qubit #0.
-        Leaves the MPS with orthogonality center at qubit #0.
+        Apply given single qubit operator to qubit qubit_index, leaving the MPS
+        orthogonalized on that qubit.
         """
+        self.orthogonalize(qubit_index)
+
         self.factors[qubit_index] = torch.tensordot(
             self.factors[qubit_index],
             single_qubit_operator.to(self.factors[qubit_index].device),
             ([1], [1]),
         ).transpose(1, 2)
-
-        for i in range(qubit_index, 0, -1):
-            q, r = torch.linalg.qr(
-                self.factors[i].reshape(self.factors[i].shape[0], -1).mT,
-            )
-            self.factors[i] = q.mT.reshape(q.shape[1], 2, -1)
-            self.factors[i - 1] = torch.tensordot(
-                self.factors[i - 1], r.to(self.factors[i - 1].device), ([2], [1])
-            )
 
 
 def inner(left: MPS, right: MPS) -> float | complex:

@@ -4,7 +4,7 @@ from typing import Any, List, cast
 
 import torch
 
-from emu_mps.algebra import add_factors, mul_factors, zip_right
+from emu_mps.algebra import add_factors, scale_factors, zip_right
 from emu_mps.base_classes.operator import FullOp, Operator, QuditOp
 from emu_mps.base_classes.state import State
 from emu_mps.mps import MPS
@@ -81,7 +81,7 @@ class MPO(Operator):
             max_error=other.precision,
             max_rank=other.max_bond_dim,
         )
-        return MPS(factors)
+        return MPS(factors, orthogonality_center=0)
 
     def __add__(self, other: Operator) -> MPO:
         """
@@ -109,7 +109,7 @@ class MPO(Operator):
         Returns:
             the scaled MPO
         """
-        factors = mul_factors(self.factors, scalar)
+        factors = scale_factors(self.factors, scalar, which=0)
         return MPO(factors)
 
     def __matmul__(self, other: Operator) -> MPO:

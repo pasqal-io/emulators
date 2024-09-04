@@ -20,7 +20,11 @@ from emu_mps.pulser_adapter import (
     get_all_lindblad_noise_operators,
 )
 from emu_mps.tdvp import evolve_tdvp
-from emu_mps.utils import extended_mpo_factors, extended_mps_factors
+from emu_mps.utils import (
+    extended_mpo_factors,
+    extended_mps_factors,
+    get_extended_site_index,
+)
 
 
 class _RunImpl:
@@ -109,9 +113,8 @@ class _RunImpl:
                 else sum(1 for x in self.well_prepared_qubits_filter if x)
             )
 
-            return MPS(
+            return MPS.make(
                 well_prepared_qubits_count,
-                truncate=False,
                 precision=self.config.precision,
                 max_bond_dim=self.config.max_bond_dim,
                 num_devices_to_use=self.config.num_devices_to_use,
@@ -123,13 +126,14 @@ class _RunImpl:
                         preparation errors is currently not implemented."
                 )
             assert isinstance(self.config.initial_state, MPS)
-            return MPS(
+            initial_state = MPS(
                 self.config.initial_state.factors,
-                truncate=True,
                 precision=self.config.precision,
                 max_bond_dim=self.config.max_bond_dim,
                 num_devices_to_use=self.config.num_devices_to_use,
             )
+            initial_state.truncate()
+            return initial_state
 
     def do_time_step(self, step: int) -> None:
         """
@@ -216,10 +220,19 @@ class _RunImpl:
         )
 
         normalized_state = 1 / self.state.norm() * self.state
-        for callback in self.config.callbacks:
-            if self.well_prepared_qubits_filter is None:
+
+        if self.well_prepared_qubits_filter is None:
+            for callback in self.config.callbacks:
                 callback(self.config, t, normalized_state, noiseless_hamiltonian, results)
-            elif t in callback.evaluation_times:
+            return
+
+        full_mpo, full_state = None, None
+        for callback in self.config.callbacks:
+            if t not in callback.evaluation_times:
+                continue
+
+            if full_mpo is None or full_state is None:
+                # Only do this potentially expensive step once and when needed.
                 full_mpo = MPO(
                     extended_mpo_factors(
                         noiseless_hamiltonian.factors, self.well_prepared_qubits_filter
@@ -229,9 +242,14 @@ class _RunImpl:
                     extended_mps_factors(
                         normalized_state.factors, self.well_prepared_qubits_filter
                     ),
-                    keep_devices=True,
+                    num_devices_to_use=None,  # Keep the already assigned devices.
+                    orthogonality_center=get_extended_site_index(
+                        self.well_prepared_qubits_filter,
+                        normalized_state.orthogonality_center,
+                    ),
                 )
-                callback(self.config, t, full_state, full_mpo, results)
+
+            callback(self.config, t, full_state, full_mpo, results)
 
     def print_step_statistics(self, *, step: int, duration: float) -> None:
         mem = (
