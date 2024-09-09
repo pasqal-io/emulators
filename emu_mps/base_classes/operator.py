@@ -38,6 +38,18 @@ class Operator(ABC):
         """
         pass
 
+    @abstractmethod
+    def expect(self, state: State) -> float | complex:
+        """
+        Compute the expectation value of self on the given state.
+
+        Args:
+            state: the state with which to compute
+
+        Returns:
+            the expectation
+        """
+
     @staticmethod
     @abstractmethod
     def from_operator_string(

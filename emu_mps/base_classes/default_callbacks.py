@@ -104,7 +104,7 @@ class Expectation(Callback):
         return f"fidelity_{self.index}"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
-        return state.inner(self.operator * state)
+        return self.operator.expect(state)
 
 
 class CorrelationMatrix(Callback):
@@ -147,7 +147,7 @@ class CorrelationMatrix(Callback):
                 ]
                 for i in range(self.nqubits)
             ]
-        return [[state.inner(op * state).real for op in ops] for ops in self.operators]
+        return [[op.expect(state).real for op in ops] for ops in self.operators]
 
 
 class QubitDensity(Callback):
@@ -181,7 +181,7 @@ class QubitDensity(Callback):
                 )
                 for i in range(self.nqubits)
             ]
-        return [state.inner(op * state).real for op in self.operators]
+        return [op.expect(state).real for op in self.operators]
 
 
 class Energy(Callback):

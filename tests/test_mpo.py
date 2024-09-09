@@ -2,7 +2,7 @@ import pytest
 import torch
 import math
 
-from emu_mps import MPO, MPS, inner
+from emu_mps import MPO, MPS
 
 
 def test_mul():
@@ -81,6 +81,24 @@ def test_wrong_external_links():
     assert str(ve.value) == msg
 
 
+def test_expect():
+    nqubits = 5
+
+    def shape(index: int, size: int) -> tuple[int, int]:
+        if index == 0:
+            return (1,) + (2,) * size + (10,)
+        elif index == 4:
+            return (10,) + (2,) * size + (1,)
+        else:
+            return (10,) + (2,) * size + (10,)
+
+    state = MPS(
+        [torch.randn(*shape(i, 1), dtype=torch.complex128) for i in range(nqubits)]
+    )
+    op = MPO([torch.randn(*shape(i, 2), dtype=torch.complex128) for i in range(nqubits)])
+    assert op.expect(state) == pytest.approx(state.inner(op * state))
+
+
 def test_add_expectation_values():
     """
     Test that the expectation value of MPOs, and the sum
@@ -109,9 +127,9 @@ def test_add_expectation_values():
     )
 
     # compute 〈Ψ|O|Ψ〉= Σi〈Ψ|Oi|Ψ〉
-    observable_expected = sum(inner(mps, op * mps) for op in mpo_list)
+    observable_expected = sum(op.expect(mps) for op in mpo_list)
     # compute 〈Ψ|O|Ψ〉=〈Ψ|Σi Oi|Ψ〉
-    observable = inner(mps, mpo_sum * mps)
+    observable = mpo_sum.expect(mps)
 
     assert observable == pytest.approx(observable_expected, 1e-12)
 
@@ -194,7 +212,7 @@ def test_rmul():
         ]
     )
     # test 〈Ψ|a*O|Ψ〉== a〈Ψ|O|Ψ〉)
-    unscaled_res = inner(mps, mpo * mps)
+    unscaled_res = mpo.expect(mps)
     for scale in [2.0, -math.pi, -1 + 2j, -1 / 4]:
         scaled_mpo = scale * mpo
-        assert inner(mps, scaled_mpo * mps) == pytest.approx(scale * unscaled_res)
+        assert scaled_mpo.expect(mps) == pytest.approx(scale * unscaled_res)

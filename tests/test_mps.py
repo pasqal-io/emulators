@@ -317,7 +317,7 @@ def test_norm():
     check_orthogonality_center(state, 0)
 
 
-def test_expect():
+def test_expect_batch():
     f1 = torch.rand(1, 2, 2, dtype=torch.complex128)
     f2 = torch.rand(2, 2, 3, dtype=torch.complex128)
     f3 = torch.rand(3, 2, 1, dtype=torch.complex128)
@@ -329,7 +329,7 @@ def test_expect():
 
     ops = torch.stack([op0, op1])
 
-    actual = state.expect(ops)
+    actual = state.expect_batch(ops)
 
     expected_00 = torch.einsum(
         "abc,cde,efg,bh,ihj,jdk,kfl",

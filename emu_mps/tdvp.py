@@ -3,16 +3,7 @@ import torch
 from emu_mps.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
-from emu_mps.utils import split_tensor
-
-
-def new_left_bath(
-    bath: torch.Tensor, state: torch.Tensor, op: torch.Tensor
-) -> torch.Tensor:
-    # this order is more efficient than contracting the op first in general
-    bath = torch.tensordot(bath, state.conj(), ([0], [0]))
-    bath = torch.tensordot(bath, op.to(bath.device), ([0, 2], [0, 1]))
-    return torch.tensordot(bath, state, ([0, 2], [0, 1]))
+from emu_mps.utils import split_tensor, new_left_bath
 
 
 def new_right_bath(

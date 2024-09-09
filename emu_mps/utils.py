@@ -6,6 +6,15 @@ from collections import Counter
 DEVICE_COUNT = torch.cuda.device_count()
 
 
+def new_left_bath(
+    bath: torch.Tensor, state: torch.Tensor, op: torch.Tensor
+) -> torch.Tensor:
+    # this order is more efficient than contracting the op first in general
+    bath = torch.tensordot(bath, state.conj(), ([0], [0]))
+    bath = torch.tensordot(bath, op.to(bath.device), ([0, 2], [0, 1]))
+    return torch.tensordot(bath, state, ([0, 2], [0, 1]))
+
+
 def dist2(left: torch.tensor, right: torch.tensor) -> torch.Tensor:
     return torch.norm(left - right) ** 2
 

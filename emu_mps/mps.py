@@ -386,7 +386,7 @@ class MPS(State):
 
         return accum_mps
 
-    def expect(self, single_qubit_operators: torch.Tensor) -> torch.Tensor:
+    def expect_batch(self, single_qubit_operators: torch.Tensor) -> torch.Tensor:
         """
         Computes expectation values for each qubit and each single qubit operator in
         the batched input tensor.

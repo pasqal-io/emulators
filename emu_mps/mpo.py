@@ -8,6 +8,7 @@ from emu_mps.algebra import add_factors, scale_factors, zip_right
 from emu_mps.base_classes.operator import FullOp, Operator, QuditOp
 from emu_mps.base_classes.state import State
 from emu_mps.mps import MPS
+from emu_mps.utils import new_left_bath
 
 
 def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:
@@ -126,6 +127,27 @@ class MPO(Operator):
         assert isinstance(other, MPO), "MPO can only be applied to another MPO"
         factors = zip_right(self.factors, other.factors)
         return MPO(factors)
+
+    def expect(self, state: State) -> float | complex:
+        """
+        Compute the expectation value of self on the given state.
+
+        Args:
+            state: the state with which to compute
+
+        Returns:
+            the expectation
+        """
+        assert isinstance(
+            state, MPS
+        ), "currently, only expectation values of MPSs are \
+        supported"
+        acc = torch.ones(
+            1, 1, 1, dtype=state.factors[0].dtype, device=state.factors[0].device
+        )
+        for i in range(len(self.factors)):
+            acc = new_left_bath(acc, state.factors[i], self.factors[i])
+        return acc.item()  # type: ignore [no-any-return]
 
     @staticmethod
     def from_operator_string(

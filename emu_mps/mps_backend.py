@@ -186,7 +186,7 @@ class _RunImpl:
         assert self.t == target_time
 
     def random_noise_collapse(self) -> None:
-        collapse_weights = self.state.expect(self.aggregated_lindblad_ops).real
+        collapse_weights = self.state.expect_batch(self.aggregated_lindblad_ops).real
 
         ((collapsed_qubit_index, collapse_operator),) = random.choices(
             [
