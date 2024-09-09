@@ -11,18 +11,12 @@ Join us on [Slack](https://pasqalworkspace.slack.com/archives/C0389KD4ZKQ) or by
 
 ## Getting started
 
-git clone this [repository ](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct)
+You can install from source, or download the package from the private pypi registry that pasqal maintains in gitlab.
+For developers, we recommend installing from source, for users we recommend installing from the registry.
 
-
-Then, `cd` into the root folder of the repo and type
-
-```bash
-pip install -e .
-```
 **Warning:** installing emu-mps will update pulser-core
 
 We always recommend using a virtual environment.
-
 
 <details>
   <summary>Click me to see how it is done</summary>
@@ -41,23 +35,53 @@ We always recommend using a virtual environment.
 
   Replace `/path/to/new/virtual/environment` with your desired directory path.
 
-  Then activate the environment:
+  Then activate the environment On linux or MacOS
 
   ```
-  source .venv/bin/activate
+  source /path/to/new/virtual/environment/bin/activate
   ```
 
-  Or
+  While on Windows it's
 
-  - On Unix or MacOS with bash: source /path/to/new/virtual/environment/bin/activate
-
-  - On Windows: C:\> /path/to/new/virtual/environment/Scripts/activate
+  ```
+  C:\> /path/to/new/virtual/environment/Scripts/activate
+  ```
 
   Remember to replace `/path/to/new/virtual/environment` with the actual path to your virtual environment. Once the environment is activated, you can clone emu_mps and install it using
 
 </details>
 
+### installing from the registry
 
+When pip is configured to know about the pasqal registry, Emu-MPS installs as
+
+```bash
+pip install -e emu-mps
+```
+When pip is not already configured, the easiest way to do so, is to add a file
+`~/.config/pip/pip.conf`
+
+containing the following:
+
+```
+[global]
+extra-index-url=https://<USERNAME>:<PASSWORD>@gitlab.pasqal.com/api/v4/projects/190/packages/pypi/simple
+```
+
+For the username and password required for the above url, please contact a member of emulation team or qlibs.
+
+
+It is also possible to add the `extra-index-url` to the `pip install` command directly, if you somehow don't want to create a `pip.conf` file.
+
+### installing from source
+git clone this [repository ](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct) or download
+
+
+Then, `cd` into the root folder of the repo and type
+
+```bash
+pip install -e .
+```
 
 <details>
   <summary>Guidelines for developers </summary>

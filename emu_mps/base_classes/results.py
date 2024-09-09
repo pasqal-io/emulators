@@ -27,7 +27,7 @@ class Results:
         Args:
 
         Returns:
-            names: list of results by name
+            list of results by name
 
         """
         return list(self._results.keys())
@@ -40,7 +40,7 @@ class Results:
             name: name of the result to get times of
 
         Returns:
-            times: list of times in ns
+            list of times in ns
 
         """
         return list(self._results[name].keys())
@@ -54,7 +54,7 @@ class Results:
             time: time in ns at which to get the result
 
         Returns:
-            result: the result
+            the result
 
         """
         return self._results[name][time]

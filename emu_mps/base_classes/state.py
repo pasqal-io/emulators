@@ -20,8 +20,9 @@ class State(ABC):
 
         Args:
             other: the other state
+
         Returns:
-            inner product: it's in the name
+            inner product
         """
         pass
 
@@ -36,8 +37,9 @@ class State(ABC):
             num_shots: how many bitstrings to sample
             p_false_pos: the rate at which a 0 is read as a 1
             p_false_neg: teh rate at which a 1 is read as a 0
+
         Returns:
-            bitstrings: the measured bitstrings, by count
+            the measured bitstrings, by count
         """
         pass
 
@@ -48,8 +50,9 @@ class State(ABC):
 
         Args:
             other: the other state
+
         Returns:
-            sum: it's in the name
+            the summed state
         """
         pass
 
@@ -60,8 +63,9 @@ class State(ABC):
 
         Args:
             scalar: the scale factor
+
         Returns:
-            scaled state: it's in the name
+            the scaled state
         """
         pass
 
@@ -78,7 +82,8 @@ class State(ABC):
             basis: A tuple containing the basis states (e.g., ('r', 'g')).
             nqubits: the number of qubits.
             strings: A dictionary mapping state strings to complex or floats amplitudes
+
         Returns:
-            state: the state in whatever format the backend provides.
+            the state in whatever format the backend provides.
         """
         pass

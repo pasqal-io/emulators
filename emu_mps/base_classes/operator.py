@@ -21,7 +21,7 @@ class Operator(ABC):
             other: the state to apply this operator to
 
         Returns:
-            state: the resulting state
+            the resulting state
         """
         pass
 
@@ -32,8 +32,9 @@ class Operator(ABC):
 
         Args:
             other: the other operator
+
         Returns:
-            sum: it's in the name
+           the summed operator
         """
         pass
 
@@ -59,8 +60,9 @@ class Operator(ABC):
             nqubits: how many qubits there are in the state
             operations: which bitstrings make up the state with what weight
             operators: additional symbols to be used in operations
+
         Returns:
-            operator: the operator in whatever format the backend provides.
+            the operator in whatever format the backend provides.
         """
         pass
 
@@ -71,8 +73,9 @@ class Operator(ABC):
 
         Args:
             scalar: the scale factor
+
         Returns:
-            scaled operator: it's in the name
+            the scaled operator
         """
         pass
 
@@ -86,6 +89,6 @@ class Operator(ABC):
             other: the operator to compose with self
 
         Returns:
-            operator: the composed operator
+            the composed operator
         """
         pass

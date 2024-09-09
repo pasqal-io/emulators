@@ -43,6 +43,6 @@ class Backend(ABC):
             config: the config. Should be of the appropriate type for the backend
 
         Returns:
-            results: the simulation results
+            the simulation results
         """
         pass

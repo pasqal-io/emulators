@@ -123,20 +123,17 @@ To be more quantitative, in the following benchmark case, we run the same AFM se
 
 The unshuffled register ordering is that given by `Register.rectangle` as used in the above two sequences. For the 3x3 grid used in this benchmark, that means a register ordering of
 
- 1  2  3
-
- 4  5  6
-
- 7  8  9
-
+<table>
+ <tr><td>1 </td><td> 2 </td><td> 3 </td></tr>
+ <tr><td>4 </td><td> 5 </td><td> 6 </td></tr>
+ <tr><td>7 </td><td> 8 </td><td> 9 </td></tr>
+</table>
  Compare this with the shuffled register, which was constructed to put qubits that are close in physical space far away in index space
-
- 2  7  4
-
- 5  1  9
-
- 8  3  6
-
+<table>
+ <tr><td> 2 </td><td> 7 </td><td> 4 </td></tr>
+ <tr><td> 5 </td><td> 1 </td><td> 9 </td></tr>
+ <tr><td> 8 </td><td> 3 </td><td> 6 </td></tr>
+</table>
 <img src="./benchmark_plots/qubit_shuffling_cpu.png"  width="49.7%">
 
 [TODO: fix this the black bars in the plot]
@@ -158,17 +155,17 @@ Accuracy, here, specifically refer to observables:
 
 The emulated sequences are going to be the same as before, an adiabatic and a quench. We will check accuracy against two main tunable parameters in _Emu-MPS_:
 
-- `precision`<sup>[[4]](#timestep-size-and-precision)</sup>: at each step, throw away components of the state whose sum weighs less that the specified precision.
+- `precision`<sup>[[4]](../advanced/errors.md#truncation-of-the-state)</sup>: at each step, throw away components of the state whose sum weighs less that the specified precision.
 - time step `dt`: sampling time of the sequence.
 
 <img src="./benchmark_plots/afm_state_fidelity.png"  width="49.7%">
 <img src="./benchmark_plots/quench_fidelity.png"  width="49.7%">
 
-Both sequences are emulated multiple times by varying the both precision and time step. Looking at the results for the quench sequence, we see that Emu-MPS incurs the biggest error at the start of the emulation, when the bond dimension is still small (the bond dimension starts at 1, and increases from there). As mentioned in the discussion on [error sources in TDVP](../errors.md), for a time-constant Hamiltonian, all deviations in the mean and variance of the energy come from truncation, and as expected, improving the precision reduces the error in the energy variance. Finally, as explained in [error sources in TDVP](../errors.md#truncation-of-the-state), we see that reducing $dt$ below a threshold (somewhere in the range of 1-5) causes a quick growth of the truncation errors, which requires improving the precision.
+Both sequences are emulated multiple times by varying both the precision and time step. Looking at the results for the quench sequence, we see that Emu-MPS incurs the biggest error at the start of the emulation, when the bond dimension is still small (the bond dimension starts at 1, and increases from there). As mentioned in the discussion on [error sources in TDVP](../advanced/errors.md), for a time-constant Hamiltonian, all deviations in the mean and variance of the energy come from truncation, and as expected, improving the precision reduces the error in the energy variance. Finally, as explained in [error sources in TDVP](../advanced/errors.md#truncation-of-the-state), we see that reducing $dt$ below a threshold (somewhere in the range of 1-5) causes a quick growth of the truncation errors, which requires improving the precision.
 
-This bevaviour can be contrasted with pulser, which uses a generic ODE solver backend that does not take into account constants of the motion. Both the mean and variance of the energy exhibit a deviation from their initial value that is linear in the number of time-steps taken by the solver.
+This behaviour can be contrasted with pulser, which uses a generic ODE solver backend that does not take into account constants of the motion. Both the mean and variance of the energy exhibit a deviation from their initial value that is linear in the number of time-steps taken by the solver.
 
-Similar considerations likely hold for the adiabatic AFM sequence too, but the errors would be dwarfed by the variations in the energy due to the time-dependence of the Hamiltonian. Rather, what is interesting there, is that even for a 2d system, Emu-MPS correctly treats the Rydberg interaction, regardless of the [effective description of long-range interaction terms](../errors.md#effective-description-of-long-range-terms-in-the-hamiltonian) that Emu-MPS uses.
+Similar considerations likely hold for the adiabatic AFM sequence too, but the errors would be dwarfed by the variations in the energy due to the time-dependence of the Hamiltonian. Rather, what is interesting there, is that even for a 2d system, Emu-MPS correctly treats the Rydberg interaction, regardless of the [effective description of long-range interaction terms](../advanced/errors.md#effective-description-of-long-range-terms-in-the-hamiltonian) that Emu-MPS uses.
 
 [TODO: For a more in depth discussion change the plots to have the observables on the left column and difference respect to Pulser state vector on right column]
 

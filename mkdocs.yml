@@ -7,10 +7,13 @@ nav:
   - Base Classes: base_classes.md
   - API: api.md
   - Computing Observables: observables.md
-  - Config: config.md
   - How to Contribute: CONTRIBUTING.md
   - Code of Conduct: CODE_OF_CONDUCT.md
-  - Errors in TDVP: errors.md
+  - Advanced Topics:
+    - Config: advanced/config.md
+    - Errors in TDVP: advanced/errors.md
+    - Convergence Case Study: advanced/convergence.md
+    - Estimating Memory Consumption: advanced/memory.md
   - Benchmarks: benchmarks/index.md
 
 edit_uri: edit/main/docs/

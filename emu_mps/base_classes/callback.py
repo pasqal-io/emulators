@@ -47,7 +47,7 @@ class Callback(ABC):
         each instance has a unique name.
 
         Returns:
-            name: it's in the name
+            the name of the callback
         """
         pass
 
@@ -62,7 +62,8 @@ class Callback(ABC):
             t: the current time in ns
             state: the current state
             H: the Hamiltonian at this time
+
         Returns:
-            result: the result to put in Results
+            the result to put in Results
         """
         pass

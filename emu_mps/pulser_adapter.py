@@ -1,5 +1,6 @@
 import pulser
 from typing import Tuple
+from warnings import warn
 import torch
 import math
 from pulser.noise_model import NoiseModel
@@ -99,9 +100,14 @@ def get_all_lindblad_noise_operators(noise_model: NoiseModel) -> list[torch.Tens
     if noise_model is None:
         return []
 
-    return [
+    lindblad_operators = [
         op
         for noise_type in noise_model.noise_types
         if noise_type not in _NON_LINDBLADIAN_NOISE
         for op in get_lindblad_operators(noise_type=noise_type, noise_model=noise_model)
     ]
+    if len(lindblad_operators) > 0:
+        warn(
+            "Monte Carlo based Lindbladt noise is currently undocumented. Use at your own risk!"
+        )
+    return lindblad_operators
