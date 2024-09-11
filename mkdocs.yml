@@ -10,9 +10,13 @@ nav:
   - How to Contribute: CONTRIBUTING.md
   - Code of Conduct: CODE_OF_CONDUCT.md
   - Advanced Topics:
-    - Config: advanced/config.md
+    - Index: advanced/index.md
+    - QPU Hamiltonian: advanced/hamiltonian.md
+    - MPS Representation: advanced/mps/index.md
+    - TDVP Summary: advanced/tdvp.md
     - Errors in TDVP: advanced/errors.md
-    - Convergence Case Study: advanced/convergence.md
+    - Config: advanced/config.md
+    - Validating Correctness of Results: advanced/convergence.md
     - Estimating Memory Consumption: advanced/memory.md
   - Benchmarks: benchmarks/index.md
 

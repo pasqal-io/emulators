@@ -1,27 +1,42 @@
-#Estimating the memory consumption of a simulation
+# Estimating the memory consumption of a simulation
 
 The presence of the `max_bond_dim` and `max_krylov_dim` [config](config.md) parameter means an upper bound on memory consumption can be computed. By limiting the `max_bond_dim` of a simulation, it can be guaranteed to run for arbitrary times for an arbitrary number of qubits. Of course, the sources of error described on the [error page](errors.md) imply that limiting the memory consumption of the program will negatively impact the quality of the results once a certain threshold is exceeded. The page in [this link](convergence.md) outlines a case study to determine whether emulation results are accurate. This page will outline how to estimate the memory consumption of a simulation, given `max_bond_dim`, `max_krylov_dim` and $N$, the latter being the number of qubits to be simulated.
 
-At worst, the bond dimensions of the tensors in an MPS grow exponentially inwards as
+There are four contributions to the peak memory consumption of EMU-MPS
+
+- the state
+- the baths
+- the krylov space
+- temporary tensors
+
+
+## Contribution from the state
+
+The quantum state is stored in MPS format ([see here](mps/index.md)). At worst, the bond dimensions of the tensors in an MPS grow exponentially inwards as
 
 $$
 2,4,8,16...,16,8,4,2
 $$
 
-in which case an MPS will take __more__ memory than a state vector. When `max_bond_dim < 2^{nqubits/2}` the bond dimensions in the center all cap at `max_bond_dim`. Let $d$ denote the value of `max_bond_dim`. Since each tensor in the MPS has 2 bonds, and a physical index of size $p=2$, where each element in the tensor takes $s=16$ bytes (2 8-byte floats to store a complex number), we get
+in which case an MPS will take __more__ memory than a state vector. When `max_bond_dim < 2^{nqubits/2}` the bond dimensions in the center all cap at `max_bond_dim`. Let $d$ denote the value of `max_bond_dim`. Since each tensor in the MPS has 2 bonds of size at most $d$, and a physical index of size $p=2$, where each element in the tensor takes $s=16$ bytes (2 8-byte floats to store a complex number), the memory consumption of the state
 
 $$
 |\psi| < spNd^2 = 32Nd^2
 $$
 
-Then, as part of TDVP, for each qubit a bath tensor is stored which has 3 indices whose size depends on the state that is evolved, and on the Hamiltonian. Specifically, 2 indices are of size the bond dimension of the state at that qubit, and 1 is of size the bond dimension of the Hamiltonian at that qubit.
-Now,  the bond dimension of the Hamiltonian can be computed as $3+min(i, N-2-1)$ where 0-based indexing is used for the qubits, so the first and last bond have dimension 3, and the maximum bond dimension $h = ceil([N+3]/2) \leq [N+4]/2$. Bounding all the bond dimensions by $d$ we can use the average bond dimension of the Hamiltonian in the sum, and we get
+Note that this is a strict over-estimation because the outer bonds in the MPS will be much smaller than $d$.
+
+## Contribution from the baths
+
+For TDVP, for each qubit a bath tensor is stored which has 3 indices whose size depends on the state that is evolved, and on the Hamiltonian. The bath tensors are used to compute an effective interaction between the 2-qubit subsystem being evolved, and the rest of the system ([see here](tdvp.md)). The computation is slightly involved, but the result is as follows.
 
 $$
-|bath| < sd^2N[N+10]/4 < 4d^2N(N+10)
+|bath| < sd^2N[N+10]/4 = 4d^2N(N+10)
 $$
 
-Note that the baths take up more memory than the state, always, and potentially much more.
+Note that the baths take up more memory than the state, always, and potentially much more. Furthermore, just as for the state this is a strict over-estimation, because it assumes all the bonds in the state are of size $d$.
+
+## Contribution from the Krylov space
 
 The remainder of the memory consumption is to compute the time-evolution of qubit pairs in TDVP. This is done by contracting 2 tensors from the MPS together into a single 2-qubit tensor, and time-evolving it by applying an effective Hamiltonian constructed from the baths and the Hamiltonian MPO. Each 2-qubit tensor has a size bounded by $sp^2d^2$, so the memory of the Krylov vectors used in the Lanczos algorithm is obeys
 
@@ -30,6 +45,8 @@ $$
 $$
 
 where $k$ is the value of `max_krylov_dim`. Recall that the default value of $k = 100$ and if the Lanczos algorithm requires more Krylov vectors to converge to the tolerance, it will error, rather than exceed the above bound.
+
+## Contribution from temporary tensors
 
 Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. The intermediate results takes the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$, where
 

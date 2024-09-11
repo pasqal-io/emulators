@@ -28,11 +28,11 @@ class StateResult(Callback):
 class BitStrings(Callback):
     """
     Store bitstrings sampled from the current state. Error rates are taken from the config
-    passed to the run method of the backend.
+    passed to the run method of the backend. The bitstrings are stored as a Counter[str].
 
     Args:
         evaluation_times: the times at which to sample bitstrings
-        num_shots: how many bitstrings to sample
+        num_shots: how many bitstrings to sample each time this observable is computed
     """
 
     def __init__(self, evaluation_times: set[int], num_shots: int = 1000):
@@ -58,13 +58,12 @@ _fidelity_counter = -1
 
 class Fidelity(Callback):
     """
-    Store the inner product of the given fidelity state
-    with the current state. The fidelity state is the
-    anti-linear argument to the inner product.
+    Store the inner product of the given state |ψ>with the state |φ(t)> obtained by time evolution,
+    i.e. <ψ|φ(t)>.
 
     Args:
         evaluation_times: the times at which to compute the fidelity
-        state: the fidelity state. Note that this must be of appropriate type for the backend
+        state: the state |ψ>. Note that this must be of appropriate type for the backend
     """
 
     def __init__(self, evaluation_times: set[int], state: State):
@@ -113,7 +112,8 @@ class CorrelationMatrix(Callback):
     Requires specification of the basis used in the emulation
     https://pulser.readthedocs.io/en/stable/conventions.html
     It currently only supports the rydberg basis ('r','g').
-    The diagonal of this matrix is the QubitDensity.
+    The diagonal of this matrix is the QubitDensity. The correlation matrix
+    is stored as a list of lists.
 
     Args:
         evaluation_times: the times at which to compute the correlation matrix
@@ -156,6 +156,7 @@ class QubitDensity(Callback):
     https://pulser.readthedocs.io/en/stable/conventions.html
     It currently only supports the rydberg basis ('r','g') and
     it computer the probability that each qubit is in the r state.
+    The qubit density is stored as a list.
 
     Args:
         evaluation_times: the times at which to compute the density
@@ -222,6 +223,14 @@ class EnergyVariance(Callback):
 
 
 class SecondMomentOfEnergy(Callback):
+    """
+    Store the expectation value <φ(t)|H(t)^2|φ(t)>.
+    Useful for computing the variance when averaging over many executions of the program.
+
+    Args:
+        evaluation_times: the times at which to compute the variance
+    """
+
     def __init__(self, evaluation_times: set[int]):
         super().__init__(evaluation_times)
 

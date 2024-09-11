@@ -1,8 +1,7 @@
 # The observables mechanism
 
 Since the desired output of the emulator can be quite user dependent, EMU-MPS uses a callback mechanism to specify its output.
-Code snippets for doing this are available on the [main page](index.md). Furthermore, it is possible for users to subclass the
-[Callback](base_classes.md#callback) class to define custom results. However, the majority of users are probably satisfied with a combination of the default callbacks included.
+Code snippets for doing this are available on the main page ([see here](index.md)).
 
 The following default observables are available:
 
@@ -27,5 +26,13 @@ The following default observables are available:
 ## Energy
 ::: emu_mps.base_classes.default_callbacks.Energy
 
+## SecondMomentOfEnergy
+::: emu_mps.base_classes.default_callbacks.SecondMomentOfEnergy
+
 ## EnergyVariance
 ::: emu_mps.base_classes.default_callbacks.EnergyVariance
+
+
+## Defining your own observables
+If the above defaults are not sufficient, it is possible for users to subclass the
+`Callback` class to define custom results ([see here](base_classes.md#callback)). However, the majority of users are probably satisfied with a combination of the default callbacks included.

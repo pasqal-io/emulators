@@ -1,23 +1,7 @@
 # An explanation of the sources of error in TDVP
 
-Emu-MPS uses the 2-site time-dependent variational principle ([TDVP](https://tensornetwork.org/mps/algorithms/timeevo/tdvp.html)) to compute the time evolution of the qubit registers. Briefly, the algorithm repeatedly computes the time-evolution for 2 neighbouring qubits while truncating the resulting MPS to keep the state small. It does this by
-
-- evolving qubit 1 and 2 forwards in time by $dt/2$
-- evolving qubit 2 backwards by $dt/2$
-- evolving qubit 2 and 3 forwards in time by $dt/2$
-
-...
-
-- evolving qubit $n-1$ and $n$ forward in time by $dt$
-- evolving qubit $n-1$ backwards in time by $dt/2$
-- evolving qubit $n-2$ and $n-1$ forward in time by $dt/2$
-
-...
-
-- evolving qubit 1 and 2 forwards in time by $dt/2$
-
-The fact that we sweep left-right and the right-left with timesteps of $dt/2$ makes this a second-order TDVP.
-As described in the page linked above, there are four sources of error inherent in this algorithm.
+EMU-MPS uses a 2nd order 2-site time-dependent variational principle to compute the time evolution of the qubit registers ([see here](tdvp.md)).
+There are four sources of error inherent in this algorithm ([see here](https://tensornetwork.org/mps/algorithms/timeevo/tdvp.html))
 
 - effective description of long-range terms in the Hamiltonian
 - looping over pairs of qubits
@@ -28,7 +12,7 @@ Let us briefly explain how each of these terms introduce errors into the simulat
 
 ## effective description of long-range terms in the Hamiltonian
 
-The rydberg Hamiltonian is long range, so when evolving 2 neighbouring qubits in one of the TDVP steps, it is necessary to approximate terms coupling these two qubits to far away qubits. Specifically, say we are evolving the pair $(n,n+1)$ and the Hamiltonian contains an interaction term of the form $A_iB_n$ where $i < n-1$, so that this interaction term is not taken into account by any of the other pair evolutions. Then as part of the effective Hamiltonian for the pair, this interaction term shows up as $Tr_{<n}(A_iB_n)$, where $Tr_{<n}$ denotes the partial trace over the left side of the system.
+The rydberg Hamiltonian is long range, so when evolving 2 neighbouring qubits in one of the TDVP steps, it is necessary to approximate terms coupling these two qubits to far away qubits. Specifically, say we are evolving the pair $(j,j+1)$ and the Hamiltonian contains an interaction term of the form $A_iB_j$ where $i < j-1$, so that this interaction term is not taken into account by any of the other pair evolutions (currently only the Rydberg interaction $n_i n_j$ is supported, but other interaction types will be added in the future). Then as part of the effective Hamiltonian for the pair, this interaction term shows up as $Tr_{<j}(A_iB_j)$, where $Tr_{<j}$ denotes the partial trace over the left side of the system.
 Unless the system is in an eigenstate of $A_i$, this term will only approximate the action of the interaction term, and the error is proportional to the variance $Var(A_i)$.
 
 For example, take the term $\sigma^-_i\sigma^+_n$ from the XY-Hamiltonian, and assume $|\psi> = |1>_i|0>_n\otimes \phi$ where $\phi$ denote the state on the other qubits, that will not impact the result in the example, other than that it must be normalized.
@@ -55,7 +39,7 @@ Each 2-site time evolution corresponds to solving a Schroedinger equation for th
 
 ## truncation of the state
 
-After each 2-site evolution, an SvD is applied to split the vector for the 2-site subsystem back into 2 tensors for the MPS. The number of singular values give the dimension of the bond connecting the 2 qubits in the MPS. To keep the memory consumption of the state in check, the smallest singular values are thrown away as per the precision and max_bond_dim arguments in the [config](config.md).
+After each 2-site evolution, an SvD is applied to split the vector for the 2-site subsystem back into 2 tensors for the MPS. The behaviour of this truncation is identical to that of general MPS truncation ([see here](mps/index.md)).
 
 As explained there, each truncation finds the smallest MPS whose norm-distance is less than the precision from the original MPS. TDVP sweeps from left two right over neighbouring pairs of qubits, and back. This means that for each timestep, `2*(nqubits-1)` truncations are performed, so by the triangle inequality, TDVP will output a state whose distance is less than `2*(nqubits-1)*precision` from the state TDVP would have output without truncation. Note that the truncation errors will not all point in the same direction, so the actual error will likely be closer to `sqrt(2*(nqubits-1))*precision`, similar to the error in a gaussian random walk. The default precision is `1e-5`, meaning that each tdvp step will likely be accurate up to order `1e-4` assuming no more than order `1e2` qubits.
 
