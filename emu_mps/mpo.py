@@ -145,8 +145,12 @@ class MPO(Operator):
         acc = torch.ones(
             1, 1, 1, dtype=state.factors[0].dtype, device=state.factors[0].device
         )
-        for i in range(len(self.factors)):
-            acc = new_left_bath(acc, state.factors[i], self.factors[i])
+        n = len(self.factors) - 1
+        for i in range(n):
+            acc = new_left_bath(acc, state.factors[i], self.factors[i]).to(
+                state.factors[i + 1].device
+            )
+        acc = new_left_bath(acc, state.factors[n], self.factors[n])
         return acc.item()  # type: ignore [no-any-return]
 
     @staticmethod

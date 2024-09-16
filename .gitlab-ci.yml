@@ -250,6 +250,20 @@ benchmark_quench_performance_gpu:
     SCHEDULER_PARAMETERS: "-N1 -c 4 -G 1"
     JOB_NAME: "quench_performance_gpu"
 
+benchmark_quench_perf_obs_cpuVSgpu:
+  extends: .benchmark
+  before_script:
+    - module purge
+    - !reference [.template-jacamar-minimal, before_script]
+    - !reference [.benchmark, before_script]
+  script:
+    - python3 benchmark.py | tee ${JOB_NAME}.out
+  after_script:
+    - !reference [.template-jacamar-minimal, after_script]
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 24 -G 2"
+    JOB_NAME: "quench_perf_obs_cpuVSgpu"
+
 package_benchmark_artifacts:
   stage: package
   id_tokens: !reference [.id_token, id_tokens]
@@ -287,6 +301,7 @@ package_benchmark_artifacts:
     - benchmark_quench_fidelity
     - benchmark_quench_performance_cpu
     - benchmark_quench_performance_gpu
+    - benchmark_quench_perf_obs_cpuVSgpu
   artifacts:
     name: all-benchmarks
     paths:

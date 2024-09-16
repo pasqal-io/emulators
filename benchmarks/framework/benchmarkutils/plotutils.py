@@ -65,58 +65,10 @@ def plot_performance_2d_benchmark(res_dir: Path, title: str):
     plt.savefig(res_dir.parent / (dictname + ".png"))
 
 
-def plot_qubit_shuffling_benchmark(results: dict, title: str, output_dir: Path):
-    """
-    Plot observables and performance comparison between the results
-    of simulations in `EmuTN`.
-    """
-    fig = plt.figure(figsize=(8, 5), layout="constrained")
-    fig.suptitle(title)
-    subfigs = fig.subfigures(1, 2)
-
-    subfigs[0].suptitle("Observables")
-    axs = subfigs[0].subplots(4, 1, sharex=True)
-    for key, res_dict in results.items():
-        obs = res_dict["observables"]
-        time = list(obs["energy"].keys())
-        axs[0].plot(time, list(obs["energy"].values()), label=key)
-        axs[1].plot(time, list(obs["energy_variance"].values()))
-        qubit_density = np.matrix(list(obs["qubit_density"].values()))
-        axs[2].plot(time, qubit_density.mean(1))
-        i = 3  # qubit to plot
-        perm_map = res_dict["perm_map"]
-        axs[3].plot(time, qubit_density[:, perm_map.index(3)])
-
-    axs[0].set_ylabel("Energy")
-    axs[0].legend()
-    axs[1].set_ylabel("$\\Delta E$")
-    axs[2].set_ylabel("$\\langle P_{r}\\rangle$")
-    axs[3].set_ylabel("$\\langle P_{r}^{" + f"{i}" + "}\\rangle$")
-    axs[-1].set_xlabel("time [ns]")
-
-    subfigs[1].suptitle("Performance")
-    axs = subfigs[1].subplots(4, 1, sharex=True)
-    for key, res_dict in results.items():
-        perf = res_dict["performance"]
-        steps = perf["step"]
-        axs[0].plot(steps, perf["χ"])
-        axs[1].plot(steps, perf["|ψ|"])
-        RSS = [el - perf["RSS"][1] for el in perf["RSS"]]
-        axs[2].plot(steps, RSS)
-        axs[3].plot(steps[2:], perf["Δt"][2:])
-    axs[0].set_ylabel(labels["χ"])
-    axs[1].set_ylabel(labels["|ψ|"])
-    axs[2].set_ylabel(labels["RSS"])
-    axs[3].set_ylabel(labels["Δt"])
-    axs[-1].set_xlabel("steps")
-
-    plt.savefig(output_dir / f"{output_dir.parent.name}.png")
-
-
 def plot_zero_noise_benchmark(results: dict, title: str, output_dir: Path):
     """
     Plot observables and performance comparison between the results
-    of simulations in `EmuTN`.
+    of simulations in `Emu-mps`.
     """
     fig = plt.figure(figsize=(8, 5), layout="constrained")
     fig.suptitle(title)
@@ -165,7 +117,7 @@ def plot_fidelity_benchmark(
 ):
     """
     Plot and save observables vs. time for the results of the simulation
-    in `EmuTN` and in `Pulser`.
+    in `Emu-mps` and in `Pulser`.
     What to plot heavily depends on the benchmark.
     """
     pulser_t = pulser_res["time"]
@@ -206,5 +158,66 @@ def plot_fidelity_benchmark(
         axs[i].set_ylabel(f"$\\langle P_{0}^{ {q} } \\rangle$", rotation=0)
         axs[i].yaxis.set_label_coords(0.05, 0.6)
     axs[-1].set_xlabel("time [ns]")
+
+    plt.savefig(output_dir / f"{output_dir.parent.name}.png")
+
+
+def plot_qubit_shuffling_quench_benchmark(
+    results: dict, title: str, output_dir: Path, qubit_shuffling=False
+):
+    """
+    Plot observables and performance comparison between the results
+    of simulations in `Emu_mps` for both qubit shuffling and quench benchmarks.
+    """
+    fig = plt.figure(figsize=(10, 6), layout="constrained")
+    fig.suptitle(title)
+    subfigs = fig.subfigures(1, 2)
+
+    subfigs[0].suptitle("Observables")
+    axs = subfigs[0].subplots(4, 1, sharex=True)
+    for key, res_dict in results.items():
+        obs = res_dict["observables"]
+        time = list(obs["energy"].keys())
+        axs[0].plot(time, list(obs["energy"].values()), label=key)
+        axs[1].plot(time, list(obs["energy_variance"].values()))
+        qubit_density = np.matrix(list(obs["qubit_density"].values()))
+        axs[2].plot(time, qubit_density.mean(1))
+        i = 3  # qubit to plot
+        # Using perm_map only for shuffling benchmark
+        if qubit_shuffling:
+            perm_map = res_dict["perm_map"]
+            axs[3].plot(time, qubit_density[:, perm_map.index(i)])
+        else:
+            axs[3].plot(time, qubit_density[:, i])
+
+    tick_spacing = len(time) // 8
+    plt.xticks(time[::tick_spacing])
+
+    axs[0].set_ylabel("Energy")
+    axs[0].legend()
+    axs[1].set_ylabel("$\\Delta E$")
+    axs[2].set_ylabel("$\\langle P_{r}\\rangle$")
+    axs[3].set_ylabel("$\\langle P_{r}^{" + f"{i}" + "}\\rangle$")
+    axs[-1].set_xlabel("time [ns]")
+
+    subfigs[0].align_ylabels(axs)
+
+    subfigs[1].suptitle("Performance")
+    axs = subfigs[1].subplots(4, 1, sharex=True)
+    for key, res_dict in results.items():
+        perf = res_dict["performance"]
+        steps = perf["step"]
+        axs[0].plot(steps, perf["χ"])
+        axs[1].plot(steps, perf["|ψ|"])
+        RSS = [el - perf["RSS"][0] for el in perf["RSS"]]
+        axs[2].plot(steps, RSS)
+        axs[3].plot(steps[2:], perf["Δt"][2:])
+    axs[0].set_ylabel(labels["χ"])
+    axs[1].set_ylabel(labels["|ψ|"])
+    axs[2].set_ylabel(labels["RSS"])
+    axs[3].set_ylabel(labels["Δt"])
+    axs[-1].set_xlabel("steps")
+
+    subfigs[1].align_ylabels(axs)
 
     plt.savefig(output_dir / f"{output_dir.parent.name}.png")
