@@ -183,7 +183,6 @@ class MPO(Operator):
             "g",
         }, "only the rydberg-ground basis is currently supported"
         _validate_operator_targets(operations, nqubits)
-        nqubits
         mpos = []
         for coeff, tensorop in operations:
             # operators will now contain the 'sigma_ij' elements defined, and potentially

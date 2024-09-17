@@ -224,6 +224,36 @@ def test_initial_state():
     assert results[state_result.name()][10].inner(state).real == approx(1.0)
 
 
+def test_initial_state_copy():
+    duration = 10.0
+    pulse = pulser.Pulse.ConstantAmplitude(
+        Omega_max, pulser.waveforms.RampWaveform(duration, delta_0, delta_f), 0.0
+    )
+    reg = pulser.Register.rectangle(5, 1, spacing=1e10)
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(pulse, "ising_global")
+
+    initial_state = emu_mps.MPS.from_state_string(
+        basis=("r", "g"), nqubits=5, strings={"rrrrr": 1.0}
+    )
+
+    config = emu_mps.MPSConfig(initial_state=initial_state)
+
+    emu_mps.MPSBackend().run(seq, config)
+
+    # Check the initial state's factors were not modified.
+    assert all(
+        torch.allclose(initial_state_factor, expected_initial_state_factor)
+        for initial_state_factor, expected_initial_state_factor in zip(
+            initial_state.factors,
+            emu_mps.MPS.from_state_string(
+                basis=("r", "g"), nqubits=5, strings={"rrrrr": 1.0}
+            ).factors,
+        )
+    )
+
+
 def test_end_to_end_afm_ring_with_noise():
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)

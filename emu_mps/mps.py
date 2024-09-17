@@ -43,6 +43,12 @@ class MPS(State):
 
         Args:
             factors: the tensors for each site
+                WARNING: for efficiency in a lot of use cases, this list of tensors
+                IS NOT DEEP-COPIED. Therefore, the new MPS object is not necessarily
+                the exclusive owner of the list and its tensors. As a consequence,
+                beware of potential external modifications affecting the list or the tensors.
+                You are responsible for deciding whether to pass its own exclusive copy
+                of the data to this constructor, or some shared objects.
             orthogonality_center: the orthogonality center of the MPS, or None (in which case
                 it will be orthogonalized when needed)
             precision: the precision with which to truncate here or in tdvp

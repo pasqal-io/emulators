@@ -119,21 +119,23 @@ class _RunImpl:
                 max_bond_dim=self.config.max_bond_dim,
                 num_devices_to_use=self.config.num_devices_to_use,
             )
-        else:
-            if self.well_prepared_qubits_filter is not None:
-                raise NotImplementedError(
-                    "Specifying the initial state in the presence of state \
-                        preparation errors is currently not implemented."
-                )
-            assert isinstance(self.config.initial_state, MPS)
-            initial_state = MPS(
-                self.config.initial_state.factors,
-                precision=self.config.precision,
-                max_bond_dim=self.config.max_bond_dim,
-                num_devices_to_use=self.config.num_devices_to_use,
+
+        if self.well_prepared_qubits_filter is not None:
+            raise NotImplementedError(
+                "Specifying the initial state in the presence of state \
+                    preparation errors is currently not implemented."
             )
-            initial_state.truncate()
-            return initial_state
+
+        assert isinstance(self.config.initial_state, MPS)
+        initial_state = MPS(
+            # Deep copy of every tensor of the initial state.
+            [f.clone().detach() for f in self.config.initial_state.factors],
+            precision=self.config.precision,
+            max_bond_dim=self.config.max_bond_dim,
+            num_devices_to_use=self.config.num_devices_to_use,
+        )
+        initial_state.truncate()
+        return initial_state
 
     def do_time_step(self, step: int) -> None:
         """
