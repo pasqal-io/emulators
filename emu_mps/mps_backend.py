@@ -254,16 +254,20 @@ class _RunImpl:
             callback(self.config, t, full_state, full_mpo, results)
 
     def print_step_statistics(self, *, step: int, duration: float) -> None:
-        mem = (
-            torch.cuda.max_memory_allocated() * 1e-6
-            if self.state.factors[0].is_cuda
-            else getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
-        )
+        if self.state.factors[0].is_cuda:
+            max_mem_per_device = [
+                torch.cuda.max_memory_allocated(device) * 1e-6
+                for device in range(torch.cuda.device_count())
+            ]
+            max_mem = max(max_mem_per_device)
+        else:
+            max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+
         print(
             f"step = {step + 1}/{self.timestep_count},",
             f"χ = {self.state.get_max_bond_dim()},",
             f"|ψ| = {self.state.get_memory_footprint():.3f} MB,",
-            f"RSS = {mem:.3f} MB,",
+            f"RSS = {max_mem:.3f} MB,",
             f"Δt = {duration:.3f} s",
         )
 
