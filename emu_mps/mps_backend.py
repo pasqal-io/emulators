@@ -253,7 +253,7 @@ class _RunImpl:
 
             callback(self.config, t, full_state, full_mpo, results)
 
-    def print_step_statistics(self, *, step: int, duration: float) -> None:
+    def log_step_statistics(self, *, step: int, duration: float) -> None:
         if self.state.factors[0].is_cuda:
             max_mem_per_device = [
                 torch.cuda.max_memory_allocated(device) * 1e-6
@@ -263,12 +263,12 @@ class _RunImpl:
         else:
             max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
 
-        print(
-            f"step = {step + 1}/{self.timestep_count},",
-            f"χ = {self.state.get_max_bond_dim()},",
-            f"|ψ| = {self.state.get_memory_footprint():.3f} MB,",
-            f"RSS = {max_mem:.3f} MB,",
-            f"Δt = {duration:.3f} s",
+        self.config.logger.info(
+            f"step = {step + 1}/{self.timestep_count}, "
+            + f"χ = {self.state.get_max_bond_dim()}, "
+            + f"|ψ| = {self.state.get_memory_footprint():.3f} MB, "
+            + f"RSS = {max_mem:.3f} MB, "
+            + f"Δt = {duration:.3f} s"
         )
 
 
@@ -305,7 +305,6 @@ class MPSBackend(Backend):
             impl.fill_results(results, step)
 
             end = time()
-
-            impl.print_step_statistics(step=step, duration=end - start)
+            impl.log_step_statistics(step=step, duration=end - start)
 
         return results

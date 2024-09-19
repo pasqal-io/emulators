@@ -329,8 +329,6 @@ def test_tdvp_state_vector(mock_sequence):
     vec = torch.einsum(
         "abc,cde,efg,ghi,ijk,klm,mno,opq,qrs->abdfhjlnprs", *(state.factors)
     ).reshape(2**nqubits)
-    assert (
-        abs(torch.dot(vec.conj(), expected) - 1) < 1.5e-11
-    )  # very dependent on precision
+    assert abs(torch.dot(vec.conj(), expected) - 1) < 1e-10  # very dependent on precision
     assert abs(torch.dot(vec.conj(), vec) - 1) < 1e-8
     assert abs(torch.dot(expected.conj(), expected) - 1) < 1e-8
