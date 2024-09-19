@@ -1,6 +1,6 @@
 # Estimating the memory consumption of a simulation
 
-The presence of the `max_bond_dim` and `max_krylov_dim` [config](config.md) parameter means an upper bound on memory consumption can be computed. By limiting the `max_bond_dim` of a simulation, it can be guaranteed to run for arbitrary times for an arbitrary number of qubits. Of course, the sources of error described on the [error page](errors.md) imply that limiting the memory consumption of the program will negatively impact the quality of the results once a certain threshold is exceeded. The page in [this link](convergence.md) outlines a case study to determine whether emulation results are accurate. This page will outline how to estimate the memory consumption of a simulation, given `max_bond_dim`, `max_krylov_dim` and $N$, the latter being the number of qubits to be simulated.
+The presence of the `max_bond_dim` and `max_krylov_dim` [config](config.md) parameter means an upper bound on memory consumption can be computed. By limiting the `max_bond_dim` of a simulation, it can be guaranteed to run for arbitrary times for an arbitrary number of qubits. Of course, the sources of error described on the [error page](errors.md) imply that limiting the memory consumption of the program will negatively impact the quality of the results once a certain threshold is exceeded. The page in [this link](convergence/index.md) outlines a case study to determine whether emulation results are accurate. This page will outline how to estimate the memory consumption of a simulation, given `max_bond_dim`, `max_krylov_dim` and $N$, the latter being the number of qubits to be simulated.
 
 There are four contributions to the peak memory consumption of EMU-MPS
 
@@ -56,6 +56,8 @@ $$
 
 It should be noted that the value of $h$ cited above assumes that all qubits in the system interact via a two-body term, which is technically true for the Rydberg interaction. When some of these interaction terms can be neglected, the value of $h$ can be reduced, leading to significant memory savings in $|intermediate|$ and $|bath|$. These optimizations have yet to be performed.
 
+## Final result
+
 Putting all of this together, for the total memory consumption $m$ of the program, we can write the following bound:
 
 $$
@@ -64,4 +66,6 @@ $$
 
 Note that this estimate is pessimistic, since not all $k$ krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $d$ is probably attained at the center qubit.
 
-For example, the results from the [case study](convergence.md) were obtained using $N=49$ and $d=1600$ on 2 gpu's. Taking the above formula, and halving the contributions from $\psi$ and $|bath|$ since they are split evenly on the gpu's, we reproduce the memory consumption of the program for $k=13$. Notice that the actual number of Krylov vectors required to reach convergence is likely closer to around $30$, but here we underestimate it, since the contributions of $\psi$ and $|bath|$ are over-estimated.
+## An example
+
+For example, the results from the [case study](convergence/index.md) were obtained using $N=49$ and $d=1600$ on 2 gpu's. Taking the above formula, and halving the contributions from $\psi$ and $|bath|$ since they are split evenly on the gpu's, we reproduce the memory consumption of the program for $k=13$. Notice that the actual number of Krylov vectors required to reach convergence is likely closer to around $30$, but here we underestimate it, since the contributions of $\psi$ and $|bath|$ are over-estimated.

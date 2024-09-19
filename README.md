@@ -56,7 +56,7 @@ We always recommend using a virtual environment.
 When pip is configured to know about the pasqal registry, Emu-MPS installs as
 
 ```bash
-pip install -e emu-mps
+pip install emu-mps
 ```
 When pip is not already configured, the easiest way to do so, is to add a file
 `~/.config/pip/pip.conf`
