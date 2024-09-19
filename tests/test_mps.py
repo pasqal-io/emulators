@@ -146,7 +146,7 @@ def get_bitstring_coeff(mps: MPS, bitstring: int) -> float | complex:
     acc = mps.factors[0][0, bit, :]
     for i in range(1, N):
         bit = get_bit(bitstring, N - 1 - i)
-        acc @= mps.factors[i][:, bit, :]
+        acc @= mps.factors[i][:, bit, :].to(mps.factors[0].device)
     return acc.item()
 
 
