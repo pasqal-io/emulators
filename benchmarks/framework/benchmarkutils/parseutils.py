@@ -27,7 +27,7 @@ def parse_latest_log(logfile: Path, output_name: str = None) -> dict:
         lines = f.readlines()
         for line in lines:
             if "step = " in line:
-                labels = re.findall(r"([\||\w]+) = ", line)
+                labels = re.findall(r"(\S+) = ", line)
                 for key in labels:
                     logres[key] = []
                 break

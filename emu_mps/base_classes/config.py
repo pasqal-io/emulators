@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pulser.noise_model import NoiseModel
 import logging
+import sys
 
 
 class BackendConfig:
@@ -28,4 +29,6 @@ class BackendConfig:
         self.with_modulation = with_modulation
         self.noise_model = noise_model
         self.logger = logging.getLogger("global_logger")
-        logging.basicConfig(level=log_level, format="%(message)s")
+        logging.basicConfig(
+            level=log_level, format="%(message)s", stream=sys.stdout
+        )  # default to stream = sys.stderr
