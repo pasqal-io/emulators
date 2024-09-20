@@ -1,9 +1,15 @@
+import pytest
 from functools import reduce
 from unittest.mock import MagicMock, patch
 
 import torch
 
-from emu_mps.hamiltonian import make_H, rydberg_interaction
+from emu_mps.hamiltonian import (
+    make_H,
+    rydberg_interaction,
+    xy_interaction,
+    HamiltonianType,
+)
 from emu_mps.noise import compute_noise_from_lindbladians
 
 
@@ -37,6 +43,11 @@ def pu(i, nqubits):
     return single_gate(i, nqubits, n)
 
 
+def creation_op(i, nqubits):
+    sig_plus = torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype)
+    return single_gate(i, nqubits, sig_plus)
+
+
 def n(i, j, nqubits):
     n = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
     matrices = [torch.eye(2, 2, dtype=dtype)] * nqubits
@@ -45,7 +56,18 @@ def n(i, j, nqubits):
     return reduce(torch.kron, matrices)
 
 
+def sig_plus_min(i, j, nqubits):
+    sigma_plus = torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype)
+    matrices = [torch.eye(2, 2, dtype=dtype)] * nqubits
+    matrices[i] = sigma_plus  # sigma plus
+    matrices[j] = (
+        sigma_plus.T
+    ).contiguous()  # T results in a non-contiguous, use contiguous
+    return reduce(torch.kron, matrices)
+
+
 TEST_C6 = 5420158.53
+TEST_C3 = 3700.0
 
 
 def sv_hamiltonian(
@@ -54,6 +76,7 @@ def sv_hamiltonian(
     delta: list[torch.Tensor],
     phi: list[torch.Tensor],
     noise: torch.Tensor = torch.zeros(2, 2),
+    hamiltonian_type: HamiltonianType = HamiltonianType.Rydberg,
 ) -> torch.Tensor:
     n_qubits = inter_matrix.size(dim=1)
     device = omega[0].device
@@ -70,8 +93,20 @@ def sv_hamiltonian(
         h -= delta[i] * pu(i, n_qubits).to(dtype=dtype, device=device)
         h += single_gate(i, n_qubits, noise)
 
-        for j in range(i + 1, n_qubits):
-            h += inter_matrix[i, j] * n(i, j, n_qubits).to(dtype=dtype, device=device)
+        if hamiltonian_type == HamiltonianType.Rydberg:
+            for j in range(i + 1, n_qubits):
+                h += inter_matrix[i, j] * n(i, j, n_qubits).to(dtype=dtype, device=device)
+        elif hamiltonian_type == HamiltonianType.XY:
+            for j in range(i + 1, n_qubits):
+                h += inter_matrix[i, j] * sig_plus_min(i, j, n_qubits).to(
+                    dtype=dtype, device=device
+                )
+                h += inter_matrix[i, j] * (sig_plus_min(i, j, n_qubits).T).to(
+                    dtype=dtype, device=device
+                )
+        else:
+            raise Exception("Not supported type of interaction")
+
     return h
 
 
@@ -79,10 +114,18 @@ def sv_hamiltonian(
 
 
 @patch("emu_mps.hamiltonian.pulser.sequence.Sequence")
-def test_rydberg_interaction(mock_sequence):
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    [
+        HamiltonianType.Rydberg,
+        HamiltonianType.XY,
+    ],
+)
+def test_interaction_coefficient(mock_sequence, hamiltonian_type):
     q = [torch.tensor([0.0, 0.0]), torch.tensor([10.0, 0.0]), torch.tensor([20.0, 0.0])]
 
-    mock_device = MagicMock(interaction_coeff=TEST_C6)
+    # only MagicMock supports XY interaction
+    mock_device = MagicMock(interaction_coeff=TEST_C6, interaction_coeff_xy=TEST_C3)
     mock_sequence.device = mock_device
 
     mock_register = MagicMock()
@@ -95,20 +138,29 @@ def test_rydberg_interaction(mock_sequence):
     }
     mock_sequence.register = mock_register
 
-    interaction_matrix = rydberg_interaction(mock_sequence)
+    if hamiltonian_type == HamiltonianType.Rydberg:
+        interaction_matrix = rydberg_interaction(mock_sequence)
+    else:
+        interaction_matrix = xy_interaction(mock_sequence)
+
     dev = interaction_matrix.device
 
-    expected = torch.tensor(
-        [
-            [0.0000, 5.4202, 5.4202 / 64],
-            [0.0000, 0.0000, 5.4202],
-            [0.0000, 0.0000, 0.0000],
-        ]
-    ).to(dev)
+    if hamiltonian_type == HamiltonianType.Rydberg:
+        expected_interaction_matrix = torch.tensor(
+            [
+                [0.0000, 5.4202, 5.4202 / 64],
+                [5.4202, 0.0000, 5.4202],
+                [5.4202 / 64, 5.4202, 0.0000],
+            ]
+        ).to(dev)
+    else:
+        expected_interaction_matrix = torch.tensor(
+            [[0.0, 3.7, 3.7 / 8], [3.7, 0.0, 3.7], [3.7 / 8, 3.7, 0.0]]
+        ).to(dev)
 
     assert torch.allclose(
         interaction_matrix,
-        expected,
+        expected_interaction_matrix,
     )
 
 
@@ -117,30 +169,57 @@ def test_rydberg_interaction(mock_sequence):
 # when eyeballing the matrices
 def create_omega_delta_phi(nqubits: int):
     omega = torch.tensor([2, 3, 4, 5, 7, 11], dtype=dtype)
-    delta = torch.tensor([13, 17, 19, 23, 29], dtype=dtype)
-    phi = torch.tensor([1.57, 1.58, 1.59, 1.60, 1.61])
+    delta = torch.tensor([13, 17, 19, 23, 29, 31], dtype=dtype)
+    phi = torch.tensor([1.57, 1.58, 1.59, 1.60, 1.61, 1.62])
     return omega[:nqubits], delta[:nqubits], phi[:nqubits]
 
 
-def test_2_qubit():
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    [HamiltonianType.Rydberg, HamiltonianType.XY],
+)
+def test_2_qubit(hamiltonian_type):
     omega, delta, phi = create_omega_delta_phi(2)
+    if hamiltonian_type == HamiltonianType.Rydberg:
+        interaction_matrix = torch.tensor([[0.0000, 5.4202], [0.0000, 0.0000]])
+    elif hamiltonian_type == HamiltonianType.XY:
+        interaction_matrix = torch.tensor([[0.0000, 3.7000], [0.0000, 0.0000]])
 
-    interaction_matrix = torch.tensor([[0.0000, 5.4202], [0.0000, 0.0000]])
+    ham = make_H(
+        interaction_matrix=interaction_matrix,
+        omega=omega,
+        delta=delta,
+        phi=phi,
+        hamiltonian_type=hamiltonian_type,
+    )
 
-    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta, phi=phi)
-    assert ham.factors[0].shape == (1, 2, 2, 3)
-    assert ham.factors[1].shape == (3, 2, 2, 1)
+    if hamiltonian_type == HamiltonianType.Rydberg:
+        assert ham.factors[0].shape == (1, 2, 2, 3)
+        assert ham.factors[1].shape == (3, 2, 2, 1)
+    elif hamiltonian_type == HamiltonianType.XY:
+        assert ham.factors[0].shape == (1, 2, 2, 4)
+        assert ham.factors[1].shape == (4, 2, 2, 1)
 
     sv = torch.einsum("ijkl,lmno->ijmkno", *(ham.factors)).reshape(4, 4)
     dev = sv.device  # could be cpu or gpu depending on Config
-    expected = sv_hamiltonian(interaction_matrix, omega, delta, phi).to(dev)
+    expected = sv_hamiltonian(
+        interaction_matrix, omega, delta, phi, hamiltonian_type=hamiltonian_type
+    ).to(dev)
+
     assert torch.allclose(
         sv,
         expected,
     )
 
 
-def test_noise():
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    [
+        HamiltonianType.Rydberg,
+        HamiltonianType.XY,
+    ],
+)
+def test_noise(hamiltonian_type):
     omega = torch.tensor([0.0, 0.0], dtype=dtype)
     delta = torch.tensor([0.0, 0.0], dtype=dtype)
     phi = torch.tensor([0.0, 0.0], dtype=dtype)
@@ -157,12 +236,18 @@ def test_noise():
         delta=delta,
         phi=phi,
         noise=noise,
+        hamiltonian_type=hamiltonian_type,
     )
 
     sv = torch.einsum("ijkl,lmno->ijmkno", *(ham.factors)).reshape(4, 4)
-    expected = sv_hamiltonian(interaction_matrix, omega, delta, phi, noise=noise).to(
-        sv.device
-    )
+    expected = sv_hamiltonian(
+        interaction_matrix,
+        omega,
+        delta,
+        phi,
+        noise=noise,
+        hamiltonian_type=hamiltonian_type,
+    ).to(sv.device)
 
     assert abs(sv[1, 1] - (-1j / 2.0 * rate)) < 1e-10
 
@@ -172,20 +257,41 @@ def test_noise():
     )
 
 
-def test_4_qubit():
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    [
+        HamiltonianType.Rydberg,
+        HamiltonianType.XY,
+    ],
+)
+def test_4_qubit(hamiltonian_type):
     omega, delta, phi = create_omega_delta_phi(4)
 
     interaction_matrix = torch.randn(4, 4, dtype=torch.float64)
 
-    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta, phi=phi)
-    assert ham.factors[0].shape == (1, 2, 2, 3)
-    assert ham.factors[1].shape == (3, 2, 2, 4)
-    assert ham.factors[2].shape == (4, 2, 2, 3)
-    assert ham.factors[3].shape == (3, 2, 2, 1)
+    ham = make_H(
+        interaction_matrix=interaction_matrix,
+        omega=omega,
+        delta=delta,
+        phi=phi,
+        hamiltonian_type=hamiltonian_type,
+    )
+    if hamiltonian_type == HamiltonianType.Rydberg:
+        assert ham.factors[0].shape == (1, 2, 2, 3)
+        assert ham.factors[1].shape == (3, 2, 2, 4)
+        assert ham.factors[2].shape == (4, 2, 2, 3)
+        assert ham.factors[3].shape == (3, 2, 2, 1)
+    else:
+        assert ham.factors[0].shape == (1, 2, 2, 4)
+        assert ham.factors[1].shape == (4, 2, 2, 6)
+        assert ham.factors[2].shape == (6, 2, 2, 4)
+        assert ham.factors[3].shape == (4, 2, 2, 1)
 
     sv = torch.einsum("ijkl,lmno,opqr,rstu->ijmpsknqtu", *(ham.factors)).reshape(16, 16)
     dev = sv.device  # could be cpu or gpu depending on Config
-    expected = sv_hamiltonian(interaction_matrix, omega, delta, phi).to(dev)
+    expected = sv_hamiltonian(
+        interaction_matrix, omega, delta, phi, hamiltonian_type=hamiltonian_type
+    ).to(dev)
 
     assert torch.allclose(
         sv,
@@ -193,23 +299,47 @@ def test_4_qubit():
     )
 
 
-def test_5_qubit():
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    [
+        HamiltonianType.Rydberg,
+        HamiltonianType.XY,
+    ],
+)
+def test_5_qubit(hamiltonian_type):
     omega, delta, phi = create_omega_delta_phi(5)
 
     interaction_matrix = torch.randn(5, 5, dtype=torch.float64)
 
-    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta, phi=phi)
-    assert ham.factors[0].shape == (1, 2, 2, 3)
-    assert ham.factors[1].shape == (3, 2, 2, 4)
-    assert ham.factors[2].shape == (4, 2, 2, 4)
-    assert ham.factors[3].shape == (4, 2, 2, 3)
-    assert ham.factors[4].shape == (3, 2, 2, 1)
+    ham = make_H(
+        interaction_matrix=interaction_matrix,
+        omega=omega,
+        delta=delta,
+        phi=phi,
+        hamiltonian_type=hamiltonian_type,
+    )
+
+    if hamiltonian_type == HamiltonianType.Rydberg:
+        assert ham.factors[0].shape == (1, 2, 2, 3)
+        assert ham.factors[1].shape == (3, 2, 2, 4)
+        assert ham.factors[2].shape == (4, 2, 2, 4)
+        assert ham.factors[3].shape == (4, 2, 2, 3)
+        assert ham.factors[4].shape == (3, 2, 2, 1)
+
+    else:
+        assert ham.factors[0].shape == (1, 2, 2, 4)
+        assert ham.factors[1].shape == (4, 2, 2, 6)
+        assert ham.factors[2].shape == (6, 2, 2, 6)
+        assert ham.factors[3].shape == (6, 2, 2, 4)
+        assert ham.factors[4].shape == (4, 2, 2, 1)
 
     sv = torch.einsum("abcd,defg,ghij,jklm,mnop->abehkncfilop", *(ham.factors)).reshape(
         32, 32
     )
     dev = sv.device  # could be cpu or gpu depending on Config
-    expected = sv_hamiltonian(interaction_matrix, omega, delta, phi).to(dev)
+    expected = sv_hamiltonian(
+        interaction_matrix, omega, delta, phi, hamiltonian_type=hamiltonian_type
+    ).to(dev)
 
     assert torch.allclose(
         sv,
@@ -217,11 +347,17 @@ def test_5_qubit():
     )
 
 
-@patch("emu_mps.hamiltonian.pulser.sequence.Sequence")
-def test_9_qubit_noise(mock_sequence):
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    [
+        HamiltonianType.Rydberg,
+        HamiltonianType.XY,
+    ],
+)
+def test_9_qubit_noise(hamiltonian_type):
     omega = torch.tensor([12.566370614359172] * 9, dtype=dtype)
     delta = torch.tensor([10.771174812307862] * 9, dtype=dtype)
-    phi = torch.tensor([0.0] * 9, dtype=dtype)
+    phi = torch.tensor([torch.pi] * 9, dtype=dtype)
 
     interaction_matrix = torch.randn(9, 9, dtype=torch.float64)
 
@@ -239,6 +375,7 @@ def test_9_qubit_noise(mock_sequence):
         delta=delta,
         phi=phi,
         noise=noise,
+        hamiltonian_type=hamiltonian_type,
     )
 
     sv = torch.einsum(
@@ -247,7 +384,9 @@ def test_9_qubit_noise(mock_sequence):
     ).reshape(512, 512)
 
     dev = sv.device  # could be cpu or gpu depending on Config
-    expected = sv_hamiltonian(interaction_matrix, omega, delta, phi, noise).to(dev)
+    expected = sv_hamiltonian(
+        interaction_matrix, omega, delta, phi, noise, hamiltonian_type=hamiltonian_type
+    ).to(dev)
 
     assert torch.allclose(
         sv,
@@ -256,10 +395,13 @@ def test_9_qubit_noise(mock_sequence):
 
 
 def test_differentiation():
+    """Basic test for torch grad."""
+    # The interaction term of the Hamiltonian will not affect the differentiation.
+    # Thus, we are not testing with XY interaction
     n = 5
     omega = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
     delta = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
-    phi = torch.tensor([0.0] * n, dtype=dtype, requires_grad=True)
+    phi = torch.tensor([torch.pi] * n, dtype=dtype, requires_grad=True)
 
     interaction_matrix = torch.tensor(
         [
@@ -297,10 +439,19 @@ def test_differentiation():
 
             expected_omega_diff = torch.zeros(n, dtype=dtype)
             if (i ^ j).bit_count() == 1:
-                expected_omega_diff[n - (i ^ j).bit_length()] = 0.5
+                expected_omega_diff[n - (i ^ j).bit_length()] = -0.5
 
             assert torch.allclose(
                 torch.autograd.grad(sv[i, j].real, omega, retain_graph=True)[0],
                 expected_omega_diff,
             )
-            #   TODO: add a phi test for gradient
+            expected_phi_diff = torch.zeros(n, dtype=dtype)
+            if (i ^ j).bit_count() == 1:
+                expected_phi_diff[n - (i ^ j).bit_length()] = 0.5
+
+            assert torch.allclose(
+                abs(torch.autograd.grad(sv[i, j].real, phi, retain_graph=True)[0]).to(
+                    dtype=dtype
+                ),
+                expected_phi_diff,
+            )

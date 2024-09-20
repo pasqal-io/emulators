@@ -19,6 +19,10 @@ def dist2(left: torch.tensor, right: torch.tensor) -> torch.Tensor:
     return torch.norm(left - right) ** 2
 
 
+def dist3(left: torch.tensor, right: torch.tensor) -> torch.Tensor:
+    return torch.norm(left - right) ** 3
+
+
 def _determine_cutoff_index(d: torch.Tensor, max_error: float) -> int:
     assert max_error > 0
     squared_max_error = max_error * max_error

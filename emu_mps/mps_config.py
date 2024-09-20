@@ -24,7 +24,7 @@ class MPSConfig(BackendConfig):
             the Lanczos algorithm uses this*precision as the convergence tolerance
         num_devices_to_use: how many gpu's to use. 0 means cpu
         interaction_matrix:
-            specify this to use a custom interaction matrix, rather than the rydberg term
+            specify this to use a custom interaction matrix, rather than the rydberg or xy term
         kwargs: arguments that are passed to the base class
     """
 

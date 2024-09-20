@@ -10,10 +10,16 @@ from emu_mps.lindblad_operators import get_lindblad_operators
 def get_qubit_positions(
     register: pulser.Register,
 ) -> list[torch.Tensor]:
+    """Conversion from pulser Register to emu-mps register (torch type).
+    Each element will be given as [Rx,Ry,Rz]"""
     if any(not isinstance(p, torch.Tensor) for p in register.qubits.values()):
-        return [torch.tensor(position) for position in register.qubits.values()]
+        positions = [torch.tensor(position) for position in register.qubits.values()]
+    else:
+        positions = list(register.qubits.values())
 
-    return list(register.qubits.values())
+    if len(positions[0]) == 2:
+        return [torch.cat((p, torch.zeros(1))) for p in positions]
+    return positions
 
 
 def _convert_sequence_samples(

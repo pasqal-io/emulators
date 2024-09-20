@@ -61,6 +61,7 @@ class _RunImpl:
 
         if self.config.interaction_matrix is None:
             self.interaction_matrix = rydberg_interaction(sequence)
+
         else:
             self.interaction_matrix = self.config.interaction_matrix
 
