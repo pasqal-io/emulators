@@ -41,7 +41,7 @@ class _RunImpl:
         self.config = mps_config
 
         self.dt = self.config.dt
-        self.t: float = (
+        self.current_time: float = (
             0.0  # While dt is an integer, noisy collapse can happen at non-integer times.
         )
         self.qubit_count = len(sequence.register.qubit_ids)
@@ -152,16 +152,16 @@ class _RunImpl:
 
         _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
 
-        target_time = (step + 1) * self.dt
-        while self.t != target_time:
-            assert self.t < target_time
+        target_time = float((step + 1) * self.dt)
+        while self.current_time != target_time:
+            assert self.current_time < target_time
 
-            time_at_begin = self.t
+            time_at_begin = self.current_time
             squared_norm_at_begin = self.state.norm() ** 2
             assert self.collapse_threshold <= squared_norm_at_begin
 
-            def f(intermediate_t: float) -> float:
-                delta = intermediate_t - self.t
+            def evolve_to_time(intermediate_time: float) -> float:
+                delta = intermediate_time - self.current_time
                 evolve_tdvp(
                     t=-_TIME_CONVERSION_COEFF * delta * 1j,
                     state=self.state,
@@ -170,23 +170,23 @@ class _RunImpl:
                     max_krylov_dim=self.config.max_krylov_dim,
                     is_hermitian=not self.is_noisy,
                 )
-                self.t = intermediate_t
+                self.current_time = intermediate_time
                 return self.state.norm() ** 2 - self.collapse_threshold
 
-            f_end = f(float(target_time))
+            delta_collapse = evolve_to_time(target_time)
 
-            if f_end < 0:
+            if self.is_noisy and delta_collapse < 0:
                 find_root_brents(
-                    f=f,
+                    f=evolve_to_time,
                     start=time_at_begin,
                     end=target_time,
                     f_start=squared_norm_at_begin - self.collapse_threshold,
-                    f_end=f_end,
+                    f_end=delta_collapse,
                     tolerance=1.0,
                 )
                 self.random_noise_collapse()
 
-        assert self.t == target_time
+        assert self.current_time == target_time
 
     def random_noise_collapse(self) -> None:
         collapse_weights = self.state.expect_batch(self.aggregated_lindblad_ops).real
