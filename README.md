@@ -58,18 +58,15 @@ When pip is configured to know about the pasqal registry, Emu-MPS installs as
 ```bash
 pip install emu-mps
 ```
-When pip is not already configured, the easiest way to do so, is to add a file
-`~/.config/pip/pip.conf`
-
-containing the following:
+When pip is not already configured, the easiest way to do so, is to add a file `~/.config/pip/pip.conf` containing:
 
 ```
 [global]
-extra-index-url=https://<USERNAME>:<PASSWORD>@gitlab.pasqal.com/api/v4/projects/190/packages/pypi/simple
+extra-index-url=https://gitlab.pasqal.com/api/v4/projects/597/packages/pypi/simple
+                possible.other.urls
 ```
 
-For the username and password required for the above url, please contact a member of emulation team or qlibs.
-
+As this shows, it is also possible to have multiple extra repositories configured. Note that the order is not important.
 
 It is also possible to add the `extra-index-url` to the `pip install` command directly, if you somehow don't want to create a `pip.conf` file.
 
