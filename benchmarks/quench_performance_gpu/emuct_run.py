@@ -7,7 +7,7 @@ import emu_mps
 
 seq = sys.argv[1]
 
-config = emu_mps.MPSConfig(num_devices_to_use=1, max_bond_dim=2000)
+config = emu_mps.MPSConfig(num_gpus_to_use=1, max_bond_dim=2000)
 backend = emu_mps.MPSBackend()
 
 backend.run(pulser.Sequence.from_abstract_repr(seq), mps_config=config)

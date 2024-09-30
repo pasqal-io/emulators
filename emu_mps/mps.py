@@ -36,7 +36,7 @@ class MPS(State):
         orthogonality_center: Optional[int] = None,
         precision: float = DEFAULT_PRECISION,
         max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
-        num_devices_to_use: Optional[int] = DEVICE_COUNT,
+        num_gpus_to_use: Optional[int] = DEVICE_COUNT,
     ):
         """
         This constructor creates a MPS directly from a list of tensors. It is for internal use only.
@@ -53,7 +53,7 @@ class MPS(State):
                 it will be orthogonalized when needed)
             precision: the precision with which to truncate here or in tdvp
             max_bond_dim: the maximum bond dimension to allow
-            num_devices_to_use: distribute the factors over this many GPUs
+            num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu, None=keep the existing device assignment.
         """
         self.precision = precision
@@ -75,8 +75,8 @@ class MPS(State):
         ), "Invalid orthogonality center provided"
         self.orthogonality_center = orthogonality_center
 
-        if num_devices_to_use is not None:
-            assign_devices(self.factors, min(DEVICE_COUNT, num_devices_to_use))
+        if num_gpus_to_use is not None:
+            assign_devices(self.factors, min(DEVICE_COUNT, num_gpus_to_use))
 
     @classmethod
     def make(
@@ -84,7 +84,7 @@ class MPS(State):
         num_sites: int,
         precision: float = DEFAULT_PRECISION,
         max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
-        num_devices_to_use: int = DEVICE_COUNT,
+        num_gpus_to_use: int = DEVICE_COUNT,
     ) -> MPS:
         """
         Returns a MPS in ground state |000..0>.
@@ -93,7 +93,7 @@ class MPS(State):
             num_sites: the number of qubits
             precision: the precision with which to truncate here or in tdvp
             max_bond_dim: the maximum bond dimension to allow
-            num_devices_to_use: distribute the factors over this many GPUs
+            num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu
         """
         if num_sites <= 1:
@@ -106,7 +106,7 @@ class MPS(State):
             ],
             precision=precision,
             max_bond_dim=max_bond_dim,
-            num_devices_to_use=num_devices_to_use,
+            num_gpus_to_use=num_gpus_to_use,
             orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
         )
 
@@ -315,7 +315,7 @@ class MPS(State):
             new_tt,
             precision=self.precision,
             max_bond_dim=self.max_bond_dim,
-            num_devices_to_use=None,
+            num_gpus_to_use=None,
             orthogonality_center=None,  # Orthogonality is lost.
         )
         result.truncate()
@@ -341,7 +341,7 @@ class MPS(State):
             factors,
             precision=self.precision,
             max_bond_dim=self.max_bond_dim,
-            num_devices_to_use=None,
+            num_gpus_to_use=None,
             orthogonality_center=self.orthogonality_center,
         )
 

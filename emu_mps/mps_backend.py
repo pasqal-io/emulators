@@ -118,7 +118,7 @@ class _RunImpl:
                 well_prepared_qubits_count,
                 precision=self.config.precision,
                 max_bond_dim=self.config.max_bond_dim,
-                num_devices_to_use=self.config.num_devices_to_use,
+                num_gpus_to_use=self.config.num_gpus_to_use,
             )
 
         if self.well_prepared_qubits_filter is not None:
@@ -133,7 +133,7 @@ class _RunImpl:
             [f.clone().detach() for f in self.config.initial_state.factors],
             precision=self.config.precision,
             max_bond_dim=self.config.max_bond_dim,
-            num_devices_to_use=self.config.num_devices_to_use,
+            num_gpus_to_use=self.config.num_gpus_to_use,
         )
         initial_state.truncate()
         return initial_state
@@ -245,7 +245,7 @@ class _RunImpl:
                     extended_mps_factors(
                         normalized_state.factors, self.well_prepared_qubits_filter
                     ),
-                    num_devices_to_use=None,  # Keep the already assigned devices.
+                    num_gpus_to_use=None,  # Keep the already assigned devices.
                     orthogonality_center=get_extended_site_index(
                         self.well_prepared_qubits_filter,
                         normalized_state.orthogonality_center,

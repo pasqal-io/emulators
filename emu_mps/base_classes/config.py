@@ -9,7 +9,7 @@ class BackendConfig:
 
     Args:
         observables: a list of callbacks to compute observables
-        with_modulation: whether or not run the sequence with hardware modulation
+        with_modulation: if True, run the sequence with hardware modulation
         noise_model: The pulser.NoiseModel to use in the simulation.
         log_level: The output verbosity. Should be one of the constants from logging.
     """
@@ -18,11 +18,13 @@ class BackendConfig:
         self,
         *,
         # "Callback" is a forward type reference because of the circular import otherwise.
-        observables: list["Callback"] = [],  # type: ignore # noqa: F821
+        observables: list["Callback"] | None = None,  # type: ignore # noqa: F821
         with_modulation: bool = False,
         noise_model: NoiseModel = None,
         log_level: int = logging.INFO,
     ):
+        if observables is None:
+            observables = []
         self.callbacks = (
             observables  # we can add other types of callbacks, and just stack them
         )
@@ -30,5 +32,5 @@ class BackendConfig:
         self.noise_model = noise_model
         self.logger = logging.getLogger("global_logger")
         logging.basicConfig(
-            level=log_level, format="%(message)s", stream=sys.stdout
+            level=log_level, format="%(message)s", stream=sys.stdout, force=True
         )  # default to stream = sys.stderr

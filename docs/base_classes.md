@@ -1,7 +1,5 @@
 # Base classes
 
-Here follows the documentation of the abstract classes upon which the EMU-MPS API is based:
-
 ## Backend
 ::: emu_mps.base_classes.backend.Backend
 

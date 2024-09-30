@@ -68,8 +68,8 @@ def test_init():
         )
         assert abs(torch.tensordot(factor, factor, dims=3)) - 1 < 1e-8
 
-    # Check that no copy or move is performed when num_devices_to_use=None
-    no_device_reassignment = MPS([factor1, factor2, factor3], num_devices_to_use=None)
+    # Check that no copy or move is performed when num_gpus_to_use=None
+    no_device_reassignment = MPS([factor1, factor2, factor3], num_gpus_to_use=None)
     assert no_device_reassignment.factors[0] is factor1
     assert no_device_reassignment.factors[1] is factor2
     assert no_device_reassignment.factors[2] is factor3
@@ -221,9 +221,7 @@ def test_catch_err_when_lmul():
 def test_mps_algebra():
     num_sites = 5
     # this test should work for all states
-    mps = MPS(
-        [up for _ in range(num_sites)], orthogonality_center=0, num_devices_to_use=0
-    )
+    mps = MPS([up for _ in range(num_sites)], orthogonality_center=0, num_gpus_to_use=0)
     mps_sum = mps + mps + 0.5 * mps + (1 / 3) * mps
     mps_rmul = (1 + 1 + 0.5 + 1 / 3) * mps
     mps_rmul.orthogonalize(0)

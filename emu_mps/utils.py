@@ -97,21 +97,21 @@ def truncate_impl(
         )
 
 
-def assign_devices(tensors: List[torch.Tensor], num_devices_to_use: int) -> None:
+def assign_devices(tensors: List[torch.Tensor], num_gpus_to_use: int) -> None:
     """
     Evenly distributes each tensor in the list to a device.
-    If num_devices_to_use is 0, then all tensors go to CPU.
+    If num_gpus_to_use is 0, then all tensors go to CPU.
     """
-    num_devices_to_use = min(len(tensors), num_devices_to_use)
+    num_gpus_to_use = min(len(tensors), num_gpus_to_use)
 
-    if num_devices_to_use <= 0:
+    if num_gpus_to_use <= 0:
         for i in range(len(tensors)):
             tensors[i] = tensors[i].to("cpu")
         return
 
-    tensors_per_device = len(tensors) // num_devices_to_use
+    tensors_per_device = len(tensors) // num_gpus_to_use
 
-    if len(tensors) % num_devices_to_use != 0:
+    if len(tensors) % num_gpus_to_use != 0:
         tensors_per_device += 1
 
     for i in range(len(tensors)):

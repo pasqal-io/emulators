@@ -188,23 +188,23 @@ def test_assign_devices():
 
     assert ts[0].device == "unset"
 
-    assign_devices(ts, num_devices_to_use=0)
+    assign_devices(ts, num_gpus_to_use=0)
 
     assert ts[0].device == "cpu"
 
-    assign_devices(ts, num_devices_to_use=1)
+    assign_devices(ts, num_gpus_to_use=1)
 
     assert gpus(ts) == [0] * 13
 
-    assign_devices(ts, num_devices_to_use=3)
+    assign_devices(ts, num_gpus_to_use=3)
 
     assert gpus(ts) == [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2]
 
-    assign_devices(ts, num_devices_to_use=5)
+    assign_devices(ts, num_gpus_to_use=5)
 
     assert gpus(ts) == [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4]
 
-    assign_devices(ts, num_devices_to_use=2)
+    assign_devices(ts, num_gpus_to_use=2)
 
     assert gpus(ts) == [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
 

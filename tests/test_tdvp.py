@@ -316,7 +316,7 @@ def test_tdvp_state_vector(mock_sequence):
         precision=1e-10,
         # run this on cpu, collecting the state vector from
         # multiple devices is beside the point of the test
-        num_devices_to_use=0,
+        num_gpus_to_use=0,
     )
 
     vec = torch.einsum(

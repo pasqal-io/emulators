@@ -126,7 +126,7 @@ bitstring_times = results.get_result_times(bitstrings.name())
 strings = results.get_result(bitstrings.name(), bitstring_times[0])
 ```
 
-In the above, `strings` will be a `Counter[str]` that counts the occurances of each bitstring that was measured.
+In the above, `strings` will be a `Counter[str]` that counts the occurrences of each bitstring that was measured.
 Note that the emulation stops at the largest multiple of `dt` which is not larger than the sequence duration.
 So if you make a pulser sequence the duration of which is not a multiple of `dt`, the simulation time will fall slightly short.
 

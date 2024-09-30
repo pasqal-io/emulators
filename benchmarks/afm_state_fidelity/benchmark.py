@@ -40,7 +40,7 @@ precisions = [1e-6, 1e-5]
 for dt in dts:  # ns
     for j, precision in enumerate(precisions):
         config = emu_mps.MPSConfig(
-            num_devices_to_use=0, dt=dt, precision=precision, observables=obs
+            num_gpus_to_use=0, dt=dt, precision=precision, observables=obs
         )
         emuct_res[f"dt={dt}, prec={precision}"] = backend.run(seq, config)
 

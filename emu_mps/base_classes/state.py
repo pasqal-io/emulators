@@ -36,7 +36,7 @@ class State(ABC):
         Args:
             num_shots: how many bitstrings to sample
             p_false_pos: the rate at which a 0 is read as a 1
-            p_false_neg: teh rate at which a 1 is read as a 0
+            p_false_neg: the rate at which a 1 is read as a 0
 
         Returns:
             the measured bitstrings, by count

@@ -56,7 +56,7 @@ try:
         )
 
         config = emu_mps.MPSConfig(
-            num_devices_to_use=0,
+            num_gpus_to_use=0,
             dt=dt,
             precision=precision,
             observables=obs,

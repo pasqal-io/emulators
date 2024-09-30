@@ -23,7 +23,7 @@ obs = [
     emu_mps.EnergyVariance(evaluation_times=evaluation_times),
 ]
 
-config = emu_mps.MPSConfig(num_devices_to_use=int(which_device), observables=obs)
+config = emu_mps.MPSConfig(num_gpus_to_use=int(which_device), observables=obs)
 backend = emu_mps.MPSBackend()
 
 results = backend.run(seq, mps_config=config)

@@ -22,7 +22,8 @@ class MPSConfig(BackendConfig):
             the size of the krylov subspace that the Lanczos algorithm maximally builds
         extra_krylov_tolerance:
             the Lanczos algorithm uses this*precision as the convergence tolerance
-        num_devices_to_use: how many gpu's to use. 0 means cpu
+        num_gpus_to_use: during the simulation, distribute the state over this many GPUs
+            0=all factors to cpu, defaults to all available GPUs
         interaction_matrix:
             specify this to use a custom interaction matrix, rather than the rydberg or xy term
         kwargs: arguments that are passed to the base class
@@ -37,7 +38,7 @@ class MPSConfig(BackendConfig):
         max_bond_dim: int = 1024,
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
-        num_devices_to_use: int = DEVICE_COUNT,
+        num_gpus_to_use: int = DEVICE_COUNT,
         interaction_matrix: torch.Tensor | None = None,
         **kwargs: Any,
     ):
@@ -47,7 +48,7 @@ class MPSConfig(BackendConfig):
         self.precision = precision
         self.max_bond_dim = max_bond_dim
         self.max_krylov_dim = max_krylov_dim
-        self.num_devices_to_use = num_devices_to_use
+        self.num_gpus_to_use = num_gpus_to_use
         self.interaction_matrix = interaction_matrix
         self.extra_krylov_tolerance = extra_krylov_tolerance
 
