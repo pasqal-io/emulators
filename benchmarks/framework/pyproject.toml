@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "benchmarkutils"
-description = "Benchmark utilities for Emu-TN"
+description = "Benchmark utilities for Emu-mps"
 version = "0.1"
 dependencies = [
-  "pulser",
+  "pulser==0.20.*",
   "matplotlib",
   "numpy",
   "qutip",

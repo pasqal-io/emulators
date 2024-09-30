@@ -10,6 +10,8 @@ import emu_mps
 import os
 import statistics
 
+import pulser.noise_model
+
 torch.set_num_threads(1)
 
 script_dir = Path(__file__).parent
@@ -51,7 +53,6 @@ try:
     depolarizing_rates = [0.2, 0.5]
     for depolarizing_rate in depolarizing_rates:
         noise_model = pulser.noise_model.NoiseModel(
-            noise_types=("depolarizing",),
             depolarizing_rate=depolarizing_rate,
         )
 

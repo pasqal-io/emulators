@@ -34,3 +34,9 @@ class BackendConfig:
         logging.basicConfig(
             level=log_level, format="%(message)s", stream=sys.stdout, force=True
         )  # default to stream = sys.stderr
+        if noise_model is not None and (
+            noise_model.runs != 1 or noise_model.samples_per_run != 1
+        ):
+            self.logger.warning(
+                "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
+            )

@@ -122,19 +122,30 @@ def sv_hamiltonian(
     ],
 )
 def test_interaction_coefficient(mock_sequence, hamiltonian_type):
-    q = [torch.tensor([0.0, 0.0]), torch.tensor([10.0, 0.0]), torch.tensor([20.0, 0.0])]
+    atoms = torch.tensor(
+        [[0.0, 0.0], [10.0, 0.0], [20.0, 0.0]], dtype=torch.float64
+    )  # pulser input
 
     # only MagicMock supports XY interaction
     mock_device = MagicMock(interaction_coeff=TEST_C6, interaction_coeff_xy=TEST_C3)
     mock_sequence.device = mock_device
 
     mock_register = MagicMock()
+
     mock_register.qubit_ids = ["q0", "q1", "q2"]
 
+    mock_abstract_array_1 = MagicMock()
+    mock_abstract_array_2 = MagicMock()
+    mock_abstract_array_3 = MagicMock()
+
+    mock_abstract_array_1.as_tensor.return_value = atoms[0]
+    mock_abstract_array_2.as_tensor.return_value = atoms[1]
+    mock_abstract_array_3.as_tensor.return_value = atoms[2]
+
     mock_register.qubits = {
-        "q0": q[0],
-        "q1": q[1],
-        "q2": q[2],
+        "q0": mock_abstract_array_1,
+        "q1": mock_abstract_array_2,
+        "q2": mock_abstract_array_3,
     }
     mock_sequence.register = mock_register
 

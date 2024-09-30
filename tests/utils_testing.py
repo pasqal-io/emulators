@@ -3,6 +3,7 @@ import torch
 from typing import List, Optional, Union
 import numpy as np
 import pulser
+import math
 
 
 def ghz_state_factors(
@@ -94,13 +95,13 @@ def pulser_afm_sequence_ring(
     R_interatomic = device.rydberg_blockade_radius(U)
     coords = (
         R_interatomic
-        / (2 * np.tan(np.pi / num_qubits))
-        * np.array(
+        / (2 * math.tan(math.pi / num_qubits))
+        * torch.tensor(
             [
-                (
-                    np.cos(theta * 2 * np.pi / num_qubits),
-                    np.sin(theta * 2 * np.pi / num_qubits),
-                )
+                [
+                    math.cos(theta * 2 * math.pi / num_qubits),
+                    math.sin(theta * 2 * math.pi / num_qubits),
+                ]
                 for theta in range(num_qubits)
             ]
         )
@@ -130,7 +131,9 @@ def pulser_afm_sequence_grid(
     device: pulser.devices = pulser.devices.MockDevice,
 ):
     R_interatomic = device.rydberg_blockade_radius(U)
-    reg = pulser.Register.rectangle(rows, columns, R_interatomic, prefix="q")
+    reg = pulser.Register.rectangle(
+        rows, columns, torch.tensor(R_interatomic), prefix="q"
+    )
 
     return pulser_afm_sequence_from_register(
         reg,

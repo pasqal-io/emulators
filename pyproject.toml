@@ -23,7 +23,7 @@ classifiers=[
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pulser-core==0.19.0",
+  "pulser-core==0.20.*",
   "torch>=2.4.0"]
 
 [tool.hatch.metadata]

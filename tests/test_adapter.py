@@ -390,14 +390,8 @@ def test_get_all_lindblad_operators():
     random_collapse = torch.rand(2, 2, dtype=torch.complex128)
 
     noise_model = NoiseModel(
-        # FIXME: remove below line when Pulser is upgraded
-        # past 1b3735df935f8ee37fcaee5055b40e801d794466
-        noise_types=("depolarizing", "dephasing", "eff_noise"),
         depolarizing_rate=0.16,
         dephasing_rate=0.005,
-        # FIXME: remove below line when Pulser is upgraded
-        # past 1b3735df935f8ee37fcaee5055b40e801d794466
-        hyperfine_dephasing_rate=0.0,
         eff_noise_rates=(0.0036,),
         eff_noise_opers=(random_collapse,),
     )
@@ -408,7 +402,7 @@ def test_get_all_lindblad_operators():
 
     # Depolarizing
     assert torch.allclose(
-        ops[0],
+        ops[1],
         torch.tensor(
             [
                 [0, 0.2],
@@ -419,7 +413,7 @@ def test_get_all_lindblad_operators():
     )
 
     assert torch.allclose(
-        ops[1],
+        ops[2],
         torch.tensor(
             [
                 [0, 0.2j],
@@ -430,7 +424,7 @@ def test_get_all_lindblad_operators():
     )
 
     assert torch.allclose(
-        ops[2],
+        ops[3],
         torch.tensor(
             [
                 [-0.2, 0],
@@ -442,7 +436,7 @@ def test_get_all_lindblad_operators():
 
     # Dephasing
     assert torch.allclose(
-        ops[3],
+        ops[0],
         torch.tensor(
             [
                 [-0.05, 0],

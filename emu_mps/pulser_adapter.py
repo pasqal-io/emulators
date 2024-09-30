@@ -4,6 +4,7 @@ from warnings import warn
 import torch
 import math
 from pulser.noise_model import NoiseModel
+
 from emu_mps.lindblad_operators import get_lindblad_operators
 
 
@@ -12,24 +13,12 @@ def get_qubit_positions(
 ) -> list[torch.Tensor]:
     """Conversion from pulser Register to emu-mps register (torch type).
     Each element will be given as [Rx,Ry,Rz]"""
-    if any(not isinstance(p, torch.Tensor) for p in register.qubits.values()):
-        positions = [torch.tensor(position) for position in register.qubits.values()]
-    else:
-        positions = list(register.qubits.values())
+
+    positions = [position.as_tensor() for position in register.qubits.values()]
 
     if len(positions[0]) == 2:
-        return [torch.cat((p, torch.zeros(1))) for p in positions]
+        return [torch.cat((position, torch.zeros(1))) for position in positions]
     return positions
-
-
-def _convert_sequence_samples(
-    rydberg_dict_numpy: dict,
-) -> None:
-    """Convert amp, det and phase with type numpy.ndarray to torch.Tensor"""
-    for a_d_p in rydberg_dict_numpy.values():
-        for key, value in a_d_p.items():
-            if not isinstance(value, torch.Tensor):
-                a_d_p[key] = torch.tensor(value)
 
 
 def extract_omega_delta_phi(
@@ -55,15 +44,13 @@ def extract_omega_delta_phi(
         sequence,
         modulation=with_modulation,
         extended_duration=sequence.get_duration(include_fall_time=with_modulation),
-    ).to_nested_dict(all_local=True)["Local"]
+    ).to_nested_dict(all_local=True, samples_type="tensor")["Local"]
 
     # TODO: from here accept the XY by ["XY"]
     if "ground-rydberg" in sequence_dict and len(sequence_dict) == 1:
         locals_rydberg_a_d_p = sequence_dict["ground-rydberg"]
     else:
         raise ValueError("Emu-MPS only accepts ground-rydberg channels")
-
-    _convert_sequence_samples(locals_rydberg_a_d_p)
 
     max_duration = sequence.get_duration(include_fall_time=with_modulation)
 

@@ -201,7 +201,8 @@ def test_krylov_exp_krylov_norm_tolerance():
     # result should be |10>, and the algorithm will terminate on
     # b < norm_tolerance, since in the second iteration, b=0
     assert torch.allclose(
-        result, torch.tensor([[[0.0], [0.0], [1.0j], [0.0]]], dtype=torch.complex128)
+        result,
+        torch.tensor([[[0.0], [0.0], [1.0j], [0.0]]], dtype=torch.complex128),
     )
 
 
@@ -290,7 +291,8 @@ def test_tdvp_state_vector(mock_sequence):
     qubit_positions = []
     for i in range(3):
         for j in range(3):
-            qubit_positions.append(torch.tensor([7.0 * i, 7.0 * j]))
+            qubit_positions.append([7.0 * i, 7.0 * j])
+    qubit_positions = torch.tensor(qubit_positions)
 
     omegas = torch.tensor([12.566370614359172] * nqubits, dtype=torch.complex128)
     deltas = torch.tensor([10.771174812307862] * nqubits, dtype=torch.complex128)
@@ -301,7 +303,12 @@ def test_tdvp_state_vector(mock_sequence):
     mock_register = MagicMock()
     qubits_ids = [f"q{i}" for i in range(9)]
     mock_register.qubit_ids = qubits_ids
-    abstract_q = [qubit for qubit in qubit_positions]
+
+    abstract_q = []
+    for qubit in qubit_positions:
+        mock_abstract = MagicMock()
+        mock_abstract.as_tensor.return_value = qubit
+        abstract_q.append(mock_abstract)
     mock_register.qubits = dict(zip(qubits_ids, abstract_q))
     mock_sequence.register = mock_register
     interaction_matrix = rydberg_interaction(mock_sequence)

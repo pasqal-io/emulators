@@ -11,6 +11,8 @@ import emu_mps.base_classes
 import emu_mps.base_classes.default_callbacks
 from emu_mps import MPS, BitStrings, Fidelity, MPSBackend, MPSConfig, StateResult
 
+import pulser.noise_model
+
 from .utils_testing import pulser_afm_sequence_grid, pulser_afm_sequence_ring
 
 
@@ -45,7 +47,8 @@ def simulate(
         assert noise_model is None, "Provide either noise_model or SPAM values"
 
         noise_model = pulser.noise_model.NoiseModel(
-            noise_types=("SPAM",),
+            runs=1,
+            samples_per_run=1,
             state_prep_error=state_prep_error,
             p_false_pos=p_false_pos,
             p_false_neg=p_false_neg,
@@ -270,7 +273,6 @@ def test_end_to_end_afm_ring_with_noise():
     )
 
     noise_model = pulser.noise_model.NoiseModel(
-        noise_types=("depolarizing",),
         depolarizing_rate=0.1,
     )
 
@@ -308,7 +310,6 @@ def test_end_to_end_spontaneous_emission():
     )
 
     noise_model = pulser.noise_model.NoiseModel(
-        noise_types=("relaxation",),
         relaxation_rate=0.1,
     )
 
