@@ -12,13 +12,40 @@ class Results:
 
     _results: dict[str, dict[int, Any]] = field(default_factory=dict)
 
-    def __setitem__(self, name: str, value: Any) -> None:
-        self._results[name] = value
+    def store(self, *, callback_name: str, time: Any, value: Any) -> None:
+        self._results.setdefault(callback_name, {})
 
-    def __getitem__(self, name: str) -> dict[int, Any]:
-        if self._results.get(name) is None:
-            self._results[name] = {}
-        return self._results[name]
+        if time in self._results[callback_name]:
+            raise ValueError(
+                f"A value is already stored for observable '{callback_name}' at time {time}"
+            )
+
+        self._results[callback_name][time] = value
+
+    def __getitem__(self, key: Any) -> Any:
+        if isinstance(key, tuple):
+            # results["energy", t]
+            callback_name, time = key
+
+            if callback_name not in self._results:
+                raise ValueError(
+                    f"No value for observable '{callback_name}' has been stored"
+                )
+
+            if time not in self._results[callback_name]:
+                raise ValueError(
+                    f"No value stored at time {time} for observable '{callback_name}'"
+                )
+
+            return self._results[callback_name][time]
+
+        # results["energy"][t]
+        assert isinstance(key, str)
+        callback_name = key
+        if callback_name not in self._results:
+            raise ValueError(f"No value for observable '{callback_name}' has been stored")
+
+        return self._results[key]
 
     def get_result_names(self) -> list[str]:
         """

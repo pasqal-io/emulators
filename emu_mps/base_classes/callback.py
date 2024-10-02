@@ -36,7 +36,8 @@ class Callback(ABC):
             result: the results object
         """
         if t in self.evaluation_times:
-            result[self.name()][t] = self.apply(config, t, state, H)
+            value_to_store = self.apply(config, t, state, H)
+            result.store(callback_name=self.name(), time=t, value=value_to_store)
 
     @abstractmethod
     def name(self) -> str:
