@@ -139,7 +139,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
     torch.manual_seed(seed)
 
     with patch(
-        "emu_mps.mps_backend.pick_well_prepared_qubits"
+        "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [True, True, True, False]
         final_time, result = simulate_line(4, state_prep_error=0.1)
@@ -151,7 +151,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
 
     # A dark qubit at the end of the line gives the same result as a line with one less qubit.
     with patch(
-        "emu_mps.mps_backend.pick_well_prepared_qubits"
+        "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         final_time, result = simulate_line(3)
         final_state = result["state"][final_time]
@@ -160,7 +160,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
         assert get_proba(final_state, "101") == approx(0.43, abs=1e-2)
 
     with patch(
-        "emu_mps.mps_backend.pick_well_prepared_qubits"
+        "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [True, False, True, True]
         final_time, result = simulate_line(4, state_prep_error=0.1)
@@ -174,7 +174,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
     assert get_proba(final_state, "11") == approx(0.95, abs=1e-2)
 
     with patch(
-        "emu_mps.mps_backend.pick_well_prepared_qubits"
+        "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [False, True, True, False]
         final_time, result = simulate_line(4, state_prep_error=0.1)
@@ -184,7 +184,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
 
     # FIXME: When n-1 qubits are dark, the simulation fails!
     with patch(
-        "emu_mps.mps_backend.pick_well_prepared_qubits"
+        "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         with pytest.raises(ValueError) as exception_info:
             pick_well_prepared_qubits_mock.return_value = [False, False, True, False]
