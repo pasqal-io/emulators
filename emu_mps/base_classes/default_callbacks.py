@@ -43,12 +43,12 @@ class BitStrings(Callback):
         return "bitstrings"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
-        if config.noise_model is not None and "SPAM" in config.noise_model.noise_types:
-            p_false_pos = config.noise_model.p_false_pos
-            p_false_neg = config.noise_model.p_false_neg
-        else:
-            p_false_neg = 0.0
-            p_false_pos = 0.0
+        p_false_pos = (
+            0.0 if config.noise_model is None else config.noise_model.p_false_pos
+        )
+        p_false_neg = (
+            0.0 if config.noise_model is None else config.noise_model.p_false_neg
+        )
 
         return state.sample(self.num_shots, p_false_pos, p_false_neg)
 
@@ -100,7 +100,7 @@ class Expectation(Callback):
         self.operator = operator
 
     def name(self) -> str:
-        return f"fidelity_{self.index}"
+        return f"expectation_{self.index}"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         return self.operator.expect(state)
