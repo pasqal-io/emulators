@@ -11,6 +11,7 @@ class BackendConfig:
         observables: a list of callbacks to compute observables
         with_modulation: if True, run the sequence with hardware modulation
         noise_model: The pulser.NoiseModel to use in the simulation.
+        interaction_matrix: when specified, override the interaction terms in the Hamiltonian
         log_level: The output verbosity. Should be one of the constants from logging.
     """
 
@@ -21,6 +22,7 @@ class BackendConfig:
         observables: list["Callback"] | None = None,  # type: ignore # noqa: F821
         with_modulation: bool = False,
         noise_model: NoiseModel = None,
+        interaction_matrix: list[list[float]] | None = None,
         log_level: int = logging.INFO,
     ):
         if observables is None:
@@ -30,6 +32,7 @@ class BackendConfig:
         )
         self.with_modulation = with_modulation
         self.noise_model = noise_model
+        self.interaction_matrix = interaction_matrix
         self.logger = logging.getLogger("global_logger")
         logging.basicConfig(
             level=log_level, format="%(message)s", stream=sys.stdout, force=True

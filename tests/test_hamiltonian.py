@@ -1,15 +1,12 @@
 import pytest
 from functools import reduce
-from unittest.mock import MagicMock, patch
 
 import torch
 
 from emu_mps.hamiltonian import (
     make_H,
-    rydberg_interaction,
-    xy_interaction,
-    HamiltonianType,
 )
+from emu_mps.pulser_adapter import HamiltonianType
 from emu_mps.noise import compute_noise_from_lindbladians
 
 
@@ -66,10 +63,6 @@ def sig_plus_min(i, j, nqubits):
     return reduce(torch.kron, matrices)
 
 
-TEST_C6 = 5420158.53
-TEST_C3 = 3700.0
-
-
 def sv_hamiltonian(
     inter_matrix: torch.Tensor,
     omega: list[torch.Tensor],
@@ -101,78 +94,16 @@ def sv_hamiltonian(
                 h += inter_matrix[i, j] * sig_plus_min(i, j, n_qubits).to(
                     dtype=dtype, device=device
                 )
-                h += inter_matrix[i, j] * (sig_plus_min(i, j, n_qubits).T).to(
+                h += inter_matrix[i, j] * sig_plus_min(i, j, n_qubits).T.to(
                     dtype=dtype, device=device
                 )
         else:
-            raise Exception("Not supported type of interaction")
+            raise ValueError(f"unsupported interaction type {hamiltonian_type}")
 
     return h
 
 
 #########################################
-
-
-@patch("emu_mps.hamiltonian.pulser.sequence.Sequence")
-@pytest.mark.parametrize(
-    "hamiltonian_type",
-    [
-        HamiltonianType.Rydberg,
-        HamiltonianType.XY,
-    ],
-)
-def test_interaction_coefficient(mock_sequence, hamiltonian_type):
-    atoms = torch.tensor(
-        [[0.0, 0.0], [10.0, 0.0], [20.0, 0.0]], dtype=torch.float64
-    )  # pulser input
-
-    # only MagicMock supports XY interaction
-    mock_device = MagicMock(interaction_coeff=TEST_C6, interaction_coeff_xy=TEST_C3)
-    mock_sequence.device = mock_device
-
-    mock_register = MagicMock()
-
-    mock_register.qubit_ids = ["q0", "q1", "q2"]
-
-    mock_abstract_array_1 = MagicMock()
-    mock_abstract_array_2 = MagicMock()
-    mock_abstract_array_3 = MagicMock()
-
-    mock_abstract_array_1.as_tensor.return_value = atoms[0]
-    mock_abstract_array_2.as_tensor.return_value = atoms[1]
-    mock_abstract_array_3.as_tensor.return_value = atoms[2]
-
-    mock_register.qubits = {
-        "q0": mock_abstract_array_1,
-        "q1": mock_abstract_array_2,
-        "q2": mock_abstract_array_3,
-    }
-    mock_sequence.register = mock_register
-
-    if hamiltonian_type == HamiltonianType.Rydberg:
-        interaction_matrix = rydberg_interaction(mock_sequence)
-    else:
-        interaction_matrix = xy_interaction(mock_sequence)
-
-    dev = interaction_matrix.device
-
-    if hamiltonian_type == HamiltonianType.Rydberg:
-        expected_interaction_matrix = torch.tensor(
-            [
-                [0.0000, 5.4202, 5.4202 / 64],
-                [5.4202, 0.0000, 5.4202],
-                [5.4202 / 64, 5.4202, 0.0000],
-            ]
-        ).to(dev)
-    else:
-        expected_interaction_matrix = torch.tensor(
-            [[0.0, 3.7, 3.7 / 8], [3.7, 0.0, 3.7], [3.7 / 8, 3.7, 0.0]]
-        ).to(dev)
-
-    assert torch.allclose(
-        interaction_matrix,
-        expected_interaction_matrix,
-    )
 
 
 # works for nqubits < 6
@@ -385,8 +316,8 @@ def test_9_qubit_noise(hamiltonian_type):
         omega=omega,
         delta=delta,
         phi=phi,
-        noise=noise,
         hamiltonian_type=hamiltonian_type,
+        noise=noise,
     )
 
     sv = torch.einsum(
@@ -424,7 +355,13 @@ def test_differentiation():
         ]
     )
 
-    ham = make_H(interaction_matrix=interaction_matrix, omega=omega, delta=delta, phi=phi)
+    ham = make_H(
+        interaction_matrix=interaction_matrix,
+        omega=omega,
+        delta=delta,
+        phi=phi,
+        hamiltonian_type=HamiltonianType.Rydberg,
+    )
 
     sv = torch.einsum("abcd,defg,ghij,jklm,mnop->abehkncfilop", *(ham.factors)).reshape(
         1 << n, 1 << n

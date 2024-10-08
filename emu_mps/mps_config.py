@@ -24,8 +24,6 @@ class MPSConfig(BackendConfig):
             the Lanczos algorithm uses this*precision as the convergence tolerance
         num_gpus_to_use: during the simulation, distribute the state over this many GPUs
             0=all factors to cpu, defaults to all available GPUs
-        interaction_matrix:
-            specify this to use a custom interaction matrix, rather than the rydberg or xy term
         kwargs: arguments that are passed to the base class
     """
 

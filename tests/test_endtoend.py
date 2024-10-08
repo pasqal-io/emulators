@@ -9,12 +9,23 @@ from pytest import approx
 import emu_mps
 import emu_mps.base_classes
 import emu_mps.base_classes.default_callbacks
-from emu_mps import MPS, BitStrings, Fidelity, MPSBackend, MPSConfig, StateResult
+from emu_mps import (
+    MPS,
+    BitStrings,
+    Fidelity,
+    MPSBackend,
+    MPSConfig,
+    StateResult,
+    QubitDensity,
+)
 
 import pulser.noise_model
 
-from .utils_testing import pulser_afm_sequence_grid, pulser_afm_sequence_ring
-
+from .utils_testing import (
+    pulser_afm_sequence_grid,
+    pulser_afm_sequence_ring,
+    pulser_XY_sequence_slm_mask,
+)
 
 seed = 1337
 
@@ -32,16 +43,21 @@ def create_antiferromagnetic_mps(num_qubits: int):
 
 
 def simulate(
-    seq,
+    seq: pulser.Sequence,
     *,
+    dt=100,
     noise_model=None,
     state_prep_error=0.0,
     p_false_pos=0.0,
     p_false_neg=0.0,
     initial_state=None,
+    given_fidelity_state=True,
 ):
     final_time = seq.get_duration()
-    fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
+    if given_fidelity_state:
+        fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
+    else:
+        fidelity_state = MPS.make(len(seq.register.qubit_ids))
 
     if state_prep_error > 0.0 or p_false_pos > 0.0 or p_false_neg > 0.0:
         assert noise_model is None, "Provide either noise_model or SPAM values"
@@ -53,16 +69,17 @@ def simulate(
             p_false_pos=p_false_pos,
             p_false_neg=p_false_neg,
         )
-
+    nqubits = len(seq.register.qubit_ids)
     times = {final_time}
     mps_config = MPSConfig(
         initial_state=initial_state,
-        dt=100,
+        dt=dt,
         precision=1e-5,
         observables=[
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=1000),
             Fidelity(evaluation_times=times, state=fidelity_state),
+            QubitDensity(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
         ],
         noise_model=noise_model,
     )
@@ -102,6 +119,80 @@ delta_0 = -6 * U
 delta_f = 2 * U
 t_rise = 500
 t_fall = 1000
+
+
+def test_XY_3atoms():
+    torch.manual_seed(seed)
+    seq = pulser_XY_sequence_slm_mask(amplitude=25.0)
+
+    result = simulate(seq, dt=10, given_fidelity_state=False)
+
+    final_time = seq.get_duration()
+    final_state: MPS = result["state"][final_time]
+    final_vec = torch.einsum("abc,cde,efg->abdfg", *(final_state.factors)).reshape(8)
+
+    expected_res = torch.tensor(
+        [
+            -0.0684 - 0.5677j,
+            0.0202 - 0.0305j,
+            -0.0313 + 0.0214j,
+            -0.2322 + 0.3942j,
+            0.0202 - 0.0305j,
+            -0.2329 + 0.3709j,
+            -0.2322 + 0.3942j,
+            0.2344 - 0.0602j,
+        ],
+        device=final_state.factors[0].device,
+        dtype=torch.complex128,
+    )
+
+    # pulser magnetization: [0.46024234949993825,0.4776498885102908,0.4602423494999386#
+    q_density = result["qubit_density"][final_time]
+
+    max_bond_dim = final_state.get_max_bond_dim()
+    assert max_bond_dim == 2
+    assert approx(q_density, 1e-3) == [0.4610, 0.4786, 0.4610]
+    print(torch.max(torch.abs(final_vec - expected_res)))
+    assert torch.allclose(final_vec, expected_res, atol=1e-4)
+
+
+def test_XY_3atomswith_slm():
+    torch.manual_seed(seed)
+    seq = pulser_XY_sequence_slm_mask(amplitude=0.0, slm_masked_atoms=(1, 2))
+
+    result = simulate(seq, dt=10, given_fidelity_state=False)
+
+    final_time = seq.get_duration()
+    final_state: MPS = result["state"][final_time]
+    final_vec = torch.einsum("abc,cde,efg->abdfg", *(final_state.factors)).reshape(8)
+    # pulser vector: 0.707,(−0.171+0.182j),(0.449−0.103j),0.0,(0.138−0.455j),1.761×10 −12,
+    # −1.873×10−12j,0.0
+
+    expected_res = torch.tensor(
+        [
+            7.0711e-01 - 4.2972e-17j,
+            -1.7133e-01 + 1.7989e-01j,
+            4.4791e-01 - 1.0291e-01j,
+            2.2578e-16 - 4.4738e-15j,
+            1.3729e-01 - 4.5631e-01j,
+            2.1802e-15 - 3.0011e-16j,
+            -1.7551e-15 + 2.5736e-15j,
+            2.6618e-15 + 5.4529e-16j,
+        ],
+        device=final_state.factors[0].device,
+        dtype=torch.complex128,
+    )
+    print(final_vec)
+
+    # pulser magnetization: [0.22572457283642877,0.21208108307887844,0.06213666344288577
+    q_density = result["qubit_density"][final_time]
+
+    max_bond_dim = final_state.get_max_bond_dim()
+    assert max_bond_dim == 2
+    assert approx(q_density, 1e-3) == [0.2270, 0.2112, 0.0617]
+    assert torch.allclose(
+        final_vec, expected_res, atol=1e-4
+    )  # todo, compare against pulser results
 
 
 def test_end_to_end_afm_ring():

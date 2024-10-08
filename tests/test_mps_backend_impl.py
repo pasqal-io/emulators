@@ -29,16 +29,18 @@ class MPSBackendImplTest(TestCase):
         self.qubit_count = 5
         self.mock_sequence = MagicMock()
         self.mock_sequence.register.qubit_ids = ["whatever"] * self.qubit_count
+        adressed_basis = "ground-rydberg"
+        self.mock_sequence.get_addressed_bases.return_value = [adressed_basis]
 
         self.omega, self.delta, self.phi = MagicMock(), MagicMock(), MagicMock()
 
         self.extract_omega_delta_phi_mock = self._patch(
-            "emu_mps.mps_backend_impl.extract_omega_delta_phi"
+            "emu_mps.pulser_adapter._extract_omega_delta_phi"
         )
         self.extract_omega_delta_phi_mock.return_value = self.omega, self.delta, self.phi
 
         self.rydberg_interaction_mock = self._patch(
-            "emu_mps.mps_backend_impl.rydberg_interaction"
+            "emu_mps.pulser_adapter._rydberg_interaction"
         )
 
         self.victim = MPSBackendImpl(self.mock_sequence, self.config)
@@ -58,6 +60,7 @@ class MPSBackendImplTest(TestCase):
         noise_model = MagicMock()
         noise_model.noise_types = ("depolarizing", "SPAM", "dephasing")
         noise_model.state_prep_error = 0.1
+        noise_model.hyperfine_dephasing_rate = 0.0
 
         pick_well_prepared_qubits_mock.return_value = [True, False, True, True, False]
 
@@ -89,7 +92,7 @@ class MPSBackendImplTest(TestCase):
         assert math.isclose(self.victim.state.norm(), 0.6)
 
     @patch("emu_mps.mps_backend_impl.find_root_brents")
-    @patch("emu_mps.mps_backend_impl.get_all_lindblad_noise_operators")
+    @patch("emu_mps.pulser_adapter._get_all_lindblad_noise_operators")
     @patch("emu_mps.mps_backend_impl.compute_noise_from_lindbladians")
     @patch("emu_mps.mps_backend_impl.torch.stack")
     @patch("emu_mps.mps_backend_impl.MPSBackendImpl.random_noise_collapse")

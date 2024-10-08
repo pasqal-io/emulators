@@ -7,16 +7,13 @@ import torch
 from pulser import Sequence
 
 from emu_mps.base_classes.results import Results
-from emu_mps.hamiltonian import make_H, rydberg_interaction
+from emu_mps.hamiltonian import make_H
 from emu_mps.math.brents_root_finding import find_root_brents
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
 from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
-from emu_mps.pulser_adapter import (
-    extract_omega_delta_phi,
-    get_all_lindblad_noise_operators,
-)
+from emu_mps.pulser_adapter import PulserData
 from emu_mps.tdvp import evolve_tdvp
 from emu_mps.utils import (
     extended_mpo_factors,
@@ -46,21 +43,24 @@ class MPSBackendImpl:
 
         assert (
             mps_config.interaction_matrix is None
-            or mps_config.interaction_matrix.size(dim=0) == self.qubit_count
+            or len(mps_config.interaction_matrix) == self.qubit_count
         ), (
             "The number of qubits in the register should be the same as the size of "
             "the interaction matrix"
         )
 
-        self.omega, self.delta, self.phi = extract_omega_delta_phi(
-            self.sequence, self.dt, self.config.with_modulation
+        parsed_sequence = PulserData(
+            sequence=sequence, config=mps_config, dt=mps_config.dt
         )
+        self.omega = parsed_sequence.omega
+        self.delta = parsed_sequence.delta
+        self.phi = parsed_sequence.phi
         self.timestep_count = self.omega.shape[0]
-
-        if self.config.interaction_matrix is None:
-            self.interaction_matrix = rydberg_interaction(sequence)
-        else:
-            self.interaction_matrix = self.config.interaction_matrix
+        self.interaction_matrix = parsed_sequence.full_interaction_matrix
+        self.masked_interaction_matrix = parsed_sequence.masked_interaction_matrix
+        self.hamiltonian_type = parsed_sequence.hamiltonian_type
+        self.slm_end_time = parsed_sequence.slm_end_time
+        self.lindblad_ops = parsed_sequence.lindblad_ops
 
         self._init_dark_qubits()
         self._init_lindblad_noise()
@@ -86,13 +86,14 @@ class MPSBackendImpl:
             self.interaction_matrix = self.interaction_matrix[
                 self.well_prepared_qubits_filter, :
             ][:, self.well_prepared_qubits_filter]
+            self.masked_interaction_matrix = self.masked_interaction_matrix[
+                self.well_prepared_qubits_filter, :
+            ][:, self.well_prepared_qubits_filter]
             self.omega = self.omega[:, self.well_prepared_qubits_filter]
             self.delta = self.delta[:, self.well_prepared_qubits_filter]
             self.phi = self.phi[:, self.well_prepared_qubits_filter]
 
     def _init_lindblad_noise(self) -> None:
-        self.lindblad_ops = get_all_lindblad_noise_operators(self.config.noise_model)
-
         self.is_noisy = self.lindblad_ops != []
 
         if self.is_noisy:
@@ -139,11 +140,18 @@ class MPSBackendImpl:
         """
         Updates hamiltonian and evolves state by dt.
         """
+        interaction_matrix = (
+            self.masked_interaction_matrix
+            if self.current_time < self.slm_end_time
+            else self.interaction_matrix
+        )
+
         self.hamiltonian = make_H(
-            interaction_matrix=self.interaction_matrix,
+            interaction_matrix=interaction_matrix,
             omega=self.omega[step, :],
             delta=self.delta[step, :],
             phi=self.phi[step, :],
+            hamiltonian_type=self.hamiltonian_type,
             noise=self.lindblad_noise,
         )
 
@@ -215,6 +223,7 @@ class MPSBackendImpl:
                 omega=self.omega[step, :],
                 delta=self.delta[step, :],
                 phi=self.phi[step, :],
+                hamiltonian_type=self.hamiltonian_type,
                 # Without noise for the callbacks.
             )
         )

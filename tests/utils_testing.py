@@ -184,3 +184,33 @@ def pulser_quench_sequence_grid(nx: int, ny: int):
     seq.add(simple_pulse, "ising")
 
     return seq
+
+
+def pulser_XY_sequence_slm_mask(amplitude: float = 0.0, slm_masked_atoms: tuple = ()):
+    """XY sequence with and without slm_masked atoms"""
+    coords = torch.tensor(
+        [
+            [-8.0, 0],
+            [0.0, 0],
+            [8.0, 0],
+        ]
+    )
+    qubits = dict(enumerate(coords))
+
+    reg = pulser.Register(qubits)
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ch0", "mw_global")
+    # State preparation using SLM mask
+
+    if len(slm_masked_atoms) > 0:
+        seq.config_slm_mask(slm_masked_atoms)
+        masked_pulse = pulser.Pulse.ConstantDetuning(
+            pulser.BlackmanWaveform(200, np.pi / 2), 0.0, 0
+        )
+        seq.add(masked_pulse, "ch0")
+
+    # Simulation pulse
+    simple_pulse = pulser.Pulse.ConstantPulse(500, amplitude, 0.0, 0)
+    seq.add(simple_pulse, "ch0")
+
+    return seq

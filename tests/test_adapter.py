@@ -1,23 +1,102 @@
 from emu_mps.pulser_adapter import (
-    extract_omega_delta_phi,
-    get_all_lindblad_noise_operators,
+    _extract_omega_delta_phi,
+    _get_all_lindblad_noise_operators,
+    _rydberg_interaction,
+    _xy_interaction,
+    PulserData,
+    HamiltonianType,
 )
+from emu_mps.base_classes.config import BackendConfig
 from unittest.mock import patch, MagicMock
 
+import pytest
 import torch
 from pulser.noise_model import NoiseModel
 import math
 
 
 TEST_QUBIT_IDS = ["test_qubit_0", "test_qubit_1", "test_qubit_2"]
+TEST_C6 = 5420158.53
+TEST_C3 = 3700.0
 
 sequence = MagicMock()
 sequence.register.qubit_ids = TEST_QUBIT_IDS
 
 
+@patch("emu_mps.pulser_adapter.pulser.sequence.Sequence")
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    [
+        HamiltonianType.Rydberg,
+        HamiltonianType.XY,
+    ],
+)
+def test_interaction_coefficient(mock_sequence, hamiltonian_type):
+    atoms = torch.tensor(
+        [[0.0, 0.0], [10.0, 0.0], [20.0, 0.0]], dtype=torch.float64
+    )  # pulser input
+
+    # only MagicMock supports XY interaction
+    mock_device = MagicMock(interaction_coeff=TEST_C6, interaction_coeff_xy=TEST_C3)
+    mock_sequence.device = mock_device
+
+    mock_register = MagicMock()
+
+    mock_register.qubit_ids = ["q0", "q1", "q2"]
+
+    mock_abstract_array_1 = MagicMock()
+    mock_abstract_array_2 = MagicMock()
+    mock_abstract_array_3 = MagicMock()
+
+    mock_abstract_array_1.as_tensor.return_value = atoms[0]
+    mock_abstract_array_2.as_tensor.return_value = atoms[1]
+    mock_abstract_array_3.as_tensor.return_value = atoms[2]
+
+    mock_register.qubits = {
+        "q0": mock_abstract_array_1,
+        "q1": mock_abstract_array_2,
+        "q2": mock_abstract_array_3,
+    }
+    mock_sequence.register = mock_register
+
+    if hamiltonian_type == HamiltonianType.Rydberg:
+        interaction_matrix = _rydberg_interaction(mock_sequence)
+    else:
+        interaction_matrix = _xy_interaction(mock_sequence)
+
+    dev = interaction_matrix.device
+
+    if hamiltonian_type == HamiltonianType.Rydberg:
+        expected_interaction_matrix = torch.tensor(
+            [
+                [0.0000, 5.4202, 5.4202 / 64],
+                [5.4202, 0.0000, 5.4202],
+                [5.4202 / 64, 5.4202, 0.0000],
+            ]
+        ).to(dev)
+    else:
+        expected_interaction_matrix = torch.tensor(
+            [[0.0, 3.7, 3.7 / 8], [3.7, 0.0, 3.7], [3.7 / 8, 3.7, 0.0]]
+        ).to(dev)
+
+    assert torch.allclose(
+        interaction_matrix,
+        expected_interaction_matrix,
+    )
+
+
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    [
+        "ground-rydberg",
+        "XY",
+    ],
+)
 @patch("emu_mps.pulser_adapter.pulser.sampler.sample")
-def test_global_channel(mock_pulser_sample):
-    """Global pulse: Pulse(RampWaveform(10,10.0,0.0),RampWaveform(10,-10,10),0.2)"""
+def test_global_channel(mock_pulser_sample, hamiltonian_type):
+    """For rydber and XY hamiltonian:
+    Global pulse: Pulse(RampWaveform(10,10.0,0.0),RampWaveform(10,-10,10),0.2)
+    NOTE: XY is only global"""
     TEST_DURATION = 10
     dt = 2
     sequence.get_duration.return_value = TEST_DURATION
@@ -54,7 +133,7 @@ def test_global_channel(mock_pulser_sample):
     phase_tensor = torch.tensor([0.2] * 10, dtype=torch.complex128)
 
     mock_pulser_dict = {
-        "ground-rydberg": {
+        hamiltonian_type: {
             TEST_QUBIT_IDS[1]: {
                 "amp": amp_tensor,
                 "det": det_tensor,
@@ -77,7 +156,7 @@ def test_global_channel(mock_pulser_sample):
     sample_instance.to_nested_dict.return_value = {"Local": mock_pulser_dict}
     mock_pulser_sample.return_value = sample_instance
 
-    actual_omega, actual_delta, actual_phi = extract_omega_delta_phi(sequence, dt, False)
+    actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(sequence, dt, False)
 
     expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
 
@@ -251,7 +330,7 @@ def test_local_global_channel(mock_pulser_sample):
     sample_mock.to_nested_dict.return_value = {"Local": mock_pulser_dict}
     mock_pulser_sample.return_value = sample_mock
 
-    actual_omega, actual_delta, actual_phi = extract_omega_delta_phi(sequence, dt, False)
+    actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(sequence, dt, False)
 
     expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
     assert len(actual_omega) == expected_number_of_samples
@@ -365,7 +444,7 @@ def test_autograd(mock_pulser_sample):
     mock_pulser_sample.return_value = sample_mock
 
     # first data for grad
-    omega_value = extract_omega_delta_phi(sequence, dt, False)[0][2, 2].real
+    omega_value = _extract_omega_delta_phi(sequence, dt, False)[0][2, 2].real
 
     # second data to for grad
     dict_sample = sample_mock.to_nested_dict()
@@ -383,7 +462,7 @@ def test_autograd(mock_pulser_sample):
 def test_get_all_lindblad_operators_no_noise():
     noise_model = NoiseModel()
 
-    assert get_all_lindblad_noise_operators(noise_model) == []
+    assert _get_all_lindblad_noise_operators(noise_model) == []
 
 
 def test_get_all_lindblad_operators():
@@ -396,7 +475,7 @@ def test_get_all_lindblad_operators():
         eff_noise_opers=(random_collapse,),
     )
 
-    ops = get_all_lindblad_noise_operators(noise_model)
+    ops = _get_all_lindblad_noise_operators(noise_model)
 
     assert len(ops) == 5
 
@@ -456,3 +535,111 @@ def test_get_all_lindblad_operators():
         ),
         0.06 * random_collapse,
     )
+
+
+@patch("emu_mps.pulser_adapter.pulser.sampler.sample")
+def test_parsed_sequence(mock_pulser_sample):
+    TEST_DURATION = 10
+    dt = 2
+    sequence.get_duration.return_value = TEST_DURATION
+    amp_tensor = torch.tensor(
+        [
+            10.0,
+            8.88888889,
+            7.77777778,
+            6.66666667,
+            5.55555556,
+            4.44444444,
+            3.33333333,
+            2.22222222,
+            1.11111111,
+            0.0,
+        ],
+        dtype=torch.complex128,
+    )
+    det_tensor = torch.tensor(
+        [
+            -10.0,
+            -7.77777778,
+            -5.55555556,
+            -3.33333333,
+            -1.11111111,
+            1.11111111,
+            3.33333333,
+            5.55555556,
+            7.77777778,
+            10.0,
+        ],
+        dtype=torch.complex128,
+    )
+    phase_tensor = torch.tensor([0.2] * 10, dtype=torch.complex128)
+
+    adressed_basis = "XY"
+    sequence.get_addressed_bases.return_value = [adressed_basis]
+
+    mock_pulser_dict = {
+        adressed_basis: {
+            TEST_QUBIT_IDS[1]: {
+                "amp": amp_tensor,
+                "det": det_tensor,
+                "phase": phase_tensor,
+            },
+            TEST_QUBIT_IDS[2]: {
+                "amp": amp_tensor,
+                "det": det_tensor,
+                "phase": phase_tensor,
+            },
+            TEST_QUBIT_IDS[0]: {
+                "amp": amp_tensor,
+                "det": det_tensor,
+                "phase": phase_tensor,
+            },
+        }
+    }
+
+    sample_instance = MagicMock()
+    sample_instance.to_nested_dict.return_value = {"Local": mock_pulser_dict}
+    mock_pulser_sample.return_value = sample_instance
+
+    interaction_matrix = torch.randn(3, 3, dtype=torch.float64)
+    sequence._slm_mask_time = []
+
+    random_collapse = torch.rand(2, 2, dtype=torch.complex128)
+    noise_model = NoiseModel(
+        depolarizing_rate=0.16,
+        dephasing_rate=0.005,
+        eff_noise_rates=(0.0036,),
+        eff_noise_opers=(random_collapse,),
+    )
+
+    ops = _get_all_lindblad_noise_operators(noise_model)
+
+    config = BackendConfig(noise_model=noise_model, interaction_matrix=interaction_matrix)
+
+    parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
+    omega, delta, phi = _extract_omega_delta_phi(sequence, dt, False)
+
+    assert torch.allclose(parsed_sequence.omega, omega)
+    assert torch.allclose(parsed_sequence.delta, delta)
+    assert torch.allclose(parsed_sequence.phi, phi)
+    assert torch.allclose(parsed_sequence.full_interaction_matrix, interaction_matrix)
+    assert parsed_sequence.slm_end_time == 0.0
+    assert parsed_sequence.hamiltonian_type == HamiltonianType.XY
+    assert len(parsed_sequence.lindblad_ops) == len(ops)
+    for i in range(len(ops)):
+        assert torch.allclose(ops[i], parsed_sequence.lindblad_ops[i])
+
+    sequence._slm_mask_time = [1.0, 10.0]
+
+    parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
+    omega, delta, phi = _extract_omega_delta_phi(sequence, dt, False)
+
+    assert torch.allclose(parsed_sequence.omega, omega)
+    assert torch.allclose(parsed_sequence.delta, delta)
+    assert torch.allclose(parsed_sequence.phi, phi)
+    assert torch.allclose(parsed_sequence.full_interaction_matrix, interaction_matrix)
+    assert parsed_sequence.slm_end_time == 10.0
+    assert parsed_sequence.hamiltonian_type == HamiltonianType.XY
+    assert len(parsed_sequence.lindblad_ops) == len(ops)
+    for i in range(len(ops)):
+        assert torch.allclose(ops[i], parsed_sequence.lindblad_ops[i])

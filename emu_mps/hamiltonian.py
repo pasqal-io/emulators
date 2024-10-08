@@ -3,23 +3,18 @@ This file deals with creation of the MPO corresponding
 to the Hamiltonian of a neutral atoms quantum processor.
 """
 
-from enum import Enum
-import pulser
+from emu_mps.pulser_adapter import HamiltonianType
 import torch
 
 from emu_mps.mpo import MPO
-from emu_mps.pulser_adapter import get_qubit_positions
-from emu_mps.utils import dist2, dist3
 
 dtype = torch.complex128  # always complex128
 iden_op = torch.eye(2, 2, dtype=dtype)  # dtype is always complex128
 n_op = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
 creation_op = torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype)
-
-
-class HamiltonianType(Enum):
-    Rydberg = 1
-    XY = 2
+sx = torch.tensor([[0.0, 0.5], [0.5, 0.0]], dtype=dtype)
+sy = torch.tensor([[0.0, -0.5j], [0.5j, 0.0]], dtype=dtype)
+pu = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
 
 
 def _first_factor_rydberg(gate: torch.Tensor) -> torch.Tensor:
@@ -79,8 +74,8 @@ def _left_factor_rydberg(gate: torch.Tensor, scales: list[float]) -> torch.Tenso
     index = len(scales)
     fac = torch.zeros(index + 2, 2, 2, index + 3, dtype=dtype)
     for i, val in enumerate(scales):
-        fac[i + 2, :, :, 0] = val * n_op  # XY interaction with previous qubits
-    fac[1, :, :, index + 2] = n_op  # XY interaction with next qubits
+        fac[i + 2, :, :, 0] = val * n_op  # interaction with previous qubits
+    fac[1, :, :, index + 2] = n_op  # interaction with next qubits
     for i in range(index + 2):
         fac[i, :, :, i] = iden_op  # identity matrix to carry the gates of other qubits
 
@@ -214,69 +209,14 @@ def _middle_factor_xy(
     return fac
 
 
-# TODO: interaction term should be selected according to Hamiltonian
-def rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
-    """
-    Computes the Ising interaction matrix from the qubit positions.
-    Hᵢⱼ=C₆/Rᵢⱼ⁶ (nᵢ⊗ nⱼ)
-    """
-
-    num_qubits = len(sequence.register.qubit_ids)
-
-    c6 = sequence.device.interaction_coeff
-
-    qubit_positions = get_qubit_positions(sequence.register)
-    interaction_matrix = torch.zeros(num_qubits, num_qubits)
-
-    for numi in range(len(qubit_positions)):
-        for numj in range(numi + 1, len(qubit_positions)):
-            interaction_matrix[numi][numj] = (
-                c6 / dist2(qubit_positions[numi], qubit_positions[numj]) ** 3
-            )
-            interaction_matrix[numj, numi] = interaction_matrix[numi, numj]
-    return interaction_matrix
-
-
-def xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
-    """
-    Computes the XY interaction matrix from the qubit positions.
-    C₃ (1−3 cos(𝜃ᵢⱼ)²)/ Rᵢⱼ³ (𝜎ᵢ⁺ 𝜎ⱼ⁻ +  𝜎ᵢ⁻ 𝜎ⱼ⁺)
-    """
-    num_qubits = len(sequence.register.qubit_ids)
-
-    c3 = sequence.device.interaction_coeff_xy
-
-    qubit_positions = get_qubit_positions(sequence.register)
-    interaction_matrix = torch.zeros(num_qubits, num_qubits)
-    mag_field = torch.tensor(sequence.magnetic_field)  # by default [0.0,0.0,30.0]
-    mag_norm = torch.norm(mag_field)
-
-    for numi in range(len(qubit_positions)):
-        for numj in range(numi + 1, len(qubit_positions)):
-            cosine = 0
-            if mag_norm >= 1e-8:  # selected by hand
-                cosine = torch.dot(
-                    (qubit_positions[numi] - qubit_positions[numj]), mag_field
-                ) / (torch.norm(qubit_positions[numi] - qubit_positions[numj]) * mag_norm)
-
-            interaction_matrix[numi][numj] = (
-                c3
-                * (1 - 3 * cosine**2)
-                / dist3(qubit_positions[numi], qubit_positions[numj])
-            )
-            interaction_matrix[numj, numi] = interaction_matrix[numi, numj]
-
-    return interaction_matrix
-
-
 def make_H(
     *,
     interaction_matrix: torch.tensor,  # depends on Hamiltonian Type
     omega: torch.Tensor,
     delta: torch.Tensor,
     phi: torch.Tensor,
+    hamiltonian_type: HamiltonianType,
     noise: torch.Tensor = torch.zeros(2, 2),
-    hamiltonian_type: HamiltonianType = HamiltonianType.Rydberg,
 ) -> MPO:
     r"""
     Constructs and returns a Matrix Product Operator (MPO) representing the
@@ -325,13 +265,9 @@ def make_H(
         _right_factor = _right_factor_xy
         _middle_factor = _middle_factor_xy
     else:
-        raise Exception("Not supported type of interaction")
+        raise ValueError(f"Unsupported hamiltonian type {hamiltonian_type}")
 
     nqubits = interaction_matrix.size(dim=1)
-
-    sx = torch.tensor([[0.0, 0.5], [0.5, 0.0]], dtype=dtype)
-    sy = torch.tensor([[0.0, -0.5j], [0.5j, 0.0]], dtype=dtype)
-    pu = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
 
     a = torch.tensordot(omega * torch.cos(phi), sx, dims=0)
     c = torch.tensordot(delta, pu, dims=0)

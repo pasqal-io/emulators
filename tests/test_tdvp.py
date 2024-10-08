@@ -3,7 +3,8 @@ from unittest.mock import MagicMock, patch
 import torch
 
 from emu_mps import MPO, MPS, inner
-from emu_mps.hamiltonian import make_H, rydberg_interaction
+from emu_mps.hamiltonian import make_H
+from emu_mps.pulser_adapter import _rydberg_interaction, HamiltonianType
 from emu_mps.math import krylov_exp
 from emu_mps.tdvp import apply_effective_Hamiltonian, evolve_tdvp, left_baths, right_baths
 
@@ -283,7 +284,7 @@ def test_evolve_tdvp():
     assert abs(inner(state, expected) - 1) < 1e-8
 
 
-@patch("emu_mps.hamiltonian.pulser.sequence.Sequence")
+@patch("emu_mps.pulser_adapter.pulser.sequence.Sequence")
 def test_tdvp_state_vector(mock_sequence):
     nqubits = 9
     c6 = 5420158.53  # mock device c6
@@ -311,10 +312,14 @@ def test_tdvp_state_vector(mock_sequence):
         abstract_q.append(mock_abstract)
     mock_register.qubits = dict(zip(qubits_ids, abstract_q))
     mock_sequence.register = mock_register
-    interaction_matrix = rydberg_interaction(mock_sequence)
+    interaction_matrix = _rydberg_interaction(mock_sequence)
 
     ham = make_H(
-        interaction_matrix=interaction_matrix, omega=omegas, delta=deltas, phi=phi
+        interaction_matrix=interaction_matrix,
+        omega=omegas,
+        delta=deltas,
+        phi=phi,
+        hamiltonian_type=HamiltonianType.Rydberg,
     )
 
     # |000000000>

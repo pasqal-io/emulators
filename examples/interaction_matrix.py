@@ -1,7 +1,4 @@
 # script that uses the interaction matrix instead of atmos positions
-
-import torch
-
 import numpy as np
 
 import pulser
@@ -12,15 +9,13 @@ from pulser.devices import AnalogDevice
 from emu_mps import MPS, MPSConfig, MPSBackend, StateResult, BitStrings, Fidelity
 
 # interaction matrix for 5 atoms
-interaction_matrix = torch.tensor(
-    [
-        [0.0000, 5.4202, 5.4202, 0.6775, 43.3613],
-        [5.4202, 0.0000, 0.6775, 5.4202, 43.3613],
-        [5.4202, 0.6775, 0.0000, 5.4202, 43.3613],
-        [0.6775, 5.4202, 5.4202, 0.0000, 43.3613],
-        [43.3613, 43.3613, 43.3613, 43.3613, 0.0000],
-    ]
-)
+interaction_matrix = [
+    [0.0000, 5.4202, 5.4202, 0.6775, 43.3613],
+    [5.4202, 0.0000, 0.6775, 5.4202, 43.3613],
+    [5.4202, 0.6775, 0.0000, 5.4202, 43.3613],
+    [0.6775, 5.4202, 5.4202, 0.0000, 43.3613],
+    [43.3613, 43.3613, 43.3613, 43.3613, 0.0000],
+]
 
 # Pulser setup for AFM state
 
