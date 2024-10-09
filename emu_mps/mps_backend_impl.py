@@ -7,6 +7,7 @@ import torch
 from pulser import Sequence
 
 from emu_mps.base_classes.results import Results
+from emu_mps.base_classes.state import State
 from emu_mps.hamiltonian import make_H
 from emu_mps.math.brents_root_finding import find_root_brents
 from emu_mps.mpo import MPO
@@ -23,22 +24,21 @@ from emu_mps.utils import (
 
 
 class MPSBackendImpl:
+    current_time: float = (
+        0.0  # While dt is an integer, noisy collapse can happen at non-integer times.
+    )
     well_prepared_qubits_filter: Optional[list[bool]]
     lindblad_ops: list[torch.Tensor]
     lindblad_noise: torch.Tensor
     hamiltonian: MPO
-    collapse_threshold: float
+    jump_threshold: float
     aggregated_lindblad_ops: Optional[torch.Tensor] = None
-    is_noisy: bool
+    has_lindblad_noise: bool
+    norm_gap_before_jump: float
+    state: MPS
 
     def __init__(self, sequence: Sequence, mps_config: MPSConfig):
-        self.sequence = sequence
         self.config = mps_config
-
-        self.dt = self.config.dt
-        self.current_time: float = (
-            0.0  # While dt is an integer, noisy collapse can happen at non-integer times.
-        )
         self.qubit_count = len(sequence.register.qubit_ids)
 
         assert (
@@ -49,29 +49,21 @@ class MPSBackendImpl:
             "the interaction matrix"
         )
 
-        parsed_sequence = PulserData(
-            sequence=sequence, config=mps_config, dt=mps_config.dt
-        )
-        self.omega = parsed_sequence.omega
-        self.delta = parsed_sequence.delta
-        self.phi = parsed_sequence.phi
+        pulser_data = PulserData(sequence=sequence, config=mps_config, dt=mps_config.dt)
+        self.omega = pulser_data.omega
+        self.delta = pulser_data.delta
+        self.phi = pulser_data.phi
         self.timestep_count = self.omega.shape[0]
-        self.interaction_matrix = parsed_sequence.full_interaction_matrix
-        self.masked_interaction_matrix = parsed_sequence.masked_interaction_matrix
-        self.hamiltonian_type = parsed_sequence.hamiltonian_type
-        self.slm_end_time = parsed_sequence.slm_end_time
-        self.lindblad_ops = parsed_sequence.lindblad_ops
+        self.full_interaction_matrix = pulser_data.full_interaction_matrix
+        self.masked_interaction_matrix = pulser_data.masked_interaction_matrix
+        self.hamiltonian_type = pulser_data.hamiltonian_type
+        self.slm_end_time = pulser_data.slm_end_time
+        self.lindblad_ops = pulser_data.lindblad_ops
 
-        self._init_dark_qubits()
-        self._init_lindblad_noise()
-
-        self.state = self.make_initial_state()
-
-    def _init_dark_qubits(self) -> None:
+    def init_dark_qubits(self) -> None:
         has_state_preparation_error: bool = (
             self.config.noise_model is not None
-            and "SPAM" in self.config.noise_model.noise_types
-            and self.config.noise_model.state_prep_error != 0.0
+            and self.config.noise_model.state_prep_error > 0.0
         )
 
         self.well_prepared_qubits_filter = (
@@ -83,7 +75,7 @@ class MPSBackendImpl:
         )
 
         if self.well_prepared_qubits_filter is not None:
-            self.interaction_matrix = self.interaction_matrix[
+            self.full_interaction_matrix = self.full_interaction_matrix[
                 self.well_prepared_qubits_filter, :
             ][:, self.well_prepared_qubits_filter]
             self.masked_interaction_matrix = self.masked_interaction_matrix[
@@ -93,48 +85,71 @@ class MPSBackendImpl:
             self.delta = self.delta[:, self.well_prepared_qubits_filter]
             self.phi = self.phi[:, self.well_prepared_qubits_filter]
 
-    def _init_lindblad_noise(self) -> None:
-        self.is_noisy = self.lindblad_ops != []
+    def init_lindblad_noise(self) -> None:
+        self.has_lindblad_noise = self.lindblad_ops != []
 
-        if self.is_noisy:
+        if self.has_lindblad_noise:
             stacked = torch.stack(self.lindblad_ops)
             # The below is used for batch computation of noise collapse weights.
             self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
 
         self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
-        self.collapse_threshold = random.random()
+        self.jump_threshold = random.random()
+        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
 
-    def make_initial_state(self) -> MPS:
-        if self.config.initial_state is None:
+    def init_initial_state(self, initial_state: State | None) -> None:
+        if initial_state is None:
             well_prepared_qubits_count: int = (
                 self.qubit_count
                 if self.well_prepared_qubits_filter is None
                 else sum(1 for x in self.well_prepared_qubits_filter if x)
             )
 
-            return MPS.make(
+            self.state = MPS.make(
                 well_prepared_qubits_count,
                 precision=self.config.precision,
                 max_bond_dim=self.config.max_bond_dim,
                 num_gpus_to_use=self.config.num_gpus_to_use,
             )
+            return
 
         if self.well_prepared_qubits_filter is not None:
             raise NotImplementedError(
-                "Specifying the initial state in the presence of state \
-                    preparation errors is currently not implemented."
+                "Specifying the initial state in the presence "
+                "of state preparation errors is currently not implemented."
             )
 
-        assert isinstance(self.config.initial_state, MPS)
+        assert isinstance(initial_state, MPS)
         initial_state = MPS(
             # Deep copy of every tensor of the initial state.
-            [f.clone().detach() for f in self.config.initial_state.factors],
+            [f.clone().detach() for f in initial_state.factors],
             precision=self.config.precision,
             max_bond_dim=self.config.max_bond_dim,
             num_gpus_to_use=self.config.num_gpus_to_use,
         )
         initial_state.truncate()
-        return initial_state
+        initial_state *= 1 / initial_state.norm()
+        self.state = initial_state
+
+    def evolve_to_time(self, intermediate_time: float) -> float:
+        """
+        Internal method to evolve the state to `intermediate_time`
+        with the FIXED current self.hamiltonian.
+        Sets and returns the relative distance to the quantum jump threshold.
+        """
+        _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
+        delta_time = intermediate_time - self.current_time
+        evolve_tdvp(
+            t=-_TIME_CONVERSION_COEFF * delta_time * 1j,
+            state=self.state,
+            hamiltonian=self.hamiltonian,
+            extra_krylov_tolerance=self.config.extra_krylov_tolerance,
+            max_krylov_dim=self.config.max_krylov_dim,
+            is_hermitian=not self.has_lindblad_noise,
+        )
+        self.current_time = intermediate_time
+        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+        return self.norm_gap_before_jump
 
     def do_time_step(self, step: int) -> None:
         """
@@ -143,7 +158,7 @@ class MPSBackendImpl:
         interaction_matrix = (
             self.masked_interaction_matrix
             if self.current_time < self.slm_end_time
-            else self.interaction_matrix
+            else self.full_interaction_matrix
         )
 
         self.hamiltonian = make_H(
@@ -155,71 +170,60 @@ class MPSBackendImpl:
             noise=self.lindblad_noise,
         )
 
-        _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
-
-        target_time = float((step + 1) * self.dt)
+        target_time = float((step + 1) * self.config.dt)
         while self.current_time != target_time:
             assert self.current_time < target_time
 
             time_at_begin = self.current_time
-            squared_norm_at_begin = self.state.norm() ** 2
-            assert not self.is_noisy or self.collapse_threshold <= squared_norm_at_begin
+            norm_gap_at_begin = self.norm_gap_before_jump
+            assert not self.has_lindblad_noise or norm_gap_at_begin >= 0.0
 
-            def evolve_to_time(intermediate_time: float) -> float:
-                delta = intermediate_time - self.current_time
-                evolve_tdvp(
-                    t=-_TIME_CONVERSION_COEFF * delta * 1j,
-                    state=self.state,
-                    hamiltonian=self.hamiltonian,
-                    extra_krylov_tolerance=self.config.extra_krylov_tolerance,
-                    max_krylov_dim=self.config.max_krylov_dim,
-                    is_hermitian=not self.is_noisy,
-                )
-                self.current_time = intermediate_time
-                return self.state.norm() ** 2 - self.collapse_threshold
+            norm_gap_at_target_time = self.evolve_to_time(target_time)
 
-            delta_collapse = evolve_to_time(target_time)
-
-            if self.is_noisy and delta_collapse < 0:
+            should_jump: bool = self.has_lindblad_noise and norm_gap_at_target_time < 0
+            if should_jump:
+                # Evolve to the intermediate time between self.current_time and target_time
+                # where the jump should occur. That corresponds to self.evolve_to_time(t_jump) == 0.
                 find_root_brents(
-                    f=evolve_to_time,
+                    f=self.evolve_to_time,
                     start=time_at_begin,
+                    f_start=norm_gap_at_begin,
                     end=target_time,
-                    f_start=squared_norm_at_begin - self.collapse_threshold,
-                    f_end=delta_collapse,
+                    f_end=norm_gap_at_target_time,
                     tolerance=1.0,
                 )
-                self.random_noise_collapse()
+                self.do_random_quantum_jump()
 
         assert self.current_time == target_time
 
-    def random_noise_collapse(self) -> None:
-        collapse_weights = self.state.expect_batch(self.aggregated_lindblad_ops).real
+    def do_random_quantum_jump(self) -> None:
+        jump_operator_weights = self.state.expect_batch(self.aggregated_lindblad_ops).real
 
-        ((collapsed_qubit_index, collapse_operator),) = random.choices(
+        jumped_qubit_index, jump_operator = random.choices(
             [
                 (qubit, op)
                 for qubit in range(self.state.num_sites)
                 for op in self.lindblad_ops
             ],
-            collapse_weights.reshape(-1),
-        )
+            weights=jump_operator_weights.reshape(-1),
+        )[0]
 
-        self.state.apply(collapsed_qubit_index, collapse_operator)
-        self.state = (1 / self.state.norm()) * self.state
+        self.state.apply(jumped_qubit_index, jump_operator)
+        self.state *= 1 / self.state.norm()
 
         norm_after_normalizing = self.state.norm()
         assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
-        self.collapse_threshold = random.uniform(0.0, norm_after_normalizing**2)
+        self.jump_threshold = random.uniform(0.0, norm_after_normalizing**2)
+        self.norm_gap_before_jump = norm_after_normalizing**2 - self.jump_threshold
 
     def fill_results(self, results: Results, step: int) -> None:
-        t = (step + 1) * self.dt  # we are now after the time-step, so use step+1
+        t = (step + 1) * self.config.dt  # we are now after the time-step, so use step+1
 
         noiseless_hamiltonian = (
             self.hamiltonian
-            if not self.is_noisy
+            if not self.has_lindblad_noise
             else make_H(
-                interaction_matrix=self.interaction_matrix,
+                interaction_matrix=self.full_interaction_matrix,
                 omega=self.omega[step, :],
                 delta=self.delta[step, :],
                 phi=self.phi[step, :],

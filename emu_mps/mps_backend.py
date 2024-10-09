@@ -32,6 +32,9 @@ class MPSBackend(Backend):
         results = Results()
 
         impl = MPSBackendImpl(sequence, mps_config)
+        impl.init_dark_qubits()
+        impl.init_initial_state(mps_config.initial_state)
+        impl.init_lindblad_noise()
 
         for step in range(impl.timestep_count):
             start = time()

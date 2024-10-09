@@ -345,6 +345,9 @@ class MPS(State):
             orthogonality_center=self.orthogonality_center,
         )
 
+    def __imul__(self, scalar: complex) -> MPS:
+        return self.__rmul__(scalar)
+
     @staticmethod
     def from_state_string(
         *,

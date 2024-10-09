@@ -62,9 +62,12 @@ def simulate(
     if state_prep_error > 0.0 or p_false_pos > 0.0 or p_false_neg > 0.0:
         assert noise_model is None, "Provide either noise_model or SPAM values"
 
+        runs_args = (
+            {"runs": 1, "samples_per_run": 1} if state_prep_error > 0.0 else {}
+        )  # Avoid Pulser warning
+
         noise_model = pulser.noise_model.NoiseModel(
-            runs=1,
-            samples_per_run=1,
+            **runs_args,
             state_prep_error=state_prep_error,
             p_false_pos=p_false_pos,
             p_false_neg=p_false_neg,
