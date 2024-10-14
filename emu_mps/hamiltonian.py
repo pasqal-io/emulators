@@ -67,14 +67,15 @@ def _last_factor_xy(gate: torch.Tensor, scale: float | complex) -> torch.Tensor:
     return fac
 
 
-def _left_factor_rydberg(gate: torch.Tensor, scales: list[float]) -> torch.Tensor:
+def _left_factor_rydberg(gate: torch.Tensor, scales: torch.Tensor) -> torch.Tensor:
     """
     Creates the Ising Hamiltonian factors in the left half of the MPS, excepted the first factor.
     """
     index = len(scales)
     fac = torch.zeros(index + 2, 2, 2, index + 3, dtype=dtype)
-    for i, val in enumerate(scales):
-        fac[i + 2, :, :, 0] = val * n_op  # interaction with previous qubits
+    fac[2 : scales.shape[0] + 2, :, :, 0] = (
+        scales.reshape(-1, 1, 1) * n_op
+    )  # interaction with previous qubits
     fac[1, :, :, index + 2] = n_op  # interaction with next qubits
     for i in range(index + 2):
         fac[i, :, :, i] = iden_op  # identity matrix to carry the gates of other qubits
@@ -83,16 +84,19 @@ def _left_factor_rydberg(gate: torch.Tensor, scales: list[float]) -> torch.Tenso
     return fac
 
 
-def _left_factor_xy(gate: torch.Tensor, scales: list[float]) -> torch.Tensor:
+def _left_factor_xy(gate: torch.Tensor, scales: torch.Tensor) -> torch.Tensor:
     """
     Creates the XY Hamiltonian factors in the left half of the MPS, excepted the first factor.
     """
     index = len(scales)
     fac = torch.zeros(2 * index + 2, 2, 2, 2 * index + 4, dtype=dtype)
 
-    for i, val in enumerate(scales):
-        fac[2 * i + 2, :, :, 0] = val * creation_op.T  # sigma-
-        fac[2 * i + 3, :, :, 0] = val * creation_op  # sigma+
+    fac[2 : 2 * scales.shape[0] + 2 : 2, :, :, 0] = (
+        scales.reshape(-1, 1, 1) * creation_op.T
+    )  # sigma-
+    fac[3 : 2 * scales.shape[0] + 3 : 2, :, :, 0] = (
+        scales.reshape(-1, 1, 1) * creation_op
+    )  # sigma+
     fac[1, :, :, -2] = creation_op
     fac[1, :, :, -1] = creation_op.T
     for i in range(2 * index + 2):
@@ -102,14 +106,15 @@ def _left_factor_xy(gate: torch.Tensor, scales: list[float]) -> torch.Tensor:
     return fac
 
 
-def _right_factor_rydberg(gate: torch.Tensor, scales: list[float]) -> torch.Tensor:
+def _right_factor_rydberg(gate: torch.Tensor, scales: torch.Tensor) -> torch.Tensor:
     """
     Creates the Ising Hamiltonian factors in the right half of the MPS, excepted the last factor.
     """
     index = len(scales)
     fac = torch.zeros(index + 3, 2, 2, index + 2, dtype=dtype)
-    for i, val in enumerate(scales):
-        fac[1, :, :, i + 2] = val * n_op  # XY interaction with previous qubits
+    fac[1, :, :, 2 : scales.shape[0] + 2] = scales * n_op.reshape(
+        2, 2, 1
+    )  # XY interaction with previous qubits
     fac[2, :, :, 0] = n_op  # XY interaction with next qubits
     for i in range(2, index + 2):
         fac[i + 1, :, :, i] = iden_op
@@ -120,15 +125,18 @@ def _right_factor_rydberg(gate: torch.Tensor, scales: list[float]) -> torch.Tens
     return fac
 
 
-def _right_factor_xy(gate: torch.Tensor, scales: list[float]) -> torch.Tensor:
+def _right_factor_xy(gate: torch.Tensor, scales: torch.Tensor) -> torch.Tensor:
     """
     Creates the XY Hamiltonian factors in the right half of the MPS, excepted the last factor.
     """
     index = len(scales)
     fac = torch.zeros(2 * index + 4, 2, 2, 2 * index + 2, dtype=dtype)
-    for i, val in enumerate(scales):
-        fac[1, :, :, 2 * i + 2] = val * creation_op  # XY interaction with previous qubits
-        fac[1, :, :, 2 * i + 3] = val * creation_op.T
+    fac[1, :, :, 2 : 2 * scales.shape[0] + 2 : 2] = scales * creation_op.reshape(
+        2, 2, 1
+    )  # XY interaction with previous qubits
+    fac[1, :, :, 3 : 2 * scales.shape[0] + 3 : 2] = scales * creation_op.T.reshape(
+        2, 2, 1
+    )
     fac[2, :, :, 0] = creation_op.T  # s- with next qubits
     fac[3, :, :, 0] = creation_op  # s+ with next qubits
     for i in range(2, index + 2):
@@ -146,9 +154,9 @@ def _right_factor_xy(gate: torch.Tensor, scales: list[float]) -> torch.Tensor:
 
 def _middle_factor_rydberg(
     gate: torch.Tensor,
-    scales_l: list[float],
-    scales_r: list[float],
-    scales_mat: list[list[float]],
+    scales_l: torch.Tensor,
+    scales_r: torch.Tensor,
+    scales_mat: torch.Tensor,
 ) -> torch.Tensor:
     """
     Creates the Ising Hamiltonian factor at index ⌊n/2⌋ of the n-qubit MPO.
@@ -157,15 +165,18 @@ def _middle_factor_rydberg(
     assert all(len(x) == len(scales_r) for x in scales_mat)
 
     fac = torch.zeros(len(scales_l) + 2, 2, 2, len(scales_r) + 2, dtype=dtype)
-    for i, val in enumerate(scales_r):
-        fac[1, :, :, i + 2] = val * n_op  # rydberg interaction with previous qubits
-    for i, val in enumerate(scales_l):
-        fac[i + 2, :, :, 0] = val * n_op  # rydberg interaction with next qubits
-    for i, row in enumerate(scales_mat):
-        for j, val in enumerate(row):
-            fac[i + 2, :, :, j + 2] = (
-                val * iden_op
-            )  # rydberg interaction of previous with next qubits
+    fac[1, :, :, 2 : scales_r.shape[0] + 2] = scales_r * n_op.reshape(
+        2, 2, 1
+    )  # rydberg interaction with previous qubits
+    fac[2 : scales_l.shape[0] + 2, :, :, 0] = (
+        scales_l.reshape(-1, 1, 1) * n_op
+    )  # rydberg interaction with next qubits
+    x_shape, y_shape = scales_mat.shape
+    fac[2 : x_shape + 2, :, :, 2 : y_shape + 2] = scales_mat.reshape(
+        x_shape, 1, 1, y_shape
+    ) * iden_op.reshape(
+        1, 2, 2, 1
+    )  # rydberg interaction of previous with next qubits
     fac[0, :, :, 0] = iden_op  # identity to carry the next gates to the previous qubits
     fac[1, :, :, 1] = iden_op  # identity to carry previous gates to next qubits
 
@@ -175,9 +186,9 @@ def _middle_factor_rydberg(
 
 def _middle_factor_xy(
     gate: torch.Tensor,
-    scales_l: list[float],
-    scales_r: list[float],
-    scales_mat: list[list[float]],
+    scales_l: torch.Tensor,
+    scales_r: torch.Tensor,
+    scales_mat: torch.Tensor,
 ) -> torch.Tensor:
     """
     Creates the XY Hamiltonian factor at index ⌊n/2⌋ of the n-qubit MPO.
@@ -186,22 +197,29 @@ def _middle_factor_xy(
     assert all(len(x) == len(scales_r) for x in scales_mat)
 
     fac = torch.zeros(2 * len(scales_l) + 2, 2, 2, 2 * len(scales_r) + 2, dtype=dtype)
-    for i, val in enumerate(scales_r):
-        fac[1, :, :, 2 * i + 2] = val * creation_op  # XY interaction with previous qubits
-        fac[1, :, :, 2 * i + 3] = (
-            val * creation_op.T
-        )  # XY interaction with previous qubits
-    for i, val in enumerate(scales_l):
-        fac[2 * i + 2, :, :, 0] = val * creation_op.T  # XY interaction with next qubits
-        fac[2 * i + 3, :, :, 0] = val * creation_op  # XY interaction with next qubits
-    for i, row in enumerate(scales_mat):
-        for j, val in enumerate(row):
-            fac[2 * i + 2, :, :, 2 * j + 2] = (
-                val * iden_op
-            )  # XY interaction of previous with next qubits
-            fac[2 * i + 3, :, :, 2 * j + 3] = (
-                val * iden_op
-            )  # XY interaction of previous with next qubits
+    fac[1, :, :, 2 : 2 * scales_r.shape[0] + 2 : 2] = scales_r * creation_op.reshape(
+        2, 2, 1
+    )  # XY interaction with previous qubits
+    fac[1, :, :, 3 : 2 * scales_r.shape[0] + 3 : 2] = scales_r * creation_op.T.reshape(
+        2, 2, 1
+    )  # XY interaction with previous qubits
+    fac[2 : 2 * scales_l.shape[0] + 2 : 2, :, :, 0] = (
+        scales_l.reshape(-1, 1, 1) * creation_op.T
+    )  # XY interaction with next qubits
+    fac[3 : 2 * scales_l.shape[0] + 3 : 2, :, :, 0] = (
+        scales_l.reshape(-1, 1, 1) * creation_op
+    )  # XY interaction with next qubits
+    x_shape, y_shape = scales_mat.shape
+    fac[2 : 2 * x_shape + 2 : 2, :, :, 2 : 2 * y_shape + 2 : 2] = scales_mat.reshape(
+        x_shape, 1, 1, y_shape
+    ) * iden_op.reshape(
+        1, 2, 2, 1
+    )  # XY interaction of previous with next qubits
+    fac[3 : 2 * x_shape + 3 : 2, :, :, 3 : 2 * y_shape + 3 : 2] = scales_mat.reshape(
+        x_shape, 1, 1, y_shape
+    ) * iden_op.reshape(
+        1, 2, 2, 1
+    )  # XY interaction of previous with next qubits
     fac[0, :, :, 0] = iden_op  # identity to carry the next gates to the previous qubits
     fac[1, :, :, 1] = iden_op  # identity to carry previous gates to next qubits
 
@@ -268,6 +286,7 @@ def make_H(
         raise ValueError(f"Unsupported hamiltonian type {hamiltonian_type}")
 
     nqubits = interaction_matrix.size(dim=1)
+    middle = nqubits // 2
 
     a = torch.tensordot(omega * torch.cos(phi), sx, dims=0)
     c = torch.tensordot(delta, pu, dims=0)
@@ -278,33 +297,30 @@ def make_H(
     cores = [_first_factor(single_qubit_terms[0])]
 
     if nqubits > 2:
-        for i in range(1, nqubits // 2):
+        for i in range(1, middle):
 
             cores.append(
                 _left_factor(
                     single_qubit_terms[i],
-                    [interaction_matrix[j, i] for j in range(i)],
+                    interaction_matrix[:i, i],
                 )
             )
 
-        i = nqubits // 2
+        i = middle
         cores.append(
             _middle_factor(
                 single_qubit_terms[i],
-                [interaction_matrix[j, i] for j in range(i)],
-                [interaction_matrix[i, j] for j in range(i + 1, nqubits)],
-                [
-                    [interaction_matrix[k, j] for j in range(i + 1, nqubits)]
-                    for k in range(i)
-                ],
+                interaction_matrix[:i, i],
+                interaction_matrix[i, i + 1 :],
+                interaction_matrix[:i, i + 1 :],
             )
         )
 
-        for i in range(nqubits // 2 + 1, nqubits - 1):
+        for i in range(middle + 1, nqubits - 1):
             cores.append(
                 _right_factor(
                     single_qubit_terms[i],
-                    [interaction_matrix[i, j] for j in range(i + 1, nqubits)],
+                    interaction_matrix[i, i + 1 :],
                 )
             )
 
