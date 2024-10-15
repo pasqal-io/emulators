@@ -261,7 +261,9 @@ class MPSBackendImpl:
 
             callback(self.config, t, full_state, full_mpo, results)
 
-    def log_step_statistics(self, *, step: int, duration: float) -> None:
+    def log_step_statistics(
+        self, results: Results, *, step: int, duration: float
+    ) -> None:
         if self.state.factors[0].is_cuda:
             max_mem_per_device = (
                 torch.cuda.max_memory_allocated(device) * 1e-6
@@ -277,4 +279,20 @@ class MPSBackendImpl:
             + f"|ψ| = {self.state.get_memory_footprint():.3f} MB, "
             + f"RSS = {max_mem:.3f} MB, "
             + f"Δt = {duration:.3f} s"
+        )
+
+        if results.statistics is None:
+            assert step == 0
+            results.statistics = {"steps": []}
+
+        assert "steps" in results.statistics
+        assert len(results.statistics["steps"]) == step
+
+        results.statistics["steps"].append(
+            {
+                "max_bond_dimension": self.state.get_max_bond_dim(),
+                "memory_footprint": self.state.get_memory_footprint(),
+                "RSS": max_mem,
+                "duration": duration,
+            }
         )

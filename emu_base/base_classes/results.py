@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any
+from pathlib import Path
+import json
 
 
 @dataclass
@@ -9,6 +11,8 @@ class Results:
     an emulator are defined through callbacks, the contents of this class
     are not known a-priori.
     """
+
+    statistics: Any = None  # Backend-specific data
 
     _results: dict[str, dict[int, Any]] = field(default_factory=dict)
 
@@ -85,3 +89,13 @@ class Results:
 
         """
         return self._results[name][time]
+
+    def dump(self, file_path: Path) -> None:
+        with file_path.open("w") as file_handle:
+            json.dump(
+                {
+                    "observables": self._results,
+                    "statistics": self.statistics,
+                },
+                file_handle,
+            )

@@ -1,13 +1,18 @@
-import numpy as np
+import math
 from pulser import Pulse, Sequence, Register
 from pulser.waveforms import ConstantWaveform, RampWaveform, CompositeWaveform
 from pulser.devices import MockDevice, AnalogDevice
 
 
-def make_adiabatic_afm_state_2d_seq(rows: int, columns: int, perm_map: list = None):
+# All sequences use MockDevice to be free from device-related spacing constraints.
+
+
+def make_adiabatic_afm_state_2d_seq(
+    rows: int, columns: int, perm_map: list = None
+) -> Sequence:
     # from https://pulser.readthedocs.io/en/stable/tutorials/afm_prep.html
     # parameters in rad/µs and ns
-    Omega_max = 2.0 * 2 * np.pi
+    Omega_max = 2.0 * 2 * math.pi
     U = Omega_max / 2.0
 
     delta_0 = -6 * U
@@ -15,7 +20,7 @@ def make_adiabatic_afm_state_2d_seq(rows: int, columns: int, perm_map: list = No
 
     t_rise = 500
     t_fall = 1000
-    t_sweep = (delta_f - delta_0) / (2 * np.pi * 10) * 3000
+    t_sweep = (delta_f - delta_0) / (2 * math.pi * 10) * 3000
 
     R_interatomic = MockDevice.rydberg_blockade_radius(U)
     reg = Register.rectangle(rows, columns, R_interatomic, prefix="q")
@@ -39,7 +44,7 @@ def make_adiabatic_afm_state_2d_seq(rows: int, columns: int, perm_map: list = No
     return seq
 
 
-def make_quench_2d_seq(nx: int, ny: int):
+def make_quench_2d_seq(nx: int, ny: int) -> Sequence:
     # Hamiltonian parameters as ratios of J_max
     hx = 1.5  # hx/J_max
     hz = 0  # hz/J_max
@@ -54,23 +59,22 @@ def make_quench_2d_seq(nx: int, ny: int):
     NN_coeff = U / 4
     omega = 2 * hx * NN_coeff
     delta = -2 * hz * NN_coeff + 2 * U
-    T = np.round(1000 * t / NN_coeff)
+    T = round(1000 * t / NN_coeff)
 
-    seq = Sequence(reg, MockDevice)  # circumvent the register spacing constraints
+    seq = Sequence(reg, MockDevice)
     seq.declare_channel("ising", "rydberg_global")
 
-    # Add the main pulse to the pulse sequence
     simple_pulse = Pulse.ConstantPulse(T, omega, delta, 0)
     seq.add(simple_pulse, "ising")
     return seq
 
 
-def make_adiabatic_afm_state_1d_seq(N: int, perm_map=None):
+def make_adiabatic_afm_state_1d_seq(N: int, perm_map=None) -> Sequence:
     # from https://pulser.readthedocs.io/en/stable/tutorials/1D_crystals.html
     # parameters in rad/µs and ns
-    Omega_max = 2 * 2 * np.pi
-    delta_0 = -6 * 2 * np.pi
-    delta_f = 10 * 2 * np.pi
+    Omega_max = 2 * 2 * math.pi
+    delta_0 = -6 * 2 * math.pi
+    delta_f = 10 * 2 * math.pi
     t_rise = 500
     t_stop = 4500
 

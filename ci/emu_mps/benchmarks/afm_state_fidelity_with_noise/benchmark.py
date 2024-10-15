@@ -1,5 +1,4 @@
 from pathlib import Path
-import pulser
 import pulser_simulation
 import matplotlib.pyplot as plt
 from multiprocessing import Pool, cpu_count
@@ -9,7 +8,6 @@ import torch
 import emu_mps
 import os
 import statistics
-
 import pulser.noise_model
 
 torch.set_num_threads(1)
@@ -17,163 +15,169 @@ torch.set_num_threads(1)
 script_dir = Path(__file__).parent
 res_dir = script_dir / "results"
 res_dir.mkdir(exist_ok=True)
-# store all additional benchmark results in /log
-log_dir = res_dir / "log"
-log_dir.mkdir(exist_ok=True)
 
 title = "Adiabatic AFM state 2d Fidelity - CPU - with depolarizing noise"
 print(f"Starting {title} benchmark")
 
-try:
-    rows, columns = 2, 2
-    qubit_count = rows * columns
+rows, columns = 2, 2
+qubit_count = rows * columns
 
-    seq = make_adiabatic_afm_state_2d_seq(rows, columns)
-    observables_dt = 10.0
-    output_name = "afm_state_fidelity_with_noise.json"
+seq = make_adiabatic_afm_state_2d_seq(rows, columns)
+observables_dt = 10
 
-    backend = emu_mps.MPSBackend()
-    emumps_sample_times = [
-        observables_dt * (i + 1) for i in range(int(seq.get_duration() / observables_dt))
-    ]
-    obs = [
-        emu_mps.Energy(evaluation_times=emumps_sample_times),
-        emu_mps.SecondMomentOfEnergy(evaluation_times=emumps_sample_times),
-        emu_mps.QubitDensity(
-            evaluation_times=emumps_sample_times, basis={"r", "g"}, nqubits=4
-        ),
-    ]
+backend = emu_mps.MPSBackend()
+evaluation_times = set(range(observables_dt, seq.get_duration(), observables_dt))
+observables = [
+    emu_mps.Energy(evaluation_times=evaluation_times),
+    emu_mps.SecondMomentOfEnergy(evaluation_times=evaluation_times),
+    emu_mps.QubitDensity(evaluation_times=evaluation_times, basis=("r", "g"), nqubits=4),
+]
 
-    emumps_total = {}
-    pulser_total = {}
-    nruns = 100  # Number of runs for aggregating monte carlo results.
-    dt = 5
-    precision = 1e-6
+emu_mps_results = {}
+pulser_total = {}
+nruns = 100  # Number of runs for aggregating monte carlo results.
+dt = 5
+precision = 1e-6
 
-    depolarizing_rates = [0.2, 0.5]
-    for depolarizing_rate in depolarizing_rates:
-        noise_model = pulser.noise_model.NoiseModel(
-            depolarizing_rate=depolarizing_rate,
-        )
+depolarizing_rates = [0.2, 0.5]
+for depolarizing_rate in depolarizing_rates:
+    noise_model = pulser.noise_model.NoiseModel(
+        depolarizing_rate=depolarizing_rate,
+    )
 
+    aggregated_results = {}
+
+    def do_run(run_index):
         config = emu_mps.MPSConfig(
             num_gpus_to_use=0,
             dt=dt,
             precision=precision,
-            observables=obs,
+            observables=observables,
             noise_model=noise_model,
+            log_file=res_dir
+            / f"log_depolarizing_rate={depolarizing_rate}_run={run_index}.log",
         )
+        return backend.run(seq, config)
 
-        emumps_res = {}
+    processes_count = int(os.environ.get("SLURM_JOB_CPUS_PER_NODE", cpu_count())) - 1
 
-        def do_run(run_index):
-            return backend.run(seq, config)
+    with Pool(processes=processes_count) as pool:
+        monte_carlo_results = pool.map(do_run, range(nruns))
 
-        processes_count = int(os.environ.get("SLURM_JOB_CPUS_PER_NODE", cpu_count())) - 1
+    aggregated_results["energy"] = {
+        t: statistics.fmean(res["energy"][t] for res in monte_carlo_results)
+        for t in evaluation_times
+    }
 
-        with Pool(processes=processes_count) as pool:
-            results = pool.map(do_run, range(nruns))
+    aggregated_results["second_moment_of_energy"] = {
+        t: statistics.fmean(
+            res["second_moment_of_energy"][t] for res in monte_carlo_results
+        )
+        for t in evaluation_times
+    }
 
-        emumps_res["energy"] = [
-            statistics.fmean(res["energy"][t] for res in results)
-            for t in emumps_sample_times
-        ]
-
-        emumps_res["second_moment_of_energy"] = [
-            statistics.fmean(res["second_moment_of_energy"][t] for res in results)
-            for t in emumps_sample_times
-        ]
-
-        emumps_res["qubit_density"] = [
-            tuple(
-                statistics.fmean(res["qubit_density"][t][qubit_index] for res in results)
-                for qubit_index in range(qubit_count)
+    aggregated_results["qubit_density"] = {
+        t: tuple(
+            statistics.fmean(
+                res["qubit_density"][t][qubit_index] for res in monte_carlo_results
             )
-            for t in emumps_sample_times
-        ]
-
-        emumps_res["energy_variance"] = [
-            second_moment_of_energy - energy**2
-            for second_moment_of_energy, energy in zip(
-                emumps_res["second_moment_of_energy"], emumps_res["energy"]
-            )
-        ]
-
-        _, pulser_res = run_with_pulser(
-            seq,
-            output_dir=str(log_dir),
-            output_name=output_name,
-            timestep=dt,
-            skip_write_output=False,
-            sim_config=pulser_simulation.SimConfig.from_noise_model(noise_model),
+            for qubit_index in range(qubit_count)
         )
+        for t in evaluation_times
+    }
 
-        emumps_total[depolarizing_rate] = emumps_res
-        pulser_total[depolarizing_rate] = pulser_res
-
-    pulser_t = pulser_total[depolarizing_rates[0]]["time"][:-1]
-
-    fig = plt.figure(figsize=(8, 5), layout="constrained")
-    fig.suptitle(title)
-
-    axs = fig.subplots(2, 2, sharex=True)
-
-    # energies
-    for rate, emumps_res in emumps_total.items():
-        axs[0, 0].plot(emumps_sample_times, emumps_res["energy"], label=f"emumps_{rate}")
-    for rate, pulser_res in pulser_total.items():
-        axs[0, 0].plot(pulser_t, pulser_res["energy"][:-1], label=f"Pulser_{rate}")
-    axs[0, 0].set_ylabel("Energy")
-    axs[0, 0].legend()
-
-    # variance
-    for rate, emumps_res in emumps_total.items():
-        axs[1, 0].plot(
-            emumps_sample_times, emumps_res["energy_variance"], label=f"emumps_{rate}"
+    assert (
+        aggregated_results["second_moment_of_energy"].keys()
+        == aggregated_results["energy"].keys()
+    )
+    aggregated_results["energy_variance"] = {
+        t: second_moment_of_energy - energy**2
+        for (t, second_moment_of_energy), (_, energy) in zip(
+            aggregated_results["second_moment_of_energy"].items(),
+            aggregated_results["energy"].items(),
         )
-    for rate, pulser_res in pulser_total.items():
-        axs[1, 0].plot(pulser_t, pulser_res["varianceH"][:-1], label=f"Pulser_{rate}")
-    axs[1, 0].set_ylabel("$\\Delta E$")
-    axs[1, 0].set_xlabel("time [ns]")
-    axs[1, 0].legend()
+    }
 
-    # qubit density
-    for rate, emumps_res in emumps_total.items():
-        axs[0, 1].plot(
-            emumps_sample_times,
-            [x[0] for x in emumps_res["qubit_density"]],
-            label=f"emumps_{rate}",
-        )
-    for rate, pulser_res in pulser_total.items():
-        axs[0, 1].plot(
-            pulser_t,
-            [x[0] for x in pulser_res["qubitDensity"]][:-1],
-            label=f"Pulser_{rate}",
-        )
-    axs[0, 1].set_ylabel("q[0] density")
-    axs[0, 1].set_xlabel("time [ns]")
-    axs[0, 1].legend()
+    output_name = f"afm_state_fidelity_with_noise_{depolarizing_rate}.json"
+    pulser_res = run_with_pulser(
+        seq,
+        timestep=dt,
+        sim_config=pulser_simulation.SimConfig.from_noise_model(noise_model),
+        output_file=res_dir / f"pulser_obs_{output_name}",
+    )
 
-    for rate, emumps_res in emumps_total.items():
-        axs[1, 1].plot(
-            emumps_sample_times,
-            [x[2] for x in emumps_res["qubit_density"]],
-            label=f"emumps_{rate}",
-        )
-    for rate, pulser_res in pulser_total.items():
-        axs[1, 1].plot(
-            pulser_t,
-            [x[2] for x in pulser_res["qubitDensity"]][:-1],
-            label=f"Pulser_{rate}",
-        )
-    axs[1, 1].set_ylabel("q[2] density")
-    axs[1, 1].set_xlabel("time [ns]")
-    axs[1, 1].legend()
+    emu_mps_results[depolarizing_rate] = aggregated_results
+    pulser_total[depolarizing_rate] = pulser_res
 
-    plt.savefig(res_dir / f"{res_dir.parent.name}.png")
+fig = plt.figure(figsize=(8, 5), layout="constrained")
+fig.suptitle(title)
 
-except Exception:
-    raise
-finally:
-    Path.touch(res_dir / "DONE")
-    print(f"{title} benchmark DONE!")
+axs = fig.subplots(2, 2, sharex=True)
+
+# energies
+for rate, aggregated_results in emu_mps_results.items():
+    times, energies = zip(*sorted(aggregated_results["energy"].items()))
+    axs[0, 0].plot(
+        times,
+        energies,
+        label=f"EMU-MPS λ={rate}",
+    )
+for rate, pulser_res in pulser_total.items():
+    axs[0, 0].plot(
+        pulser_res["energy"].keys(),
+        pulser_res["energy"].values(),
+        label=f"Pulser λ={rate}",
+    )
+axs[0, 0].set_ylabel("Energy")
+axs[0, 0].legend()
+
+# variance
+for rate, aggregated_results in emu_mps_results.items():
+    times, variances = zip(*sorted(aggregated_results["energy_variance"].items()))
+    axs[1, 0].plot(
+        times,
+        variances,
+        label=f"EMU-MPS λ={rate}",
+    )
+for rate, pulser_res in pulser_total.items():
+    axs[1, 0].plot(
+        pulser_res["energy_variance"].keys(),
+        pulser_res["energy_variance"].values(),
+        label=f"Pulser λ={rate}",
+    )
+axs[1, 0].set_ylabel("$\\Delta E$")
+axs[1, 0].set_xlabel("time [ns]")
+axs[1, 0].legend()
+
+# qubit density
+for rate, aggregated_results in emu_mps_results.items():
+    times, densities = zip(*sorted(aggregated_results["qubit_density"].items()))
+    axs[0, 1].plot(
+        times,
+        [x[0] for x in densities],
+        label=f"emumps_{rate}",
+    )
+    axs[1, 1].plot(
+        times,
+        [x[2] for x in densities],
+        label=f"emumps_{rate}",
+    )
+for rate, pulser_res in pulser_total.items():
+    axs[0, 1].plot(
+        pulser_res["qubit_density"].keys(),
+        [x[0] for x in pulser_res["qubit_density"].values()],
+        label=f"Pulser_{rate}",
+    )
+    axs[1, 1].plot(
+        pulser_res["qubit_density"].keys(),
+        [x[2] for x in pulser_res["qubit_density"].values()],
+        label=f"Pulser_{rate}",
+    )
+axs[0, 1].set_ylabel("q[0] density")
+axs[0, 1].set_xlabel("time [ns]")
+axs[0, 1].legend()
+axs[1, 1].set_ylabel("q[2] density")
+axs[1, 1].set_xlabel("time [ns]")
+axs[1, 1].legend()
+
+plt.savefig(res_dir / f"{res_dir.parent.name}.png")

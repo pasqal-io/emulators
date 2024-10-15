@@ -42,6 +42,6 @@ class MPSBackend(Backend):
             impl.fill_results(results, step)
 
             end = time()
-            impl.log_step_statistics(step=step, duration=end - start)
+            impl.log_step_statistics(results, step=step, duration=end - start)
 
         return results

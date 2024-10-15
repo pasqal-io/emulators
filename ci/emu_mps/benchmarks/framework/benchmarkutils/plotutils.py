@@ -1,27 +1,43 @@
 from pathlib import Path
-import json
 import matplotlib.pyplot as plt
-import numpy as np
+from emu_base.base_classes.results import Results
+import statistics
 
 labels = {
-    "χ": "$\\chi$",
-    "|ψ|": "$|\\psi|$ [MiB]",
+    "max_bond_dimension": "$\\chi$",
+    "memory_footprint": "$|\\psi|$ [MiB]",
     "RSS": "RSS [MB]",
-    "Δt": "$\\Delta t$ [s]",
+    "duration": "$\\Delta t$ [s]",
+    "time": "time [ns]",
+    "energy": "Energy",
+    "energy_variance": "$\\Delta E$",
+    "qubit_density_mean": "$\\langle P_{r}\\rangle$",
+    "qubit_density": lambda qubit_index: "$\\langle P_{r}^{"
+    + f"{qubit_index}"
+    + "}\\rangle$",
+    "step": "step",
 }
 max_labels = {
-    "χ": "max($\\chi$)",
-    "|ψ|": "max($|\\psi|$) [MiB]",
+    "max_bond_dimension": "max($\\chi$)",
+    "memory_footprint": "max($|\\psi|$) [MiB]",
     "RSS": "max(RSS) [MB]",
-    "runtime": "runtime [s]",
+    "duration": "runtime [s]",
+}
+
+aggregators = {  # How to aggregate all steps of a given run.
+    "max_bond_dimension": max,
+    "memory_footprint": max,
+    "RSS": max,
+    "duration": sum,
 }
 
 
-def plot_performance_2d_benchmark(res_dir: Path, title: str):
+def plot_performance_2d_benchmark(
+    *, statistics: dict[tuple[int, int], Results], title: str, output: Path
+):
     """
-    Plot performance metrics of `Emu-TN` runs with different number of qubits.
+    Plot performance metrics of EMU-MPS runs with different number of qubits.
     """
-
     fig = plt.figure(figsize=(8, 6), layout="constrained")
     fig.suptitle(title)
 
@@ -31,192 +47,179 @@ def plot_performance_2d_benchmark(res_dir: Path, title: str):
     subfigs[1].suptitle("Performance vs N")
     axs = subfigs[1].subplots(4, 1, sharex=True)
 
-    dictname = res_dir.parent.parent.name
-    with open(res_dir / f"{dictname}.json", "r") as file:
-        res = json.load(file)
+    labels_to_plot = ["max_bond_dimension", "memory_footprint", "RSS", "duration"]
 
-    labels_to_plot = ["χ", "|ψ|", "RSS", "runtime"]
+    ns = [nx * ny for nx, ny in statistics.keys()]
     for i, label in enumerate(labels_to_plot):
-        axs[i].scatter(res["N"], res[label])
+        axs[i].scatter(
+            ns,
+            [
+                aggregators[label](
+                    step_statistics[label] for step_statistics in statistic["steps"]
+                )
+                for statistic in statistics.values()
+            ],
+        )
         axs[i].set_ylabel(max_labels[label])
     axs[-1].set_xlabel("N")
 
     # single run subfig
-    maxNx = res["maxNx"]
-    maxNy = res["maxNy"]
+    largest_grid = max(statistics.keys(), key=lambda grid_dim: grid_dim[0] * grid_dim[1])
+    largest_grid_step_statistics = statistics[largest_grid]["steps"]
 
-    subfigs[0].suptitle(f"single run - {maxNx}x{maxNy} register")
+    subfigs[0].suptitle(f"single run - {largest_grid[0]}x{largest_grid[1]} register")
     axs = subfigs[0].subplots(4, 1, sharex=True)
 
-    with open(res_dir / f"Nx{maxNx}Ny{maxNy}.json", "r") as file:
-        res = json.load(file)
+    step_count = len(largest_grid_step_statistics)
+    for i, label in enumerate(labels_to_plot):
+        axs[i].plot(
+            range(step_count),
+            [step_stat[label] for step_stat in largest_grid_step_statistics],
+        )
+        axs[i].set_ylabel(labels[label])
 
-    labels_to_plot = ["χ", "|ψ|", "RSS", "Δt"]
-    steps = res["step"]
-    axs[0].plot(steps, res["χ"])
-    axs[1].plot(steps, res["|ψ|"])
-    RSS = [el for el in res["RSS"]]
-    axs[2].plot(steps, RSS)
-    axs[3].plot(steps[1:-1], res["Δt"][1:-1])
-    for i, key in enumerate(labels_to_plot):
-        axs[i].set_ylabel(labels[key])
     axs[-1].set_xlabel("step")
 
-    plt.savefig(res_dir.parent / (dictname + ".png"))
-
-
-def plot_zero_noise_benchmark(results: dict, title: str, output_dir: Path):
-    """
-    Plot observables and performance comparison between the results
-    of simulations in `Emu-mps`.
-    """
-    fig = plt.figure(figsize=(8, 5), layout="constrained")
-    fig.suptitle(title)
-    subfigs = fig.subfigures(1, 2)
-
-    subfigs[0].suptitle("Observables")
-    axs = subfigs[0].subplots(4, 1, sharex=True)
-    for key, res_dict in results.items():
-        obs = res_dict["observables"]
-        time = obs["time"]
-        axs[0].plot(time, obs["energy"], label=key)
-        axs[1].plot(time, obs["varianceH"])
-        qubit_density = np.matrix(obs["qubitDensity"])
-        axs[2].plot(time, qubit_density.mean(1))
-        i = 1  # qubit to plot
-        axs[3].plot(time, qubit_density[:, i])
-
-    axs[0].set_ylabel("Energy")
-    axs[0].legend()
-    axs[1].set_ylabel("$\\Delta E$")
-    axs[2].set_ylabel("$\\langle P_{r}\\rangle$")
-    axs[3].set_ylabel("$\\langle P_{r}^{" + f"{i}" + "}\\rangle$")
-    axs[-1].set_xlabel("time [ns]")
-
-    subfigs[1].suptitle("Performance")
-    axs = subfigs[1].subplots(4, 1, sharex=True)
-    for key, res_dict in results.items():
-        perf = res_dict["performance"]
-        steps = perf["step"]
-        axs[0].plot(steps, perf["χ"])
-        axs[1].plot(steps, perf["|ψ|"])
-        RSS = [el - perf["RSS"][1] for el in perf["RSS"]]
-        axs[2].plot(steps, RSS)
-        axs[3].plot(steps[2:], perf["Δt"][2:])
-    axs[0].set_ylabel(labels["χ"])
-    axs[1].set_ylabel(labels["|ψ|"])
-    axs[2].set_ylabel(labels["RSS"])
-    axs[3].set_ylabel(labels["Δt"])
-    axs[-1].set_xlabel("steps")
-
-    plt.savefig(output_dir / f"{output_dir.parent.name}.png")
+    plt.savefig(output)
 
 
 def plot_fidelity_benchmark(
-    emutn_results: dict, pulser_res: dict, title: str, output_dir: Path
+    *, emu_mps_results: dict, pulser_results: dict, title: str, output_dir: Path
 ):
     """
-    Plot and save observables vs. time for the results of the simulation
-    in `Emu-mps` and in `Pulser`.
-    What to plot heavily depends on the benchmark.
+    Plot observables vs. time for the results of the simulation
+    in EMU-MPS and in Pulser.
     """
-    pulser_t = pulser_res["time"]
-
     fig = plt.figure(figsize=(8, 5), layout="constrained")
     fig.suptitle(title)
     subfigs = fig.subfigures(1, 2)
 
-    # subfigs[0].suptitle("Observables")
     axs = subfigs[0].subplots(2, 1, sharex=True)
 
-    # energies
-    for label, result in emutn_results.items():
-        emutn_t = list(result["energy"].keys())
-        axs[0].plot(emutn_t, list(result["energy"].values()), label=label)
-    axs[0].plot(pulser_t[:-1], pulser_res["energy"][:-1], label="Pulser")
-    axs[0].set_ylabel("Energy")
+    # energy
+    for label, result in emu_mps_results.items():
+        times = list(result["energy"].keys())
+        axs[0].plot(times, list(result["energy"].values()), label=label)
+    axs[0].plot(
+        pulser_results["energy"].keys(),
+        pulser_results["energy"].values(),
+        label="Pulser",
+    )
+    axs[0].set_ylabel(labels["energy"])
     axs[0].legend()
 
     # variance
-    for label, result in emutn_results.items():
-        emutn_t = list(result["energy_variance"].keys())
-        axs[1].plot(emutn_t, list(result["energy_variance"].values()), label=label)
-    axs[1].plot(pulser_t[:-1], pulser_res["varianceH"][:-1], label="Pulser")
-    axs[1].set_ylabel("$\\Delta E$")
-    axs[1].set_xlabel("time [ns]")
+    for label, result in emu_mps_results.items():
+        times = list(result["energy_variance"].keys())
+        axs[1].plot(times, list(result["energy_variance"].values()), label=label)
+    axs[1].plot(
+        pulser_results["energy_variance"].keys(),
+        pulser_results["energy_variance"].values(),
+        label="Pulser",
+    )
+    axs[1].set_ylabel(labels["energy_variance"])
+    axs[1].set_xlabel(labels["time"])
 
     axs = subfigs[1].subplots(4, 1, sharex=True)
-    # population
-    pulser_qbitdensity = np.array(pulser_res["qubitDensity"])
-    qubit_to_plot = [1, 3, 6, 9]
-    for i, q in enumerate(qubit_to_plot):
-        for label, result in emutn_results.items():
-            emutn_t = list(result["qubit_density"].keys())
-            emutn_qbitdensity = np.array(list(result["qubit_density"].values()))
-            axs[i].plot(emutn_t, emutn_qbitdensity[:, q - 1])
-        axs[i].plot(pulser_t, pulser_qbitdensity[:, q - 1])
-        axs[i].set_ylabel(f"$\\langle P_{0}^{ {q} } \\rangle$", rotation=0)
+
+    # qubit density
+    qubits_to_plot = [1, 3, 6, 9]
+    for i, qubit_index in enumerate(qubits_to_plot):
+        for label, result in emu_mps_results.items():
+            axs[i].plot(
+                result["qubit_density"].keys(),
+                [
+                    qubit_density[qubit_index - 1]
+                    for qubit_density in result["qubit_density"].values()
+                ],
+                label=label,
+            )
+        axs[i].plot(
+            pulser_results["qubit_density"].keys(),
+            [
+                qubit_density[qubit_index - 1]
+                for qubit_density in pulser_results["qubit_density"].values()
+            ],
+            label="Pulser",
+        )
+        axs[i].set_ylabel(labels["qubit_density"](qubit_index), rotation=0)
         axs[i].yaxis.set_label_coords(0.05, 0.6)
-    axs[-1].set_xlabel("time [ns]")
+    axs[-1].set_xlabel(labels["time"])
 
     plt.savefig(output_dir / f"{output_dir.parent.name}.png")
 
 
-def plot_qubit_shuffling_quench_benchmark(
-    results: dict, title: str, output_dir: Path, qubit_shuffling=False
+def plot_observables_and_performance(
+    all_results: dict, title: str, output_dir: Path, perm_maps=None
 ):
     """
     Plot observables and performance comparison between the results
-    of simulations in `Emu_mps` for both qubit shuffling and quench benchmarks.
+    of different EMU-MPS simulations.
     """
     fig = plt.figure(figsize=(10, 6), layout="constrained")
     fig.suptitle(title)
     subfigs = fig.subfigures(1, 2)
 
+    qubit_index_for_density = 3  # single qubit to plot
     subfigs[0].suptitle("Observables")
     axs = subfigs[0].subplots(4, 1, sharex=True)
-    for key, res_dict in results.items():
-        obs = res_dict["observables"]
-        time = list(obs["energy"].keys())
-        axs[0].plot(time, list(obs["energy"].values()), label=key)
-        axs[1].plot(time, list(obs["energy_variance"].values()))
-        qubit_density = np.matrix(list(obs["qubit_density"].values()))
-        axs[2].plot(time, qubit_density.mean(1))
-        i = 3  # qubit to plot
-        # Using perm_map only for shuffling benchmark
-        if qubit_shuffling:
-            perm_map = res_dict["perm_map"]
-            axs[3].plot(time, qubit_density[:, perm_map.index(i)])
-        else:
-            axs[3].plot(time, qubit_density[:, i])
 
-    tick_spacing = len(time) // 8
-    plt.xticks(time[::tick_spacing])
+    for label, results in all_results.items():
+        # Assuming all observables have same evaluation_times
+        axs[0].plot(results["energy"].keys(), results["energy"].values(), label=label)
+        axs[1].plot(
+            results["energy_variance"].keys(),
+            results["energy_variance"].values(),
+            label=label,
+        )
+        axs[2].plot(
+            results["qubit_density"].keys(),
+            [
+                statistics.mean(qubit_density)
+                for qubit_density in results["qubit_density"].values()
+            ],
+        )
+        axs[3].plot(
+            results["qubit_density"].keys(),
+            [
+                qubit_density[
+                    (
+                        qubit_index_for_density
+                        if perm_maps is None
+                        else perm_maps[label].index(qubit_index_for_density)
+                    )
+                ]
+                for qubit_density in results["qubit_density"].values()
+            ],
+            label=label,
+        )
 
-    axs[0].set_ylabel("Energy")
+    # FIXME: xticks
+
+    axs[0].set_ylabel(labels["energy"])
     axs[0].legend()
-    axs[1].set_ylabel("$\\Delta E$")
-    axs[2].set_ylabel("$\\langle P_{r}\\rangle$")
-    axs[3].set_ylabel("$\\langle P_{r}^{" + f"{i}" + "}\\rangle$")
-    axs[-1].set_xlabel("time [ns]")
+    axs[1].set_ylabel(labels["energy_variance"])
+    axs[2].set_ylabel(labels["qubit_density_mean"])
+    axs[3].set_ylabel(labels["qubit_density"](qubit_index_for_density))
+    axs[-1].set_xlabel(labels["time"])
 
     subfigs[0].align_ylabels(axs)
 
     subfigs[1].suptitle("Performance")
     axs = subfigs[1].subplots(4, 1, sharex=True)
-    for key, res_dict in results.items():
-        perf = res_dict["performance"]
-        steps = perf["step"]
-        axs[0].plot(steps, perf["χ"])
-        axs[1].plot(steps, perf["|ψ|"])
-        RSS = [el - perf["RSS"][0] for el in perf["RSS"]]
-        axs[2].plot(steps, RSS)
-        axs[3].plot(steps[2:], perf["Δt"][2:])
-    axs[0].set_ylabel(labels["χ"])
-    axs[1].set_ylabel(labels["|ψ|"])
+    for label, results in all_results.items():
+        steps = results.statistics["steps"]
+        xs = range(len(steps))
+        axs[0].plot(xs, [step["max_bond_dimension"] for step in steps])
+        axs[1].plot(xs, [step["memory_footprint"] for step in steps])
+        RSS = [step["RSS"] - steps[0]["RSS"] for step in steps]
+        axs[2].plot(xs, RSS)
+        axs[3].plot(xs, [step["duration"] for step in steps])
+    axs[0].set_ylabel(labels["max_bond_dimension"])
+    axs[1].set_ylabel(labels["memory_footprint"])
     axs[2].set_ylabel(labels["RSS"])
-    axs[3].set_ylabel(labels["Δt"])
-    axs[-1].set_xlabel("steps")
+    axs[3].set_ylabel(labels["duration"])
+    axs[-1].set_xlabel(labels["step"])
 
     subfigs[1].align_ylabels(axs)
 

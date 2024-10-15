@@ -1,44 +1,39 @@
 from pathlib import Path
-import subprocess
 from benchmarkutils.sequenceutils import make_adiabatic_afm_state_2d_seq
-from benchmarkutils.parseutils import (
-    parse_latest_log,
-    parse_benckmark_results_2d,
-)
 from benchmarkutils.plotutils import plot_performance_2d_benchmark
+import emu_mps
+import multiprocessing as mp
 
 script_dir = Path(__file__).parent
 res_dir = script_dir / "results"
 res_dir.mkdir(exist_ok=True)
-# store all additional benchmark results in /log
-log_dir = res_dir / "log"
-log_dir.mkdir(exist_ok=True)
 
 title = "Adiabatic AFM state 2d - CPU"
 print(f"Starting {title} benchmark")
 
-# loop over different registers, seqs, GPU, timesteps...
+backend = emu_mps.MPSBackend()
+
+statistics = mp.Manager().dict()
+
+
+def run_simulation(Nx, Ny):
+    seq = make_adiabatic_afm_state_2d_seq(Nx, Ny)
+    config = emu_mps.MPSConfig(num_gpus_to_use=0, log_file=res_dir / f"log_{Nx}x{Ny}.log")
+    results = backend.run(seq, mps_config=config)
+    results.dump(res_dir / f"results_{Nx}x{Ny}.json")
+    statistics[(Nx, Ny)] = results.statistics
+
+
 Nxs = [2, 3, 4, 5]
 Nys = [2, 3, 4, 5]
 for Nx in Nxs:
     for Ny in Nys:
-        # make Pulser sequence
-        seq = make_adiabatic_afm_state_2d_seq(Nx, Ny)
-        filename = f"Nx{Nx}Ny{Ny}"
-        log_file = log_dir / filename
-        print(f"\tRegister: {Nx}x{Ny} atoms")
-        with open(log_file, "w") as f:
-            subprocess.run(
-                [
-                    "python3",
-                    str(script_dir / "emuct_run.py"),
-                    seq.to_abstract_repr(),
-                ],
-                stdout=f,
-            )
+        # Run simulation in a separate process for correct measurement of ru_maxrss.
+        process = mp.Process(target=run_simulation, args=(Nx, Ny))
+        process.start()
+        process.join()
 
-        print("\t\tParsing logfile...")
-        parse_latest_log(log_file, output_name=filename)
 
-parse_benckmark_results_2d(log_dir, Nxs, Nys)
-plot_performance_2d_benchmark(log_dir, title)
+plot_performance_2d_benchmark(
+    statistics=statistics, title=title, output=res_dir / f"{script_dir.name}.png"
+)

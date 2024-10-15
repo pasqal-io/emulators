@@ -265,6 +265,7 @@ package_benchmark_artifacts:
   artifacts:
     name: all-benchmarks
     paths:
+      - "ci/emu_mps/benchmarks/**/*.log"
       - "ci/emu_mps/benchmarks/**/*.out"
       - "ci/emu_mps/benchmarks/**/*.png"
       - "ci/emu_mps/benchmarks/**/*.json"
