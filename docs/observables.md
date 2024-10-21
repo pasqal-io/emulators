@@ -6,31 +6,31 @@ Code snippets for doing this are available on the main page ([see here](index.md
 The following default observables are available:
 
 ## StateResult
-::: emu_mps.base_classes.default_callbacks.StateResult
+::: emu_base.base_classes.default_callbacks.StateResult
 
 ## BitStrings
-::: emu_mps.base_classes.default_callbacks.BitStrings
+::: emu_base.base_classes.default_callbacks.BitStrings
 
 ## Fidelity
-::: emu_mps.base_classes.default_callbacks.Fidelity
+::: emu_base.base_classes.default_callbacks.Fidelity
 
 ## Expectation
-::: emu_mps.base_classes.default_callbacks.Expectation
+::: emu_base.base_classes.default_callbacks.Expectation
 
 ## CorrelationMatrix
-::: emu_mps.base_classes.default_callbacks.CorrelationMatrix
+::: emu_base.base_classes.default_callbacks.CorrelationMatrix
 
 ## QubitDensity
-::: emu_mps.base_classes.default_callbacks.QubitDensity
+::: emu_base.base_classes.default_callbacks.QubitDensity
 
 ## Energy
-::: emu_mps.base_classes.default_callbacks.Energy
+::: emu_base.base_classes.default_callbacks.Energy
 
 ## SecondMomentOfEnergy
-::: emu_mps.base_classes.default_callbacks.SecondMomentOfEnergy
+::: emu_base.base_classes.default_callbacks.SecondMomentOfEnergy
 
 ## EnergyVariance
-::: emu_mps.base_classes.default_callbacks.EnergyVariance
+::: emu_base.base_classes.default_callbacks.EnergyVariance
 
 
 ## Defining your own observables

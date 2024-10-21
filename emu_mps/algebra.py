@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 import math
-import emu_mps.utils
+from emu_mps.utils import truncate_impl
 
 
 def add_factors(
@@ -146,6 +146,6 @@ def zip_right(
         new_factors.append(res)
     new_factors[-1] @= slider[:, :, 0]
 
-    emu_mps.utils.truncate_impl(new_factors, max_error=max_error, max_rank=max_rank)
+    truncate_impl(new_factors, max_error=max_error, max_rank=max_rank)
 
     return new_factors

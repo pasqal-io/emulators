@@ -16,7 +16,7 @@ from emu_mps import (
     QubitDensity,
     StateResult,
 )
-from emu_mps.base_classes.results import Results
+from emu_base import Results
 
 
 def test_state_result():

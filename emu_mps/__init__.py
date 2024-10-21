@@ -1,7 +1,5 @@
-from importlib.metadata import version
-
-from .base_classes.callback import Callback
-from .base_classes.default_callbacks import (
+from emu_base import (
+    Callback,
     BitStrings,
     CorrelationMatrix,
     Energy,
@@ -19,6 +17,7 @@ from .mps_config import MPSConfig
 
 
 __all__ = [
+    "__version__",
     "MPO",
     "MPS",
     "inner",
@@ -37,5 +36,4 @@ __all__ = [
     "SecondMomentOfEnergy",
 ]
 
-
-__version__ = version("emu_mps")
+__version__ = "1.1.1"

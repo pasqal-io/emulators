@@ -1,19 +1,19 @@
 # Base classes
 
 ## Backend
-::: emu_mps.base_classes.backend.Backend
+::: emu_base.base_classes.backend.Backend
 
 ## BackendConfig
-::: emu_mps.base_classes.config.BackendConfig
+::: emu_base.base_classes.config.BackendConfig
 
 ## Results
-::: emu_mps.base_classes.results.Results
+::: emu_base.base_classes.results.Results
 
 ## State
-::: emu_mps.base_classes.state.State
+::: emu_base.base_classes.state.State
 
 ## Operator
-::: emu_mps.base_classes.operator.Operator
+::: emu_base.base_classes.operator.Operator
 
 ## Callback
-::: emu_mps.base_classes.callback.Callback
+::: emu_base.base_classes.callback.Callback

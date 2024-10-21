@@ -2,9 +2,8 @@ from typing import Any
 
 import torch
 
-from emu_mps.base_classes.config import BackendConfig
-from emu_mps.base_classes.state import State
-from .utils import DEVICE_COUNT
+from emu_base import BackendConfig, State
+from emu_mps.utils import DEVICE_COUNT
 
 
 class MPSConfig(BackendConfig):

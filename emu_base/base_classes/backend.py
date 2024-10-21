@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 
 from pulser import Sequence
 
-from emu_mps.base_classes.config import BackendConfig
-from emu_mps.base_classes.results import Results
+from emu_base.base_classes.config import BackendConfig
+from emu_base.base_classes.results import Results
 
 
 class Backend(ABC):

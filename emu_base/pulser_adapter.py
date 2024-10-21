@@ -6,9 +6,9 @@ import math
 from pulser.noise_model import NoiseModel
 from enum import Enum
 
-from emu_mps.base_classes.config import BackendConfig
-from emu_mps.lindblad_operators import get_lindblad_operators
-from emu_mps.utils import dist2, dist3
+from emu_base.base_classes.config import BackendConfig
+from emu_base.lindblad_operators import get_lindblad_operators
+from emu_base.utils import dist2, dist3
 
 
 class HamiltonianType(Enum):

@@ -1,4 +1,4 @@
-from emu_mps.lindblad_operators import get_lindblad_operators
+from emu_base.lindblad_operators import get_lindblad_operators
 from unittest.mock import MagicMock
 import pytest
 

@@ -1,0 +1,57 @@
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  REPOSITORY_NAME: $REPOSITORY_BASE_URL/emulators/emu-mps
+  HATCH_INDEX_USER: $PYPI_USERNAME
+  HATCH_INDEX_AUTH: $PYPI_PASSWORD
+  HATCH_INDEX_REPO: $PYPI_URL
+  PROTECT: "slurm"
+
+default:
+  interruptible: true
+
+cache:
+  paths:
+    - .cache/pip
+
+# The rules are from Workflows/MergeRequest-Pipelines.gitlab-ci.yml
+# but we can't extend the template so they are duplicated here.
+workflow:
+  rules:
+    - if: $PARENT_COMMIT_BRANCH && $PARENT_OPEN_MR && $PARENT_PIPELINE_SOURCE == "push" && $PARENT_COMMIT_REF_PROTECTED != "true"
+      when: never
+    - if: $PARENT_PIPELINE_SOURCE == "merge_request_event"
+    - if: $PARENT_COMMIT_TAG
+      variables:
+        PROTECT: "protected"
+    - if: $PARENT_COMMIT_REF_PROTECTED == "true"
+      variables:
+        PROTECT: "protected"
+    - if: $PARENT_PIPELINE_SOURCE == "web"
+
+.publish_rules:
+  rules:
+    - if: $PARENT_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $PARENT_COMMIT_TAG
+
+stages:
+  - dummy
+  - publish
+
+dummy:
+  #this child pipeline will fail if no jobs run. Always run this X_X
+  stage: dummy
+  script:
+    - echo "Hello World!"
+
+publish-package:
+  stage: publish
+  image: python:3.10
+  extends:
+    - .publish_rules
+  script:
+    - python -m pip install --upgrade pip
+    - python -m pip install hatch
+    - cd ci/emu_base
+    - python -m hatch build
+    - python -m hatch publish

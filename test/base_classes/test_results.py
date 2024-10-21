@@ -1,6 +1,6 @@
 import pytest
 
-from emu_mps.base_classes.results import Results
+from emu_base import Results
 
 
 def test_store_get():

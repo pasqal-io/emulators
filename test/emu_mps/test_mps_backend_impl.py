@@ -301,7 +301,7 @@ def test_do_time_step_without_noise(make_H_mock, evolve_tdvp_mock):
 @patch("emu_mps.mps_backend_impl.evolve_tdvp")
 @patch("emu_mps.mps_backend_impl.make_H")
 @patch("emu_mps.mps_backend_impl.find_root_brents")
-@patch("emu_mps.pulser_adapter._get_all_lindblad_noise_operators")
+@patch("emu_base.pulser_adapter._get_all_lindblad_noise_operators")
 @patch("emu_mps.mps_backend_impl.MPSBackendImpl.do_random_quantum_jump")
 def test_do_time_step_with_noise(
     do_random_quantum_jump_mock,

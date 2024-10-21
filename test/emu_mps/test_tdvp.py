@@ -4,8 +4,8 @@ import torch
 
 from emu_mps import MPO, MPS, inner
 from emu_mps.hamiltonian import make_H
-from emu_mps.pulser_adapter import _rydberg_interaction, HamiltonianType
-from emu_mps.math import krylov_exp
+from emu_base.pulser_adapter import _rydberg_interaction, HamiltonianType
+from emu_base.math import krylov_exp
 from emu_mps.tdvp import apply_effective_Hamiltonian, evolve_tdvp, left_baths, right_baths
 
 
@@ -284,7 +284,7 @@ def test_evolve_tdvp():
     assert abs(inner(state, expected) - 1) < 1e-8
 
 
-@patch("emu_mps.pulser_adapter.pulser.sequence.Sequence")
+@patch("emu_base.pulser_adapter.pulser.sequence.Sequence")
 def test_tdvp_state_vector(mock_sequence):
     nqubits = 9
     c6 = 5420158.53  # mock device c6

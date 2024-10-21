@@ -6,15 +6,12 @@ from typing import Optional
 import torch
 from pulser import Sequence
 
-from emu_mps.base_classes.results import Results
-from emu_mps.base_classes.state import State
+from emu_base import Results, State, find_root_brents, PulserData
 from emu_mps.hamiltonian import make_H
-from emu_mps.math.brents_root_finding import find_root_brents
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
 from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
-from emu_mps.pulser_adapter import PulserData
 from emu_mps.tdvp import evolve_tdvp
 from emu_mps.utils import (
     extended_mpo_factors,

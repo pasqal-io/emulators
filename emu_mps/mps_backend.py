@@ -1,9 +1,7 @@
 from time import time
 from pulser import Sequence
 
-from emu_mps.base_classes.backend import Backend
-from emu_mps.base_classes.config import BackendConfig
-from emu_mps.base_classes.results import Results
+from emu_base import Backend, BackendConfig, Results
 from emu_mps.mps_config import MPSConfig
 from emu_mps.mps_backend_impl import MPSBackendImpl
 

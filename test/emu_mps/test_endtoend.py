@@ -7,8 +7,8 @@ import random
 from pytest import approx
 
 import emu_mps
-import emu_mps.base_classes
-import emu_mps.base_classes.default_callbacks
+import emu_base.base_classes
+import emu_base.base_classes.default_callbacks
 from emu_mps import (
     MPS,
     BitStrings,
@@ -218,7 +218,7 @@ def test_end_to_end_afm_ring():
     bitstrings = result["bitstrings"][final_time]
     final_state = result["state"][final_time]
     final_fidelity = result[
-        f"fidelity_{emu_mps.base_classes.default_callbacks._fidelity_counter}"
+        f"fidelity_{emu_base.base_classes.default_callbacks._fidelity_counter}"
     ][final_time]
     max_bond_dim = final_state.get_max_bond_dim()
     fidelity_state = create_antiferromagnetic_mps(num_qubits)

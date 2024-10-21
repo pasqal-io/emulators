@@ -1,0 +1,10 @@
+mkdocs
+mkdocs-material
+mkdocstrings
+mkdocstrings-python
+mkdocs-section-index
+mkdocs-jupyter
+mkdocs-exclude
+notebook<7
+markdown-exec
+jupyter_contrib_nbextensions

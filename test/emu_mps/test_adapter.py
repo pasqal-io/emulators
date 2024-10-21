@@ -1,4 +1,4 @@
-from emu_mps.pulser_adapter import (
+from emu_base.pulser_adapter import (
     _extract_omega_delta_phi,
     _get_all_lindblad_noise_operators,
     _rydberg_interaction,
@@ -6,7 +6,7 @@ from emu_mps.pulser_adapter import (
     PulserData,
     HamiltonianType,
 )
-from emu_mps.base_classes.config import BackendConfig
+from emu_base import BackendConfig
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -23,7 +23,7 @@ sequence = MagicMock()
 sequence.register.qubit_ids = TEST_QUBIT_IDS
 
 
-@patch("emu_mps.pulser_adapter.pulser.sequence.Sequence")
+@patch("emu_base.pulser_adapter.pulser.sequence.Sequence")
 @pytest.mark.parametrize(
     "hamiltonian_type",
     [
@@ -92,7 +92,7 @@ def test_interaction_coefficient(mock_sequence, hamiltonian_type):
         "XY",
     ],
 )
-@patch("emu_mps.pulser_adapter.pulser.sampler.sample")
+@patch("emu_base.pulser_adapter.pulser.sampler.sample")
 def test_global_channel(mock_pulser_sample, hamiltonian_type):
     """For rydber and XY hamiltonian:
     Global pulse: Pulse(RampWaveform(10,10.0,0.0),RampWaveform(10,-10,10),0.2)
@@ -171,7 +171,7 @@ def test_global_channel(mock_pulser_sample, hamiltonian_type):
     assert torch.allclose(actual_phi, expected_phi, atol=1e-5)
 
 
-@patch("emu_mps.pulser_adapter.pulser.sampler.sample")
+@patch("emu_base.pulser_adapter.pulser.sampler.sample")
 def test_local_global_channel(mock_pulser_sample):
     """Local pulse - targe qubit 1:
     pulser.Pulse(RampWaveform(5,3,10),RampWaveform(5,1.5,-10),0.1) and
@@ -375,7 +375,7 @@ def test_local_global_channel(mock_pulser_sample):
     assert torch.allclose(actual_phi, expected_phi, atol=1e-4)
 
 
-@patch("emu_mps.pulser_adapter.pulser.sampler.sample")
+@patch("emu_base.pulser_adapter.pulser.sampler.sample")
 def test_autograd(mock_pulser_sample):
     TEST_DURATION = 10
     dt = 2
@@ -537,7 +537,7 @@ def test_get_all_lindblad_operators():
     )
 
 
-@patch("emu_mps.pulser_adapter.pulser.sampler.sample")
+@patch("emu_base.pulser_adapter.pulser.sampler.sample")
 def test_parsed_sequence(mock_pulser_sample):
     TEST_DURATION = 10
     dt = 2

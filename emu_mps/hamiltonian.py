@@ -3,7 +3,7 @@ This file deals with creation of the MPO corresponding
 to the Hamiltonian of a neutral atoms quantum processor.
 """
 
-from emu_mps.pulser_adapter import HamiltonianType
+from emu_base import HamiltonianType
 import torch
 
 from emu_mps.mpo import MPO

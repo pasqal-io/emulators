@@ -1,6 +1,6 @@
 import torch
 
-from emu_mps.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
+from emu_base import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.utils import split_tensor, new_left_bath

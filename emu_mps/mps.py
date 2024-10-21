@@ -6,8 +6,8 @@ from typing import Any, List, Optional
 
 import torch
 
+from emu_base import State
 from emu_mps.algebra import add_factors, scale_factors
-from emu_mps.base_classes.state import State
 from emu_mps.utils import (
     DEVICE_COUNT,
     apply_measurement_errors,

@@ -5,8 +5,8 @@ from typing import Any, List, cast
 import torch
 
 from emu_mps.algebra import add_factors, scale_factors, zip_right
-from emu_mps.base_classes.operator import FullOp, Operator, QuditOp
-from emu_mps.base_classes.state import State
+from emu_base.base_classes.operator import FullOp, QuditOp
+from emu_base import Operator, State
 from emu_mps.mps import MPS
 from emu_mps.utils import new_left_bath
 

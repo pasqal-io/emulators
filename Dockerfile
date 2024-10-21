@@ -6,4 +6,5 @@ RUN mkdir -p /opt/scripts
 
 COPY . /opt/emu-mps
 
-RUN pip install -e /opt/emu-mps
+RUN pip install /opt/emu-mps/ci/emu_base
+RUN pip install /opt/emu-mps/ci/emu_mps

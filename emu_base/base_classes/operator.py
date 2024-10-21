@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from emu_mps.base_classes.state import State
+from emu_base.base_classes.state import State
 
 
 QuditOp = dict[str, complex]  # single qubit operator
