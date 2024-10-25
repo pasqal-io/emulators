@@ -3,9 +3,7 @@ from functools import reduce
 
 import torch
 
-from emu_mps.hamiltonian import (
-    make_H,
-)
+from emu_mps.hamiltonian import make_H, _get_interactions_to_keep
 from emu_base.pulser_adapter import HamiltonianType
 from emu_mps.noise import compute_noise_from_lindbladians
 
@@ -104,6 +102,29 @@ def sv_hamiltonian(
 
 
 #########################################
+
+
+@pytest.mark.parametrize(
+    "n",
+    [9, 10],
+)
+def test_get_interactions_to_keep(n):
+    interaction_matrix = torch.zeros(n, n, dtype=torch.float64)
+    for i in range(n - 1):
+        interaction_matrix[i, i + 1] = 1.0
+        interaction_matrix[i + 1, i] = 1
+    interactions_to_keep = _get_interactions_to_keep(interaction_matrix)
+    assert len(interactions_to_keep) == n - 1
+    for i in range(n // 2):
+        assert len(interactions_to_keep[i]) == i + 1
+        assert interactions_to_keep[i][-1].item() is True
+        if i > 0:
+            assert not torch.any(interactions_to_keep[i][:-1])
+    for i in range(n // 2, n - 1):
+        assert len(interactions_to_keep[i]) == n - i - 1
+        assert interactions_to_keep[i][0].item() is True
+        if i < n - 2:
+            assert not torch.any(interactions_to_keep[i][1:])
 
 
 # works for nqubits < 6
@@ -403,3 +424,109 @@ def test_differentiation():
                 ),
                 expected_phi_diff,
             )
+
+
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    [
+        HamiltonianType.Rydberg,
+        HamiltonianType.XY,
+    ],
+)
+def test_truncation_random(hamiltonian_type):
+    n = 9
+
+    omega = torch.tensor([12.566370614359172] * n, dtype=dtype)
+    delta = torch.zeros(n, dtype=dtype)
+    phi = torch.zeros(n, dtype=dtype)
+
+    interaction_matrix = torch.randn(n, n, dtype=torch.float64)
+    interaction_matrix = 0.5 * interaction_matrix + 0.5 * interaction_matrix.T
+    interaction_matrix[interaction_matrix < 0.7] = 0.0
+    ham = make_H(
+        interaction_matrix=interaction_matrix,
+        omega=omega,
+        delta=delta,
+        phi=phi,
+        hamiltonian_type=hamiltonian_type,
+    )
+
+    sv = torch.einsum(
+        "abcd,defg,ghij,jklm,mnop,pqrs,stuv,vwxy,yzAB->abehknqtwzcfiloruxAB",
+        *(ham.factors),
+    ).reshape(1 << n, 1 << n)
+
+    dev = sv.device  # could be cpu or gpu depending on Config
+    expected = sv_hamiltonian(
+        interaction_matrix,
+        omega,
+        delta,
+        phi,
+        torch.zeros(2, 2),
+        hamiltonian_type=hamiltonian_type,
+    ).to(dev)
+
+    assert torch.allclose(
+        sv,
+        expected,
+    )
+
+
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    [
+        HamiltonianType.Rydberg,
+        HamiltonianType.XY,
+    ],
+)
+def test_truncation_nn(hamiltonian_type):
+    n = 5
+
+    omega = torch.tensor([12.566370614359172] * n, dtype=dtype)
+    delta = torch.zeros(n, dtype=dtype)
+    phi = torch.zeros(n, dtype=dtype)
+
+    interaction_matrix = torch.diag(torch.tensor([1.0] * (n - 1), dtype=torch.float64), 1)
+    interaction_matrix = interaction_matrix + interaction_matrix.T
+    ham = make_H(
+        interaction_matrix=interaction_matrix,
+        omega=omega,
+        delta=delta,
+        phi=phi,
+        hamiltonian_type=hamiltonian_type,
+    )
+
+    sv = torch.einsum("abcd,defg,ghij,jklm,mnop->abehkncfilop", *(ham.factors)).reshape(
+        1 << n, 1 << n
+    )
+
+    dev = sv.device  # could be cpu or gpu depending on Config
+    expected = sv_hamiltonian(
+        interaction_matrix,
+        omega,
+        delta,
+        phi,
+        torch.zeros(2, 2),
+        hamiltonian_type=hamiltonian_type,
+    ).to(dev)
+
+    if hamiltonian_type == HamiltonianType.Rydberg:
+        size = 3
+    elif hamiltonian_type == HamiltonianType.XY:
+        size = 4
+    else:
+        raise NotImplementedError("Extend the tests")
+
+    assert ham.factors[0].shape == (1, 2, 2, size)
+    assert ham.factors[1].shape == (size, 2, 2, size)
+    assert ham.factors[2].shape == (size, 2, 2, size)
+    assert ham.factors[3].shape == (size, 2, 2, size)
+    assert ham.factors[4].shape == (size, 2, 2, 1)
+
+    assert torch.allclose(
+        sv,
+        expected,
+    )
+
+
+test_truncation_nn(HamiltonianType.Rydberg)

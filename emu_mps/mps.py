@@ -373,13 +373,6 @@ class MPS(State):
         if set(basis) != {"r", "g"}:
             raise ValueError("Only the rydberg-ground basis is currently supported")
 
-        values = list(strings.values())
-        norm_state = math.sqrt(sum((ampli * ampli.conjugate()).real for ampli in values))
-
-        if not math.isclose(1.0, norm_state, rel_tol=1e-5, abs_tol=0.0):
-            print("\nThe state is not normalized, normalizing it for you.")
-            strings = {key: value / norm_state for key, value in strings.items()}
-
         basis_g = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)  # ground state
         basis_r = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state
 
@@ -392,6 +385,10 @@ class MPS(State):
         for state, amplitude in strings.items():
             factors = [basis_r if ch == "r" else basis_g for ch in state]
             accum_mps += amplitude * MPS(factors, **kwargs)
+        norm = accum_mps.norm()
+        if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
+            print("\nThe state is not normalized, normalizing it for you.")
+            accum_mps *= 1 / norm
 
         return accum_mps
 

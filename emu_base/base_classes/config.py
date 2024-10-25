@@ -13,6 +13,7 @@ class BackendConfig:
         with_modulation: if True, run the sequence with hardware modulation
         noise_model: The pulser.NoiseModel to use in the simulation.
         interaction_matrix: when specified, override the interaction terms in the Hamiltonian
+        interaction_cutoff: set interaction coefficients smaller than this to 0.
         log_level: The output verbosity. Should be one of the constants from logging.
         log_file: a path to a file where to store the log, instead of printing to stdout
     """
@@ -25,6 +26,7 @@ class BackendConfig:
         with_modulation: bool = False,
         noise_model: NoiseModel = None,
         interaction_matrix: list[list[float]] | None = None,
+        interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
     ):
@@ -36,6 +38,7 @@ class BackendConfig:
         self.with_modulation = with_modulation
         self.noise_model = noise_model
         self.interaction_matrix = interaction_matrix
+        self.interaction_cutoff = interaction_cutoff
         self.logger = logging.getLogger("global_logger")
         if log_file is None:
             logging.basicConfig(

@@ -601,7 +601,14 @@ def test_parsed_sequence(mock_pulser_sample):
     sample_instance.to_nested_dict.return_value = {"Local": mock_pulser_dict}
     mock_pulser_sample.return_value = sample_instance
 
-    interaction_matrix = torch.randn(3, 3, dtype=torch.float64)
+    interaction_matrix = torch.tensor(
+        [
+            [0.4251, 0.4588, -0.4607],
+            [0.0929, -0.1636, -1.0463],
+            [-0.4037, 0.1067, -0.9528],
+        ],
+        dtype=torch.float64,
+    )
     sequence._slm_mask_time = []
 
     random_collapse = torch.rand(2, 2, dtype=torch.complex128)
@@ -614,15 +621,28 @@ def test_parsed_sequence(mock_pulser_sample):
 
     ops = _get_all_lindblad_noise_operators(noise_model)
 
-    config = BackendConfig(noise_model=noise_model, interaction_matrix=interaction_matrix)
+    config = BackendConfig(
+        noise_model=noise_model,
+        interaction_matrix=interaction_matrix,
+        interaction_cutoff=0.15,
+    )
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
     omega, delta, phi = _extract_omega_delta_phi(sequence, dt, False)
 
+    cutoff_interaction_matrix = torch.tensor(
+        [[0.4251, 0.4588, -0.4607], [0.0, -0.1636, -1.0463], [-0.4037, 0.0, -0.9528]],
+        dtype=torch.float64,
+    )
     assert torch.allclose(parsed_sequence.omega, omega)
     assert torch.allclose(parsed_sequence.delta, delta)
     assert torch.allclose(parsed_sequence.phi, phi)
-    assert torch.allclose(parsed_sequence.full_interaction_matrix, interaction_matrix)
+    assert torch.allclose(
+        parsed_sequence.full_interaction_matrix, cutoff_interaction_matrix
+    )
+    assert torch.allclose(
+        parsed_sequence.masked_interaction_matrix, cutoff_interaction_matrix
+    )
     assert parsed_sequence.slm_end_time == 0.0
     assert parsed_sequence.hamiltonian_type == HamiltonianType.XY
     assert len(parsed_sequence.lindblad_ops) == len(ops)
@@ -630,6 +650,11 @@ def test_parsed_sequence(mock_pulser_sample):
         assert torch.allclose(ops[i], parsed_sequence.lindblad_ops[i])
 
     sequence._slm_mask_time = [1.0, 10.0]
+    sequence._slm_mask_targets = [1]
+    masked_interaction_matrix = torch.tensor(
+        [[0.4251, 0.0, -0.4607], [0.0, -0.0, -0.0], [-0.4037, 0.0, -0.9528]],
+        dtype=torch.float64,
+    )
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
     omega, delta, phi = _extract_omega_delta_phi(sequence, dt, False)
@@ -637,7 +662,12 @@ def test_parsed_sequence(mock_pulser_sample):
     assert torch.allclose(parsed_sequence.omega, omega)
     assert torch.allclose(parsed_sequence.delta, delta)
     assert torch.allclose(parsed_sequence.phi, phi)
-    assert torch.allclose(parsed_sequence.full_interaction_matrix, interaction_matrix)
+    assert torch.allclose(
+        parsed_sequence.full_interaction_matrix, cutoff_interaction_matrix
+    )
+    assert torch.allclose(
+        parsed_sequence.masked_interaction_matrix, masked_interaction_matrix
+    )
     assert parsed_sequence.slm_end_time == 10.0
     assert parsed_sequence.hamiltonian_type == HamiltonianType.XY
     assert len(parsed_sequence.lindblad_ops) == len(ops)

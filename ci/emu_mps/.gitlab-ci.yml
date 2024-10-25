@@ -237,8 +237,6 @@ package_benchmark_artifacts:
     # Run after manual benchmarks runned within an MR
     - if: '$PARENT_PIPELINE_SOURCE == "merge_request_event" || $PARENT_TRIGGER_SOURCE == "web"'
       allow_failure: true
-    # run on main
-    - if: "$PARENT_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"
   script:
     - echo "packaging everything and backing up on the cluster"
   after_script:
@@ -262,6 +260,7 @@ package_benchmark_artifacts:
     - benchmark_quench_fidelity
     - benchmark_quench_performance_cpu
     - benchmark_quench_performance_gpu
+    - benchmark_quench_perf_obs_cpuVSgpu
   artifacts:
     name: all-benchmarks
     paths:

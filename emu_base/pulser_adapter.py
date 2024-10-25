@@ -204,6 +204,9 @@ class PulserData:
             self.full_interaction_matrix = _rydberg_interaction(sequence)
         elif self.hamiltonian_type == HamiltonianType.XY:
             self.full_interaction_matrix = _xy_interaction(sequence)
+        self.full_interaction_matrix[
+            torch.abs(self.full_interaction_matrix) < config.interaction_cutoff
+        ] = 0.0
         self.masked_interaction_matrix = self.full_interaction_matrix.clone()
 
         slm_targets = sequence._slm_mask_targets
