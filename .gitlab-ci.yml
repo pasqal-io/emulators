@@ -14,17 +14,17 @@ workflow:
 .default_rules:
   rules:
     #don't run if were the scheduled pipeline that defines the below variable
-    - if: $PARENT_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     # Run when an MR is created/updated
-    - if: $PARENT_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     # Otherwise, we're a commit, but if an open MR exists, don't run
-    - if: $PARENT_COMMIT_BRANCH && $PARENT_OPEN_MR
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
       when: never
     # Don't run on releases
-    - if: $PARENT_COMMIT_TAG
+    - if: $CI_COMMIT_TAG
       when: never
-    - if: $PARENT_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
 
 .test:
   script:

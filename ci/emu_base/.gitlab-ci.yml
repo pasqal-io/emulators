@@ -1,10 +1,8 @@
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   REPOSITORY_NAME: $REPOSITORY_BASE_URL/emulators/emu-mps
-  HATCH_INDEX_USER: $PYPI_USERNAME
-  HATCH_INDEX_AUTH: $PYPI_PASSWORD
-  HATCH_INDEX_REPO: $PYPI_URL
   PROTECT: "slurm"
+  PIP_EXTRA_INDEX_URL: "https://gitlab.pasqal.com/api/v4/projects/597/packages/pypi/simple"
 
 default:
   interruptible: true
@@ -55,3 +53,7 @@ publish-package:
     - cd ci/emu_base
     - python -m hatch build
     - python -m hatch publish
+  variables:
+    HATCH_INDEX_USER: $CI_DEPLOY_USER
+    HATCH_INDEX_AUTH: $CI_DEPLOY_PASSWORD
+    HATCH_INDEX_REPO: https://gitlab.pasqal.com/api/v4/projects/597/packages/pypi
