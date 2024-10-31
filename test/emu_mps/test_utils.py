@@ -15,6 +15,7 @@ from emu_mps.utils import (
     readout_with_error,
     split_tensor,
     get_extended_site_index,
+    tensor_trace,
 )
 
 
@@ -299,3 +300,24 @@ def test_get_extended_site_index():
     with pytest.raises(ValueError) as e:
         get_extended_site_index([T, F, F, T, T, F, T, F], 4)
     assert str(e.value) == "Index 4 does not exist"
+
+
+def test_tensor_trace():
+    t = torch.rand(3, 3, 3)
+
+    contracted_01 = tensor_trace(t, 0, 1)
+    assert torch.allclose(contracted_01, tensor_trace(t, 1, 0))
+    assert contracted_01.shape == (3,)
+    assert contracted_01[0] == pytest.approx(t[0, 0, 0] + t[1, 1, 0] + t[2, 2, 0])
+    assert contracted_01[1] == pytest.approx(t[0, 0, 1] + t[1, 1, 1] + t[2, 2, 1])
+
+    contracted_12 = tensor_trace(t, 1, 2)
+    assert torch.allclose(contracted_12, tensor_trace(t, 2, 1))
+    assert contracted_12.shape == (3,)
+    assert contracted_12[0] == pytest.approx(t[0, 0, 0] + t[0, 1, 1] + t[0, 2, 2])
+    assert contracted_12[1] == pytest.approx(t[1, 0, 0] + t[1, 1, 1] + t[1, 2, 2])
+
+    with pytest.raises(AssertionError) as e:
+        tensor_trace(torch.rand(2, 3, 4), 1, 2)
+
+    assert str(e.value) == "dimensions should match"

@@ -83,7 +83,7 @@ def test_qubit_density():
 
 def test_correlation_matrix():
     nqubits = 5
-    callback = CorrelationMatrix(evaluation_times=[10], basis={"r", "g"}, nqubits=nqubits)
+    callback = CorrelationMatrix(evaluation_times={10}, basis=("r", "g"), nqubits=nqubits)
     result = Results()
     config = None
     state = MPS(

@@ -13,6 +13,8 @@ from emu_mps.utils import (
     apply_measurement_errors,
     assign_devices,
     truncate_impl,
+    tensor_trace,
+    n_operator,
 )
 
 
@@ -455,6 +457,58 @@ class MPS(State):
             single_qubit_operator.to(self.factors[qubit_index].device),
             ([1], [1]),
         ).transpose(1, 2)
+
+    def get_correlation_matrix(
+        self, *, operator: torch.Tensor = n_operator
+    ) -> list[list[float]]:
+        """
+        Efficiently compute the symmetric correlation matrix
+            C_ij = <self|operator_i operator_j|self>
+        in basis ("r", "g").
+
+        Args:
+            operator: a 2x2 Torch tensor to use
+
+        Returns:
+            the corresponding correlation matrix
+        """
+        assert operator.shape == (2, 2)
+
+        result = [[0.0 for _ in range(self.num_sites)] for _ in range(self.num_sites)]
+
+        for left in range(0, self.num_sites):
+            self.orthogonalize(left)
+            accumulator = torch.tensordot(
+                self.factors[left],
+                operator.to(self.factors[left].device),
+                dims=([1], [0]),
+            )
+            accumulator = torch.tensordot(
+                accumulator, self.factors[left].conj(), dims=([0, 2], [0, 1])
+            )
+            result[left][left] = accumulator.trace().item().real
+            for right in range(left + 1, self.num_sites):
+                partial = torch.tensordot(
+                    accumulator.to(self.factors[right].device),
+                    self.factors[right],
+                    dims=([0], [0]),
+                )
+                partial = torch.tensordot(
+                    partial, self.factors[right].conj(), dims=([0], [0])
+                )
+
+                result[left][right] = (
+                    torch.tensordot(
+                        partial, operator.to(partial.device), dims=([0, 2], [0, 1])
+                    )
+                    .trace()
+                    .item()
+                    .real
+                )
+                result[right][left] = result[left][right]
+                accumulator = tensor_trace(partial, 0, 2)
+
+        return result
 
 
 def inner(left: MPS, right: MPS) -> float | complex:

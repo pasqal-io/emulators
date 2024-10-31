@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 import torch
 
-from emu_mps import MPS, inner
+from emu_mps import MPS, inner, MPO
 
 from .utils_testing import ghz_state_factors
 
@@ -378,3 +378,45 @@ def test_apply_random_orthogonality_center():
     state.apply(2, r2)
 
     check_orthogonality_center(state, 2)
+
+
+def test_correlation_matrix_random():
+    qubit_count = 5
+    state = MPS(
+        [
+            torch.rand(1, 2, 3, dtype=torch.complex128),
+            torch.rand(3, 2, 5, dtype=torch.complex128),
+            torch.rand(5, 2, 12, dtype=torch.complex128),
+            torch.rand(12, 2, 2, dtype=torch.complex128),
+            torch.rand(2, 2, 1, dtype=torch.complex128),
+        ]
+    )
+
+    correlation_matrix_nn = state.get_correlation_matrix()
+
+    correlation_matrix_zz = state.get_correlation_matrix(
+        operator=torch.tensor([[1, 0], [0, -1]], dtype=torch.complex128)
+    )
+
+    def nn(index1, index2):
+        return MPO.from_operator_string(
+            ("r", "g"),
+            qubit_count,
+            [(1.0, [({"sigma_rr": 1.0}, list({index1, index2}))])],
+        )
+
+    def zz(index1, index2):
+        return MPO.from_operator_string(
+            ("r", "g"),
+            qubit_count,
+            [(1.0, [({"sigma_gg": 1.0, "sigma_rr": -1.0}, list({index1, index2}))])],
+        )
+
+    assert len(correlation_matrix_nn) == len(correlation_matrix_zz) == qubit_count
+    for i in range(qubit_count):
+        assert (
+            len(correlation_matrix_nn[i]) == len(correlation_matrix_zz[i]) == qubit_count
+        )
+        for j in range(qubit_count):
+            assert correlation_matrix_nn[i][j] == pytest.approx(nn(i, j).expect(state))
+            assert correlation_matrix_zz[i][j] == pytest.approx(zz(i, j).expect(state))

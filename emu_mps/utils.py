@@ -239,3 +239,20 @@ def apply_measurement_errors(
             result[bitstring_with_error] += 1
 
     return result
+
+
+n_operator = torch.tensor(
+    [
+        [0, 0],
+        [0, 1],
+    ],
+    dtype=torch.complex128,
+)
+
+
+def tensor_trace(tensor: torch.Tensor, dim1: int, dim2: int) -> torch.Tensor:
+    """
+    Contract two legs of a single tensor.
+    """
+    assert tensor.shape[dim1] == tensor.shape[dim2], "dimensions should match"
+    return tensor.diagonal(offset=0, dim1=dim1, dim2=dim2).sum(-1)

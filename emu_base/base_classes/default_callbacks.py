@@ -135,6 +135,11 @@ class CorrelationMatrix(Callback):
         return "correlation_matrix"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
+        if hasattr(state, "get_correlation_matrix") and callable(
+            state.get_correlation_matrix
+        ):
+            return state.get_correlation_matrix()
+
         if self.operators is None or not isinstance(self.operators[0], type(H)):
             self.operators = [
                 [
