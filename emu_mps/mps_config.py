@@ -14,7 +14,8 @@ class MPSConfig(BackendConfig):
 
     Args:
         initial_state: the initial state to use in the simulation
-        dt: the timestep size that the solver uses
+        dt: the timestep size that the solver uses. Note that observables are
+            only calculated if the evaluation_times are divisible by dt.
         precision: up to what precision the state is truncated
         max_bond_dim: the maximum bond dimension that the state is allowed to have.
         max_krylov_dim:
@@ -22,8 +23,16 @@ class MPSConfig(BackendConfig):
         extra_krylov_tolerance:
             the Lanczos algorithm uses this*precision as the convergence tolerance
         num_gpus_to_use: during the simulation, distribute the state over this many GPUs
-            0=all factors to cpu, defaults to all available GPUs
+            0=all factors to cpu. As shown in the benchmarks, using multiple GPUs might
+            alleviate memory pressure per GPU, but the runtime should be similar.
         kwargs: arguments that are passed to the base class
+
+    Examples:
+        >>> num_gpus_to_use = 2 #use 2 gpus if available, otherwise 1 or cpu
+        >>> dt = 1 #this will impact the runtime
+        >>> precision = 1e-6 #smaller dt requires better precision, generally
+        >>> MPSConfig(num_gpus_to_use=num_gpus_to_use, dt=dt, precision=precision,
+        >>>     with_modulation=True) #the last arg is taken from the base class
     """
 
     def __init__(

@@ -58,12 +58,16 @@ _fidelity_counter = -1
 
 class Fidelity(Callback):
     """
-    Store the inner product of the given state |ψ>with the state |φ(t)> obtained by time evolution,
-    i.e. <ψ|φ(t)>.
+    Store $<ψ|φ(t)>$ for the given state $|ψ>$,
+    and the state $|φ(t)>$ obtained by time evolution.
 
     Args:
         evaluation_times: the times at which to compute the fidelity
         state: the state |ψ>. Note that this must be of appropriate type for the backend
+
+    Examples:
+        >>> state = State.from_state_string(...) #see State API
+        >>> fidelity = Fidelity([400], state) #measure fidelity on state at t=400ns
     """
 
     def __init__(self, evaluation_times: set[int], state: State):
@@ -85,11 +89,16 @@ _expectation_counter = -1
 
 class Expectation(Callback):
     """
-    Store the expectation of the given operator on the current state (i.e. <φ(t)|operator|φ(t)>).
+    Store the expectation of the given operator on the current state
+    (i.e. $\\langle φ(t)|\\mathrm{operator}|φ(t)\\rangle$).
 
     Args:
         evaluation_times: the times at which to compute the expectation
         operator: the operator to measure. Must be of appropriate type for the backend.
+
+    Examples:
+        >>> op = Operator.from_operator_string(...) #see Operator API
+        >>> expectation = Expectation([400], op) #measure the expecation of op at t=400ns
     """
 
     def __init__(self, evaluation_times: set[int], operator: Operator):
@@ -111,7 +120,14 @@ class CorrelationMatrix(Callback):
     Store the correlation matrix for the current state.
     Requires specification of the basis used in the emulation
     https://pulser.readthedocs.io/en/stable/conventions.html
-    It currently only supports the rydberg basis ('r','g').
+    It currently supports
+    - the rydberg basis ('r','g')
+    - the xy basis ('0', '1')
+    and returns
+
+    `[[<φ(t)|n_i n_j|φ(t)> for j in qubits] for i in qubits]`
+
+    n_i being the operator that projects qubit i onto the state that measures as 1.
     The diagonal of this matrix is the QubitDensity. The correlation matrix
     is stored as a list of lists.
 
@@ -119,16 +135,22 @@ class CorrelationMatrix(Callback):
         evaluation_times: the times at which to compute the correlation matrix
         basis: the basis used by the sequence
         nqubits: the number of qubits in the Register
+
+    Notes:
+        See the API for `Operator.from_operator_string` for an example of what to do with
+        basis and nqubits.
     """
 
     def __init__(self, evaluation_times: set[int], basis: tuple[str, ...], nqubits: int):
         super().__init__(evaluation_times)
         self.operators: list[list[Operator]] | None = None
-        assert set(basis) == {
-            "r",
-            "g",
-        }, "Correlation matrix is only defined on rydberg-ground"
-        self.basis = basis
+        self.basis = set(basis)
+        if self.basis == {"r", "g"}:
+            self.op_string = "rr"
+        elif self.basis == {"0", "1"}:
+            self.op_string = "11"
+        else:
+            raise ValueError("Unsupported basis provided")
         self.nqubits = nqubits
 
     def name(self) -> str:
@@ -146,7 +168,7 @@ class CorrelationMatrix(Callback):
                     H.from_operator_string(
                         self.basis,
                         self.nqubits,
-                        [(1.0, [({"sigma_rr": 1.0}, list({i, j}))])],
+                        [(1.0, [({self.op_string: 1.0}, list({i, j}))])],
                     )
                     for j in range(self.nqubits)
                 ]
@@ -159,21 +181,36 @@ class QubitDensity(Callback):
     """
     Requires specification of the basis used in the emulation
     https://pulser.readthedocs.io/en/stable/conventions.html
-    It currently only supports the rydberg basis ('r','g') and
-    it computer the probability that each qubit is in the r state.
+    It currently supports
+    - the rydberg basis ('r','g')
+    - the xy basis ('0', '1')
+    and returns
+
+    `[<φ(t)|n_i|φ(t)> for i in qubits]`
+
+    n_i being the operator that projects qubit i onto the state that measures as 1.
     The qubit density is stored as a list.
 
     Args:
         evaluation_times: the times at which to compute the density
         basis: the basis used by the sequence
         nqubits: the number of qubits in the Register
+
+    Notes:
+        See the API for `State.from_state_string` for an example of what to do with
+        basis and nqubits.
     """
 
     def __init__(self, evaluation_times: set[int], basis: tuple[str, ...], nqubits: int):
         super().__init__(evaluation_times)
         self.operators: list[Operator] | None = None
-        assert set(basis) == {"r", "g"}, "Qubit density is only defined on rydberg-ground"
-        self.basis = basis
+        self.basis = set(basis)
+        if self.basis == {"r", "g"}:
+            self.op_string = "rr"
+        elif self.basis == {"0", "1"}:
+            self.op_string = "11"
+        else:
+            raise ValueError("Unsupported basis provided")
         self.nqubits = nqubits
 
     def name(self) -> str:
@@ -183,7 +220,7 @@ class QubitDensity(Callback):
         if self.operators is None or not isinstance(self.operators[0], type(H)):
             self.operators = [
                 H.from_operator_string(
-                    self.basis, self.nqubits, [(1.0, [({"sigma_rr": 1.0}, [i])])]
+                    self.basis, self.nqubits, [(1.0, [({self.op_string: 1.0}, [i])])]
                 )
                 for i in range(self.nqubits)
             ]
@@ -192,7 +229,8 @@ class QubitDensity(Callback):
 
 class Energy(Callback):
     """
-    Store the expectation value of the current Hamiltonian (i.e. <φ(t)|H(t)|φ(t)>)
+    Store the expectation value of the current Hamiltonian
+    (i.e. $\\langle φ(t)|H(t)|φ(t) \\rangle$)
 
     Args:
         evaluation_times: the times at which to compute the expectation
@@ -210,7 +248,8 @@ class Energy(Callback):
 
 class EnergyVariance(Callback):
     """
-    Store the variance of the current Hamiltonian (i.e. <φ(t)|H(t)^2|φ(t)> - <φ(t)|H(t)|φ(t)>^2)
+    Store the variance of the current Hamiltonian
+    (i.e. $\\langle φ(t)|H(t)^2|φ(t)\\rangle - \\langle φ(t)|H(t)|φ(t)\\rangle^2$)
 
     Args:
         evaluation_times: the times at which to compute the variance
@@ -229,7 +268,7 @@ class EnergyVariance(Callback):
 
 class SecondMomentOfEnergy(Callback):
     """
-    Store the expectation value <φ(t)|H(t)^2|φ(t)>.
+    Store the expectation value $\\langle φ(t)|H(t)^2|φ(t)\\rangle$.
     Useful for computing the variance when averaging over many executions of the program.
 
     Args:

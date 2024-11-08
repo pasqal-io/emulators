@@ -23,10 +23,9 @@ class Callback(ABC):
     ) -> None:
         """
         This function is called after each time step performed by the emulator.
-        By default it calls apply to compute a result and put it in Results
-        if t in self.evaluation_times.
-        It can be overloaded to define general callbacks that don't put results
-        in the Results object.
+        By default it calls apply to compute a result and put it in `result`
+        if `t` in `self.evaluation_times`.
+        It can be overloaded to define any custom behaviour for a `Callback`.
 
         Args:
             config: the config object passed to the run method

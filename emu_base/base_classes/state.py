@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, Iterable
 from abc import ABC, abstractmethod
 from collections import Counter
 
@@ -72,18 +72,26 @@ class State(ABC):
     @staticmethod
     @abstractmethod
     def from_state_string(
-        *, basis: tuple[str], nqubits: int, strings: dict[str, complex], **kwargs: Any
+        *, basis: Iterable[str], nqubits: int, strings: dict[str, complex], **kwargs: Any
     ) -> State:
         """
         Construct a state from the pulser abstract representation
-        https://pulser.readthedocs.io/en/stable/conventions.html
+        <https://www.notion.so/pasqal/Abstract-State-and-Operator-Definition>
+        For a list of existing bases, see
+        <https://pulser.readthedocs.io/en/stable/conventions.html>
 
         Args:
-            basis: A tuple containing the basis states (e.g., ('r', 'g')).
+            basis: A tuple containing the basis states.
             nqubits: the number of qubits.
             strings: A dictionary mapping state strings to complex or floats amplitudes
 
         Returns:
             the state in whatever format the backend provides.
+
+        Examples:
+            >>> afm_string_state = {"rrr": 1.0 / math.sqrt(2), "ggg": 1.0 / math.sqrt(2)}
+            >>> afm_state = State.from_state_string(
+            >>>     basis=("r", "g"), nqubits=3, strings=afm_string_state
+            >>> )
         """
         pass

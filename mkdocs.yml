@@ -7,6 +7,9 @@ nav:
   - Base Classes: base_classes.md
   - API: api.md
   - Computing Observables: observables.md
+  - Notebooks:
+    - Index: notebooks/index.md
+    - Getting started: notebooks/getting_started.ipynb
   - How to Contribute: CONTRIBUTING.md
   - Code of Conduct: CODE_OF_CONDUCT.md
   - Advanced Topics:
@@ -102,4 +105,5 @@ extra_javascript:
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 watch:
+  - emu_base
   - emu_mps

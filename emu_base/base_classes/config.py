@@ -12,10 +12,19 @@ class BackendConfig:
         observables: a list of callbacks to compute observables
         with_modulation: if True, run the sequence with hardware modulation
         noise_model: The pulser.NoiseModel to use in the simulation.
-        interaction_matrix: when specified, override the interaction terms in the Hamiltonian
+        interaction_matrix: When specified, override the interaction terms in the Hamiltonian.
+            This corresponds to the $U_{ij}$ terms in the documentation. Must be symmetric.
         interaction_cutoff: set interaction coefficients smaller than this to 0.
+            This can improve the memory profile of the application for some backends.
         log_level: The output verbosity. Should be one of the constants from logging.
         log_file: a path to a file where to store the log, instead of printing to stdout
+
+    Examples:
+        >>> observables = [BitStrings(400, 100)] #compute 100 bitstrings at 400ns
+        >>> noise_model = pulser.noise_model.NoiseModel()
+        >>> interaction_matrix = [[1 for _ in range(nqubits)] for _ in range(nqubits)]
+        >>> interaction_cutoff = 2.0 #this will turn off all the above interactions again
+        >>> log_level = logging.warn
     """
 
     def __init__(

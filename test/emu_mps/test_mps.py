@@ -240,12 +240,16 @@ def test_from_string_bell_state():
     assert get_bitstring_coeff(afm_mps_state, 0b111) == pytest.approx(1.0 / math.sqrt(2))
 
 
+@pytest.mark.parametrize(
+    ("zero", "one"),
+    (("g", "r"), ("0", "1")),
+)
 @patch("sys.stdout", new_callable=io.StringIO)
-def test_from_string_not_normalized_state(mock_print):
-    afm_not_normalized = {"rrr": 1 / math.sqrt(2), "ggg": 0.1 / math.sqrt(2)}
+def test_from_string_not_normalized_state(mock_print, zero, one):
+    afm_not_normalized = {one * 3: 1 / math.sqrt(2), zero * 3: 0.1 / math.sqrt(2)}
 
     afm_mps_state_normalized = MPS.from_state_string(
-        basis=("r", "g"), nqubits=3, strings=afm_not_normalized
+        basis=(one, zero), nqubits=3, strings=afm_not_normalized
     )
 
     assert "The state is not normalized, normalizing it for you" in mock_print.getvalue()
@@ -281,8 +285,8 @@ def test_wrong_basis_string_state():
     afm_string_state = {"rrr": 1.0 / math.sqrt(2), "ggg": 1.0 / math.sqrt(2)}
 
     with pytest.raises(ValueError) as ve:
-        MPS.from_state_string(basis=("0", "1"), nqubits=3, strings=afm_string_state)
-    msg = "Only the rydberg-ground basis is currently supported"
+        MPS.from_state_string(basis=("0", "r"), nqubits=3, strings=afm_string_state)
+    msg = "Unsupported basis provided"
     assert str(ve.value) == msg
 
 
@@ -402,14 +406,14 @@ def test_correlation_matrix_random():
         return MPO.from_operator_string(
             ("r", "g"),
             qubit_count,
-            [(1.0, [({"sigma_rr": 1.0}, list({index1, index2}))])],
+            [(1.0, [({"rr": 1.0}, list({index1, index2}))])],
         )
 
     def zz(index1, index2):
         return MPO.from_operator_string(
             ("r", "g"),
             qubit_count,
-            [(1.0, [({"sigma_gg": 1.0, "sigma_rr": -1.0}, list({index1, index2}))])],
+            [(1.0, [({"gg": 1.0, "rr": -1.0}, list({index1, index2}))])],
         )
 
     assert len(correlation_matrix_nn) == len(correlation_matrix_zz) == qubit_count

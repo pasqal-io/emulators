@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Iterable
 
 import torch
 
@@ -353,15 +353,13 @@ class MPS(State):
     @staticmethod
     def from_state_string(
         *,
-        basis: tuple[str, ...],
+        basis: Iterable[str],
         nqubits: int,
         strings: dict[str, complex],
         **kwargs: Any,
     ) -> MPS:
-        """Transforms a state given by a string into an MPS.
-
-        Construct a state from the pulser abstract representation
-        https://pulser.readthedocs.io/en/stable/conventions.html
+        """
+        See the base class.
 
         Args:
             basis: A tuple containing the basis states (e.g., ('r', 'g')).
@@ -369,14 +367,19 @@ class MPS(State):
             strings: A dictionary mapping state strings to complex or floats amplitudes.
 
         Returns:
-            The resulting MPS representation of the state.
+            The resulting MPS representation of the state.s
         """
 
-        if set(basis) != {"r", "g"}:
-            raise ValueError("Only the rydberg-ground basis is currently supported")
+        basis = set(basis)
+        if basis == {"r", "g"}:
+            one = "r"
+        elif basis == {"0", "1"}:
+            one = "1"
+        else:
+            raise ValueError("Unsupported basis provided")
 
-        basis_g = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)  # ground state
-        basis_r = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state
+        basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)  # ground state
+        basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state
 
         accum_mps = MPS(
             [torch.zeros((1, 2, 1), dtype=torch.complex128)] * nqubits,
@@ -385,7 +388,7 @@ class MPS(State):
         )
 
         for state, amplitude in strings.items():
-            factors = [basis_r if ch == "r" else basis_g for ch in state]
+            factors = [basis_1 if ch == one else basis_0 for ch in state]
             accum_mps += amplitude * MPS(factors, **kwargs)
         norm = accum_mps.norm()
         if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):

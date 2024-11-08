@@ -1,6 +1,6 @@
 from collections import Counter
 from unittest.mock import MagicMock, Mock
-from pytest import approx
+from pytest import approx, mark
 import torch
 
 from emu_mps import (
@@ -64,9 +64,13 @@ def test_bit_strings():
     state.sample.assert_called_with(1000, 0.1, 0.3)
 
 
-def test_qubit_density():
+@mark.parametrize(
+    "basis",
+    [("r", "g"), ("0", "1")],
+)
+def test_qubit_density(basis):
     nqubits = 5
-    callback = QubitDensity(evaluation_times=[10], basis={"r", "g"}, nqubits=nqubits)
+    callback = QubitDensity(evaluation_times=[10], basis=basis, nqubits=nqubits)
     result = Results()
     config = None
     state = MPS(
@@ -81,9 +85,13 @@ def test_qubit_density():
     assert output == [4**nqubits] * nqubits
 
 
-def test_correlation_matrix():
+@mark.parametrize(
+    "basis",
+    [("r", "g"), ("0", "1")],
+)
+def test_correlation_matrix(basis):
     nqubits = 5
-    callback = CorrelationMatrix(evaluation_times={10}, basis=("r", "g"), nqubits=nqubits)
+    callback = CorrelationMatrix(evaluation_times=[10], basis=basis, nqubits=nqubits)
     result = Results()
     config = None
     state = MPS(
@@ -104,7 +112,7 @@ def test_expectation():
     nqubits = 5
 
     basis = {"r", "g"}
-    x = {"sigma_rg": 1.0, "sigma_gr": 1.0}
+    x = {"rg": 1.0, "gr": 1.0}
     xs = [(x, [i for i in range(nqubits)])]
     op = MPO.from_operator_string(basis, nqubits, [(1.0, xs)])
 
@@ -153,7 +161,7 @@ def test_energy():
     nqubits = 5
 
     basis = {"r", "g"}
-    x = {"sigma_rg": 1.0, "sigma_gr": 1.0}
+    x = {"rg": 1.0, "gr": 1.0}
     xs = [(x, [i for i in range(nqubits)])]
     H = MPO.from_operator_string(basis, nqubits, [(1.0, xs)])
 
@@ -177,7 +185,7 @@ def test_energy_variance():
     nqubits = 5
 
     basis = {"r", "g"}
-    x = {"sigma_rg": 1.0, "sigma_gr": 1.0}
+    x = {"rg": 1.0, "gr": 1.0}
     xs = [(x, [i for i in range(nqubits)])]
     H = MPO.from_operator_string(basis, nqubits, [(1.0, xs)])
 

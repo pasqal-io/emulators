@@ -136,8 +136,16 @@ The following features are currently supported:
 
 - All pulser sequences that use only the rydberg channel
 - MPS and MPO can be constructed using the abstract pulser format.
-- The following noise types
-    - SPAM
+- The following noise types:
+    - [SPAM](https://pulser.readthedocs.io/en/stable/tutorials/spam.html)
+    - [Monte Carlo quantum jumps](https://pulser.readthedocs.io/en/stable/tutorials/effective_noise.html)
+- The following [basis states](https://pulser.readthedocs.io/en/stable/conventions.html) in a sequence:
+    - [ground-rydberg](https://pulser.readthedocs.io/en/stable/review.html#programmable-arrays-of-rydberg-atoms)
+    - [XY](https://pulser.readthedocs.io/en/stable/tutorials/xy_spin_chain.html)
+- The following properties from a pulser Sequence are also correctly applied:
+    - [hardware modulation](https://pulser.readthedocs.io/en/stable/tutorials/output_mod_eom.html)
+    - [SLM mask](https://pulser.readthedocs.io/en/stable/tutorials/slm_mask.html)
+    - A complex phase for the omega parameter
 - Customizable output, with the folowing inbuilt options:
     - The quantum state in MPS format
     - Bitstrings
@@ -145,22 +153,22 @@ The following features are currently supported:
     - The expectation of a given operator
     - The qubit density (magnetization)
     - The correlation matrix
-    - The mean and variance of the energy
+    - The mean, second moment and variance of the energy
 - Specification of
     - initial state
     - various precision parameters
     - whether to run on cpu or gpu(s)
+    - the $U_{ij}$ coefficients from [here](./advanced/hamiltonian.md)
+    - A cutoff below which $U_{ij}$ are set to 0 (this makes the computation more memory efficient)
 
 ## Planned features
 
 - Parallel TDVP on multiple GPUs
 - More noise:
-    - Effective noise using Monte Carlo quantum jumps
-    - other noises in the pulser `NoiseModel`
-- XY Hamiltonian
+    - the currently unsupported noises in the pulser `NoiseModel`
 - Differentiability
 
 ## More Info
 Please see the API specification for a list of available config options ([see here](api.md)), and the Observables page for how to compute observables ([see here](observables.md)).
 Those configuration options relating to the mathematical functioning of the backend are explained in more detail in the Config page ([see here](advanced/config.md)).
-A list of example scripts and notebooks can be found in the gitlab repo ([see here](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct/-/tree/main/examples?ref_type=heads)).
+For notebooks with examples for how to do various things, please see the notebooks page ([see here](./notebooks/index.md)).

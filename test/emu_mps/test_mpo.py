@@ -23,9 +23,30 @@ def test_mul():
         )
 
 
-def test_from_operator_string():
-    x = {"sigma_gr": 1.0, "sigma_rg": 1.0}
-    z = {"sigma_gg": 1.0, "sigma_rr": -1.0}
+def test_wrong_basis_string_state():
+    operations = [
+        (
+            1.0,
+            [
+                ({"X": 2.0}, [0, 2]),
+                ({"Z": 3.0}, [1]),
+            ],
+        )
+    ]
+
+    with pytest.raises(ValueError) as ve:
+        MPO.from_operator_string({"g", "1"}, 3, operations)
+    msg = "Unsupported basis provided"
+    assert str(ve.value) == msg
+
+
+@pytest.mark.parametrize(
+    ("zero", "one"),
+    (("g", "r"), ("0", "1")),
+)
+def test_from_operator_string(zero, one):
+    x = {zero + one: 1.0, one + zero: 1.0}
+    z = {zero + zero: 1.0, one + one: -1.0}
     operators = {"X": x, "Z": z}
     operations = [
         (
@@ -36,7 +57,7 @@ def test_from_operator_string():
             ],
         )
     ]
-    mpo = MPO.from_operator_string(("r", "g"), 3, operations, operators)
+    mpo = MPO.from_operator_string({one, zero}, 3, operations, operators)
     assert torch.allclose(
         mpo.factors[0],
         torch.tensor(

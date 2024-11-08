@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Iterable
 
 from emu_base.base_classes.state import State
 
@@ -53,7 +53,7 @@ class Operator(ABC):
     @staticmethod
     @abstractmethod
     def from_operator_string(
-        basis: tuple[str, ...],
+        basis: Iterable[str],
         nqubits: int,
         operations: FullOp,
         operators: dict[str, QuditOp] = {},
@@ -63,9 +63,11 @@ class Operator(ABC):
         """
         Create an operator in the backend-specific format from the
         pulser abstract representation
-        https://www.notion.so/pasqal/Abstract-State-and-Operator-Definition
-        by default it supports strings 'ij', where i and j in basis,
+        <https://www.notion.so/pasqal/Abstract-State-and-Operator-Definition>
+        By default it supports strings 'ij', where i and j in basis,
         to denote |i><j|, but additional symbols can be defined in operators
+        For a list of existing bases, see
+        <https://pulser.readthedocs.io/en/stable/conventions.html>
 
         Args:
             basis: the eigenstates in the basis to use
@@ -75,6 +77,24 @@ class Operator(ABC):
 
         Returns:
             the operator in whatever format the backend provides.
+
+        Examples:
+            >>> basis = {"r", "g"} #rydberg basis
+            >>> nqubits = 3 #or whatever
+            >>> x = {"rg": 1.0, "gr": 1.0}
+            >>> z = {"gg": 1.0, "rr": -1.0}
+            >>> operators = {"X": x, "Z": z} #define X and Z as conveniences
+            >>>
+            >>> operations = [ # 4 X1X + 3 1Z1
+            >>>     (
+            >>>         1.0,
+            >>>         [
+            >>>             ({"X": 2.0}, [0, 2]),
+            >>>             ({"Z": 3.0}, [1]),
+            >>>         ],
+            >>>     )
+            >>> ]
+            >>> op = Operator.from_operator_string(basis, nqubits, operations, operators)
         """
         pass
 

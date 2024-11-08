@@ -1,6 +1,6 @@
 from __future__ import annotations
 import itertools
-from typing import Any, List, cast
+from typing import Any, List, cast, Iterable
 
 import torch
 
@@ -155,7 +155,7 @@ class MPO(Operator):
 
     @staticmethod
     def from_operator_string(
-        basis: tuple[str, ...],
+        basis: Iterable[str],
         nqubits: int,
         operations: FullOp,
         operators: dict[str, QuditOp] = {},
@@ -163,11 +163,7 @@ class MPO(Operator):
         **kwargs: Any,
     ) -> MPO:
         """
-        Create an operator in the backend-specific format from the
-        pulser abstract representation
-        https://www.notion.so/pasqal/Abstract-State-and-Operator-Definition
-        by default it supports strings 'ij', where i and j in basis,
-        to denote |i><j|, but additional symbols can be defined in operators
+        See the base class
 
         Args:
             basis: the eigenstates in the basis to use e.g. ('r', 'g')
@@ -178,30 +174,49 @@ class MPO(Operator):
         Returns:
             the operator in MPO form.
         """
-        assert set(basis) == {
-            "r",
-            "g",
-        }, "only the rydberg-ground basis is currently supported"
+
         _validate_operator_targets(operations, nqubits)
-        mpos = []
-        for coeff, tensorop in operations:
-            # operators will now contain the 'sigma_ij' elements defined, and potentially
-            # user defined strings in terms of the 'sigma_ij'
+
+        basis = set(basis)
+        if basis == {"r", "g"}:
+            # operators will now contain the basis for single qubit ops, and potentially
+            # user defined strings in terms of these
             operators |= {
-                "sigma_gg": torch.tensor(
+                "gg": torch.tensor(
                     [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
                 ).reshape(1, 2, 2, 1),
-                "sigma_gr": torch.tensor(
+                "gr": torch.tensor(
                     [[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128
                 ).reshape(1, 2, 2, 1),
-                "sigma_rg": torch.tensor(
+                "rg": torch.tensor(
                     [[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128
                 ).reshape(1, 2, 2, 1),
-                "sigma_rr": torch.tensor(
+                "rr": torch.tensor(
                     [[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128
                 ).reshape(1, 2, 2, 1),
             }
+        elif basis == {"0", "1"}:
+            # operators will now contain the basis for single qubit ops, and potentially
+            # user defined strings in terms of these
+            operators |= {
+                "00": torch.tensor(
+                    [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
+                ).reshape(1, 2, 2, 1),
+                "01": torch.tensor(
+                    [[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128
+                ).reshape(1, 2, 2, 1),
+                "10": torch.tensor(
+                    [[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128
+                ).reshape(1, 2, 2, 1),
+                "11": torch.tensor(
+                    [[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128
+                ).reshape(1, 2, 2, 1),
+            }
+        else:
+            raise ValueError("Unsupported basis provided")
 
+        mpos = []
+        for coeff, tensorop in operations:
             # this function will recurse through the operators, and replace any definitions
             # in terms of strings by the computed tensor
             def replace_operator_string(op: QuditOp | torch.Tensor) -> torch.Tensor:
