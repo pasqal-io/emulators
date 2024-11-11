@@ -1,6 +1,6 @@
 # EMU-MPS benchmarks
 
-Users should expect _Emu-MPS_ to emulate the QPU for<sup>[[1]](#performance)</sup>
+Users should expect _Emu-MPS_ to emulate the QPU for<sup>[[1]](./performance.md)</sup>
 - 2d systems up to 30 atoms for quenches and 50 adiabatic sequences
 - Realistic sequences (~μs)
 
@@ -17,38 +17,19 @@ Benchmark efforts, as documented here, are meant to provide insights for _EMU-MP
 
 given a set of meaningful sequences of interest (quench, adiabatic and use-case sequences) that we are going to introduce case by case. Finally, we will only focus on 2d atomic registers as they represent the most numerically challenging and interesting case to study.
 
+## Contents
 
-- ### I. [Basic sequences](#i-basic-sequences)
-    - [Performance](#ia-performance)
-    - [Accuracy](#ib-accuracy)
-- ### II. [Noise](#ii-noise)
-- ### III. [Use cases](#iii-use-cases) (coming soon)
+The benchmarks are ordered in subpages by general topic.
 
-Feedbacks are more than welcome! If you are interested in the performance of any sequence, please, do not hesitate to get in touch with the Emulation team.
+- [Accuracy](./accuracy.md)
+- [Performance](./performance.md)
+- [Noise](./noise.md)
 
-# I. Basic sequences
-A first class of benchmarks covers the minimal meaningful pulse sequences that can be realistically run on the QPU:
+The accuracy benchmarks compare results against other emulators to engender confidence in the results _EMU-MPS_ generates. The performance benchmarks exist to exhibit the runtime and memory consumption characteristics of _EMU-MPS_. Based on these, the reader should get a feel for what kind of parameters would be required to be able to run a given sequence in a given time. Note that this is independent of whether the emulation results are actually accurate ([see here](../advanced/convergence/index.md)). Finally, the noise page presents benchmarks regarding noisy simulations, focusing on effects specific to noise that are not already covered in the other pages.
 
-- __Adiabatic evolution:__ Here at each time step, the evolution of the driving $\Omega, \Delta$ is _slow enough_ to guarantee that the evolved state is still an equilibrium state of $H$.
-- __Quench:__ One of the most fundamental protocols to drive a system out of equilibrium, it is realized here as follows: at time $t=0$ the system is prepared in the ground state $|\psi_0\rangle$ of $H_0$. The driving field is then suddenly turned on ($\Omega\neq0$) and the system is evolved for $t > 0$, as $|\psi\rangle=e^{-iHt}|\psi_0\rangle$.
+## Sequences used
 
-These two types of driving typically complement each other.
-Since the matrix product state approach in _Emu-MPS_ strives to minimize the stored information, keeping track of a single equilibrium state in adiabatic time evolution is typically easier. While this single state can be a complicated object itself, quenches, driving the system out of equilibrium, involve taking into account multiple excited states, and are typically computationally harder to emulate.
-
-### I.a Performance
-
-As outlined above, in the performance benchmarks, we will track several relevant metrics associated with runtime, memory usage and bond dimension:
-
-- __Bond dimension $\chi$:__ the maximum internal link dimension of the MPS representation of the time evolved state ([see here](../advanced/mps/index.md#bond-dimension)).
-- __State size $|\psi|$:__ memory footprint of the state (in MB).
-- __RSS:__ peak memory allocated by the emulation.
-- $\Delta t$: CPU/GPU time to complete a time step.
-
-We will give information about these metrics for various values of __N__, the qubit number, to give an idea of how performance scales.
-
-#### Adiabatic sequence
-
-We run an adiabatic sequence to make an antiferromagnetic (AFM) state, as taken from [Pulser documentation](https://pulser.readthedocs.io/en/stable/tutorials/afm_prep.html), alongside the biggest register:
+- __Adiabatic evolution:__ Here at each time step, the evolution of the driving $\Omega, \Delta$ is _slow enough_ to guarantee that the evolved state is still an equilibrium state of $H$. Note that the adiabaticity of a sequence is dependent on the energy gaps in the Hamiltonian, and since these gaps decrease with qubit number, most sequences are only adiabatic up to a given qubit number.
 
 ```python
 # from https://pulser.readthedocs.io/en/stable/tutorials/afm_prep.html
@@ -77,17 +58,7 @@ seq.add(sweep, "ising")
 seq.add(fall, "ising")
 ```
 
-Performance metrics, for the defined sequence and for the biggest register are shown below, in the left column of the figures, for CPU and GPU workloads.
-From the plots it is easy to understand that all the metrics heavily correlate with each other. Specifically a higher bond dimension will translate to higher memory footprint and longer runtimes ([see here](../advanced/mps/index.md)).
-
-<img src="./benchmark_plots/adiabatic_afm_state_cpu.png"  width="49.7%">
-<img src="./benchmark_plots/adiabatic_afm_state_gpu.png"  width="49.7%">
-
-In the right column (both CPU and GPU figure), we explore the available register size. Simply increasing the number of atoms by $N=N_x\times N_y$, and extracting the maximum metric and the total runtime for each run, the user can get a feeling on how much memory and time a specific sequence is going to take to emulate. Note that all qubit numbers which are not a square show up twice, since the rectangles making up this qubit number can be oriented two ways. The reasons why the orientation matters is explained by the results in the benchmark on [qubit shuffling](#qubit-shuffling). Note that it's possible to simulate larger systems than done in this benchmark. For example, by tuning the config parameters, it's possible to accurately simulate the above pulse for a 7x7 grid ([see here](../advanced/convergence/index.md)).
-
-#### Quench
-
-Here, we explore performance in the very same way as before, but for the quench sequence:
+- __Quench:__ One of the most fundamental protocols to drive a system out of equilibrium, it is realized here as follows: at time $t=0$ the system is prepared in the ground state $|\psi_0\rangle$ of $H_0$. The driving field is then suddenly turned on ($\Omega\neq0$) and the system is evolved for $t > 0$, as $|\psi\rangle=e^{-iHt}|\psi_0\rangle$.
 
 ```python
 hx = 1.5  # hx/J_max
@@ -109,101 +80,10 @@ simple_pulse = Pulse.ConstantPulse(T, omega, delta, 0)
 seq.add(simple_pulse, "ising")
 ```
 
-The overall metrics, as before, both for a single run (left) and for multiple runs varying the register size (right, $N=N_x\times N_y$) are presented below:
+These two types of driving typically complement each other.
+Since the matrix product state approach in _Emu-MPS_ strives to minimize the stored information, keeping track of a single equilibrium state in adiabatic time evolution is typically easier. While this single state can be a complicated object itself, quenches, driving the system out of equilibrium, involve taking into account multiple excited states, and are typically computationally harder to emulate.
 
-<img src="./benchmark_plots/quench_performance_cpu.png"  width="49.7%">
-<img src="./benchmark_plots/quench_performance_gpu.png"  width="49.7%">
-
-As expected, the quench requires significantly more memory to run than the adiabatic sequence ([see here](../advanced/hamiltonian.md)).
-
-#### Qubit shuffling
-
-A seemingly innocuous operation like reordering the register labels can actually affect the performance, as a consequence of the MPS representation ([see here](../advanced/mps/index.md)). In simple terms, the additional memory cost, and thus performance decrease, comes from representing two strongly interacting atoms in two far apart tensors in the MPS, since all the intermediate tensors in the chain have to somehow pass that information between them.
-
-To be more quantitative, in the following benchmark case, we run the same AFM sequence from before, but shuffling the qubit labeling order.
-
-The unshuffled register ordering is that given by `Register.rectangle` as used in the above two sequences. For the 3x3 grid used in this benchmark, that means a register ordering of
-
-<table>
- <tr><td>1 </td><td> 2 </td><td> 3 </td></tr>
- <tr><td>4 </td><td> 5 </td><td> 6 </td></tr>
- <tr><td>7 </td><td> 8 </td><td> 9 </td></tr>
-</table>
- Compare this with the shuffled register, which was constructed to put qubits that are close in physical space far away in index space
-<table>
- <tr><td> 2 </td><td> 7 </td><td> 4 </td></tr>
- <tr><td> 5 </td><td> 1 </td><td> 9 </td></tr>
- <tr><td> 8 </td><td> 3 </td><td> 6 </td></tr>
-</table>
-<img src="./benchmark_plots/qubit_shuffling_cpu.png"  width="49.7%">
-
-[TODO: fix this the black bars in the plot]
-
-The left column of the image shows no accuracy degradation from the qubit shuffling, returning equivalent observables. That is expected since both runs were able to converge to the desired precision.
-
-However, performance metrics (allocations and runtime) of the shuffled case significantly worsen, because shuffling the qubits introduces artificial long-range entanglement into the system, increasing the bond dimension. This larger bond dimension means the matrices involved in the computations are bigger, requiring more memory and compute time.
-
-In the future we plan to apply register ordering strategies by default, but for the moment, the take-home message is that a good register embedding is important. Ideally, one should keep strongly interactive pairs or atoms the closest possible when enumerating them in the register.
-
-### I.b Accuracy
-
-Here we discuss the emulator accuracy, as compared to Pulser state vector solver backend (qutip), but in the future we might directly compare with QPU results.
-Accuracy, here, specifically refer to observables:
-
-- __Energy:__ $E = \langle\psi|H|\psi\rangle$
-- __Energy variance:__ $\Delta E = \langle\psi|H^2|\psi\rangle-E^2$
-- __Magnetization:__ $\langle P_{0}^j\rangle$ where $P_{0}^j$ projects qubit $j$ onto the $|0>$ state
-
-The emulated sequences are going to be the same as before, an adiabatic and a quench. In both cases, 9 qubits arrayed in a 3x3 grid are used, so that the results can also be simulated in pulser. We will check accuracy against two main tunable parameters in _EMU-MPS_:
-
-- `precision`<sup>[[4]](../advanced/errors.md#truncation-of-the-state)</sup>: at each step, throw away components of the state whose sum weighs less that the specified precision.
-- time step `dt`: sampling time of the sequence.
-
-The goal is to show that for qubit numbers accessible to pulser, the results are identical up to good precision.
-
-<img src="./benchmark_plots/afm_state_fidelity.png"  width="49.7%">
-<img src="./benchmark_plots/quench_fidelity.png"  width="49.7%">
-
-Both sequences are emulated multiple times by varying both the precision and time step. Notice that any deviations from pulser for the adiabatic sequence are impossible to detect at the scale of the graph for a wide range of emulation parameters. For larger qubit numbers, such as the 7x7 grid, the question of convergence is much subtler ([see here](../advanced/convergence/index.md)). Rather, what is interesting there, is that even for a 2d system, Emu-MPS correctly treats the Rydberg interaction, regardless of the [effective description of long-range interaction terms](../advanced/errors.md#effective-description-of-long-range-terms-in-the-hamiltonian) that Emu-MPS uses.
-
-For the quench sequence, agreement with pulser is still good for all shown parameter combinations, with the possible exception of the yellow curve, which has a deviation of 1%. For the quench sequence, the energy and energy variance are conserved quantities, meaning that all variation therein come from errors. Even though the relative errors are small, it's instructive to analyze the sources of these errors. For example, we see that EMU-MPS incurs the biggest error at the start of the emulation, when the bond dimension is still small (the bond dimension starts at 1, and increases from there). For a time-constant Hamiltonian, all deviations in the mean and variance of the energy come from truncation, and as expected, improving the precision reduces the error in the energy variance ([see here](../advanced/errors.md)). Finally, as explained in error sources in TDVP ([see here](../advanced/errors.md#truncation-of-the-state)), we see that reducing $dt$ below a threshold (somewhere in the range of 1-5) causes a quick growth of the truncation errors, which requires improving the precision.
-
-The errors incurred by EMU-MPS can be contrasted with pulser, which uses a generic ODE solver backend that does not take into account constants of the motion. Both the mean and variance of the energy exhibit a deviation from their initial value that is linear in the number of time-steps taken by the solver.
-
-[TODO: For a more in depth discussion change the plots to have the observables on the left column and difference respect to Pulser state vector on right column]
-
-# II. Noise
-In this section, we analyze the time evolution of a quantum state using the adiabatic **"make_adiabatic_afm_state_2d_seq"** sequence under the influence of **depolarizing noise**. Typically, quantum systems are affected by interactions with their surrounding environment, making them **open** systems. To model the dynamics of such noisy quantum systems, one typically solves the **Lindblad "Master" equation**, which governs the time evolution of the density matrix, $\rho$.
-
-The following plot illustrates the time evolution of the initial state under the adiabatic $2\text{D}$ sequence. This is done by tracking the evolution of the **energy** (top left), **variance** (bottom left), and **magnetization** (top and bottom right) **in the presence of depolarizing noise** for a $(2\times2)$ qubit register ($4$ qubits). Specifically, we compare results from two different methods:
-
-- **Pulser**: explicitly solves the Lindblad Master equation, obtaining full information about the noise in the system through its probability distribution in phase space, as given by the density matrix
-
-- **EMU-MPS**: uses a **Monte Carlo (MC)** method to probe the noise by obtaining sample statistics from its underlying probability distribution (see [noise.md](../advanced/noise.md) for further details).
-
-The goal of this study is to demonstrate that the results obtained using the Monte Carlo method implemented in EMU-MPS are qualitatively similar to those found by solving the Lindblad master equation in Pulser.
-
-<img src="./benchmark_plots/afm_state_fidelity_with_noise.png"  width="49.7%">
-
-The key advantage of the Monte Carlo method, if the Hilbert space of $N$ qubits has dimension $dim(H) = d^N$​, then propagating the density matrix using the Lindblad equation requires handling an object of size $[dim(H)]^2$​. In contrast, the stochastic sampling of states with EMU-MPS involves the propagation of state vectors of size $dim(H)$ only. This drastically reduces the computational cost, especially when the number of qubits is large.
-
-In this study, we consider two different depolarization noise rates: **$0.2$** and **$0.5$**. These represent different levels of interaction with the environment, with $0.5$ introducing stronger noise effects than $0.2$. For the EMU-MPS simulations, the following parameters are used:
-
-- **Monte Carlo runs**: 100
-
-- **Precision**: $10^{-6}$, which is better than the default value ($10^{-5}$), as recommended in the [**warning** found here](../advanced/noise.md).
-
-Since the Monte Carlo method in EMU-MPS relies on stochastic sampling, the number of Monte Carlo runs chosen by the user determines the accuracy of the simulation. Each data point (e.g., in the energy plot) in the EMU-MPS results represents the **statistical average observable value across all Monte Carlo runs at a given time $t$**. The plots demonstrate that with $100$ Monte Carlo runs, EMU-MPS already yields qualitative agreement with Pulser. We expect that, increasing the number of Monte Carlo runs should smoothen the EMU-MPS curves further, leading to even closer agreement with the Pulser method.
-
-The overall energy of the system initially rises due to the presence of depolarizing noise, which introduces interactions between the system and the environment. This interaction reduces even further the strength of the spin correlations in the paramagnetic state. The system with higher noise rate ($0.5$) experiences stronger interaction effects, leading to a more pronounced increase in both the energy and energy fluctuations $\Delta E$. However, as the system continues to evolve, it begins to move toward an antiferromagnetic (AFM) correlated state, causing the energy and fluctuations to decrease. During this middle phase, the spin correlations become more meaningful, and the state grows gradually ordered. Eventually, the system undergoes a quantum phase transition at $t \approx 3000$ ns, moving from a paramagnetic state, where the spins are randomly aligned, to a true AFM state with well-defined spin ordering. This transition is reflected in the further reduction of energy fluctuations as the state becomes antiferromagnetic.
-
-# III. Use cases
-Coming soon...
-
-# Insights
-## Performance
-
-<b>c. CPU/GPU hardware</b>
+## CPU/GPU hardware
 
 _EMU-MPS_ is built on top of [pytorch](https://pytorch.org/). Thus, it can run on most available CPUs and GPUs, from a laptop to a cluster. The presented benchmarks are run on an NVIDIA DGX cluster node, requesting the following resources
 

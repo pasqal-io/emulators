@@ -22,7 +22,11 @@ nav:
     - Config: advanced/config.md
     - Validating Correctness of Results: advanced/convergence/index.md
     - Estimating Memory Consumption: advanced/memory.md
-  - Benchmarks: benchmarks/index.md
+  - Benchmarks:
+    - Index: benchmarks/index.md
+    - Accuracy: benchmarks/accuracy.md
+    - Performance: benchmarks/performance.md
+    - Noise: benchmarks/noise.md
 
 edit_uri: edit/main/docs/
 
