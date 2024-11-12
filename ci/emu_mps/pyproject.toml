@@ -25,7 +25,7 @@ dynamic = ["version"]
 dependencies = [
   "pulser-core==0.20.*",
   "torch>=2.4.0",
-  "emu-base==1.1.1"]
+  "emu-base==1.1.2"]
 
 [tool.hatch.version]
 path = "../../emu_mps/__init__.py"
