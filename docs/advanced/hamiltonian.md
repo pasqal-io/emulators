@@ -1,5 +1,5 @@
 # QPU Hamiltonian
-In all cases we will refer to $H$ as the rydberg-rydberg Hamiltonian that can be implemented on Pasqal's hardware,
+In all cases we will refer to $H$ as being of the form
 
 $$
 H = -\sum_j\Delta_jn_j \ + \ \sum_j\Omega_j\sigma^x_j \ + \ H_{i}
@@ -8,7 +8,7 @@ $$
 where $H_i$ is the interaction term in the Hamiltonian.
 Values of $\Omega_j$ and $\Delta_j$ respectively represent the amplitude and the detuning of the driving field applied to the qubit $j$. Avoiding technical details we will refer to eigenstates of $H$ (and in particular to the ground state) as equilibrium states.
 
-In the QPU, various kinds of interaction terms can be generated, and EMU-MPS supports the Rydberg interaction term and the XY interaction.
+Although the QPU currently only supports a Rydberg interaction, EMU-MPS supports both the Rydberg interaction term and the XY interaction.
 
 The Rydberg interaction reads
 

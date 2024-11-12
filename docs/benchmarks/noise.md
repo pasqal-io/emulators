@@ -12,7 +12,7 @@ The goal of this study is to demonstrate that the results obtained using the Mon
 
 <img src="../benchmark_plots/afm_state_fidelity_with_noise.png"  width="49.7%">
 
-The key advantage of the Monte Carlo method, if the Hilbert space of $N$ qubits has dimension $dim(H) = d^N$​, then propagating the density matrix using the Lindblad equation requires handling an object of size $[dim(H)]^2$​. In contrast, the stochastic sampling of states with EMU-MPS involves the propagation of state vectors of size $dim(H)$ only. This drastically reduces the computational cost, especially when the number of qubits is large.
+The key advantage of the Monte Carlo method, if the Hilbert space of $N$ qubits has dimension $dim(H) = d^N$​, then propagating the density matrix using the Lindblad equation requires handling an object of size $[dim(H)]^2$​. In contrast, the stochastic sampling of states with EMU-MPS involves the propagation of state vectors of size $dim(H)$ only. This drastically reduces the memory cost of the simulation, especially when the number of qubits is large. In return, the Monte Carlo method requires performing many runs if sample statistics are desired.
 
 In this study, we consider two different depolarization noise rates: **$0.2$** and **$0.5$**. These represent different levels of interaction with the environment, with $0.5$ introducing stronger noise effects than $0.2$. For the EMU-MPS simulations, the following parameters are used:
 

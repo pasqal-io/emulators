@@ -103,9 +103,9 @@ pip install -e .
 </details>
 
 
-## Running a pulser sequence and getting results
+## Running a Pulser sequence and getting results
 
-EMU-MPS is meant to run pulser sequences. Assuming the existence of a pulser sequence called `seq` (see the [pulser docs](https://pulser.readthedocs.io/en/stable/tutorials/creating.html)), you can do the following
+EMU-MPS is meant to run Pulser sequences. Assuming the existence of a Pulser sequence called `seq` (see the [Pulser docs](https://pulser.readthedocs.io/en/stable/tutorials/creating.html)), you can do the following
 
 ```python
 import emu_mps
@@ -128,21 +128,21 @@ strings = results.get_result(bitstrings.name(), bitstring_times[0])
 
 In the above, `strings` will be a `Counter[str]` that counts the occurrences of each bitstring that was measured.
 Note that the emulation stops at the largest multiple of `dt` which is not larger than the sequence duration.
-So if you make a pulser sequence the duration of which is not a multiple of `dt`, the simulation time will fall slightly short.
+So if you make a Pulser sequence the duration of which is not a multiple of `dt`, the simulation time will fall slightly short.
 
 ## Supported features
 
 The following features are currently supported:
 
-- All pulser sequences that use only the rydberg channel
-- MPS and MPO can be constructed using the abstract pulser format.
+- All Pulser sequences that use only the rydberg channel
+- MPS and MPO can be constructed using the abstract Pulser format.
 - The following noise types:
     - [SPAM](https://pulser.readthedocs.io/en/stable/tutorials/spam.html)
     - [Monte Carlo quantum jumps](https://pulser.readthedocs.io/en/stable/tutorials/effective_noise.html)
 - The following [basis states](https://pulser.readthedocs.io/en/stable/conventions.html) in a sequence:
     - [ground-rydberg](https://pulser.readthedocs.io/en/stable/review.html#programmable-arrays-of-rydberg-atoms)
     - [XY](https://pulser.readthedocs.io/en/stable/tutorials/xy_spin_chain.html)
-- The following properties from a pulser Sequence are also correctly applied:
+- The following properties from a Pulser Sequence are also correctly applied:
     - [hardware modulation](https://pulser.readthedocs.io/en/stable/tutorials/output_mod_eom.html)
     - [SLM mask](https://pulser.readthedocs.io/en/stable/tutorials/slm_mask.html)
     - A complex phase for the omega parameter
@@ -165,7 +165,7 @@ The following features are currently supported:
 
 - Parallel TDVP on multiple GPUs
 - More noise:
-    - the currently unsupported noises in the pulser `NoiseModel`
+    - the currently unsupported noises in the Pulser `NoiseModel`
 - Differentiability
 
 ## More Info

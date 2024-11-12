@@ -10,6 +10,7 @@ nav:
   - Notebooks:
     - Index: notebooks/index.md
     - Getting started: notebooks/getting_started.ipynb
+    - Running with noise: notebooks/noise.ipynb
   - How to Contribute: CONTRIBUTING.md
   - Code of Conduct: CODE_OF_CONDUCT.md
   - Advanced Topics:
