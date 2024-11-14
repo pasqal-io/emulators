@@ -1,0 +1,26 @@
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  REPOSITORY_NAME: $REPOSITORY_BASE_URL/emulators/emu-mps
+  PIP_EXTRA_INDEX_URL: "https://gitlab.pasqal.com/api/v4/projects/597/packages/pypi/simple"
+
+default:
+  interruptible: true
+
+cache:
+  paths:
+    - .cache/pip
+
+publish-package:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
+  image: python:3.10
+  script:
+    - python -m pip install --upgrade pip
+    - python -m pip install hatch
+    - cd ci/emu_base
+    - python -m hatch build
+    - python -m hatch publish
+  variables:
+    HATCH_INDEX_USER: $CI_DEPLOY_USER
+    HATCH_INDEX_AUTH: $CI_DEPLOY_PASSWORD
+    HATCH_INDEX_REPO: https://gitlab.pasqal.com/api/v4/projects/597/packages/pypi

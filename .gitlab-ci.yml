@@ -1,31 +1,3 @@
-workflow:
-  rules:
-    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_PROTECTED != "true"
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_TAG
-      variables:
-        PROTECT: "protected"
-    - if: $CI_COMMIT_REF_PROTECTED == "true"
-      variables:
-        PROTECT: "protected"
-    - if: $CI_PIPELINE_SOURCE == "web"
-
-.default_rules:
-  rules:
-    #don't run if were the scheduled pipeline that defines the below variable
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: never
-    # Run when an MR is created/updated
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    # Otherwise, we're a commit, but if an open MR exists, don't run
-    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
-      when: never
-    # Don't run on releases
-    - if: $CI_COMMIT_TAG
-      when: never
-    - if: $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
-
 .test:
   script:
     - pip install -r test_requirements.txt
@@ -35,16 +7,17 @@ workflow:
     - readme-cov
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
 
-
 stages:
   - lint
   - test
-  - ci
+  - benchmarks
+  - publish
   - pages
 
 lint:
-  extends:
-    - .default_rules
+  rules:
+    # Run when a merge request is created/updated
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   image: python:3.10
   stage: lint
   script:
@@ -53,43 +26,50 @@ lint:
     - pre-commit run --all-files
 
 test-py3.10:
+  rules:
+    # Run when a merge request is created/updated
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   extends:
-    - .default_rules
     - ".test"
   image: python:3.10
   stage: test
 
-emu_base_ci:
-  stage: ci
+emu_base_publish:
+  stage: publish
+  rules:
+    # Run when a (release) tag is created on the main branch
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"
   trigger:
     strategy: depend
     include:
-      - local: ci/emu_base/.gitlab-ci.yml
-  variables:
-    PARENT_PIPELINE_SOURCE: $CI_PIPELINE_SOURCE
-    PARENT_COMMIT_BRANCH: $CI_COMMIT_BRANCH
-    PARENT_OPEN_MR: $CI_OPEN_MERGE_REQUESTS
-    PARENT_COMMIT_REF_PROTECTED: $CI_COMMIT_REF_PROTECTED
-    PARENT_COMMIT_TAG: $CI_COMMIT_TAG
-    PARENT_COMMIT_REF_NAME: $CI_COMMIT_REF_NAME
-    PARENT_TRIGGER_SOURCE: $CI_PIPELINE_TRIGGER_SOURCE
+      - local: ci/emu_base/gitlab-ci-publish.yml
 
-emu_mps_ci:
-  stage: ci
+emu_mps_publish:
+  stage: publish
   needs:
-    - emu_base_ci
+    - emu_base_publish
+  rules:
+    # Run when a (release) tag is created on the main branch
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"
   trigger:
     strategy: depend
     include:
-      - local: ci/emu_mps/.gitlab-ci.yml
-  variables:
-    PARENT_PIPELINE_SOURCE: $CI_PIPELINE_SOURCE
-    PARENT_COMMIT_BRANCH: $CI_COMMIT_BRANCH
-    PARENT_OPEN_MR: $CI_OPEN_MERGE_REQUESTS
-    PARENT_COMMIT_REF_PROTECTED: $CI_COMMIT_REF_PROTECTED
-    PARENT_COMMIT_TAG: $CI_COMMIT_TAG
-    PARENT_COMMIT_REF_NAME: $CI_COMMIT_REF_NAME
-    PARENT_TRIGGER_SOURCE: $CI_PIPELINE_TRIGGER_SOURCE
+      - local: ci/emu_mps/gitlab-ci-publish.yml
+
+emu_mps_benchmarks:
+  stage: benchmarks
+  allow_failure: true
+  rules:
+    # Run when a (release) tag is created on the main branch
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"
+    # Run on merge requests - benchmarks are manual and this provides the possibility to trigger them
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Run on schedule on the main branch
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "schedule"
+  trigger:
+    strategy: depend
+    include:
+      - local: ci/emu_mps/gitlab-ci-benchmarks.yml
 
 pages:
   stage: pages
@@ -98,6 +78,7 @@ pages:
     paths:
       - public
   rules:
+    # Run for every new commit in the main branch
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
   script:
     - pip install -r doc_requirements.txt

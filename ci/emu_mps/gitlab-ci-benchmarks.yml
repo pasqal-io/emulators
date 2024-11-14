@@ -1,0 +1,179 @@
+# Change pip's cache directory to be inside the project directory since we can
+# only cache local items.
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  REPOSITORY_BASE_URL: 9ygszqk0.gra7.container-registry.ovh.net
+  REPOSITORY_NAME: $REPOSITORY_BASE_URL/emulators/emu-mps
+  PIP_EXTRA_INDEX_URL: "https://gitlab.pasqal.com/api/v4/projects/597/packages/pypi/simple"
+
+default:
+  interruptible: true
+
+.id_token:
+  id_tokens:
+    CI_JOB_JWT:
+      aud: https://gitlab.pasqal.com
+
+# Include templates for running jobs on the dgx cluster
+include:
+  - project: pasqal/dgx-cluster-support
+    ref: main
+    file: /gitlab-templates/dgx-runner.yml
+
+cache:
+  paths:
+    - .cache/pip
+
+.benchmark:
+  artifacts:
+    paths:
+      - ci/emu_mps/benchmarks/${JOB_NAME}/${JOB_NAME}.out
+      - ci/emu_mps/benchmarks/${JOB_NAME}/results/*
+    when: on_success
+    access: all
+    # 7 days as package job will compile everything and store it for longer time
+    expire_in: "7 days"
+  tags:
+    # Run this job on the cluster with the dedicated runners using tags.
+    # There are two runners: both require the "slurm" tag
+    # and the "protected" one is special for the main branch.
+    - slurm
+    - ${PROTECT}
+  cache:
+    paths:
+      - .cache/pip
+      - ci/emu_mps/benchmarks/framework/benchmarkutils/__pycache__/
+  rules:
+    # Automatically run on main
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      variables:
+        PROTECT: protected
+    # Manually run on merge requests
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+  before_script:
+    - module purge
+    - !reference [ .template-jacamar-minimal, before_script ]
+    - module load devel/python/${PYTHON_VERSION}
+    - python3 -m venv venv
+    - . venv/bin/activate
+    - cp /home/emuteam/.venv/pip.conf venv/pip.conf
+    - cd ci/emu_mps/benchmarks/${JOB_NAME}/
+    - pip install -e ../../../../
+    - pip install -e ../framework
+  script:
+    - python3 benchmark.py | tee ${JOB_NAME}.out
+  after_script:
+    - !reference [ .template-jacamar-minimal, after_script ]
+  # Maximum and default runtime on the cluster of a job
+  timeout: 96h
+  variables:
+    PYTHON_VERSION: "3.10.4"
+    PROTECT: slurm
+  id_tokens: !reference [.id_token, id_tokens]
+
+benchmark_adiabatic_afm_state_cpu:
+  extends: .benchmark
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 16"
+    JOB_NAME: "adiabatic_afm_state_cpu"
+
+benchmark_adiabatic_afm_state_gpu:
+  extends: .benchmark
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 1 -G 1"
+    JOB_NAME: "adiabatic_afm_state_gpu"
+
+benchmark_afm_state_fidelity:
+  extends: .benchmark
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 16"
+    JOB_NAME: "afm_state_fidelity"
+
+benchmark_afm_state_fidelity_with_noise:
+  extends: .benchmark
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 16"
+    JOB_NAME: "afm_state_fidelity_with_noise"
+
+benchmark_qubit_shuffling_cpu:
+  extends: .benchmark
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 16"
+    JOB_NAME: "qubit_shuffling_cpu"
+
+benchmark_quench_fidelity:
+  extends: .benchmark
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 32"
+    JOB_NAME: "quench_fidelity"
+  timeout: 96h
+
+benchmark_quench_performance_cpu:
+  extends: .benchmark
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 32"
+    JOB_NAME: "quench_performance_cpu"
+
+benchmark_quench_performance_gpu:
+  extends: .benchmark
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 4 -G 1"
+    JOB_NAME: "quench_performance_gpu"
+
+benchmark_quench_perf_obs_cpuVSgpu:
+  extends: .benchmark
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 24 -G 2"
+    JOB_NAME: "quench_perf_obs_cpuVSgpu"
+
+package_benchmark_artifacts:
+  id_tokens: !reference [.id_token, id_tokens]
+  tags:
+    - slurm
+    - protected
+  rules:
+    # Run on the main branch, including when benchmarks fail
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      when: always
+  script:
+    - echo "Packaging everything and backing up on the cluster"
+  after_script:
+    - timestamp=$(date +"%Y%m%dT%H%M")
+    - archivedir=/home/emuteam/archive
+    - mkdir -p ${archivedir}/${timestamp}
+    - cp -rva ci/emu_mps/benchmarks/*/results ${archivedir}/${timestamp}
+    - FILES=$(find $archivedir/$timestamp -type f -name *.png)
+    - for file in $FILES ; do echo -n " -a $file" >> commands.txt ; done
+    - FILES_CMD=$(cat commands.txt)
+    - msg="Hello Emulation Team!\n\nSee attachments for the emu-ct benchmark. \n\nDo not reply to this automatic email."
+    - SUBJECT='[no-reply] Emu-MPS weekly benchmark'
+    - echo -e "$msg" | mailx -r emuteam@admin-pasqal -s "$SUBJECT" $FILES_CMD emulation@pasqal.com
+    - rm commands.txt
+  needs:
+    - benchmark_adiabatic_afm_state_cpu
+    - benchmark_adiabatic_afm_state_gpu
+    - benchmark_afm_state_fidelity
+    - benchmark_afm_state_fidelity_with_noise
+    - benchmark_qubit_shuffling_cpu
+    - benchmark_quench_fidelity
+    - benchmark_quench_performance_cpu
+    - benchmark_quench_performance_gpu
+    - benchmark_quench_perf_obs_cpuVSgpu
+  artifacts:
+    name: all-benchmarks
+    paths:
+      - "ci/emu_mps/benchmarks/**/*.log"
+      - "ci/emu_mps/benchmarks/**/*.out"
+      - "ci/emu_mps/benchmarks/**/*.png"
+      - "ci/emu_mps/benchmarks/**/*.json"
+    expire_in: "30 days"
+
+success:
+  # This job is here to mark the pipeline as successful (instead of "passed with warnings")
+  # even though no (manual) benchmark ran.
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+  script:
+    - "true"

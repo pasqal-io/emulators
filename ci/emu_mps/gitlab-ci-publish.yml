@@ -1,0 +1,39 @@
+# Change pip's cache directory to be inside the project directory since we can
+# only cache local items.
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  REPOSITORY_BASE_URL: 9ygszqk0.gra7.container-registry.ovh.net
+  REPOSITORY_NAME: $REPOSITORY_BASE_URL/emulators/emu-mps
+  PIP_EXTRA_INDEX_URL: "https://gitlab.pasqal.com/api/v4/projects/597/packages/pypi/simple"
+
+cache:
+  paths:
+    - .cache/pip
+
+publish_cloud_image:
+  image: docker:20.10.18
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
+  services:
+    - docker:20.10.18-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  script:
+    - echo $HARBOR_TOKEN | docker login -u $HARBOR_USERNAME --password-stdin $REPOSITORY_BASE_URL
+    - docker build --build-arg SSH_PRIVATE_KEY="${SSH_PRIVATE_KEY}" -t $REPOSITORY_NAME:latest -t $REPOSITORY_NAME:$PARENT_COMMIT_TAG .
+    - docker push --all-tags $REPOSITORY_NAME
+
+publish-package:
+  image: python:3.10
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
+  script:
+    - python -m pip install --upgrade pip
+    - python -m pip install hatch
+    - cd ci/emu_mps
+    - python -m hatch build
+    - python -m hatch publish
+  variables:
+    HATCH_INDEX_USER: $CI_DEPLOY_USER
+    HATCH_INDEX_AUTH: $CI_DEPLOY_PASSWORD
+    HATCH_INDEX_REPO: https://gitlab.pasqal.com/api/v4/projects/597/packages/pypi
