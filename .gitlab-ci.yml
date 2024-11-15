@@ -18,6 +18,8 @@ lint:
   rules:
     # Run when a merge request is created/updated
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Run for every new commit in the main branch
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
   image: python:3.10
   stage: lint
   script:
@@ -29,6 +31,8 @@ test-py3.10:
   rules:
     # Run when a merge request is created/updated
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Run for every new commit in the main branch
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
   extends:
     - ".test"
   image: python:3.10
@@ -38,7 +42,7 @@ emu_base_publish:
   stage: publish
   rules:
     # Run when a (release) tag is created on the main branch
-    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
   trigger:
     strategy: depend
     include:
@@ -50,7 +54,7 @@ emu_mps_publish:
     - emu_base_publish
   rules:
     # Run when a (release) tag is created on the main branch
-    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
   trigger:
     strategy: depend
     include:
@@ -60,8 +64,6 @@ emu_mps_benchmarks:
   stage: benchmarks
   allow_failure: true
   rules:
-    # Run when a (release) tag is created on the main branch
-    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"
     # Run on merge requests - benchmarks are manual and this provides the possibility to trigger them
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     # Run on schedule on the main branch
