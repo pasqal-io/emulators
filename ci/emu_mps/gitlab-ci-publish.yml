@@ -20,7 +20,7 @@ publish_cloud_image:
     DOCKER_TLS_CERTDIR: "/certs"
   script:
     - echo $HARBOR_TOKEN | docker login -u $HARBOR_USERNAME --password-stdin $REPOSITORY_BASE_URL
-    - docker build --build-arg SSH_PRIVATE_KEY="${SSH_PRIVATE_KEY}" -t $REPOSITORY_NAME:latest -t $REPOSITORY_NAME:$PARENT_COMMIT_TAG .
+    - docker build --build-arg SSH_PRIVATE_KEY="${SSH_PRIVATE_KEY}" -t $REPOSITORY_NAME:latest -t $REPOSITORY_NAME:$CI_COMMIT_TAG .
     - docker push --all-tags $REPOSITORY_NAME
 
 publish-package:
