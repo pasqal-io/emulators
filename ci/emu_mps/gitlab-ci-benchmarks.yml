@@ -38,18 +38,18 @@ cache:
     # There are two runners: both require the "slurm" tag
     # and the "protected" one is special for the main branch.
     - slurm
-    - ${PROTECT}
+    - $PROTECTED_RUNNER_TAG
   cache:
     paths:
       - .cache/pip
       - ci/emu_mps/benchmarks/framework/benchmarkutils/__pycache__/
   rules:
     # Automatically run on main
-    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $IS_SCHEDULED_BENCHMARK == "true"
       variables:
-        PROTECT: protected
+        PROTECTED_RUNNER_TAG: protected
     # Manually run on merge requests
-    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
       when: manual
       allow_failure: true
   before_script:
@@ -70,7 +70,7 @@ cache:
   timeout: 96h
   variables:
     PYTHON_VERSION: "3.10.4"
-    PROTECT: slurm
+    PROTECTED_RUNNER_TAG: slurm
   id_tokens: !reference [.id_token, id_tokens]
 
 benchmark_adiabatic_afm_state_cpu:
@@ -135,7 +135,7 @@ package_benchmark_artifacts:
     - protected
   rules:
     # Run on the main branch, including when benchmarks fail
-    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $IS_SCHEDULED_BENCHMARK == "true"
       when: always
   script:
     - echo "Packaging everything and backing up on the cluster"
@@ -174,6 +174,8 @@ success:
   # This job is here to mark the pipeline as successful (instead of "passed with warnings")
   # even though no (manual) benchmark ran.
   rules:
-    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $IS_SCHEDULED_BENCHMARK == "true"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
   script:
     - "true"
