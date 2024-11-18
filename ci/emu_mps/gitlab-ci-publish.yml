@@ -19,6 +19,7 @@ publish_cloud_image:
   variables:
     DOCKER_TLS_CERTDIR: "/certs"
   script:
+    - export
     - echo $HARBOR_TOKEN | docker login -u $HARBOR_USERNAME --password-stdin $REPOSITORY_BASE_URL
     - docker build --build-arg SSH_PRIVATE_KEY="${SSH_PRIVATE_KEY}" -t $REPOSITORY_NAME:latest -t $REPOSITORY_NAME:$CI_COMMIT_TAG .
     - docker push --all-tags $REPOSITORY_NAME
@@ -28,6 +29,7 @@ publish-package:
   rules:
     - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
   script:
+    - export
     - python -m pip install --upgrade pip
     - python -m pip install hatch
     - cd ci/emu_mps

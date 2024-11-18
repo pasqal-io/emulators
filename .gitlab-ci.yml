@@ -1,5 +1,6 @@
 .test:
   script:
+    - export
     - pip install -r test_requirements.txt
     - pip install -e .
     - pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base
@@ -19,10 +20,11 @@ lint:
     # Run when a merge request is created/updated
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     # Run for every new commit in the main branch
-    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE != "schedule"
   image: python:3.10
   stage: lint
   script:
+    - export
     - pip install pre-commit pyproject-flake8
     - pre-commit install
     - pre-commit run --all-files
@@ -32,7 +34,7 @@ test-py3.10:
     # Run when a merge request is created/updated
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     # Run for every new commit in the main branch
-    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE != "schedule"
   extends:
     - ".test"
   image: python:3.10
@@ -83,8 +85,9 @@ pages:
       - public
   rules:
     # Run for every new commit in the main branch
-    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE != "schedule"
   script:
+    - export
     - pip install -r doc_requirements.txt
     - pip install -e .
     - mkdocs build --clean --strict --site-dir public

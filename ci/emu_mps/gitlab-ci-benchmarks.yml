@@ -52,7 +52,10 @@ cache:
     - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
       when: manual
       allow_failure: true
+      variables:
+        PROTECTED_RUNNER_TAG: slurm
   before_script:
+    - export
     - module purge
     - !reference [ .template-jacamar-minimal, before_script ]
     - module load devel/python/${PYTHON_VERSION}
@@ -70,7 +73,6 @@ cache:
   timeout: 96h
   variables:
     PYTHON_VERSION: "3.10.4"
-    PROTECTED_RUNNER_TAG: slurm
   id_tokens: !reference [.id_token, id_tokens]
 
 benchmark_adiabatic_afm_state_cpu:
@@ -138,6 +140,7 @@ package_benchmark_artifacts:
     - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $IS_SCHEDULED_BENCHMARK == "true"
       when: always
   script:
+    - export
     - echo "Packaging everything and backing up on the cluster"
   after_script:
     - timestamp=$(date +"%Y%m%dT%H%M")
@@ -178,4 +181,5 @@ success:
       when: never
     - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
   script:
+    - export
     - "true"
