@@ -6,7 +6,7 @@
 
 **EMU-MPS** is a Pulser backend, designed to **EMU**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**MPS**). It allows users to increase the number of qubits and reduce computation time.
 
-Join us on [Slack](https://pasqalworkspace.slack.com/archives/C0389KD4ZKQ) or by [e-mail](mailto:emulation@pasqal.com) to give us feedback about how you plan to use Emu-MPS or if you require specific feature-upgrades.
+Join us on [Slack](https://pasqalworkspace.slack.com/archives/C07MUV5K7EU) or by [e-mail](mailto:emulation@pasqal.com) to give us feedback about how you plan to use Emu-MPS or if you require specific feature-upgrades.
 
 
 ## Getting started
