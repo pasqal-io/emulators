@@ -50,12 +50,14 @@ def krylov_exp_impl(
 
         k_start = max(0, j - 1) if is_hermitian else 0
         for k in range(k_start, j + 1):
-            T[k, j] = torch.tensordot(lanczos_vectors[k].conj(), w, dims=w.dim())
-            w -= T[k, j] * lanczos_vectors[k]
+            overlap = torch.tensordot(lanczos_vectors[k].conj(), w, dims=w.dim())
+            T[k, j] = overlap
+            w = w - overlap * lanczos_vectors[k]
 
-        T[j + 1, j] = w.norm()
+        n2 = w.norm()
+        T[j + 1, j] = n2
 
-        if T[j + 1, j].real < norm_tolerance:
+        if n2 < norm_tolerance:
             # Happy breakdown
             expd = torch.linalg.matrix_exp(T[: j + 1, : j + 1])
             result = initial_norm * sum(
@@ -65,7 +67,7 @@ def krylov_exp_impl(
                 result=result, converged=True, happy_breakdown=True, iteration_count=j + 1
             )
 
-        lanczos_vectors.append(w / T[j + 1, j])
+        lanczos_vectors.append(w / n2)
 
         # Compute exponential of extended T matrix
         T[j + 2, j + 1] = 1
