@@ -24,6 +24,18 @@ cache:
   paths:
     - .cache/pip
 
+workflow:
+  rules:
+    # https://gitlab.com/gitlab-org/gitlab/-/issues/385676
+    # Due to the bug above, those conditional variables need to stay in `workflow`
+    # and cannot be put into a job's rules.
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $IS_SCHEDULED_BENCHMARK == "true"
+      variables:
+        PROTECTED_RUNNER_TAG: protected
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
+      variables:
+        PROTECTED_RUNNER_TAG: slurm
+
 .benchmark:
   artifacts:
     paths:
@@ -46,14 +58,10 @@ cache:
   rules:
     # Automatically run on main
     - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $IS_SCHEDULED_BENCHMARK == "true"
-      variables:
-        PROTECTED_RUNNER_TAG: protected
     # Manually run on merge requests
     - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
       when: manual
       allow_failure: true
-      variables:
-        PROTECTED_RUNNER_TAG: slurm
   before_script:
     - export
     - module purge
