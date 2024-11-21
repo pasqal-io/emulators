@@ -107,6 +107,12 @@ benchmark_afm_state_fidelity_with_noise:
     SCHEDULER_PARAMETERS: "-N1 -c 16"
     JOB_NAME: "afm_state_fidelity_with_noise"
 
+benchmark_afm_state_gpu_with_noise:
+  extends: .benchmark
+  variables:
+    SCHEDULER_PARAMETERS: "-N1 -c 1 -G 1"
+    JOB_NAME: "afm_state_gpu_with_noise"
+
 benchmark_qubit_shuffling_cpu:
   extends: .benchmark
   variables:

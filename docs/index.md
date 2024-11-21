@@ -57,10 +57,11 @@ containing the following:
 
 ```
 [global]
-extra-index-url=https://<USERNAME>:<PASSWORD>@gitlab.pasqal.com/api/v4/projects/190/packages/pypi/simple
+extra-index-url=https://gitlab.pasqal.com/api/v4/projects/597/packages/pypi/simple
+                possible.other.urls
 ```
 
-For the username and password required for the above url, please contact a member of emulation team or qlibs.
+The repo above is publically accessible without authentication.
 
 
 It is also possible to add the `extra-index-url` to the `pip install` command directly, if you somehow don't want to create a `pip.conf` file.
@@ -105,6 +106,9 @@ pip install -e .
 
 ## Running a Pulser sequence and getting results
 
+<<<<<<< HEAD
+Several example notebooks are included in the online documentation. The index page for them can be found [here](./notebooks/index.md).
+=======
 EMU-MPS is meant to run Pulser sequences. Assuming the existence of a Pulser sequence called `seq` (see the [Pulser docs](https://pulser.readthedocs.io/en/stable/tutorials/creating.html)), you can do the following
 
 ```python
@@ -129,6 +133,7 @@ strings = results.get_result(bitstrings.name(), bitstring_times[0])
 In the above, `strings` will be a `Counter[str]` that counts the occurrences of each bitstring that was measured.
 Note that the emulation stops at the largest multiple of `dt` which is not larger than the sequence duration.
 So if you make a Pulser sequence the duration of which is not a multiple of `dt`, the simulation time will fall slightly short.
+>>>>>>> main
 
 ## Supported features
 
