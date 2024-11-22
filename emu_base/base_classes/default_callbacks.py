@@ -243,7 +243,7 @@ class Energy(Callback):
         return "energy"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
-        return state.inner(H * state).real
+        return H.expect(state).real
 
 
 class EnergyVariance(Callback):
@@ -262,8 +262,8 @@ class EnergyVariance(Callback):
         return "energy_variance"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
-        h_state = H * state
-        return h_state.inner(h_state).real - state.inner(H * state).real ** 2
+        h_squared = H @ H
+        return h_squared.expect(state).real - H.expect(state).real ** 2
 
 
 class SecondMomentOfEnergy(Callback):
@@ -282,5 +282,5 @@ class SecondMomentOfEnergy(Callback):
         return "second_moment_of_energy"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
-        h_state = H * state
-        return h_state.inner(h_state).real
+        h_squared = H @ H
+        return h_squared.expect(state).real

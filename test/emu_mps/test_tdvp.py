@@ -287,6 +287,7 @@ def test_evolve_tdvp():
 @patch("emu_base.pulser_adapter.pulser.sequence.Sequence")
 def test_tdvp_state_vector(mock_sequence):
     nqubits = 9
+    num_gpus = 0
     c6 = 5420158.53  # mock device c6
 
     qubit_positions = []
@@ -320,6 +321,7 @@ def test_tdvp_state_vector(mock_sequence):
         delta=deltas,
         phi=phi,
         hamiltonian_type=HamiltonianType.Rydberg,
+        num_gpus_to_use=num_gpus,
     )
 
     # |000000000>
@@ -328,7 +330,7 @@ def test_tdvp_state_vector(mock_sequence):
         precision=1e-10,
         # run this on cpu, collecting the state vector from
         # multiple devices is beside the point of the test
-        num_gpus_to_use=0,
+        num_gpus_to_use=num_gpus,
     )
 
     vec = torch.einsum(

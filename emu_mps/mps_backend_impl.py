@@ -165,6 +165,7 @@ class MPSBackendImpl:
             phi=self.phi[step, :],
             hamiltonian_type=self.hamiltonian_type,
             noise=self.lindblad_noise,
+            num_gpus_to_use=self.config.num_gpus_to_use,
         )
 
         target_time = float((step + 1) * self.config.dt)
@@ -225,6 +226,7 @@ class MPSBackendImpl:
                 delta=self.delta[step, :],
                 phi=self.phi[step, :],
                 hamiltonian_type=self.hamiltonian_type,
+                num_gpus_to_use=self.config.num_gpus_to_use
                 # Without noise for the callbacks.
             )
         )

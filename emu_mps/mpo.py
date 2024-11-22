@@ -1,6 +1,6 @@
 from __future__ import annotations
 import itertools
-from typing import Any, List, cast, Iterable
+from typing import Any, List, cast, Iterable, Optional
 
 import torch
 
@@ -8,7 +8,7 @@ from emu_mps.algebra import add_factors, scale_factors, zip_right
 from emu_base.base_classes.operator import FullOp, QuditOp
 from emu_base import Operator, State
 from emu_mps.mps import MPS
-from emu_mps.utils import new_left_bath
+from emu_mps.utils import new_left_bath, assign_devices, DEVICE_COUNT
 
 
 def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:
@@ -40,9 +40,7 @@ class MPO(Operator):
     """
 
     def __init__(
-        self,
-        factors: List[torch.Tensor],
-        /,
+        self, factors: List[torch.Tensor], /, num_gpus_to_use: Optional[int] = None
     ):
         self.factors = factors
         self.num_sites = len(factors)
@@ -56,6 +54,9 @@ class MPO(Operator):
             factors[i - 1].shape[-1] == factors[i].shape[0]
             for i in range(1, self.num_sites)
         )
+
+        if num_gpus_to_use is not None:
+            assign_devices(self.factors, min(DEVICE_COUNT, num_gpus_to_use))
 
     def __repr__(self) -> str:
         return "[" + ", ".join(map(repr, self.factors)) + "]"

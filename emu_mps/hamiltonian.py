@@ -330,6 +330,7 @@ def make_H(
     delta: torch.Tensor,
     phi: torch.Tensor,
     hamiltonian_type: HamiltonianType,
+    num_gpus_to_use: int | None,
     noise: torch.Tensor = torch.zeros(2, 2),
 ) -> MPO:
     r"""
@@ -437,4 +438,4 @@ def make_H(
             scale,
         )
     )
-    return MPO(cores)
+    return MPO(cores, num_gpus_to_use=num_gpus_to_use)
