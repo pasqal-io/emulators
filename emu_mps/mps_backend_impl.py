@@ -7,7 +7,7 @@ import torch
 from pulser import Sequence
 
 from emu_base import Results, State, find_root_brents, PulserData
-from emu_mps.hamiltonian import make_H
+from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
@@ -55,6 +55,7 @@ class MPSBackendImpl:
         self.masked_interaction_matrix = pulser_data.masked_interaction_matrix
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.slm_end_time = pulser_data.slm_end_time
+        self.is_masked = self.slm_end_time > 0.0
         self.lindblad_ops = pulser_data.lindblad_ops
 
     def init_dark_qubits(self) -> None:
@@ -128,6 +129,17 @@ class MPSBackendImpl:
         initial_state *= 1 / initial_state.norm()
         self.state = initial_state
 
+    def init_hamiltonian(self) -> None:
+        """
+        Must be called AFTER init_dark_qubits otherwise,
+        too many factors are put in the Hamiltonian
+        """
+        self.hamiltonian = make_H(
+            interaction_matrix=self.masked_interaction_matrix,
+            hamiltonian_type=self.hamiltonian_type,
+            num_gpus_to_use=self.config.num_gpus_to_use,
+        )
+
     def evolve_to_time(self, intermediate_time: float) -> float:
         """
         Internal method to evolve the state to `intermediate_time`
@@ -152,23 +164,24 @@ class MPSBackendImpl:
         """
         Updates hamiltonian and evolves state by dt.
         """
-        interaction_matrix = (
-            self.masked_interaction_matrix
-            if self.current_time < self.slm_end_time
-            else self.full_interaction_matrix
-        )
 
-        self.hamiltonian = make_H(
-            interaction_matrix=interaction_matrix,
+        target_time = float((step + 1) * self.config.dt)
+        if self.is_masked and target_time > self.slm_end_time:
+            self.is_masked = False
+            self.hamiltonian = make_H(
+                interaction_matrix=self.full_interaction_matrix,
+                hamiltonian_type=self.hamiltonian_type,
+                num_gpus_to_use=self.config.num_gpus_to_use,
+            )
+
+        update_H(
+            hamiltonian=self.hamiltonian,
             omega=self.omega[step, :],
             delta=self.delta[step, :],
             phi=self.phi[step, :],
-            hamiltonian_type=self.hamiltonian_type,
             noise=self.lindblad_noise,
-            num_gpus_to_use=self.config.num_gpus_to_use,
         )
 
-        target_time = float((step + 1) * self.config.dt)
         while self.current_time != target_time:
             assert self.current_time < target_time
 
@@ -191,7 +204,6 @@ class MPSBackendImpl:
                     tolerance=1.0,
                 )
                 self.do_random_quantum_jump()
-
         assert self.current_time == target_time
 
     def do_random_quantum_jump(self) -> None:
@@ -217,25 +229,21 @@ class MPSBackendImpl:
     def fill_results(self, results: Results, step: int) -> None:
         t = (step + 1) * self.config.dt  # we are now after the time-step, so use step+1
 
-        noiseless_hamiltonian = (
-            self.hamiltonian
-            if not self.has_lindblad_noise
-            else make_H(
-                interaction_matrix=self.full_interaction_matrix,
+        if self.has_lindblad_noise:
+            # remove the noise for the callbacks.
+            # since update_H is called at the start of do_time_step this is safe
+            update_H(
+                hamiltonian=self.hamiltonian,
                 omega=self.omega[step, :],
                 delta=self.delta[step, :],
                 phi=self.phi[step, :],
-                hamiltonian_type=self.hamiltonian_type,
-                num_gpus_to_use=self.config.num_gpus_to_use
-                # Without noise for the callbacks.
             )
-        )
 
         normalized_state = 1 / self.state.norm() * self.state
 
         if self.well_prepared_qubits_filter is None:
             for callback in self.config.callbacks:
-                callback(self.config, t, normalized_state, noiseless_hamiltonian, results)
+                callback(self.config, t, normalized_state, self.hamiltonian, results)
             return
 
         full_mpo, full_state = None, None
@@ -247,7 +255,7 @@ class MPSBackendImpl:
                 # Only do this potentially expensive step once and when needed.
                 full_mpo = MPO(
                     extended_mpo_factors(
-                        noiseless_hamiltonian.factors, self.well_prepared_qubits_filter
+                        self.hamiltonian.factors, self.well_prepared_qubits_filter
                     )
                 )
                 full_state = MPS(

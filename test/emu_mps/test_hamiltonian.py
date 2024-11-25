@@ -3,7 +3,7 @@ from functools import reduce
 
 import torch
 
-from emu_mps.hamiltonian import make_H, _get_interactions_to_keep
+from emu_mps.hamiltonian import make_H, update_H, _get_interactions_to_keep
 from emu_base.pulser_adapter import HamiltonianType
 from emu_mps.noise import compute_noise_from_lindbladians
 
@@ -151,11 +151,14 @@ def test_2_qubit(hamiltonian_type):
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
+        hamiltonian_type=hamiltonian_type,
+        num_gpus_to_use=num_gpus,
+    )
+    update_H(
+        hamiltonian=ham,
         omega=omega,
         delta=delta,
         phi=phi,
-        hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=num_gpus,
     )
 
     if hamiltonian_type == HamiltonianType.Rydberg:
@@ -198,13 +201,10 @@ def test_noise(hamiltonian_type):
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
-        omega=omega,
-        delta=delta,
-        phi=phi,
-        noise=noise,
         hamiltonian_type=hamiltonian_type,
         num_gpus_to_use=num_gpus,
     )
+    update_H(hamiltonian=ham, omega=omega, delta=delta, phi=phi, noise=noise)
 
     sv = torch.einsum("ijkl,lmno->ijmkno", *(ham.factors)).reshape(4, 4)
     expected = sv_hamiltonian(
@@ -239,11 +239,14 @@ def test_4_qubit(hamiltonian_type):
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
+        hamiltonian_type=hamiltonian_type,
+        num_gpus_to_use=num_gpus,
+    )
+    update_H(
+        hamiltonian=ham,
         omega=omega,
         delta=delta,
         phi=phi,
-        hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=num_gpus,
     )
     if hamiltonian_type == HamiltonianType.Rydberg:
         assert ham.factors[0].shape == (1, 2, 2, 3)
@@ -283,11 +286,14 @@ def test_5_qubit(hamiltonian_type):
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
+        hamiltonian_type=hamiltonian_type,
+        num_gpus_to_use=num_gpus,
+    )
+    update_H(
+        hamiltonian=ham,
         omega=omega,
         delta=delta,
         phi=phi,
-        hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=num_gpus,
     )
 
     if hamiltonian_type == HamiltonianType.Rydberg:
@@ -343,11 +349,14 @@ def test_9_qubit_noise(hamiltonian_type):
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
+        hamiltonian_type=hamiltonian_type,
+        num_gpus_to_use=num_gpus,
+    )
+    update_H(
+        hamiltonian=ham,
         omega=omega,
         delta=delta,
         phi=phi,
-        hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=num_gpus,
         noise=noise,
     )
 
@@ -390,11 +399,14 @@ def test_differentiation():
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
+        hamiltonian_type=HamiltonianType.Rydberg,
+        num_gpus_to_use=num_gpus,
+    )
+    update_H(
+        hamiltonian=ham,
         omega=omega,
         delta=delta,
         phi=phi,
-        hamiltonian_type=HamiltonianType.Rydberg,
-        num_gpus_to_use=num_gpus,
     )
 
     sv = torch.einsum("abcd,defg,ghij,jklm,mnop->abehkncfilop", *(ham.factors)).reshape(
@@ -459,11 +471,14 @@ def test_truncation_random(hamiltonian_type):
     interaction_matrix[interaction_matrix < 0.7] = 0.0
     ham = make_H(
         interaction_matrix=interaction_matrix,
+        hamiltonian_type=hamiltonian_type,
+        num_gpus_to_use=num_gpus,
+    )
+    update_H(
+        hamiltonian=ham,
         omega=omega,
         delta=delta,
         phi=phi,
-        hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=num_gpus,
     )
 
     sv = torch.einsum(
@@ -497,7 +512,7 @@ def test_truncation_random(hamiltonian_type):
 def test_truncation_nn(hamiltonian_type):
     n = 5
 
-    omega = torch.tensor([12.566370614359172] * n, dtype=dtype)
+    omega = torch.zeros(n, dtype=dtype)
     delta = torch.zeros(n, dtype=dtype)
     phi = torch.zeros(n, dtype=dtype)
 
@@ -505,9 +520,6 @@ def test_truncation_nn(hamiltonian_type):
     interaction_matrix = interaction_matrix + interaction_matrix.T
     ham = make_H(
         interaction_matrix=interaction_matrix,
-        omega=omega,
-        delta=delta,
-        phi=phi,
         num_gpus_to_use=0,
         hamiltonian_type=hamiltonian_type,
     )

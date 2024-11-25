@@ -33,6 +33,7 @@ class MPSBackend(Backend):
         impl.init_dark_qubits()
         impl.init_initial_state(mps_config.initial_state)
         impl.init_lindblad_noise()
+        impl.init_hamiltonian()
 
         for step in range(impl.timestep_count):
             start = time()

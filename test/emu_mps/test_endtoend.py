@@ -185,8 +185,6 @@ def test_XY_3atomswith_slm():
         device=final_state.factors[0].device,
         dtype=torch.complex128,
     )
-    print(final_vec)
-
     # pulser magnetization: [0.22572457283642877,0.21208108307887844,0.06213666344288577
     q_density = result["qubit_density"][final_time]
 

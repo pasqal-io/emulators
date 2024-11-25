@@ -18,7 +18,10 @@ def create_victim(dt=10, noise_model=None):
     config = MPSConfig(dt=dt, noise_model=noise_model)
     sequence = MagicMock()
     sequence.register.qubit_ids = ["whatever"] * QUBIT_COUNT
-    with patch("emu_mps.mps_backend_impl.PulserData"):
+    mock_pulser_data = MagicMock()
+    mock_pulser_data.slm_end_time = 10.0
+    with patch("emu_mps.mps_backend_impl.PulserData.__new__") as mock_new:
+        mock_new.return_value = mock_pulser_data
         victim = MPSBackendImpl(sequence, config)
 
     assert victim.qubit_count == QUBIT_COUNT
@@ -269,17 +272,25 @@ def test_init_initial_state_provided_normalized():
     assert cmath.isclose(victim.state.inner(MPS([up, up, down, up, down])), 1)
 
 
+@patch("emu_mps.mps_backend_impl.make_H")
+def test_init_hamiltonian(make_H_mock):
+    victim = create_victim()
+    victim.init_hamiltonian()
+    assert make_H_mock.call_count == 1
+
+
 @patch("emu_mps.mps_backend_impl.evolve_tdvp")
 @patch("emu_mps.mps_backend_impl.make_H")
-def test_do_time_step_without_noise(make_H_mock, evolve_tdvp_mock):
+@patch("emu_mps.mps_backend_impl.update_H")
+def test_do_time_step_without_noise(update_H_mock, make_H_mock, evolve_tdvp_mock):
     victim = create_victim()
 
     victim.jump_threshold = 0.8
     victim.norm_gap_before_jump = 0.2
     victim.has_lindblad_noise = False
     victim.lindblad_noise = torch.zeros(2, 2, dtype=torch.complex128)
-    victim.slm_end_time = 100
     victim.state = MPS.make(5)
+    victim.init_hamiltonian()
 
     def evolve_tdvp_mock_side_effect(
         t, state, hamiltonian, extra_krylov_tolerance, max_krylov_dim, is_hermitian
@@ -292,14 +303,23 @@ def test_do_time_step_without_noise(make_H_mock, evolve_tdvp_mock):
 
     evolve_tdvp_mock.side_effect = evolve_tdvp_mock_side_effect
     victim.do_time_step(0)  # No quantum jump attempted in the absence of noise.
-    evolve_tdvp_mock.assert_called_once()
 
+    assert evolve_tdvp_mock.call_count == 1
+    assert victim.is_masked is True
     assert math.isclose(victim.state.norm(), 0.6)
     assert math.isclose(victim.norm_gap_before_jump, -0.44)
+    assert update_H_mock.call_count == 1
+    assert make_H_mock.call_count == 1
+
+    victim.do_time_step(1)  # No quantum jump attempted in the absence of noise.
+    assert update_H_mock.call_count == 2
+    assert make_H_mock.call_count == 2
+    assert victim.is_masked is False
 
 
 @patch("emu_mps.mps_backend_impl.evolve_tdvp")
 @patch("emu_mps.mps_backend_impl.make_H")
+@patch("emu_mps.mps_backend_impl.update_H")
 @patch("emu_mps.mps_backend_impl.find_root_brents")
 @patch("emu_base.pulser_adapter._get_all_lindblad_noise_operators")
 @patch("emu_mps.mps_backend_impl.MPSBackendImpl.do_random_quantum_jump")
@@ -307,10 +327,12 @@ def test_do_time_step_with_noise(
     do_random_quantum_jump_mock,
     get_all_lindblad_noise_operators_mock,
     find_root_brents_mock,
+    update_H_mock,
     make_H_mock,
     evolve_tdvp_mock,
 ):
     victim = create_victim(dt=12)
+    victim.init_hamiltonian()
 
     test_jump_threshold = 0.8
     victim.jump_threshold = test_jump_threshold
@@ -420,3 +442,5 @@ def test_do_time_step_with_noise(
         ]
     )
     assert evolve_tdvp_mock.call_count == 5
+    assert update_H_mock.call_count == 1
+    assert make_H_mock.call_count == 1

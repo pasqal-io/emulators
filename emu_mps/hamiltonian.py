@@ -35,7 +35,7 @@ def truncate_factor(
     return trunc[:, :, :, torch.cat((padding, right_interactions))]
 
 
-def _first_factor_rydberg(gate: torch.Tensor, interaction: bool) -> torch.Tensor:
+def _first_factor_rydberg(interaction: bool) -> torch.Tensor:
     """
     Creates the first Ising Hamiltonian factor.
     """
@@ -44,11 +44,10 @@ def _first_factor_rydberg(gate: torch.Tensor, interaction: bool) -> torch.Tensor
     if interaction:
         fac[0, :, :, 2] = n_op  # number operator
 
-    fac[0, :, :, 0] = gate
     return fac
 
 
-def _first_factor_xy(gate: torch.Tensor, interaction: bool) -> torch.Tensor:
+def _first_factor_xy(interaction: bool) -> torch.Tensor:
     """
     Creates the first XY Hamiltonian factor.
     """
@@ -58,11 +57,10 @@ def _first_factor_xy(gate: torch.Tensor, interaction: bool) -> torch.Tensor:
         fac[0, :, :, 2] = creation_op
         fac[0, :, :, 3] = creation_op.T
 
-    fac[0, :, :, 0] = gate
     return fac
 
 
-def _last_factor_rydberg(gate: torch.Tensor, scale: float | complex) -> torch.Tensor:
+def _last_factor_rydberg(scale: float | complex) -> torch.Tensor:
     """
     Creates the last Ising Hamiltonian factor.
     """
@@ -71,11 +69,10 @@ def _last_factor_rydberg(gate: torch.Tensor, scale: float | complex) -> torch.Te
     if scale != 0:
         fac[2, :, :, 0] = scale * n_op
 
-    fac[1, :, :, 0] = gate
     return fac
 
 
-def _last_factor_xy(gate: torch.Tensor, scale: float | complex) -> torch.Tensor:
+def _last_factor_xy(scale: float | complex) -> torch.Tensor:
     """
     Creates the last XY Hamiltonian factor.
     """
@@ -85,12 +82,10 @@ def _last_factor_xy(gate: torch.Tensor, scale: float | complex) -> torch.Tensor:
         fac[2, :, :, 0] = scale * creation_op.T
         fac[3, :, :, 0] = scale * creation_op
 
-    fac[1, :, :, 0] = gate
     return fac
 
 
 def _left_factor_rydberg(
-    gate: torch.Tensor,
     scales: torch.Tensor,
     left_interactions: torch.Tensor,
     right_interactions: torch.Tensor,
@@ -107,7 +102,6 @@ def _left_factor_rydberg(
     for i in range(index + 2):
         fac[i, :, :, i] = iden_op  # identity matrix to carry the gates of other qubits
 
-    fac[1, :, :, 0] = gate
     return truncate_factor(
         fac,
         left_interactions,
@@ -117,7 +111,6 @@ def _left_factor_rydberg(
 
 
 def _left_factor_xy(
-    gate: torch.Tensor,
     scales: torch.Tensor,
     left_interactions: torch.Tensor,
     right_interactions: torch.Tensor,
@@ -139,7 +132,6 @@ def _left_factor_xy(
     for i in range(2 * index + 2):
         fac[i, :, :, i] = iden_op  # identity to carry the gates of other qubits
 
-    fac[1, :, :, 0] = gate
     # duplicate each bool, because each interaction term occurs twice
     return truncate_factor(
         fac, left_interactions, right_interactions, hamiltonian_type=HamiltonianType.XY
@@ -147,7 +139,6 @@ def _left_factor_xy(
 
 
 def _right_factor_rydberg(
-    gate: torch.Tensor,
     scales: torch.Tensor,
     left_interactions: torch.Tensor,
     right_interactions: torch.Tensor,
@@ -166,7 +157,6 @@ def _right_factor_rydberg(
     fac[0, :, :, 0] = iden_op  # identity to carry the next gates to the previous qubits
     fac[1, :, :, 1] = iden_op  # identity to carry previous gates to next qubits
 
-    fac[1, :, :, 0] = gate
     return truncate_factor(
         fac,
         left_interactions,
@@ -176,7 +166,6 @@ def _right_factor_rydberg(
 
 
 def _right_factor_xy(
-    gate: torch.Tensor,
     scales: torch.Tensor,
     left_interactions: torch.Tensor,
     right_interactions: torch.Tensor,
@@ -203,7 +192,6 @@ def _right_factor_xy(
     # identity to carry previous gates to next qubits
     fac[1, :, :, 1] = iden_op
 
-    fac[1, :, :, 0] = gate
     # duplicate each bool, because each interaction term occurs twice
     return truncate_factor(
         fac, left_interactions, right_interactions, hamiltonian_type=HamiltonianType.XY
@@ -211,7 +199,6 @@ def _right_factor_xy(
 
 
 def _middle_factor_rydberg(
-    gate: torch.Tensor,
     scales_l: torch.Tensor,
     scales_r: torch.Tensor,
     scales_mat: torch.Tensor,
@@ -240,7 +227,6 @@ def _middle_factor_rydberg(
     fac[0, :, :, 0] = iden_op  # identity to carry the next gates to the previous qubits
     fac[1, :, :, 1] = iden_op  # identity to carry previous gates to next qubits
 
-    fac[1, :, :, 0] = gate
     return truncate_factor(
         fac,
         left_interactions,
@@ -250,7 +236,6 @@ def _middle_factor_rydberg(
 
 
 def _middle_factor_xy(
-    gate: torch.Tensor,
     scales_l: torch.Tensor,
     scales_r: torch.Tensor,
     scales_mat: torch.Tensor,
@@ -290,7 +275,6 @@ def _middle_factor_xy(
     fac[0, :, :, 0] = iden_op  # identity to carry the next gates to the previous qubits
     fac[1, :, :, 1] = iden_op  # identity to carry previous gates to next qubits
 
-    fac[1, :, :, 0] = gate
     return truncate_factor(
         fac, left_interactions, right_interactions, hamiltonian_type=HamiltonianType.XY
     )
@@ -325,13 +309,9 @@ def _get_interactions_to_keep(interaction_matrix: torch.Tensor) -> list[torch.Te
 
 def make_H(
     *,
-    interaction_matrix: torch.tensor,  # depends on Hamiltonian Type
-    omega: torch.Tensor,
-    delta: torch.Tensor,
-    phi: torch.Tensor,
+    interaction_matrix: torch.Tensor,  # depends on Hamiltonian Type
     hamiltonian_type: HamiltonianType,
     num_gpus_to_use: int | None,
-    noise: torch.Tensor = torch.zeros(2, 2),
 ) -> MPO:
     r"""
     Constructs and returns a Matrix Product Operator (MPO) representing the
@@ -346,17 +326,13 @@ def make_H(
     where Lₘᵘ are the Lindblad operators representing the noise, m for noise channel
     and u for the number of atoms
 
+    make_H constructs an MPO of the appropriate size, but the single qubit terms are left at zero.
+    To fill in the appropriate values, call update_H
+
     Args:
         interaction_matrix (torch.Tensor): The interaction matrix describing the interactions
         between qubits.
-        omega (torch.Tensor): Rabi frequency Ωⱼ for each qubit.
-        delta (torch.Tensor): The detuning value Δⱼ for each qubit.
-        phi (torch.Tensor): The phase ϕⱼ corresponding to each qubit.
-        noise (torch.Tensor, optional): The single-qubit noise
-        term -0.5i∑ⱼLⱼ†Lⱼ applied to all qubits.
-        This can be computed using the `compute_noise_from_lindbladians` function.
-        Defaults to a zero tensor.
-
+        num_gpus_to_use (int): how many gpus to put the Hamiltonian on. See utils.assign_devices
     Returns:
         MPO: A Matrix Product Operator (MPO) representing the specified Hamiltonian.
 
@@ -365,7 +341,6 @@ def make_H(
     [Pulser documentation](https://pulser.readthedocs.io/en/stable/conventions.html#hamiltonians).
 
     """
-    assert noise.shape == (2, 2)
 
     if hamiltonian_type == HamiltonianType.Rydberg:
         _first_factor = _first_factor_rydberg
@@ -385,20 +360,14 @@ def make_H(
     nqubits = interaction_matrix.size(dim=1)
     middle = nqubits // 2
 
-    a = torch.tensordot(omega * torch.cos(phi), sx, dims=0)
-    c = torch.tensordot(delta, pu, dims=0)
-    b = torch.tensordot(omega * torch.sin(phi), sy, dims=0)
-
-    single_qubit_terms = a + b - c + noise
     interactions_to_keep = _get_interactions_to_keep(interaction_matrix)
 
-    cores = [_first_factor(single_qubit_terms[0], interactions_to_keep[0].item())]
+    cores = [_first_factor(interactions_to_keep[0].item())]
 
     if nqubits > 2:
         for i in range(1, middle):
             cores.append(
                 _left_factor(
-                    single_qubit_terms[i],
                     interaction_matrix[:i, i],
                     left_interactions=interactions_to_keep[i - 1],
                     right_interactions=interactions_to_keep[i],
@@ -408,7 +377,6 @@ def make_H(
         i = middle
         cores.append(
             _middle_factor(
-                single_qubit_terms[i],
                 interaction_matrix[:i, i],
                 interaction_matrix[i, i + 1 :],
                 interaction_matrix[:i, i + 1 :],
@@ -420,7 +388,6 @@ def make_H(
         for i in range(middle + 1, nqubits - 1):
             cores.append(
                 _right_factor(
-                    single_qubit_terms[i],
                     interaction_matrix[i, i + 1 :],
                     interactions_to_keep[i - 1],
                     interactions_to_keep[i],
@@ -434,8 +401,49 @@ def make_H(
         scale = 0.0
     cores.append(
         _last_factor(
-            single_qubit_terms[-1],
             scale,
         )
     )
     return MPO(cores, num_gpus_to_use=num_gpus_to_use)
+
+
+def update_H(
+    hamiltonian: MPO,
+    omega: torch.Tensor,
+    delta: torch.Tensor,
+    phi: torch.Tensor,
+    noise: torch.Tensor = torch.zeros(2, 2),
+) -> None:
+    """
+    The single qubit operators in the Hamiltonian,
+    corresponding to the omega, delta, phi parameters and the aggregated Lindblad operators
+    have a well-determined position in the factors of the Hamiltonian.
+    This function updates this part of the factors to update the
+    Hamiltonian with new parameters without rebuilding the entire thing.
+    See make_H for details about the Hamiltonian.
+
+    This is an in-place operation, so this function returns nothing.
+
+    Args:
+        omega (torch.Tensor): Rabi frequency Ωⱼ for each qubit.
+        delta (torch.Tensor): The detuning value Δⱼ for each qubit.
+        phi (torch.Tensor): The phase ϕⱼ corresponding to each qubit.
+        noise (torch.Tensor, optional): The single-qubit noise
+        term -0.5i∑ⱼLⱼ†Lⱼ applied to all qubits.
+        This can be computed using the `compute_noise_from_lindbladians` function.
+        Defaults to a zero tensor.
+    """
+
+    assert noise.shape == (2, 2)
+    nqubits = omega.size(dim=0)
+
+    a = torch.tensordot(omega * torch.cos(phi), sx, dims=0)
+    c = torch.tensordot(delta, pu, dims=0)
+    b = torch.tensordot(omega * torch.sin(phi), sy, dims=0)
+
+    single_qubit_terms = a + b - c + noise
+    factors = hamiltonian.factors
+
+    factors[0][0, :, :, 0] = single_qubit_terms[0]
+    for i in range(1, nqubits):
+        factors[i][1, :, :, 0] = single_qubit_terms[i]

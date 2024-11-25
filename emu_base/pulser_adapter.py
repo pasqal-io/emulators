@@ -207,6 +207,7 @@ class PulserData:
         self.slm_end_time = (
             sequence._slm_mask_time[1] if len(sequence._slm_mask_time) > 1 else 0.0
         )
+
         for target in slm_targets:
             self.masked_interaction_matrix[target] = 0.0
             self.masked_interaction_matrix[:, target] = 0.0

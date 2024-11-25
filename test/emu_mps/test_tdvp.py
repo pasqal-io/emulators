@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import torch
 
 from emu_mps import MPO, MPS, inner
-from emu_mps.hamiltonian import make_H
+from emu_mps.hamiltonian import make_H, update_H
 from emu_base.pulser_adapter import _rydberg_interaction, HamiltonianType
 from emu_base.math import krylov_exp
 from emu_mps.tdvp import apply_effective_Hamiltonian, evolve_tdvp, left_baths, right_baths
@@ -317,11 +317,14 @@ def test_tdvp_state_vector(mock_sequence):
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
+        hamiltonian_type=HamiltonianType.Rydberg,
+        num_gpus_to_use=num_gpus,
+    )
+    update_H(
+        hamiltonian=ham,
         omega=omegas,
         delta=deltas,
         phi=phi,
-        hamiltonian_type=HamiltonianType.Rydberg,
-        num_gpus_to_use=num_gpus,
     )
 
     # |000000000>
