@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import Any
 
-from emu_base.base_classes.callback import Callback
+from emu_base.base_classes.callback import Callback, AggregationType
 from emu_base.base_classes.config import BackendConfig
 from emu_base.base_classes.operator import Operator
 from emu_base.base_classes.state import State
@@ -18,8 +18,7 @@ class StateResult(Callback):
     def __init__(self, evaluation_times: set[int]):
         super().__init__(evaluation_times)
 
-    def name(self) -> str:
-        return "state"
+    name = "state"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         return deepcopy(state)
@@ -39,8 +38,7 @@ class BitStrings(Callback):
         super().__init__(evaluation_times)
         self.num_shots = num_shots
 
-    def name(self) -> str:
-        return "bitstrings"
+    name = "bitstrings"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         p_false_pos = (
@@ -51,6 +49,8 @@ class BitStrings(Callback):
         )
 
         return state.sample(self.num_shots, p_false_pos, p_false_neg)
+
+    default_aggregation_type = AggregationType.BAG_UNION
 
 
 _fidelity_counter = -1
@@ -77,6 +77,7 @@ class Fidelity(Callback):
         self.index = _fidelity_counter
         self.state = state
 
+    @property
     def name(self) -> str:
         return f"fidelity_{self.index}"
 
@@ -108,11 +109,14 @@ class Expectation(Callback):
         self.index = _expectation_counter
         self.operator = operator
 
+    @property
     def name(self) -> str:
         return f"expectation_{self.index}"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         return self.operator.expect(state)
+
+    default_aggregation_type = AggregationType.MEAN
 
 
 class CorrelationMatrix(Callback):
@@ -153,8 +157,7 @@ class CorrelationMatrix(Callback):
             raise ValueError("Unsupported basis provided")
         self.nqubits = nqubits
 
-    def name(self) -> str:
-        return "correlation_matrix"
+    name = "correlation_matrix"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         if hasattr(state, "get_correlation_matrix") and callable(
@@ -175,6 +178,8 @@ class CorrelationMatrix(Callback):
                 for i in range(self.nqubits)
             ]
         return [[op.expect(state).real for op in ops] for ops in self.operators]
+
+    default_aggregation_type = AggregationType.MEAN
 
 
 class QubitDensity(Callback):
@@ -213,8 +218,7 @@ class QubitDensity(Callback):
             raise ValueError("Unsupported basis provided")
         self.nqubits = nqubits
 
-    def name(self) -> str:
-        return "qubit_density"
+    name = "qubit_density"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         if self.operators is None or not isinstance(self.operators[0], type(H)):
@@ -225,6 +229,8 @@ class QubitDensity(Callback):
                 for i in range(self.nqubits)
             ]
         return [op.expect(state).real for op in self.operators]
+
+    default_aggregation_type = AggregationType.MEAN
 
 
 class Energy(Callback):
@@ -239,11 +245,12 @@ class Energy(Callback):
     def __init__(self, evaluation_times: set[int]):
         super().__init__(evaluation_times)
 
-    def name(self) -> str:
-        return "energy"
+    name = "energy"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         return H.expect(state).real
+
+    default_aggregation_type = AggregationType.MEAN
 
 
 class EnergyVariance(Callback):
@@ -258,12 +265,18 @@ class EnergyVariance(Callback):
     def __init__(self, evaluation_times: set[int]):
         super().__init__(evaluation_times)
 
-    def name(self) -> str:
-        return "energy_variance"
+    name = "energy_variance"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         h_squared = H @ H
         return h_squared.expect(state).real - H.expect(state).real ** 2
+
+    # Explicitely setting this to None out of safety: in the case of MonteCarlo,
+    # the aggregated variance cannot be computed from this callback.
+    # Instead, one first need to average Energy and SecondMomentOfEnergy,
+    # and then compute the variance with the formula:
+    # AggregatedEnergyVariance = AveragedSecondMomentOfEnergy - AveragedEnergy**2
+    default_aggregation_type = None
 
 
 class SecondMomentOfEnergy(Callback):
@@ -278,9 +291,10 @@ class SecondMomentOfEnergy(Callback):
     def __init__(self, evaluation_times: set[int]):
         super().__init__(evaluation_times)
 
-    def name(self) -> str:
-        return "second_moment_of_energy"
+    name = "second_moment_of_energy"
 
     def apply(self, config: BackendConfig, t: int, state: State, H: Operator) -> Any:
         h_squared = H @ H
         return h_squared.expect(state).real
+
+    default_aggregation_type = AggregationType.MEAN

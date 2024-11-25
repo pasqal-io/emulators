@@ -26,7 +26,6 @@ __all__ = [
     "Callback",
     "StateResult",
     "BitStrings",
-    "StateString",
     "QubitDensity",
     "CorrelationMatrix",
     "Expectation",

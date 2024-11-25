@@ -1,5 +1,5 @@
 from .base_classes.results import Results
-from .base_classes.callback import Callback
+from .base_classes.callback import Callback, AggregationType
 from .base_classes.config import BackendConfig
 from .base_classes.operator import Operator
 from .base_classes.state import State
@@ -26,10 +26,10 @@ __all__ = [
     "Operator",
     "State",
     "Backend",
+    "AggregationType",
     "Callback",
     "StateResult",
     "BitStrings",
-    "StateString",
     "QubitDensity",
     "CorrelationMatrix",
     "Expectation",

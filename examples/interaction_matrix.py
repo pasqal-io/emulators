@@ -116,7 +116,7 @@ results = sim.run(seq, mpsconfig)
 results.get_result_names()
 
 # bitstrings at a given time
-bitstrings_final = results[bitstrings.name()][final_time]  # get the bitstring
+bitstrings_final = results[bitstrings.name][final_time]  # get the bitstring
 
 max_val = max(bitstrings_final.values())  # max number of counts in the bitstring
 print("Max count value: ", max_val)

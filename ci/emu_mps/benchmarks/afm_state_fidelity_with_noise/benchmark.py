@@ -6,8 +6,8 @@ from benchmarkutils.pulserutils import run_with_pulser
 from benchmarkutils.sequenceutils import make_adiabatic_afm_state_2d_seq
 import torch
 import emu_mps
+from emu_base.base_classes.results import Results as EmuMpsResults
 import os
-import statistics
 import pulser.noise_model
 
 torch.set_num_threads(1)
@@ -45,8 +45,6 @@ for depolarizing_rate in depolarizing_rates:
         depolarizing_rate=depolarizing_rate,
     )
 
-    aggregated_results = {}
-
     def do_run(run_index):
         config = emu_mps.MPSConfig(
             num_gpus_to_use=0,
@@ -64,39 +62,12 @@ for depolarizing_rate in depolarizing_rates:
     with Pool(processes=processes_count) as pool:
         monte_carlo_results = pool.map(do_run, range(nruns))
 
-    aggregated_results["energy"] = {
-        t: statistics.fmean(res["energy"][t] for res in monte_carlo_results)
-        for t in evaluation_times
-    }
-
-    aggregated_results["second_moment_of_energy"] = {
-        t: statistics.fmean(
-            res["second_moment_of_energy"][t] for res in monte_carlo_results
-        )
-        for t in evaluation_times
-    }
-
-    aggregated_results["qubit_density"] = {
-        t: tuple(
-            statistics.fmean(
-                res["qubit_density"][t][qubit_index] for res in monte_carlo_results
-            )
-            for qubit_index in range(qubit_count)
-        )
-        for t in evaluation_times
-    }
+    aggregated_results = EmuMpsResults.aggregate(monte_carlo_results)
 
     assert (
         aggregated_results["second_moment_of_energy"].keys()
         == aggregated_results["energy"].keys()
     )
-    aggregated_results["energy_variance"] = {
-        t: second_moment_of_energy - energy**2
-        for (t, second_moment_of_energy), (_, energy) in zip(
-            aggregated_results["second_moment_of_energy"].items(),
-            aggregated_results["energy"].items(),
-        )
-    }
 
     output_name = f"afm_state_fidelity_with_noise_{depolarizing_rate}.json"
     pulser_res = run_with_pulser(
@@ -133,10 +104,15 @@ axs[0, 0].legend()
 
 # variance
 for rate, aggregated_results in emu_mps_results.items():
-    times, variances = zip(*sorted(aggregated_results["energy_variance"].items()))
     axs[1, 0].plot(
-        times,
-        variances,
+        list(aggregated_results["energy"].keys()),
+        [
+            second_moment_of_energy - energy**2
+            for second_moment_of_energy, energy in zip(
+                aggregated_results["second_moment_of_energy"].values(),
+                aggregated_results["energy"].values(),
+            )
+        ],
         label=f"EMU-MPS λ={rate}",
     )
 for rate, pulser_res in pulser_total.items():

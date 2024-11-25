@@ -32,7 +32,7 @@ def test_state_result():
     assert len(result._results.keys()) == 0
     callback(config, 10, state, H, result)
 
-    output = result[callback.name()][10]
+    output = result[callback.name][10]
 
     # same mathematical state
     assert output.inner(output) == norm2
@@ -58,7 +58,7 @@ def test_bit_strings():
     callback(config, 5, state, H, result)
     assert len(result._results.keys()) == 0
     callback(config, 10, state, H, result)
-    output = result[callback.name()][10]
+    output = result[callback.name][10]
     print(output)
     assert output["a"] == 4
     state.sample.assert_called_with(1000, 0.1, 0.3)
@@ -81,7 +81,7 @@ def test_qubit_density(basis):
     assert len(result._results.keys()) == 0
     callback(config, 10, state, H, result)
 
-    output = result[callback.name()][10]
+    output = result[callback.name][10]
     assert output == [4**nqubits] * nqubits
 
 
@@ -102,7 +102,7 @@ def test_correlation_matrix(basis):
     assert len(result._results.keys()) == 0
     callback(config, 10, state, H, result)
 
-    output = result[callback.name()][10]
+    output = result[callback.name][10]
     assert len(output) == nqubits
     for vector in output:
         assert vector == [4**nqubits] * nqubits
@@ -129,7 +129,7 @@ def test_expectation():
     assert len(result._results.keys()) == 0
     callback(config, 10, state, H, result)
 
-    output = result[callback.name()][10]
+    output = result[callback.name][10]
     assert output == approx(2 * (6**nqubits))
 
 
@@ -153,7 +153,7 @@ def test_fidelity():
     assert len(result._results.keys()) == 0
     callback(config, 10, state, H, result)
 
-    output = result[callback.name()][10]
+    output = result[callback.name][10]
     assert output == 3**nqubits
 
 
@@ -177,7 +177,7 @@ def test_energy():
     assert len(result._results.keys()) == 0
     callback(config, 10, state, H, result)
 
-    output = result[callback.name()][10]
+    output = result[callback.name][10]
     assert output == approx(2 * (6**nqubits))
 
 
@@ -201,5 +201,5 @@ def test_energy_variance():
     assert len(result._results.keys()) == 0
     callback(config, 10, state, H, result)
 
-    output = result[callback.name()][10]
+    output = result[callback.name][10]
     assert output == approx(state.inner(state) - 4 * 6 ** (2 * nqubits))

@@ -316,7 +316,7 @@ def test_initial_state():
     backend = emu_mps.MPSBackend()
     results = backend.run(seq, config)
     # assert that the initial state was used by the emulator
-    assert results[state_result.name()][10].inner(state).real == approx(1.0)
+    assert results[state_result.name][10].inner(state).real == approx(1.0)
 
 
 def test_initial_state_copy():

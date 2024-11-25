@@ -1,10 +1,22 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional, TYPE_CHECKING
+from enum import Enum, auto
 
 from emu_base.base_classes.config import BackendConfig
 from emu_base.base_classes.operator import Operator
-from emu_base.base_classes.results import Results
 from emu_base.base_classes.state import State
+
+if TYPE_CHECKING:
+    from emu_base.base_classes.results import Results
+
+
+class AggregationType(Enum):
+    """
+    Defines how to combine multiple values from different simulation results.
+    """
+
+    MEAN = auto()  # statistics.fmean or list/matrix-wise equivalent
+    BAG_UNION = auto()  # Counter.__add__
 
 
 class Callback(ABC):
@@ -19,7 +31,7 @@ class Callback(ABC):
         self.evaluation_times = evaluation_times
 
     def __call__(
-        self, config: BackendConfig, t: int, state: State, H: Operator, result: Results
+        self, config: BackendConfig, t: int, state: State, H: Operator, result: "Results"
     ) -> None:
         """
         This function is called after each time step performed by the emulator.
@@ -36,8 +48,9 @@ class Callback(ABC):
         """
         if t in self.evaluation_times:
             value_to_store = self.apply(config, t, state, H)
-            result.store(callback_name=self.name(), time=t, value=value_to_store)
+            result.store(callback=self, time=t, value=value_to_store)
 
+    @property
     @abstractmethod
     def name(self) -> str:
         """
@@ -67,3 +80,11 @@ class Callback(ABC):
             the result to put in Results
         """
         pass
+
+    @property
+    def default_aggregation_type(self) -> Optional[AggregationType]:
+        """
+        Defines how to combine by default multiple values from different simulation results.
+        None means no default, therefore aggregator function is always user-provided.
+        """
+        return None
