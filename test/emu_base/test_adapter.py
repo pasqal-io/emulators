@@ -23,165 +23,9 @@ sequence = MagicMock()
 sequence.register.qubit_ids = TEST_QUBIT_IDS
 
 
-@patch("emu_base.pulser_adapter.pulser.sequence.Sequence")
-@pytest.mark.parametrize(
-    "hamiltonian_type",
-    [
-        HamiltonianType.Rydberg,
-        HamiltonianType.XY,
-    ],
-)
-def test_interaction_coefficient(mock_sequence, hamiltonian_type):
-    atoms = torch.tensor(
-        [[0.0, 0.0], [10.0, 0.0], [20.0, 0.0]], dtype=torch.float64
-    )  # pulser input
-
-    # only MagicMock supports XY interaction
-    mock_device = MagicMock(interaction_coeff=TEST_C6, interaction_coeff_xy=TEST_C3)
-    mock_sequence.device = mock_device
-
-    mock_register = MagicMock()
-
-    mock_register.qubit_ids = ["q0", "q1", "q2"]
-
-    mock_abstract_array_1 = MagicMock()
-    mock_abstract_array_2 = MagicMock()
-    mock_abstract_array_3 = MagicMock()
-
-    mock_abstract_array_1.as_tensor.return_value = atoms[0]
-    mock_abstract_array_2.as_tensor.return_value = atoms[1]
-    mock_abstract_array_3.as_tensor.return_value = atoms[2]
-
-    mock_register.qubits = {
-        "q0": mock_abstract_array_1,
-        "q1": mock_abstract_array_2,
-        "q2": mock_abstract_array_3,
-    }
-    mock_sequence.register = mock_register
-
-    if hamiltonian_type == HamiltonianType.Rydberg:
-        interaction_matrix = _rydberg_interaction(mock_sequence)
-    else:
-        interaction_matrix = _xy_interaction(mock_sequence)
-
-    dev = interaction_matrix.device
-
-    if hamiltonian_type == HamiltonianType.Rydberg:
-        expected_interaction_matrix = torch.tensor(
-            [
-                [0.0000, 5.4202, 5.4202 / 64],
-                [5.4202, 0.0000, 5.4202],
-                [5.4202 / 64, 5.4202, 0.0000],
-            ]
-        ).to(dev)
-    else:
-        expected_interaction_matrix = torch.tensor(
-            [[0.0, 3.7, 3.7 / 8], [3.7, 0.0, 3.7], [3.7 / 8, 3.7, 0.0]]
-        ).to(dev)
-
-    assert torch.allclose(
-        interaction_matrix,
-        expected_interaction_matrix,
-    )
-
-
-@pytest.mark.parametrize(
-    "hamiltonian_type",
-    [
-        "ground-rydberg",
-        "XY",
-    ],
-)
-@patch("emu_base.pulser_adapter.pulser.sampler.sample")
-def test_global_channel(mock_pulser_sample, hamiltonian_type):
-    """For rydber and XY hamiltonian:
-    Global pulse: Pulse(RampWaveform(10,10.0,0.0),RampWaveform(10,-10,10),0.2)
-    NOTE: XY is only global"""
-    TEST_DURATION = 10
-    dt = 2
-    sequence.get_duration.return_value = TEST_DURATION
-    amp_tensor = torch.tensor(
-        [
-            10.0,
-            8.88888889,
-            7.77777778,
-            6.66666667,
-            5.55555556,
-            4.44444444,
-            3.33333333,
-            2.22222222,
-            1.11111111,
-            0.0,
-        ],
-        dtype=torch.complex128,
-    )
-    det_tensor = torch.tensor(
-        [
-            -10.0,
-            -7.77777778,
-            -5.55555556,
-            -3.33333333,
-            -1.11111111,
-            1.11111111,
-            3.33333333,
-            5.55555556,
-            7.77777778,
-            10.0,
-        ],
-        dtype=torch.complex128,
-    )
-    phase_tensor = torch.tensor([0.2] * 10, dtype=torch.complex128)
-
+def mock_sample(hamiltonian_type):
     mock_pulser_dict = {
         hamiltonian_type: {
-            TEST_QUBIT_IDS[1]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
-            TEST_QUBIT_IDS[2]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
-            TEST_QUBIT_IDS[0]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
-        }
-    }
-
-    sample_instance = MagicMock()
-    sample_instance.to_nested_dict.return_value = {"Local": mock_pulser_dict}
-    mock_pulser_sample.return_value = sample_instance
-
-    actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(sequence, dt, False)
-
-    expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
-
-    assert len(actual_omega) == expected_number_of_samples
-
-    expected_omega = (amp_tensor.unsqueeze(1).repeat(1, 3))[1::2]
-    expected_delta = (det_tensor.unsqueeze(1).repeat(1, 3))[1::2]
-    expected_phi = (phase_tensor.unsqueeze(1).repeat(1, 3))[1::2]
-
-    assert torch.allclose(actual_omega, expected_omega, atol=1e-5)
-    assert torch.allclose(actual_delta, expected_delta, atol=1e-5)
-    assert torch.allclose(actual_phi, expected_phi, atol=1e-5)
-
-
-@patch("emu_base.pulser_adapter.pulser.sampler.sample")
-def test_local_global_channel(mock_pulser_sample):
-    """Local pulse - targe qubit 1:
-    pulser.Pulse(RampWaveform(5,3,10),RampWaveform(5,1.5,-10),0.1) and
-    Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
-    TEST_DURATION = 13
-    dt = 2
-    sequence.get_duration.return_value = TEST_DURATION
-
-    mock_pulser_dict = {
-        "ground-rydberg": {
             TEST_QUBIT_IDS[1]: {
                 "amp": [
                     0.0,
@@ -325,12 +169,137 @@ def test_local_global_channel(mock_pulser_sample):
             },
         }
     }
-
+    local_slot1 = MagicMock()
+    local_slot1.targets = [TEST_QUBIT_IDS[0]]
+    local_slot1.ti = 0
+    local_slot1.tf = 4
+    local_slot2 = MagicMock()
+    local_slot2.targets = [TEST_QUBIT_IDS[0]]
+    local_slot2.ti = 12
+    local_slot2.tf = 13
+    global_slot = MagicMock()
+    global_slot.targets = TEST_QUBIT_IDS
+    global_slot.ti = 5
+    global_slot.tf = 12
+    local_samples = MagicMock()
+    local_samples.slots = [local_slot1, local_slot2]
+    global_samples = MagicMock()
+    global_samples.slots = [global_slot]
+    local_ch_obj = MagicMock()
+    local_ch_obj.addressing = "Local"
+    global_ch_obj = MagicMock()
+    global_ch_obj.addressing = "Global"
     sample_mock = MagicMock()
     sample_mock.to_nested_dict.return_value = {"Local": mock_pulser_dict}
-    mock_pulser_sample.return_value = sample_mock
+    sample_mock._ch_objs = {
+        "local channel": local_ch_obj,
+        "global channel": global_ch_obj,
+    }
+    sample_mock.channel_samples = {
+        "local channel": local_samples,
+        "global channel": global_samples,
+    }
+    return sample_mock
 
-    actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(sequence, dt, False)
+
+@patch("emu_base.pulser_adapter.pulser.sequence.Sequence")
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    [
+        HamiltonianType.Rydberg,
+        HamiltonianType.XY,
+    ],
+)
+def test_interaction_coefficient(mock_sequence, hamiltonian_type):
+    atoms = torch.tensor(
+        [[0.0, 0.0], [10.0, 0.0], [20.0, 0.0]], dtype=torch.float64
+    )  # pulser input
+
+    # only MagicMock supports XY interaction
+    mock_device = MagicMock(interaction_coeff=TEST_C6, interaction_coeff_xy=TEST_C3)
+    mock_sequence.device = mock_device
+
+    mock_register = MagicMock()
+
+    mock_register.qubit_ids = ["q0", "q1", "q2"]
+
+    mock_abstract_array_1 = MagicMock()
+    mock_abstract_array_2 = MagicMock()
+    mock_abstract_array_3 = MagicMock()
+
+    mock_abstract_array_1.as_tensor.return_value = atoms[0]
+    mock_abstract_array_2.as_tensor.return_value = atoms[1]
+    mock_abstract_array_3.as_tensor.return_value = atoms[2]
+
+    mock_register.qubits = {
+        "q0": mock_abstract_array_1,
+        "q1": mock_abstract_array_2,
+        "q2": mock_abstract_array_3,
+    }
+    mock_sequence.register = mock_register
+
+    if hamiltonian_type == HamiltonianType.Rydberg:
+        interaction_matrix = _rydberg_interaction(mock_sequence)
+    else:
+        interaction_matrix = _xy_interaction(mock_sequence)
+
+    dev = interaction_matrix.device
+
+    if hamiltonian_type == HamiltonianType.Rydberg:
+        expected_interaction_matrix = torch.tensor(
+            [
+                [0.0000, 5.4202, 5.4202 / 64],
+                [5.4202, 0.0000, 5.4202],
+                [5.4202 / 64, 5.4202, 0.0000],
+            ]
+        ).to(dev)
+    else:
+        expected_interaction_matrix = torch.tensor(
+            [[0.0, 3.7, 3.7 / 8], [3.7, 0.0, 3.7], [3.7 / 8, 3.7, 0.0]]
+        ).to(dev)
+
+    assert torch.allclose(
+        interaction_matrix,
+        expected_interaction_matrix,
+    )
+
+
+@pytest.mark.parametrize(
+    ("hamiltonian_type", "laser_waist"),
+    [
+        ("ground-rydberg", None),
+        ("XY", None),
+        ("ground-rydberg", 10.0),
+        ("XY", 10.0),
+    ],
+)
+@patch("emu_base.pulser_adapter._get_qubit_positions")
+@patch("emu_base.pulser_adapter.pulser.sampler.sample")
+def test_extract_omega_delta_phi(
+    mock_pulser_sample, mock_qubit_positions, hamiltonian_type, laser_waist
+):
+    """Local pulse - targe qubit 1:
+    pulser.Pulse(RampWaveform(5,3,10),RampWaveform(5,1.5,-10),0.1) and
+    Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
+    TEST_DURATION = 13
+    dt = 2
+    sequence.get_duration.return_value = TEST_DURATION
+
+    if laser_waist is not None:
+        mock_qubit_positions.return_value = [
+            torch.tensor([i, 0], dtype=torch.float64) for i in range(3)
+        ]
+        waist_amplitudes = torch.tensor(
+            [math.exp(-((i / laser_waist) ** 2)) for i in range(3)], dtype=torch.float64
+        )
+    else:
+        waist_amplitudes = torch.ones(3, dtype=torch.float64)
+
+    mock_pulser_sample.return_value = mock_sample(hamiltonian_type)
+
+    actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
+        sequence=sequence, dt=dt, with_modulation=False, laser_waist=laser_waist
+    )
 
     expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
     assert len(actual_omega) == expected_number_of_samples
@@ -346,6 +315,8 @@ def test_local_global_channel(mock_pulser_sample):
         ],
         dtype=torch.complex128,
     )
+    to_modify = expected_omega[2:]
+    to_modify *= waist_amplitudes
     expected_delta = torch.tensor(
         [
             [-1.3750 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
@@ -444,7 +415,9 @@ def test_autograd(mock_pulser_sample):
     mock_pulser_sample.return_value = sample_mock
 
     # first data for grad
-    omega_value = _extract_omega_delta_phi(sequence, dt, False)[0][2, 2].real
+    omega_value = _extract_omega_delta_phi(
+        sequence=sequence, dt=dt, with_modulation=False, laser_waist=None
+    )[0][2, 2].real
 
     # second data to for grad
     dict_sample = sample_mock.to_nested_dict()
@@ -628,7 +601,9 @@ def test_parsed_sequence(mock_pulser_sample):
     )
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
-    omega, delta, phi = _extract_omega_delta_phi(sequence, dt, False)
+    omega, delta, phi = _extract_omega_delta_phi(
+        sequence=sequence, dt=dt, with_modulation=False, laser_waist=None
+    )
 
     cutoff_interaction_matrix = torch.tensor(
         [[0.4251, 0.4588, -0.4607], [0.0, -0.1636, -1.0463], [-0.4037, 0.0, -0.9528]],
@@ -657,7 +632,9 @@ def test_parsed_sequence(mock_pulser_sample):
     )
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
-    omega, delta, phi = _extract_omega_delta_phi(sequence, dt, False)
+    omega, delta, phi = _extract_omega_delta_phi(
+        sequence=sequence, dt=dt, with_modulation=False, laser_waist=None
+    )
 
     assert torch.allclose(parsed_sequence.omega, omega)
     assert torch.allclose(parsed_sequence.delta, delta)
@@ -673,3 +650,44 @@ def test_parsed_sequence(mock_pulser_sample):
     assert len(parsed_sequence.lindblad_ops) == len(ops)
     for i in range(len(ops)):
         assert torch.allclose(ops[i], parsed_sequence.lindblad_ops[i])
+
+
+@patch("emu_base.pulser_adapter._get_qubit_positions")
+@patch("emu_base.pulser_adapter.pulser.sampler.sample")
+def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
+    mock_qubit_positions.return_value = [
+        torch.tensor([i, 0], dtype=torch.float64) for i in range(3)
+    ]
+    TEST_DURATION = 10
+    dt = 2
+    sequence.get_duration.return_value = TEST_DURATION
+    adressed_basis = "XY"
+    sequence.get_addressed_bases.return_value = [adressed_basis]
+    mock_pulser_sample.return_value = mock_sample(adressed_basis)
+
+    interaction_matrix = torch.tensor(
+        [
+            [0.4251, 0.4588, -0.4607],
+            [0.0929, -0.1636, -1.0463],
+            [-0.4037, 0.1067, -0.9528],
+        ],
+        dtype=torch.float64,
+    )
+    sequence._slm_mask_time = []
+
+    noise_model = NoiseModel(
+        laser_waist=0.1,
+    )
+
+    config = BackendConfig(
+        noise_model=noise_model,
+        interaction_matrix=interaction_matrix,
+        interaction_cutoff=0.15,
+    )
+    parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
+    omega, delta, phi = _extract_omega_delta_phi(
+        sequence=sequence, dt=dt, with_modulation=False, laser_waist=0.1
+    )
+    assert torch.allclose(omega, parsed_sequence.omega)
+    assert torch.allclose(delta, parsed_sequence.delta)
+    assert torch.allclose(phi, parsed_sequence.phi)

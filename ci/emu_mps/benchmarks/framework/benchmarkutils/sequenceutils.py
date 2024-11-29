@@ -63,6 +63,7 @@ def make_quench_2d_seq(nx: int, ny: int) -> Sequence:
 
     seq = Sequence(reg, MockDevice)
     seq.declare_channel("ising", "rydberg_global")
+    seq.target([1, 2, 3, 4, 5], "ising")
 
     simple_pulse = Pulse.ConstantPulse(T, omega, delta, 0)
     seq.add(simple_pulse, "ising")

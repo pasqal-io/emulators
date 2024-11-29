@@ -13,7 +13,7 @@ def test_unsupported_noise():
                 amp_sigma=0.1, laser_waist=5, runs=1, samples_per_run=1
             )
         )
-    assert "Unsupported noise type(s): {'amplitude'}" in str(exc.value)
+    assert "Unsupported noise type: amp_sigma" in str(exc.value)
 
     MPSConfig(
         noise_model=pulser.noise_model.NoiseModel(

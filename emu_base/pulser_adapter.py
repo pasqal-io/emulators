@@ -83,9 +83,11 @@ def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
 
 
 def _extract_omega_delta_phi(
+    *,
     sequence: pulser.Sequence,
     dt: int,
     with_modulation: bool,
+    laser_waist: float | None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Samples the Pulser sequence and returns a tuple of tensors (omega, delta, phi)
@@ -93,6 +95,9 @@ def _extract_omega_delta_phi(
     - omega[i, q] = amplitude at time i * dt for qubit q
     - delta[i, q] = detuning at time i * dt for qubit q
     - phi[i, q] = phase at time i * dt for qubit q
+
+    if laser_waist is w_0 != None, the omega values coming from the global pulse channel
+    will me modulated as $\\Omega_i=\\Omega_i e^{-r_i^2/w_0^2}$
     """
 
     if with_modulation and sequence._slm_mask_targets:
@@ -101,11 +106,12 @@ def _extract_omega_delta_phi(
             "modulation is not supported."
         )
 
-    sequence_dict = pulser.sampler.sample(
+    samples = pulser.sampler.sample(
         sequence,
         modulation=with_modulation,
         extended_duration=sequence.get_duration(include_fall_time=with_modulation),
-    ).to_nested_dict(all_local=True, samples_type="tensor")["Local"]
+    )
+    sequence_dict = samples.to_nested_dict(all_local=True, samples_type="tensor")["Local"]
 
     if "ground-rydberg" in sequence_dict and len(sequence_dict) == 1:
         locals_a_d_p = sequence_dict["ground-rydberg"]
@@ -122,6 +128,7 @@ def _extract_omega_delta_phi(
         len(sequence.register.qubit_ids),
         dtype=torch.complex128,
     )
+
     delta = torch.zeros(
         nsamples,
         len(sequence.register.qubit_ids),
@@ -133,15 +140,30 @@ def _extract_omega_delta_phi(
         dtype=torch.complex128,
     )
 
+    if laser_waist:
+        qubit_positions = _get_qubit_positions(sequence.register)
+        waist_factors = torch.tensor(
+            [math.exp(-((x[:2].norm() / laser_waist) ** 2)) for x in qubit_positions]
+        )
+    else:
+        waist_factors = torch.ones(len(sequence.register.qubit_ids))
+
+    global_times = set()
+    for ch, ch_samples in samples.channel_samples.items():
+        if samples._ch_objs[ch].addressing == "Global":
+            for slot in ch_samples.slots:
+                global_times |= set(i for i in range(slot.ti, slot.tf))
+
     step = 0
     t = int((step + 1 / 2) * dt)
 
     while t < max_duration:
-
         for q_pos, q_id in enumerate(sequence.register.qubit_ids):
             omega[step, q_pos] = locals_a_d_p[q_id]["amp"][t]
             delta[step, q_pos] = locals_a_d_p[q_id]["det"][t]
             phi[step, q_pos] = locals_a_d_p[q_id]["phase"][t]
+        if t in global_times:
+            omega[step] *= waist_factors
         step += 1
         t = int((step + 1 / 2) * dt)
 
@@ -176,10 +198,15 @@ class PulserData:
     lindblad_ops: list[torch.Tensor]
 
     def __init__(self, *, sequence: pulser.Sequence, config: BackendConfig, dt: int):
-        self.omega, self.delta, self.phi = _extract_omega_delta_phi(
-            sequence, dt, config.with_modulation
+        laser_waist = (
+            config.noise_model.laser_waist if config.noise_model is not None else None
         )
-
+        self.omega, self.delta, self.phi = _extract_omega_delta_phi(
+            sequence=sequence,
+            dt=dt,
+            with_modulation=config.with_modulation,
+            laser_waist=laser_waist,
+        )
         self.lindblad_ops = _get_all_lindblad_noise_operators(config.noise_model)
 
         addressed_basis = sequence.get_addressed_bases()[0]

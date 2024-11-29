@@ -106,34 +106,7 @@ pip install -e .
 
 ## Running a Pulser sequence and getting results
 
-<<<<<<< HEAD
 Several example notebooks are included in the online documentation. The index page for them can be found [here](./notebooks/index.md).
-=======
-EMU-MPS is meant to run Pulser sequences. Assuming the existence of a Pulser sequence called `seq` (see the [Pulser docs](https://pulser.readthedocs.io/en/stable/tutorials/creating.html)), you can do the following
-
-```python
-import emu_mps
-
-#setup the config
-dt = 10 #ns, this is the default value
-some_integer_factor = 5
-times = [some_integer_factor * dt] #every time has to be a multiple of dt
-bitstrings = emu_mps.BitStrings(evaluation_times = times, num_shots = 1000)
-config = emu_mps.MPSConfig(dt = dt, observables = [bitstrings])
-
-backend = emu_mps.MPSBackend()
-results = backend.run(seq, config)
-
-#the results object will contain bitstrings, as per the config
-#they can be retrieved via the name property of the observable
-bitstring_times = results.get_result_times(bitstrings.name())
-strings = results.get_result(bitstrings.name(), bitstring_times[0])
-```
-
-In the above, `strings` will be a `Counter[str]` that counts the occurrences of each bitstring that was measured.
-Note that the emulation stops at the largest multiple of `dt` which is not larger than the sequence duration.
-So if you make a Pulser sequence the duration of which is not a multiple of `dt`, the simulation time will fall slightly short.
->>>>>>> main
 
 ## Supported features
 
@@ -144,6 +117,7 @@ The following features are currently supported:
 - The following noise types:
     - [SPAM](https://pulser.readthedocs.io/en/stable/tutorials/spam.html)
     - [Monte Carlo quantum jumps](https://pulser.readthedocs.io/en/stable/tutorials/effective_noise.html)
+    - A Gaussian laser waist for the global pulse channels.
 - The following [basis states](https://pulser.readthedocs.io/en/stable/conventions.html) in a sequence:
     - [ground-rydberg](https://pulser.readthedocs.io/en/stable/review.html#programmable-arrays-of-rydberg-atoms)
     - [XY](https://pulser.readthedocs.io/en/stable/tutorials/xy_spin_chain.html)

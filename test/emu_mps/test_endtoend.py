@@ -52,6 +52,7 @@ def simulate(
     p_false_neg=0.0,
     initial_state=None,
     given_fidelity_state=True,
+    interaction_cutoff=0.0,
 ):
     final_time = seq.get_duration()
     if given_fidelity_state:
@@ -85,6 +86,7 @@ def simulate(
             QubitDensity(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
         ],
         noise_model=noise_model,
+        interaction_cutoff=interaction_cutoff,
     )
 
     result = mps_backend.run(seq, mps_config)
@@ -417,3 +419,46 @@ def test_end_to_end_spontaneous_emission():
 
     # Aggregating results of many runs to check the exponential decrease of qubit density
     # would be too much for this unit test.
+
+
+def test_laser_waist():
+    duration = 1000
+    reg = pulser.Register.from_coordinates([(0.0, 0.0), (10.0, 0.0)], center=False)
+    seq = pulser.Sequence(reg, pulser.devices.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.declare_channel("ising_local", "rydberg_local")
+    seq.add(
+        pulser.Pulse.ConstantAmplitude(
+            amplitude=torch.pi,
+            detuning=pulser.waveforms.ConstantWaveform(duration=duration, value=0.0),
+            phase=0.0,
+        ),
+        "ising_global",
+    )
+    e_inv = 0.36787944117144233
+    seq.target(seq.register.qubit_ids[1], "ising_local")
+    seq.add(
+        pulser.Pulse.ConstantAmplitude(
+            amplitude=torch.pi * (1 - e_inv),
+            detuning=pulser.waveforms.ConstantWaveform(duration=duration, value=0.0),
+            phase=0.0,
+        ),
+        "ising_local",
+    )
+
+    noise_model = pulser.noise_model.NoiseModel(
+        laser_waist=10.0,
+    )
+
+    result = simulate(seq, noise_model=noise_model, dt=10, interaction_cutoff=100)
+
+    final_time = seq.get_duration()
+    final_state = result["state"][final_time]
+
+    assert pytest.approx(final_state.norm()) == 1.0
+
+    expected_state = emu_mps.MPS.from_state_string(
+        basis=("r", "g"), nqubits=2, strings={"rr": 1.0}
+    )
+
+    assert pytest.approx(final_state.inner(expected_state)) == -1.0
