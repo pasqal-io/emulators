@@ -171,9 +171,9 @@ def evolve_tdvp(
         state.factors[i + 1] = evol
 
     # sweep right-left
-    rbs = [
-        torch.ones(1, 1, 1, dtype=state.factors[0].dtype, device=state.factors[-1].device)
-    ]
+    right_bath = torch.ones(
+        1, 1, 1, dtype=state.factors[0].dtype, device=state.factors[-1].device
+    )
     for i in range(nfactors - 2, -1, -1):
         rs = state.factors[i + 1]
         rss = rs.shape
@@ -192,9 +192,7 @@ def evolve_tdvp(
             .to(s.device)
         )
 
-        op = lambda x: t * apply_effective_Hamiltonian(
-            x, h, lb.to(s.device), rbs[nfactors - 2 - i]
-        )
+        op = lambda x: t * apply_effective_Hamiltonian(x, h, lb.to(s.device), right_bath)
 
         evol = krylov_exp(
             op,
@@ -218,12 +216,12 @@ def evolve_tdvp(
         if i == 0:
             break
 
-        rbs.append(
-            new_right_bath(rbs[-1], state.factors[i + 1], rh).to(state.factors[i].device)
+        right_bath = new_right_bath(right_bath, state.factors[i + 1], rh).to(
+            state.factors[i].device
         )
 
         h = hamiltonian.factors[i].to(state.factors[i].device)
-        op = lambda x: -t * apply_effective_Hamiltonian(x, h, lb, rbs[-1])
+        op = lambda x: -t * apply_effective_Hamiltonian(x, h, lb, right_bath)
 
         evol = krylov_exp(
             op,
@@ -235,3 +233,7 @@ def evolve_tdvp(
         )
 
         state.factors[i] = evol.reshape(lss[0], 2, -1)
+
+    # At this point, the energy of the evolved state can be computed for cheap
+    # by finishing the contraction of `right_bath` with the first two factors
+    # of the hamiltonian and evolved state.
