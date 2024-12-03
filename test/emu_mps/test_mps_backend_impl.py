@@ -1,4 +1,4 @@
-from emu_mps.mps_backend_impl import MPSBackendImpl
+from emu_mps.mps_backend_impl import MPSBackendImpl, NoisyMPSBackendImpl
 from emu_mps.mps_config import MPSConfig
 import math
 import cmath
@@ -14,15 +14,12 @@ _ATOL = 1e-10
 QUBIT_COUNT = 5
 
 
-def create_victim(dt=10, noise_model=None):
+def _create_victim(constructor, dt, noise_model):
     config = MPSConfig(dt=dt, noise_model=noise_model)
-    sequence = MagicMock()
-    sequence.register.qubit_ids = ["whatever"] * QUBIT_COUNT
     mock_pulser_data = MagicMock()
+    mock_pulser_data.qubit_count = QUBIT_COUNT
     mock_pulser_data.slm_end_time = 10.0
-    with patch("emu_mps.mps_backend_impl.PulserData.__new__") as mock_new:
-        mock_new.return_value = mock_pulser_data
-        victim = MPSBackendImpl(sequence, config)
+    victim = constructor(config, mock_pulser_data)
 
     assert victim.qubit_count == QUBIT_COUNT
     assert victim.current_time == 0.0
@@ -30,10 +27,23 @@ def create_victim(dt=10, noise_model=None):
     return victim
 
 
+def create_victim(dt=10, noise_model=None):
+    victim = _create_victim(constructor=MPSBackendImpl, dt=dt, noise_model=noise_model)
+    victim.has_lindblad_noise = False
+    return victim
+
+
+def create_noisy_victim(dt=10, noise_model=None):
+    victim = _create_victim(
+        constructor=NoisyMPSBackendImpl, dt=dt, noise_model=noise_model
+    )
+    victim.has_lindblad_noise = True
+    return victim
+
+
 @patch("emu_mps.mps_backend_impl.pick_well_prepared_qubits")
 def test_init_dark_qubits_without_state_prep_error(pick_well_prepared_qubits_mock):
     noise_model = MagicMock()
-    noise_model.depolarizing_rate = 0.123
     noise_model.state_prep_error = 0.0
     victim = create_victim(noise_model=noise_model)
 
@@ -173,34 +183,15 @@ def test_init_dark_qubits_with_state_prep_error(pick_well_prepared_qubits_mock):
 
 @patch("emu_mps.mps_backend_impl.compute_noise_from_lindbladians")
 @patch("emu_mps.mps_backend_impl.random.random")
-def test_init_lindblad_noise_without_lindbladians(
-    random_mock, compute_noise_from_lindbladians_mock
-):
-    victim = create_victim()
-    victim.state = MPS.make(QUBIT_COUNT)
-    victim.lindblad_ops = []
-
-    random_mock.return_value = 0.123
-    victim.init_lindblad_noise()
-    assert not victim.has_lindblad_noise
-    assert victim.aggregated_lindblad_ops is None
-
-    compute_noise_from_lindbladians_mock.assert_called_with([])
-    random_mock.assert_called_once()
-    assert victim.jump_threshold == 0.123
-    assert math.isclose(victim.norm_gap_before_jump, 0.877)
-
-
-@patch("emu_mps.mps_backend_impl.compute_noise_from_lindbladians")
-@patch("emu_mps.mps_backend_impl.random.random")
 def test_init_lindblad_noise_with_lindbladians(
     random_mock, compute_noise_from_lindbladians_mock
 ):
-    victim = create_victim()
+    victim = create_noisy_victim()
     victim.state = MPS.make(QUBIT_COUNT)
     lindbladian1 = torch.tensor([[0, 1], [2, 3j]], dtype=torch.complex128)
     lindbladian2 = torch.tensor([[4j, 5j], [6, 7]], dtype=torch.complex128)
     victim.lindblad_ops = [lindbladian1, lindbladian2]
+    victim.has_lindblad_noise = True
 
     noise_mock = MagicMock()
     compute_noise_from_lindbladians_mock.return_value = noise_mock
@@ -285,10 +276,6 @@ def test_init_hamiltonian(make_H_mock):
 def test_do_time_step_without_noise(update_H_mock, make_H_mock, evolve_tdvp_mock):
     victim = create_victim()
 
-    victim.jump_threshold = 0.8
-    victim.norm_gap_before_jump = 0.2
-    victim.has_lindblad_noise = False
-    victim.lindblad_noise = torch.zeros(2, 2, dtype=torch.complex128)
     victim.state = MPS.make(5)
     victim.init_hamiltonian()
 
@@ -307,7 +294,6 @@ def test_do_time_step_without_noise(update_H_mock, make_H_mock, evolve_tdvp_mock
     assert evolve_tdvp_mock.call_count == 1
     assert victim.is_masked is True
     assert math.isclose(victim.state.norm(), 0.6)
-    assert math.isclose(victim.norm_gap_before_jump, -0.44)
     assert update_H_mock.call_count == 1
     assert make_H_mock.call_count == 1
 
@@ -322,7 +308,7 @@ def test_do_time_step_without_noise(update_H_mock, make_H_mock, evolve_tdvp_mock
 @patch("emu_mps.mps_backend_impl.update_H")
 @patch("emu_mps.mps_backend_impl.find_root_brents")
 @patch("emu_base.pulser_adapter._get_all_lindblad_noise_operators")
-@patch("emu_mps.mps_backend_impl.MPSBackendImpl.do_random_quantum_jump")
+@patch("emu_mps.mps_backend_impl.NoisyMPSBackendImpl.do_random_quantum_jump")
 def test_do_time_step_with_noise(
     do_random_quantum_jump_mock,
     get_all_lindblad_noise_operators_mock,
@@ -331,7 +317,7 @@ def test_do_time_step_with_noise(
     make_H_mock,
     evolve_tdvp_mock,
 ):
-    victim = create_victim(dt=12)
+    victim = create_noisy_victim(dt=12)
     victim.init_hamiltonian()
 
     test_jump_threshold = 0.8

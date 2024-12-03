@@ -170,7 +170,7 @@ def _extract_omega_delta_phi(
     return omega, delta, phi
 
 
-_NON_LINDBLADIAN_NOISE = ["SPAM", "doppler", "amplitude"]
+_NON_LINDBLADIAN_NOISE = {"SPAM", "doppler", "amplitude"}
 
 
 def _get_all_lindblad_noise_operators(
@@ -198,6 +198,8 @@ class PulserData:
     lindblad_ops: list[torch.Tensor]
 
     def __init__(self, *, sequence: pulser.Sequence, config: BackendConfig, dt: int):
+        self.qubit_count = len(sequence.register.qubit_ids)
+
         laser_waist = (
             config.noise_model.laser_waist if config.noise_model is not None else None
         )
@@ -208,6 +210,7 @@ class PulserData:
             laser_waist=laser_waist,
         )
         self.lindblad_ops = _get_all_lindblad_noise_operators(config.noise_model)
+        self.has_lindblad_noise: bool = self.lindblad_ops != []
 
         addressed_basis = sequence.get_addressed_bases()[0]
         if addressed_basis == "ground-rydberg":  # for local and global
@@ -218,6 +221,11 @@ class PulserData:
             raise ValueError(f"Unsupported basis: {addressed_basis}")
 
         if config.interaction_matrix is not None:
+            assert len(config.interaction_matrix) == self.qubit_count, (
+                "The number of qubits in the register should be the same as the size of "
+                "the interaction matrix"
+            )
+
             self.full_interaction_matrix = torch.tensor(
                 config.interaction_matrix, dtype=torch.float64
             )

@@ -3,7 +3,7 @@ from pulser import Sequence
 
 from emu_base import Backend, BackendConfig, Results
 from emu_mps.mps_config import MPSConfig
-from emu_mps.mps_backend_impl import MPSBackendImpl
+from emu_mps.mps_backend_impl import create_impl
 
 
 class MPSBackend(Backend):
@@ -29,11 +29,8 @@ class MPSBackend(Backend):
 
         results = Results()
 
-        impl = MPSBackendImpl(sequence, mps_config)
-        impl.init_dark_qubits()
-        impl.init_initial_state(mps_config.initial_state)
-        impl.init_lindblad_noise()
-        impl.init_hamiltonian()
+        impl = create_impl(sequence, mps_config)
+        impl.init()  # This is separate from the constructor for testing purposes.
 
         for step in range(impl.timestep_count):
             start = time()

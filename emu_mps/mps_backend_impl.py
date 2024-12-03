@@ -25,38 +25,22 @@ class MPSBackendImpl:
         0.0  # While dt is an integer, noisy collapse can happen at non-integer times.
     )
     well_prepared_qubits_filter: Optional[list[bool]]
-    lindblad_ops: list[torch.Tensor]
-    lindblad_noise: torch.Tensor
     hamiltonian: MPO
-    jump_threshold: float
-    aggregated_lindblad_ops: Optional[torch.Tensor] = None
-    has_lindblad_noise: bool
-    norm_gap_before_jump: float
     state: MPS
 
-    def __init__(self, sequence: Sequence, mps_config: MPSConfig):
+    def __init__(self, mps_config: MPSConfig, pulser_data: PulserData):
         self.config = mps_config
-        self.qubit_count = len(sequence.register.qubit_ids)
-
-        assert (
-            mps_config.interaction_matrix is None
-            or len(mps_config.interaction_matrix) == self.qubit_count
-        ), (
-            "The number of qubits in the register should be the same as the size of "
-            "the interaction matrix"
-        )
-
-        pulser_data = PulserData(sequence=sequence, config=mps_config, dt=mps_config.dt)
+        self.qubit_count = pulser_data.qubit_count
         self.omega = pulser_data.omega
         self.delta = pulser_data.delta
         self.phi = pulser_data.phi
         self.timestep_count = self.omega.shape[0]
+        self.has_lindblad_noise = pulser_data.has_lindblad_noise
         self.full_interaction_matrix = pulser_data.full_interaction_matrix
         self.masked_interaction_matrix = pulser_data.masked_interaction_matrix
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.slm_end_time = pulser_data.slm_end_time
         self.is_masked = self.slm_end_time > 0.0
-        self.lindblad_ops = pulser_data.lindblad_ops
 
     def init_dark_qubits(self) -> None:
         has_state_preparation_error: bool = (
@@ -82,18 +66,6 @@ class MPSBackendImpl:
             self.omega = self.omega[:, self.well_prepared_qubits_filter]
             self.delta = self.delta[:, self.well_prepared_qubits_filter]
             self.phi = self.phi[:, self.well_prepared_qubits_filter]
-
-    def init_lindblad_noise(self) -> None:
-        self.has_lindblad_noise = self.lindblad_ops != []
-
-        if self.has_lindblad_noise:
-            stacked = torch.stack(self.lindblad_ops)
-            # The below is used for batch computation of noise collapse weights.
-            self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
-
-        self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
-        self.jump_threshold = random.random()
-        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
 
     def init_initial_state(self, initial_state: State | None) -> None:
         if initial_state is None:
@@ -140,11 +112,15 @@ class MPSBackendImpl:
             num_gpus_to_use=self.config.num_gpus_to_use,
         )
 
+    def init(self) -> None:
+        self.init_dark_qubits()
+        self.init_initial_state(self.config.initial_state)
+        self.init_hamiltonian()
+
     def evolve_to_time(self, intermediate_time: float) -> float:
         """
         Internal method to evolve the state to `intermediate_time`
         with the FIXED current self.hamiltonian.
-        Sets and returns the relative distance to the quantum jump threshold.
         """
         _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
         delta_time = intermediate_time - self.current_time
@@ -157,13 +133,13 @@ class MPSBackendImpl:
             is_hermitian=not self.has_lindblad_noise,
         )
         self.current_time = intermediate_time
-        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
-        return self.norm_gap_before_jump
+        return 0.0  # For typing
 
     def do_time_step(self, step: int) -> None:
         """
         Updates hamiltonian and evolves state by dt.
         """
+        assert not self.has_lindblad_noise
 
         target_time = float((step + 1) * self.config.dt)
         if self.is_masked and target_time > self.slm_end_time:
@@ -179,65 +155,12 @@ class MPSBackendImpl:
             omega=self.omega[step, :],
             delta=self.delta[step, :],
             phi=self.phi[step, :],
-            noise=self.lindblad_noise,
         )
 
-        while self.current_time != target_time:
-            assert self.current_time < target_time
-
-            time_at_begin = self.current_time
-            norm_gap_at_begin = self.norm_gap_before_jump
-            assert not self.has_lindblad_noise or norm_gap_at_begin >= 0.0
-
-            norm_gap_at_target_time = self.evolve_to_time(target_time)
-
-            should_jump: bool = self.has_lindblad_noise and norm_gap_at_target_time < 0
-            if should_jump:
-                # Evolve to the intermediate time between self.current_time and target_time
-                # where the jump should occur. That corresponds to self.evolve_to_time(t_jump) == 0.
-                find_root_brents(
-                    f=self.evolve_to_time,
-                    start=time_at_begin,
-                    f_start=norm_gap_at_begin,
-                    end=target_time,
-                    f_end=norm_gap_at_target_time,
-                    tolerance=1.0,
-                )
-                self.do_random_quantum_jump()
-        assert self.current_time == target_time
-
-    def do_random_quantum_jump(self) -> None:
-        jump_operator_weights = self.state.expect_batch(self.aggregated_lindblad_ops).real
-
-        jumped_qubit_index, jump_operator = random.choices(
-            [
-                (qubit, op)
-                for qubit in range(self.state.num_sites)
-                for op in self.lindblad_ops
-            ],
-            weights=jump_operator_weights.reshape(-1),
-        )[0]
-
-        self.state.apply(jumped_qubit_index, jump_operator)
-        self.state *= 1 / self.state.norm()
-
-        norm_after_normalizing = self.state.norm()
-        assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
-        self.jump_threshold = random.uniform(0.0, norm_after_normalizing**2)
-        self.norm_gap_before_jump = norm_after_normalizing**2 - self.jump_threshold
+        self.evolve_to_time(target_time)
 
     def fill_results(self, results: Results, step: int) -> None:
         t = (step + 1) * self.config.dt  # we are now after the time-step, so use step+1
-
-        if self.has_lindblad_noise:
-            # remove the noise for the callbacks.
-            # since update_H is called at the start of do_time_step this is safe
-            update_H(
-                hamiltonian=self.hamiltonian,
-                omega=self.omega[step, :],
-                delta=self.delta[step, :],
-                phi=self.phi[step, :],
-            )
 
         normalized_state = 1 / self.state.norm() * self.state
 
@@ -306,3 +229,128 @@ class MPSBackendImpl:
                 "duration": duration,
             }
         )
+
+
+class NoisyMPSBackendImpl(MPSBackendImpl):
+    """
+    Version of MPSBackendImpl with lindbladian noise.
+    Implements the Monte-Carlo Wave Function jump method.
+    """
+
+    lindblad_noise: torch.Tensor
+    jump_threshold: float
+    aggregated_lindblad_ops: Optional[torch.Tensor] = None
+    norm_gap_before_jump: float
+
+    def __init__(self, config: MPSConfig, pulser_data: PulserData):
+        super().__init__(config, pulser_data)
+        self.lindblad_ops = pulser_data.lindblad_ops
+
+    def init_lindblad_noise(self) -> None:
+        assert self.has_lindblad_noise
+
+        stacked = torch.stack(self.lindblad_ops)
+        # The below is used for batch computation of noise collapse weights.
+        self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
+
+        self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
+        self.jump_threshold = random.random()
+        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+
+    def init(self) -> None:
+        super().init()
+        self.init_lindblad_noise()
+
+    def evolve_to_time(self, intermediate_time: float) -> float:
+        """
+        Sets and returns the relative distance to the quantum jump threshold.
+        """
+        super().evolve_to_time(intermediate_time)
+        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+        return self.norm_gap_before_jump
+
+    def do_time_step(self, step: int) -> None:
+        """
+        Updates hamiltonian and evolves state by dt.
+        """
+        target_time = float((step + 1) * self.config.dt)
+        if self.is_masked and target_time > self.slm_end_time:
+            self.is_masked = False
+            self.hamiltonian = make_H(
+                interaction_matrix=self.full_interaction_matrix,
+                hamiltonian_type=self.hamiltonian_type,
+                num_gpus_to_use=self.config.num_gpus_to_use,
+            )
+
+        update_H(
+            hamiltonian=self.hamiltonian,
+            omega=self.omega[step, :],
+            delta=self.delta[step, :],
+            phi=self.phi[step, :],
+            noise=self.lindblad_noise,
+        )
+
+        while self.current_time != target_time:
+            assert self.current_time < target_time
+
+            time_at_begin = self.current_time
+            norm_gap_at_begin = self.norm_gap_before_jump
+            assert norm_gap_at_begin >= 0.0
+
+            norm_gap_at_target_time = self.evolve_to_time(target_time)
+
+            should_jump: bool = norm_gap_at_target_time < 0
+            if should_jump:
+                # Evolve to the intermediate time between self.current_time and target_time
+                # where the jump should occur. That corresponds to self.evolve_to_time(t_jump) == 0.
+                find_root_brents(
+                    f=self.evolve_to_time,
+                    start=time_at_begin,
+                    f_start=norm_gap_at_begin,
+                    end=target_time,
+                    f_end=norm_gap_at_target_time,
+                    tolerance=1.0,
+                )
+                self.do_random_quantum_jump()
+        assert self.current_time == target_time
+
+    def do_random_quantum_jump(self) -> None:
+        jump_operator_weights = self.state.expect_batch(self.aggregated_lindblad_ops).real
+
+        jumped_qubit_index, jump_operator = random.choices(
+            [
+                (qubit, op)
+                for qubit in range(self.state.num_sites)
+                for op in self.lindblad_ops
+            ],
+            weights=jump_operator_weights.reshape(-1),
+        )[0]
+
+        self.state.apply(jumped_qubit_index, jump_operator)
+        self.state *= 1 / self.state.norm()
+
+        norm_after_normalizing = self.state.norm()
+        assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
+        self.jump_threshold = random.uniform(0.0, norm_after_normalizing**2)
+        self.norm_gap_before_jump = norm_after_normalizing**2 - self.jump_threshold
+
+    def fill_results(self, results: Results, step: int) -> None:
+        # Remove the noise from self.hamiltonian for the callbacks.
+        # Since update_H is called at the start of do_time_step this is safe.
+        update_H(
+            hamiltonian=self.hamiltonian,
+            omega=self.omega[step, :],
+            delta=self.delta[step, :],
+            phi=self.phi[step, :],
+        )
+
+        super().fill_results(results, step)
+
+
+def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
+    pulser_data = PulserData(sequence=sequence, config=config, dt=config.dt)
+
+    if pulser_data.has_lindblad_noise:
+        return NoisyMPSBackendImpl(config, pulser_data)
+
+    return MPSBackendImpl(config, pulser_data)
