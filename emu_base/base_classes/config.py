@@ -62,7 +62,10 @@ class BackendConfig:
                 force=True,
             )
         if noise_model is not None and (
-            noise_model.runs != 1 or noise_model.samples_per_run != 1
+            noise_model.runs != 1
+            or noise_model.samples_per_run != 1
+            or noise_model.runs is not None
+            or noise_model.samples_per_run is not None
         ):
             self.logger.warning(
                 "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
