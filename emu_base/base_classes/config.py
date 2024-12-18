@@ -46,6 +46,15 @@ class BackendConfig:
         )
         self.with_modulation = with_modulation
         self.noise_model = noise_model
+
+        if interaction_matrix is not None and (
+            not isinstance(interaction_matrix, list)
+            or not isinstance(interaction_matrix[0], list)
+        ):
+            raise ValueError(
+                "Interaction matrix must be provided as a Python list of lists of floats"
+            )
+
         self.interaction_matrix = interaction_matrix
         self.interaction_cutoff = interaction_cutoff
         self.logger = logging.getLogger("global_logger")

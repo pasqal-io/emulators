@@ -574,14 +574,12 @@ def test_parsed_sequence(mock_pulser_sample):
     sample_instance.to_nested_dict.return_value = {"Local": mock_pulser_dict}
     mock_pulser_sample.return_value = sample_instance
 
-    interaction_matrix = torch.tensor(
-        [
-            [0.4251, 0.4588, -0.4607],
-            [0.0929, -0.1636, -1.0463],
-            [-0.4037, 0.1067, -0.9528],
-        ],
-        dtype=torch.float64,
-    )
+    interaction_matrix = [
+        [0.4251, 0.4588, -0.4607],
+        [0.0929, -0.1636, -1.0463],
+        [-0.4037, 0.1067, -0.9528],
+    ]
+
     sequence._slm_mask_time = []
 
     random_collapse = torch.rand(2, 2, dtype=torch.complex128)
@@ -665,14 +663,11 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
     sequence.get_addressed_bases.return_value = [adressed_basis]
     mock_pulser_sample.return_value = mock_sample(adressed_basis)
 
-    interaction_matrix = torch.tensor(
-        [
-            [0.4251, 0.4588, -0.4607],
-            [0.0929, -0.1636, -1.0463],
-            [-0.4037, 0.1067, -0.9528],
-        ],
-        dtype=torch.float64,
-    )
+    interaction_matrix = [
+        [0.4251, 0.4588, -0.4607],
+        [0.0929, -0.1636, -1.0463],
+        [-0.4037, 0.1067, -0.9528],
+    ]
     sequence._slm_mask_time = []
 
     noise_model = NoiseModel(

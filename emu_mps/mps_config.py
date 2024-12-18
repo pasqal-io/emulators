@@ -1,7 +1,5 @@
 from typing import Any
 
-import torch
-
 from emu_base import BackendConfig, State
 from emu_mps.utils import DEVICE_COUNT
 
@@ -45,7 +43,6 @@ class MPSConfig(BackendConfig):
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
         num_gpus_to_use: int = DEVICE_COUNT,
-        interaction_matrix: torch.Tensor | None = None,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
@@ -55,7 +52,6 @@ class MPSConfig(BackendConfig):
         self.max_bond_dim = max_bond_dim
         self.max_krylov_dim = max_krylov_dim
         self.num_gpus_to_use = num_gpus_to_use
-        self.interaction_matrix = interaction_matrix
         self.extra_krylov_tolerance = extra_krylov_tolerance
 
         if self.noise_model is not None:
