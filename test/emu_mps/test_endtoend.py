@@ -21,7 +21,7 @@ from emu_mps import (
 
 import pulser.noise_model
 
-from .utils_testing import (
+from test.utils_testing import (
     pulser_afm_sequence_grid,
     pulser_afm_sequence_ring,
     pulser_XY_sequence_slm_mask,

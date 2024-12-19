@@ -7,7 +7,7 @@ import torch
 
 from emu_mps import MPS, inner, MPO
 
-from .utils_testing import ghz_state_factors
+from test.utils_testing import ghz_state_factors
 
 
 def check_orthogonality_center(state: MPS, expected_ortho_center: int):

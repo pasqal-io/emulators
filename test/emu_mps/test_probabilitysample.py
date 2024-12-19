@@ -2,7 +2,7 @@ import torch
 
 from emu_mps import MPS
 
-from .utils_testing import ghz_state_factors
+from test.utils_testing import ghz_state_factors
 
 
 seed = 1337  # any number will do

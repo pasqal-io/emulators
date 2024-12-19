@@ -48,7 +48,7 @@ dependencies = [
 
 [tool.hatch.envs.default.scripts]
 test = "pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps {args}"
-test_notebooks = "pytest --nbmake **/*ipynb"
+test_notebooks = "pytest --nbmake **/**/**/*ipynb"
 coverage_readme = "(cd .. ; readme-cov)" #run this from the root, not the dir of this file
 
 [[tool.hatch.envs.test.matrix]]
