@@ -1,4 +1,10 @@
-from emu_base.base_classes import Energy, EnergyVariance, SecondMomentOfEnergy
+from emu_base.base_classes import (
+    BitStrings,
+    StateResult,
+    CorrelationMatrix,
+    QubitDensity,
+    Fidelity,
+)
 from emu_base import BackendConfig
 from emu_sv import StateVector
 from typing import Any
@@ -42,15 +48,19 @@ class SVConfig(BackendConfig):
     ):
         super().__init__(**kwargs)
 
-        self.observables = set(map(type, self.callbacks))
+        observables = set(map(type, self.callbacks))
 
-        if self.observables & {
-            Energy,
-            SecondMomentOfEnergy,
-            EnergyVariance,
-        }:
-            # TODO: matrix of Hamiltonian or think how to call the above callbacks
-            raise NotImplementedError("Not implemented yet")
+        supported_observables = {
+            BitStrings,
+            StateResult,
+            CorrelationMatrix,
+            QubitDensity,
+            Fidelity,
+        }
+
+        unsupported_observables = observables - supported_observables
+        if unsupported_observables:
+            raise ValueError(f"{unsupported_observables} are not supported in emu-sv")
         self.initial_state = initial_state
         self.dt = dt
         self.max_krylov_dim = max_krylov_dim

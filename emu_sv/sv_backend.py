@@ -1,14 +1,5 @@
 from emu_base.base_classes.backend import Backend, BackendConfig
 from emu_base.base_classes.results import Results
-from emu_base.base_classes import (
-    BitStrings,
-    StateResult,
-    CorrelationMatrix,
-    QubitDensity,
-    Fidelity,
-)
-
-
 from emu_sv.sv_config import SVConfig
 from pulser import Sequence
 from emu_base.pulser_adapter import PulserData
@@ -72,19 +63,7 @@ class SVBackend(Backend):
             )
 
             # TODO: Rydberg Mamiltonian should be a dense operator
-            supported_observables = {
-                BitStrings,
-                StateResult,
-                CorrelationMatrix,
-                QubitDensity,
-                Fidelity,
-            }
 
-            unsupported_observables = sv_config.observables & supported_observables
-            if not unsupported_observables:
-                raise ValueError(
-                    f"{unsupported_observables} not supported observables by emu-sv"
-                )
             H = DenseOperator  # Energy, SecondMomentun... and Variance are not implemented
 
             for callback in sv_config.callbacks:
