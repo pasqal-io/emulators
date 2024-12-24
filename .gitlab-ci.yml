@@ -3,7 +3,7 @@
     - export
     - pip install -r test_requirements.txt
     - pip install -e .
-    - pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv
+    - pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv --cov=optimatrix
     - pytest --nbmake **/**/**/*.ipynb
     - readme-cov
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'

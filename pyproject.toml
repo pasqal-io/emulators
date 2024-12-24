@@ -26,7 +26,7 @@ dependencies = [
 dynamic = ["version"]
 
 [tool.setuptools]
-packages = ["emu_base", "emu_mps", "emu_sv"]
+packages = ["emu_base", "emu_mps", "emu_sv", "optimatrix"]
 
 [tool.coverage.run]
 branch = true

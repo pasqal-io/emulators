@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "examples"
+description = "Examples for optimatrix"
+version = "0.1"
+dependencies = [
+  "pulser==1.1.*",
+  "matplotlib",
+  "numpy",
+]
