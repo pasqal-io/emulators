@@ -23,7 +23,7 @@ classifiers=[
 ]
 dependencies = [
   "pulser-core==1.1.*",
-  "torch>=2.4.0"]
+  "torch==2.5.0"]
 dynamic = ["version"]
 
 [tool.hatch.metadata]
