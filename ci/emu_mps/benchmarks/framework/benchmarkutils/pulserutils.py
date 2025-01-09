@@ -31,9 +31,14 @@ def run_with_pulser(
     """
     seq_length = seq.get_duration(include_fall_time=with_modulation)
     steps = int(seq_length / timestep)
-    times = np.linspace(0, seq_length, steps + 2)
 
+    times = np.linspace(0, seq_length, steps + 1)
     qubit_count = len(seq.register.qubits)
+
+    # benchmark errors column: checks if all time steps are multiple integer of dt
+    assert np.all(
+        times % timestep == 0
+    ), f"Not all time steps are multiples of {timestep}"
 
     sim = QutipEmulator.from_sequence(
         seq,

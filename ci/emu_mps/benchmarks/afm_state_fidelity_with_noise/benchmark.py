@@ -36,7 +36,7 @@ observables = [
 emu_mps_results = {}
 pulser_total = {}
 nruns = 100  # Number of runs for aggregating monte carlo results.
-dt = 5
+dt = 5  # observables are being measured when dt = 10 and multiples of this value
 precision = 1e-6
 
 depolarizing_rates = [0.2, 0.5]

@@ -20,7 +20,7 @@ def make_adiabatic_afm_state_2d_seq(
 
     t_rise = 500
     t_fall = 1000
-    t_sweep = (delta_f - delta_0) / (2 * math.pi * 10) * 3000
+    t_sweep = round((delta_f - delta_0) / (2 * math.pi * 10)) * 3000
 
     R_interatomic = MockDevice.rydberg_blockade_radius(U)
     reg = Register.rectangle(rows, columns, R_interatomic, prefix="q")
@@ -64,7 +64,9 @@ def make_quench_2d_seq(nx: int, ny: int) -> Sequence:
     seq = Sequence(reg, MockDevice)
     seq.declare_channel("ising", "rydberg_global")
 
-    simple_pulse = Pulse.ConstantPulse(T, omega, delta, 0)
+    simple_pulse = Pulse.ConstantPulse(T - 5, omega, delta, 0)
+    # T-5 gives better time steps when comparing against pulser
+
     seq.add(simple_pulse, "ising")
     return seq
 
