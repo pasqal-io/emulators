@@ -13,9 +13,9 @@ authors = [
     { name = "Pablo Le Henaff", email="pablo.le-henaff@pasqal.com" }
 ]
 requires-python = ">=3.10"
-license = {text = "Proprietary"}
+license = {text = "MIT-derived"}
 classifiers=[
-    "License :: Other/Proprietary License",
+    "License :: MIT-derived",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",

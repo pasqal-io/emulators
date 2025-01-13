@@ -4,110 +4,64 @@
   # Emu-MPS
 </div>
 
-**EMU-MPS** is a Pulser backend, designed to **EMU**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**MPS**). It allows users to increase the number of qubits and reduce computation time.
+**EMU-MPS** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io). EMU-MPS lets you transparently run Quantum Algorithms on a simulated device, using GPU acceleration if available. More in depth, EMU-MPS is designed to **EMU**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**MPS**). This design makes it faster and more memory-efficient than previous generations of quantum emulators, which means that you can emulate systems with larger number of qubits, faster.
 
-Join us on [Slack](https://pasqalworkspace.slack.com/archives/C07MUV5K7EU) or by [e-mail](mailto:emulation@pasqal.com) to give us feedback about how you plan to use Emu-MPS or if you require specific feature-upgrades.
-
-
-## Getting started
-
-You can install from source, or download the package from the private pypi registry that pasqal maintains in gitlab.
-For developers, we recommend installing from source, for users we recommend installing from the registry.
+## Installation
 
 **Warning:** installing emu-mps will update pulser-core
 
-We always recommend using a virtual environment.
+### Using `hatch`, `uv` or any pyproject-compatible Python manager
 
-<details>
-  <summary>Click me to see how it is done</summary>
+Edit file `pyproject.toml` to add the line
 
-  #### Create a virtual environment using python
-
-  ```
-  python -m venv .venv
-  ```
-
-  Or
-
-  ```
-  python -m venv /path/to/new/virtual/environment
-  ```
-
-  Replace `/path/to/new/virtual/environment` with your desired directory path.
-
-  Then activate the environment On linux or MacOS
-
-  ```
-  source /path/to/new/virtual/environment/bin/activate
-  ```
-
-  While on Windows it's
-
-  ```
-  C:\> /path/to/new/virtual/environment/Scripts/activate
-  ```
-
-  Remember to replace `/path/to/new/virtual/environment` with the actual path to your virtual environment. Once the environment is activated, you can clone emu_mps and install it using
-
-</details>
-
-### installing from the registry
-
-When pip is configured to know about the pasqal registry, Emu-MPS installs as
-
-```bash
-pip install emu-mps
-```
-When pip is not already configured, the easiest way to do so, is to add a file `~/.config/pip/pip.conf` containing:
-
-```
-[global]
-extra-index-url=https://gitlab.pasqal.com/api/v4/projects/597/packages/pypi/simple
-                possible.other.urls
+```toml
+  "emu-mps"
 ```
 
-As this shows, it is also possible to have multiple extra repositories configured. Note that the order is not important.
-
-It is also possible to add the `extra-index-url` to the `pip install` command directly, if you somehow don't want to create a `pip.conf` file.
-
-### installing from source
-git clone this [repository ](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct) or download
+to the list of `dependencies`.
 
 
-Then, `cd` into the root folder of the repo and type
+### Using `pip` or `pipx`
+To install the `pipy` package using `pip` or `pipx`
 
-```bash
-pip install -e .
+1. Create a `venv` if that's not done yet
+
+```sh
+$ python -m venv venv
+
 ```
 
-<details>
-  <summary>Guidelines for developers </summary>
-  We recommend using an environment, git clone the repository, then inside the `emu_mps` folder
+2. Enter the venv
 
-```bash
-pip install -e .
+If you're running Unix:
+
+```sh
+$ . venv/bin/activate
 ```
 
-  Also, the installation of pytest, nbmake, pre-commit.
+If you're running Windows:
 
-  Do not forget to run the unit test suite by simply running `pytest` command.
+```sh
+C:\> /path/to/new/virtual/environment/Scripts/activate
+```
 
-  Another way can be using hatch.
+3. Install the package
 
-  #### virtual environment with `hatch`
+```sh
+$ pip install emu-mps
+# or
+$ pipx install emu-mps
+```
 
-  ```bash
-  python -m pip install hatch
-  python -m hatch -v shell
-  ```
 
-  When inside the shell with development dependencies, install first the pre-commit hook:
-  ```
-  pre-commit install
-  ```
-</details>
+Join us on [Slack](https://pasqalworkspace.slack.com/archives/C07MUV5K7EU) or by [e-mail](mailto:emulation@pasqal.com) to give us feedback about how you plan to use Emu-MPS or if you require specific feature-upgrades.
 
-## Check the tutorial notebooks and example scripts
+## Usage
+
+For the time being, the easiest way to learn how to use this package is to look
+at the [examples](examples/emu_mps_examples).
+
+See also the [full API documentation](https://pqs.pages.pasqal.com/emu_mps/).
 
 For more information, you can check the tutorials and examples located in the [examples folder](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct/-/tree/main/examples?ref_type=heads)
 
@@ -116,4 +70,8 @@ For more information, you can check the tutorials and examples located in the [e
 Please check the [documentation](./docs/index.md) page for more info about contributing, the API, benchmarks, etc.
 
 
-![Code Coverage](https://img.shields.io/badge/Coverage-95%25-brightgreen.svg)
+## Getting in touch
+
+- [Pasqal Community Portal](https://community.pasqal.com/) (forums, chat, tutorials, examples, code library).
+- [GitHub Repository](https://github.com/pasqal-io/quantum-evolution-kernel) (source code, issue tracker).
+- [Professional Support](https://www.pasqal.com/contact-us/) (if you need tech support, custom licenses, a variant of this library optimized for your workload, your own QPU, remote access to a QPU, ...)
