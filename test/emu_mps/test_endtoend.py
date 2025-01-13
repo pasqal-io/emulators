@@ -1,3 +1,4 @@
+import time
 from unittest.mock import ANY, MagicMock, patch
 
 import pulser
@@ -21,6 +22,7 @@ from emu_mps import (
 
 import pulser.noise_model
 
+from emu_mps.mps_backend_impl import MPSBackendImpl
 from test.utils_testing import (
     pulser_afm_sequence_grid,
     pulser_afm_sequence_ring,
@@ -465,3 +467,64 @@ def test_laser_waist():
     )
 
     assert pytest.approx(final_state.inner(expected_state)) == -1.0
+
+
+def test_autosave():
+    duration = 300
+    rows, cols = 2, 3
+    reg = pulser.Register.rectangle(
+        rows, cols, pulser.devices.MockDevice.rydberg_blockade_radius(U), prefix="q"
+    )
+    seq = pulser.Sequence(reg, pulser.devices.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(
+        pulser.Pulse.ConstantAmplitude(
+            amplitude=torch.pi,
+            detuning=pulser.waveforms.ConstantWaveform(duration=duration, value=0.0),
+            phase=0.0,
+        ),
+        "ising_global",
+    )
+
+    evaluation_times = {10, 100, 150}
+    energy = emu_base.Energy(evaluation_times=evaluation_times)
+
+    save_simulation_original = MPSBackendImpl.save_simulation
+    save_file = None
+
+    counter = 100  # Number of simulation steps before crashing
+
+    def save_simulation_mock_side_effect(self):
+        nonlocal counter
+        counter -= 1
+        if counter > 0:
+            self.last_save_time = time.time() + 999
+            return save_simulation_original(self)
+
+        assert self.timestep_index == 11
+
+        self.last_save_time = 0  # Trigger saving regardless of time
+        save_simulation_original(self)
+        nonlocal save_file
+        save_file = self.autosave_file
+        raise Exception("Process killed!")
+
+    with patch.object(
+        MPSBackendImpl, "save_simulation", autospec=True
+    ) as save_simulation_mock:
+        save_simulation_mock.side_effect = save_simulation_mock_side_effect
+
+        with pytest.raises(Exception) as e:
+            MPSBackend().run(seq, MPSConfig(observables=[energy]))
+
+        assert str(e.value) == "Process killed!"
+
+    assert save_file is not None and save_file.is_file()
+    results_after_resume = MPSBackend().resume(save_file)
+
+    assert not save_file.is_file()
+
+    results_expected = MPSBackend().run(seq, MPSConfig(observables=[energy]))
+
+    for t in evaluation_times:
+        assert results_after_resume["energy", t] == results_expected["energy", t]

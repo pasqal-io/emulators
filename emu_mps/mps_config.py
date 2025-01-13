@@ -1,7 +1,7 @@
 from typing import Any
 
 from emu_base import BackendConfig, State
-from emu_mps.utils import DEVICE_COUNT
+from emu_mps.constants import DEVICE_COUNT
 
 
 class MPSConfig(BackendConfig):
@@ -23,6 +23,10 @@ class MPSConfig(BackendConfig):
         num_gpus_to_use: during the simulation, distribute the state over this many GPUs
             0=all factors to cpu. As shown in the benchmarks, using multiple GPUs might
             alleviate memory pressure per GPU, but the runtime should be similar.
+        autosave_prefix: filename prefix for autosaving simulation state to file
+        autosave_dt: minimum time interval in seconds between two autosaves
+            Saving the simulation state is only possible at specific times,
+            therefore this interval is only a lower bound.
         kwargs: arguments that are passed to the base class
 
     Examples:
@@ -43,6 +47,8 @@ class MPSConfig(BackendConfig):
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
         num_gpus_to_use: int = DEVICE_COUNT,
+        autosave_prefix: str = "emu_mps_save_",
+        autosave_dt: int = 600,  # 10 minutes
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
@@ -62,3 +68,11 @@ class MPSConfig(BackendConfig):
                 and self.noise_model.amp_sigma != 0.0
             ):
                 raise NotImplementedError("Unsupported noise type: amp_sigma")
+
+        self.autosave_prefix = autosave_prefix
+        self.autosave_dt = autosave_dt
+
+        MIN_AUTOSAVE_DT = 10
+        assert (
+            self.autosave_dt > MIN_AUTOSAVE_DT
+        ), f"autosave_dt must be larger than {MIN_AUTOSAVE_DT} seconds"

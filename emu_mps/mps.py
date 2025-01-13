@@ -7,15 +7,16 @@ from typing import Any, List, Optional, Iterable
 import torch
 
 from emu_base import State
+from emu_mps import MPSConfig
 from emu_mps.algebra import add_factors, scale_factors
 from emu_mps.utils import (
-    DEVICE_COUNT,
     apply_measurement_errors,
     assign_devices,
     truncate_impl,
     tensor_trace,
     n_operator,
 )
+from emu_mps.constants import DEVICE_COUNT
 
 
 class MPS(State):
@@ -27,17 +28,13 @@ class MPS(State):
     Only qubits are supported.
     """
 
-    DEFAULT_MAX_BOND_DIM: int = 1024
-    DEFAULT_PRECISION: float = 1e-5
-
     def __init__(
         self,
         factors: List[torch.Tensor],
         /,
         *,
         orthogonality_center: Optional[int] = None,
-        precision: float = DEFAULT_PRECISION,
-        max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
+        config: Optional[MPSConfig] = None,
         num_gpus_to_use: Optional[int] = DEVICE_COUNT,
     ):
         """
@@ -58,9 +55,7 @@ class MPS(State):
             num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu, None=keep the existing device assignment.
         """
-        self.precision = precision
-        self.max_bond_dim = max_bond_dim
-
+        self.config = config if config is not None else MPSConfig()
         assert all(
             factors[i - 1].shape[2] == factors[i].shape[0] for i in range(1, len(factors))
         ), "The dimensions of consecutive tensors should match"
@@ -84,8 +79,7 @@ class MPS(State):
     def make(
         cls,
         num_sites: int,
-        precision: float = DEFAULT_PRECISION,
-        max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
+        config: Optional[MPSConfig] = None,
         num_gpus_to_use: int = DEVICE_COUNT,
     ) -> MPS:
         """
@@ -93,11 +87,12 @@ class MPS(State):
 
         Args:
             num_sites: the number of qubits
-            precision: the precision with which to truncate here or in tdvp
-            max_bond_dim: the maximum bond dimension to allow
+            config: the MPSConfig
             num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu
         """
+        config = config if config is not None else MPSConfig()
+
         if num_sites <= 1:
             raise ValueError("For 1 qubit states, do state vector")
 
@@ -106,8 +101,7 @@ class MPS(State):
                 torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)
                 for _ in range(num_sites)
             ],
-            precision=precision,
-            max_bond_dim=max_bond_dim,
+            config=config,
             num_gpus_to_use=num_gpus_to_use,
             orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
         )
@@ -165,15 +159,11 @@ class MPS(State):
         """
         SVD based truncation of the state. Puts the orthogonality center at the first qubit.
         Calls orthogonalize on the last qubit, and then sweeps a series of SVDs right-left.
-        Uses self.precision and self.max_bond_dim for determining accuracy.
+        Uses self.config for determining accuracy.
         An in-place operation.
         """
         self.orthogonalize(self.num_sites - 1)
-        truncate_impl(
-            self.factors,
-            max_error=self.precision,
-            max_rank=self.max_bond_dim,
-        )
+        truncate_impl(self.factors, config=self.config)
         self.orthogonality_center = 0
 
     def get_max_bond_dim(self) -> int:
@@ -303,7 +293,7 @@ class MPS(State):
         """
         Returns the sum of two MPSs, computed with a direct algorithm.
         The resulting MPS is orthogonalized on the first site and truncated
-        up to `self.precision`.
+        up to `self.config.precision`.
 
         Args:
             other: the other state
@@ -315,8 +305,7 @@ class MPS(State):
         new_tt = add_factors(self.factors, other.factors)
         result = MPS(
             new_tt,
-            precision=self.precision,
-            max_bond_dim=self.max_bond_dim,
+            config=self.config,
             num_gpus_to_use=None,
             orthogonality_center=None,  # Orthogonality is lost.
         )
@@ -341,8 +330,7 @@ class MPS(State):
         factors = scale_factors(self.factors, scalar, which=which)
         return MPS(
             factors,
-            precision=self.precision,
-            max_bond_dim=self.max_bond_dim,
+            config=self.config,
             num_gpus_to_use=None,
             orthogonality_center=self.orthogonality_center,
         )
