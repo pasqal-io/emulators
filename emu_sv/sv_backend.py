@@ -65,7 +65,7 @@ class SVBackend(Backend):
             # TODO: Rydberg Mamiltonian should be a dense operator
 
             H = DenseOperator  # Energy, SecondMomentun... and Variance are not implemented
-
+            # ham :DenseOperator
             for callback in sv_config.callbacks:
                 callback(sv_config, (step + 1) * sv_config.dt, state, H, results)
 

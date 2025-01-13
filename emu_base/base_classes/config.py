@@ -4,6 +4,8 @@ import logging
 import sys
 import pathlib
 
+# from emu_base.base_classes import Callback
+
 
 class BackendConfig:
     """The base backend configuration.
