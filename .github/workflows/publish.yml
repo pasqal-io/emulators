@@ -2,8 +2,6 @@ name: Tests
 
 on:
   push:
-    branches:
-      - aq/docs
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch: {}
@@ -69,5 +67,4 @@ jobs:
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
         git fetch origin gh-pages
-        mike deploy --push --update-aliases v1.2.0 latest
-#        mike deploy --push --update-aliases ${{ github.ref_name }} latest
+        mike deploy --push --update-aliases ${{ github.ref_name }} latest
