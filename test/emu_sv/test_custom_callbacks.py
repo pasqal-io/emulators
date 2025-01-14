@@ -8,16 +8,17 @@ from pytest import approx
 
 
 def test_custom_qubit_density():
-    basis = ("r","g")
+    basis = ("r", "g")
     num_qubits = 4
-    strings = {"rrrr":1.0,"ggggg":1.0}
-    state = StateVector.from_state_string(basis=basis,nqubits=num_qubits,strings=strings)
+    strings = {"rrrr": 1.0, "ggggg": 1.0}
+    state = StateVector.from_state_string(
+        basis=basis, nqubits=num_qubits, strings=strings
+    )
 
     config = SVConfig()
     H = DenseOperator
     t = 1
 
-    qubit_density = custom_qubit_density(QubitDensity,config,t,state,H)
-    expected = [0.5]*num_qubits
-    assert qubit_density == approx(expected,abs=1e-8)
-
+    qubit_density = custom_qubit_density(QubitDensity, config, t, state, H)
+    expected = [0.5] * num_qubits
+    assert qubit_density == approx(expected, abs=1e-8)
