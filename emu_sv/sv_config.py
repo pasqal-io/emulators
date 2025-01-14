@@ -15,7 +15,7 @@ from typing import Any
 
 from types import MethodType
 
-from emu_sv.custom_applies import custom_qubit_density
+from emu_sv.ustom_callback_implementations import custom_qubit_density
 
 
 class SVConfig(BackendConfig):
