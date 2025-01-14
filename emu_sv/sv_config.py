@@ -15,7 +15,7 @@ from typing import Any
 
 from types import MethodType
 
-from emu_sv.ustom_callback_implementations import custom_qubit_density
+from emu_sv.custom_callback_implementations import custom_qubit_density
 
 
 class SVConfig(BackendConfig):
@@ -79,4 +79,4 @@ class SVConfig(BackendConfig):
         for obs in self.callbacks:
             if isinstance(obs, QubitDensity):
                 # mypy: ignoring dynamically replacing method
-                obs.apply = MethodType(custom_qubit_density, obs)  # type: ignore
+                obs.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
