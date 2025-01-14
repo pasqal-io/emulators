@@ -229,8 +229,6 @@ def test_end_to_end_afm_ring():
     assert max_bond_dim == 29
 
     q_density = result["qubit_density"][final_time]
-
-    # 0.578 is the magnetization in the first atom,
     assert approx(q_density, 1e-3) == [0.578] * 10
 
 

@@ -134,7 +134,7 @@ def test_end_to_end_afm_ring():
 
     q_density = result["qubit_density"][final_time]
     q_density = torch.tensor(q_density, dtype=torch.float64)
-    # 0.578 is the magnetization in the first atom
+
     assert torch.allclose(
         torch.tensor([0.578] * 10, dtype=torch.float64), q_density, atol=1e-3
     )
