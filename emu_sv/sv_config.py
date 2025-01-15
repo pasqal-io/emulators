@@ -63,8 +63,7 @@ class SVConfig(BackendConfig):
             StateResult,
             CorrelationMatrix,
             QubitDensity,
-            Fidelity,
-            Energy,
+            Fidelity
         }
 
         unsupported_observables = observables - supported_observables
