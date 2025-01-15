@@ -18,7 +18,7 @@ def do_time_step(
         interaction_matrix=full_interaction_matrix,
         device=state_vector.device,
     )
-    op = lambda x: -1j * dt * (ham @ x)
+    op = lambda x: -1j * dt * (ham * x)
     return krylov_exp(
         op, state_vector, norm_tolerance=krylov_tolerance, exp_tolerance=krylov_tolerance
-    )
+    ), ham

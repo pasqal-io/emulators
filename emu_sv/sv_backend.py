@@ -4,10 +4,12 @@ from emu_sv.sv_config import SVConfig
 from pulser import Sequence
 from emu_base.pulser_adapter import PulserData
 from emu_sv.time_evolution import do_time_step
-from emu_sv import StateVector, DenseOperator
+from emu_sv import StateVector
 import torch
 from time import time
 from resource import RUSAGE_SELF, getrusage
+
+
 
 
 class SVBackend(Backend):
@@ -53,7 +55,7 @@ class SVBackend(Backend):
 
             start = time()
 
-            state.vector = do_time_step(
+            state.vector, H = do_time_step(
                 dt,
                 omega[step],
                 delta[step],
@@ -64,8 +66,7 @@ class SVBackend(Backend):
 
             # TODO: Rydberg Mamiltonian should be a dense operator
 
-            H = DenseOperator  # Energy, SecondMomentun... and Variance are not implemented
-
+            
             for callback in sv_config.callbacks:
                 callback(sv_config, (step + 1) * sv_config.dt, state, H, results)
 

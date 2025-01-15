@@ -3,10 +3,18 @@ This file deals with creation of the custom sparse matrix corresponding
 the Rydberg Hamiltonian of a neutral atoms quantum processor.
 """
 
+from sre_parse import State
+from typing import Any, Iterable
 import torch
 
+from emu_base.base_classes import Operator
+from emu_sv.dense_operator import DenseOperator
 
-class RydbergHamiltonian:
+from emu_base.base_classes.operator import FullOp, QuditOp
+from emu_sv.state_vector import StateVector
+
+
+class RydbergHamiltonian(Operator):
     """
     A Hamiltonian sparse form representation for the Rydberg  Hamiltonian (not complex part, yet)
 
@@ -34,7 +42,7 @@ class RydbergHamiltonian:
             strengths between each pair of qubits.
 
     Methods:
-        __matmul__(vec): Performs matrix-vector multiplication with a vector.
+        __mul__(vec): Performs matrix-vector multiplication with a vector.
         _diag_elemts(): Constructs the diagonal elements of the Hamiltonian
             based on `deltas` and `interaction_matrix`.
         _size(): Calculates the memory size of the `RydbergHamiltonian` object in MiB.
@@ -54,7 +62,7 @@ class RydbergHamiltonian:
         self.diag: torch.Tensor = self._create_diagonal().to(device=device)
         self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
 
-    def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
+    def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
         Performs a matrix-vector multiplication between the `RydbergHamiltonian` form and
         a torch vector
@@ -142,3 +150,60 @@ class RydbergHamiltonian:
                 )  # note the j-1 since i was already removed
                 i_j_fixed += self.interaction_matrix[i, j]
         return diag
+    
+    def __add__(self, other:Operator)->DenseOperator:
+
+        assert isinstance(other, DenseOperator), "MPO can only be added to another MPO"
+
+        pass
+
+    def __rmul__(self, scalar: complex) -> DenseOperator:
+        """
+        Multiply an MPO by scalar.
+        Assumes the orthogonal centre is on the first factor.
+
+        Args:
+            scalar: the scale factor to multiply with
+
+        Returns:
+            the scaled MPO
+        """
+        
+        pass
+
+    def __matmul__(self, other:Operator)->DenseOperator:
+        pass
+    
+    def from_operator_string(
+        basis: Iterable[str],
+        nqubits: int,
+        operations: FullOp,
+        operators: dict[str, QuditOp] = {},
+        /,
+        **kwargs: Any,
+    ) -> DenseOperator:
+    
+        pass
+
+    def expect(self, state: State) -> float | complex:
+        """
+        Compute the expectation value of self on the given state.
+
+        Args:
+            state: the state with which to compute
+
+        Returns:
+            the expectation
+        """
+        assert isinstance(
+            state, StateVector
+        ), "currently, only expectation values of StateVectors are \
+        supported"
+
+        #return torch.vdot(state.vector, self.matrix @ state.vector)  # type: ignore [no-any-return]
+        pass
+
+
+    
+    
+

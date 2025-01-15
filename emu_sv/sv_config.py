@@ -4,12 +4,13 @@ from emu_base.base_classes import (
     CorrelationMatrix,
     QubitDensity,
     Fidelity,
+    Energy,
 )
 from emu_base import BackendConfig
 from emu_sv import StateVector
 from typing import Any
 
-from emu_sv.custom_callback_implementations import custom_qubit_density
+from emu_sv.custom_callback_implementations import custom_qubit_density, custom_energy
 
 from types import MethodType
 
@@ -60,6 +61,7 @@ class SVConfig(BackendConfig):
             CorrelationMatrix,
             QubitDensity,
             Fidelity,
+            Energy,
         }
 
         unsupported_observables = observables - supported_observables
@@ -73,5 +75,8 @@ class SVConfig(BackendConfig):
 
         for obs in self.callbacks:
             if isinstance(obs, QubitDensity):
-            # mypy: ignoring dynamically replacing method
+                # mypy: ignoring dynamically replacing method
                 obs.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
+
+            if isinstance(obs, Energy):
+                obs.apply = MethodType(custom_energy,obs)

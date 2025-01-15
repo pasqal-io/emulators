@@ -66,7 +66,7 @@ def test_dense_vs_sparse():
         omegas=omega, deltas=delta, interaction_matrix=interaction_matrix, device=device
     )
 
-    res_sparse = (h_custom @ v).reshape(-1)
+    res_sparse = (h_custom * v).reshape(-1)
 
     assert torch.allclose(res_sparse, res_dense)
 
