@@ -9,6 +9,10 @@ from emu_base import BackendConfig
 from emu_sv import StateVector
 from typing import Any
 
+from emu_sv.custom_callback_implementations import custom_qubit_density
+
+from types import MethodType
+
 
 class SVConfig(BackendConfig):
     """
@@ -66,3 +70,8 @@ class SVConfig(BackendConfig):
         self.max_krylov_dim = max_krylov_dim
         self.gpu = gpu
         self.krylov_tolerance = krylov_tolerance
+
+        for obs in self.callbacks:
+            if isinstance(obs, QubitDensity):
+            # mypy: ignoring dynamically replacing method
+                obs.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
