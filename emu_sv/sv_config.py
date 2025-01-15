@@ -4,7 +4,6 @@ from emu_base.base_classes import (
     CorrelationMatrix,
     QubitDensity,
     Fidelity,
-    Energy,
 )
 
 
@@ -63,7 +62,7 @@ class SVConfig(BackendConfig):
             StateResult,
             CorrelationMatrix,
             QubitDensity,
-            Fidelity
+            Fidelity,
         }
 
         unsupported_observables = observables - supported_observables
