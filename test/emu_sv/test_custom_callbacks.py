@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 
 
 def test_custom_qubit_density():
-    #set up for state
+    # set up for state
     basis = ("r", "g")
     num_qubits = 4
     strings = {"rrrr": 1.0, "ggggg": 1.0}
@@ -19,14 +19,14 @@ def test_custom_qubit_density():
     )
 
     config = SVConfig()
-    
+
     MockOperator = MagicMock(spec=DenseOperator)
 
     H_mock = MockOperator.return_value
 
     MockQubitDensity = MagicMock(spec=QubitDensity)
 
-    qubitDenistyMock = MockQubitDensity.return_value 
+    qubitDenistyMock = MockQubitDensity.return_value
 
     t = 1
 
