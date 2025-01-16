@@ -61,10 +61,20 @@ It should be noted that the value of $h$ cited above assumes that all qubits in 
 Putting all of this together, for the total memory consumption $m$ of the program, we can write the following bound:
 
 $$
- m = |\psi| + |\mathrm{bath}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32Nd^2 + 4d^2N(N+10) + 64*k*d^2 + 64(N+4)d^2 = 4d^2[N(N+34) + 16k + 64]
+ m(N,\chi,k) = |\psi| + |\mathrm{bath}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32Nd^2 + 4d^2N(N+10) + 64*k*d^2 + 64(N+4)d^2 = 4d^2[N(N+34) + 16k + 64]
 $$
 
-Note that this estimate is pessimistic, since not all $k$ krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $d$ is probably attained at the center qubit.
+Note that this estimate is **pessimistic**, since not all $k$ krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $d$ is probably attained at the center qubit.
+
+To test the accuracy of the above memory estimations, we run the TDVP time evolution algorithm, fixing the bond dimension to a particular desired value.
+For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $chi$, we collect the maximum resident size, or RSS, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=30$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of qubit number and bond dimensions.
+
+<img src="./RSS_vs_N.png"  width="49.7%">
+<img src="../benchmarks/benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
+
+Finally, having established an estimate for the memory consumption, it makes sense to explore what are the available regimes of qubits/bond dimension can be reached for a given hardware capability.
+Since all heavy simulations will be run on an NVIDIA A100 (on Pasqal's DGX cluster), we have 40 GB of available memory.
+Therefore, above, we can show (right image) the contour lines of the RSS estimate $m(N,\chi,k=30) < 40$  GB for particular useful values of the total memory, allowing to quickly estimate the memory footprint of an _EMU-MPS_ emulation.
 
 ## An example
 
