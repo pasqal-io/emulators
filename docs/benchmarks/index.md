@@ -1,16 +1,38 @@
 # EMU-MPS benchmarks
 
-Users should expect _Emu-MPS_ to emulate the QPU for<sup>[[1]](./performance.md)</sup>
-- 2d systems up to 30 atoms for quenches and 50 adiabatic sequences
-- Realistic sequences (~μs)
+All the benchmarks are run on a single NVIDIA A100 GPU of Pasqal's DGX-cluster and for best performance on heavy workloads we recommend using such setup.
+There, users should expect _EMU-MPS_ to emulate up to
 
-on Pasqal's DGX-cluster.
-Although _EMU-MPS_ should run on most common hardware configurations (with or without gpu), for best performance on heavy workloads we recommend using a cluster GPU (NVIDIA A100).
-The emulator is mostly limited by the available memory (40 GB on an NVIDIA A100), as it limits the maximum number of qubits and the pulse duration that can be simulated. It is an ongoing effort to improve performance by making _EMU-MPS_ distribute work to either optimize for runtime or memory profile.
+- 30 atoms for **quenches**
+- 50 atoms for **adiabatic sequences**
 
----
+for 2D systems and for realistic pulse sequences (~μs) that can be run on the QPU.
+For these relevant hard use-cases (described below) the bond dimension is let to grow free to achieve the desired precision.
 
-Benchmark efforts, as documented here, are meant to provide insights for _EMU-MPS_ users about
+In all other scenarios, for specific combinations of number of qubits $N$ and bond dimension $\chi$,
+the resources need to emulate a sequence **can be estimated** by:
+
+- RSS: the resident set size, i.e. the maximum needed memory
+- $\langle\Delta t\rangle$: GPU time to do a single step in the time evolution
+
+These quantities are represented in the following plots:
+
+<img src="./benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
+<img src=""  width="49.7%">
+
+The RSS plot (left) shows the memory cost of the emulation.
+It is expected to stay constant at fixed bond dimension and thus represent the total memory occupation of the emulation of a sequence.
+As evident, the emulator is mostly limited by the available memory (40 GB on NVIDIA A100), as it restricts the maximum number of qubits/bond dimension pair allowed.
+To get the total estimated runtime instead, one should just simply multiply the time estimate in the timing plot (right) by the number of steps in the emulated sequence.
+
+While the simple resources estimate provided above allows to upper bound the memory/time cost of an emulation, a final very important remark has to be made. If during an emulation, the bond dimension reach a user-set maximum value (with the `max_bond_dim` argument), the accuracy of the subsequent results of the time evolution cannot be guaranteed anymore, as discussed [here](../advanced/convergence.md).
+
+Finally, it is an ongoing effort to improve performance by making _EMU-MPS_ distribute work to either optimize for runtime or memory profile.
+
+## Use-case benchmarks
+
+
+Benchmark efforts, documented here, are meant to provide insights for _EMU-MPS_ users about
 
 - **Performance**: runtime, memory usage, bond dimension as a function of qubit number ([see here](../advanced/mps/index.md#bond-dimension))
 - **Accuracy**: different precision levels as compared to state vector solvers
@@ -81,7 +103,7 @@ seq.add(simple_pulse, "ising")
 ```
 
 These two types of driving typically complement each other.
-Since the matrix product state approach in _Emu-MPS_ strives to minimize the stored information, keeping track of a single equilibrium state in adiabatic time evolution is typically easier. While this single state can be a complicated object itself, quenches, driving the system out of equilibrium, involve taking into account multiple excited states, and are typically computationally harder to emulate.
+Since the matrix product state approach in _EMU-MPS_ strives to minimize the stored information, keeping track of a single equilibrium state in adiabatic time evolution is typically easier. While this single state can be a complicated object itself, quenches, driving the system out of equilibrium, involve taking into account multiple excited states, and are typically computationally harder to emulate.
 
 ## CPU/GPU hardware
 
@@ -93,5 +115,5 @@ _EMU-MPS_ is built on top of [pytorch](https://pytorch.org/). Thus, it can run o
 Of course, performance will vary depending on the hardware.
 For this reason, if at any point of your work, performance becomes critical, we always recommend to use Pasqal's DGX cluster.
 If you intend to run _EMU-MPS_ on your laptop, for example, please be aware that the suggestion to use a GPU for heavier workloads might not be valid.
-In such case it is always good to check performance on a couple of runs, changing the _Emu-MPS_ config default values as documented in the [API](../api.md#mpsconfig).
+In such case it is always good to check performance on a couple of runs, changing the _EMU-MPS_ config default values as documented in the [API](../api.md#mpsconfig).
 In particular `num_devices_to_use = 0` will run the emulation on CPU, while `num_devices_to_use ≥ 1` on GPU/s.
