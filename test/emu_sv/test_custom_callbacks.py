@@ -20,16 +20,16 @@ def test_custom_qubit_density():
 
     config = SVConfig()
 
-    MockOperator = MagicMock(spec=DenseOperator)
+    operator_mock = MagicMock(spec=DenseOperator)
 
-    H_mock = MockOperator.return_value
+    H_mock = operator_mock.return_value
 
     MockQubitDensity = MagicMock(spec=QubitDensity)
 
-    qubitDenistyMock = MockQubitDensity.return_value
+    qubit_denisty_mock = MockQubitDensity.return_value
 
     t = 1
 
-    qubit_density = custom_qubit_density(qubitDenistyMock, config, t, state, H_mock)
+    qubit_density = custom_qubit_density(qubit_denisty_mock, config, t, state, H_mock)
     expected = [0.5] * num_qubits
     assert qubit_density == approx(expected, abs=1e-8)
