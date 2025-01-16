@@ -5,6 +5,8 @@ from emu_base.base_classes import (
     QubitDensity,
     Fidelity,
     Energy,
+    EnergyVariance,
+    SecondMomentOfEnergy
 )
 
 
@@ -12,7 +14,12 @@ from emu_base import BackendConfig
 from emu_sv import StateVector
 from typing import Any
 
-from emu_sv.custom_callback_implementations import custom_qubit_density, custom_energy
+from emu_sv.custom_callback_implementations import (
+    custom_qubit_density,
+    custom_energy,
+    custom_energy_variance,
+    custom_second_momentum_energy
+)
 
 from types import MethodType
 
@@ -69,6 +76,8 @@ class SVConfig(BackendConfig):
             QubitDensity,
             Fidelity,
             Energy,
+            EnergyVariance,
+            SecondMomentOfEnergy
         }
 
         unsupported_observables = observables - supported_observables
@@ -86,3 +95,7 @@ class SVConfig(BackendConfig):
                 obs.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
             if isinstance(obs, Energy):
                 obs.apply = MethodType(custom_energy, obs)  # type: ignore[method-assign]
+            if isinstance(obs, EnergyVariance):
+                obs.apply = MethodType(custom_energy_variance, obs)  # type: ignore[method-assign]
+            if isinstance(obs, SecondMomentOfEnergy):
+                obs.apply = MethodType(custom_second_momentum_energy, obs)  # type: ignore[method-assign]

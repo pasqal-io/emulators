@@ -4,7 +4,13 @@ from typing import Any
 import torch
 
 from emu_base.base_classes.config import BackendConfig
-from emu_base.base_classes.default_callbacks import Energy, QubitDensity
+from emu_base.base_classes.default_callbacks import (
+    Energy,
+    QubitDensity,
+    EnergyVariance,
+    SecondMomentOfEnergy,
+    CorrelationMatrix,
+)
 from emu_base.base_classes.operator import Operator
 
 from emu_sv import StateVector
@@ -27,3 +33,29 @@ def custom_energy(
     return torch.vdot(state.vector, H * state.vector).item()
 
     # TODO: make a test for custom energy
+
+
+def custom_energy_variance(
+    self: EnergyVariance,
+    config: BackendConfig,
+    t: int,
+    state: StateVector,
+    H: RydbergHamiltonian,
+) -> Any:
+    hstate = H * state.vector
+    h_squared = torch.vdot(hstate, hstate)
+    h_state = torch.vdot(state.vector, hstate)
+    return (h_squared.real - h_state.real**2).item()
+
+
+def custom_second_momentum_energy(
+    self: SecondMomentOfEnergy,
+    config: BackendConfig,
+    t: int,
+    state: StateVector,
+    H: RydbergHamiltonian,
+) -> Any:
+
+    hstate = H * state.vector
+    h_squared = torch.vdot(hstate, hstate)
+    return h_squared.real

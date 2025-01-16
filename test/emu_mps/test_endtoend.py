@@ -17,7 +17,8 @@ from emu_mps import (
     MPSConfig,
     StateResult,
     QubitDensity,
-    Energy
+    Energy,
+    EnergyVariance
 )
 
 import pulser.noise_model
@@ -85,7 +86,8 @@ def simulate(
             BitStrings(evaluation_times=times, num_shots=1000),
             Fidelity(evaluation_times=times, state=fidelity_state),
             QubitDensity(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
-            Energy(evaluation_times = times)
+            Energy(evaluation_times = times),
+            EnergyVariance(evaluation_times = times),
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
@@ -235,6 +237,9 @@ def test_end_to_end_afm_ring():
 
     energy = result["energy"][final_time]
     assert approx(energy,1e-8) == -115.3437071169735
+
+    energy_variance = result["energy_variance"][final_time]
+    assert approx(energy_variance,1e-8) == 45.90602999801922
 
 
 def test_end_to_end_afm_line_with_state_preparation_errors():

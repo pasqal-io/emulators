@@ -5,7 +5,14 @@ import torch
 import emu_base.base_classes
 import emu_base.base_classes.default_callbacks
 
-from emu_base.base_classes import BitStrings, Fidelity, StateResult, QubitDensity, Energy
+from emu_base.base_classes import (
+    BitStrings,
+    Fidelity,
+    StateResult,
+    QubitDensity,
+    Energy,
+    EnergyVariance,
+)
 
 from emu_sv.sv_config import SVConfig, StateVector
 from emu_sv.sv_backend import SVBackend
@@ -93,7 +100,8 @@ def simulate(
             BitStrings(evaluation_times=times, num_shots=1000),
             Fidelity(evaluation_times=times, state=fidelity_state),
             QubitDensity(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
-            Energy(evaluation_times=times)
+            Energy(evaluation_times=times),
+            EnergyVariance(evaluation_times=times),
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
@@ -140,5 +148,8 @@ def test_end_to_end_afm_ring():
         torch.tensor([0.578] * 10, dtype=torch.float64), q_density, atol=1e-3
     )
 
-    energy = result["energy"][final_time] # (-115.34554274708604-2.1316282072803006e-14j)
-    assert approx(energy,1e-8) == -115.34554274708604
+    energy = result["energy"][final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
+    assert approx(energy, 1e-8) == -115.34554274708604
+
+    energy_variance = result["energy_variance"][final_time] # 45.911110563993134
+    assert approx(energy_variance, 1e-8) == 45.91111056399
