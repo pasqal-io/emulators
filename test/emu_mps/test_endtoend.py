@@ -228,6 +228,9 @@ def test_end_to_end_afm_ring():
     assert fidelity_state.inner(final_state) == approx(final_fidelity, abs=1e-10)
     assert max_bond_dim == 29
 
+    q_density = result["qubit_density"][final_time]
+    assert approx(q_density, 1e-3) == [0.578] * 10
+
 
 def test_end_to_end_afm_line_with_state_preparation_errors():
     torch.manual_seed(seed)

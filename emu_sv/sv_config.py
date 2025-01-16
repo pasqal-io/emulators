@@ -6,6 +6,8 @@ from emu_base.base_classes import (
     Fidelity,
     Energy,
 )
+
+
 from emu_base import BackendConfig
 from emu_sv import StateVector
 from typing import Any
@@ -13,6 +15,11 @@ from typing import Any
 from emu_sv.custom_callback_implementations import custom_qubit_density, custom_energy
 
 from types import MethodType
+
+
+from types import MethodType
+
+from emu_sv.custom_callback_implementations import custom_qubit_density
 
 
 class SVConfig(BackendConfig):
@@ -77,6 +84,5 @@ class SVConfig(BackendConfig):
             if isinstance(obs, QubitDensity):
                 # mypy: ignoring dynamically replacing method
                 obs.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
-
             if isinstance(obs, Energy):
                 obs.apply = MethodType(custom_energy, obs)  # type: ignore[method-assign]

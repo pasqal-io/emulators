@@ -4,7 +4,7 @@ from typing import Any
 import torch
 
 from emu_base.base_classes.config import BackendConfig
-from emu_base.base_classes.default_callbacks import QubitDensity, Energy
+from emu_base.base_classes.default_callbacks import Energy, QubitDensity
 from emu_base.base_classes.operator import Operator
 
 from emu_sv import StateVector
