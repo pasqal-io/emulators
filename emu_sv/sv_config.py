@@ -18,7 +18,8 @@ from emu_sv.custom_callback_implementations import (
     custom_qubit_density,
     custom_energy,
     custom_energy_variance,
-    custom_second_momentum_energy
+    custom_second_momentum_energy,
+    custom_correlation_matrix
 )
 
 from types import MethodType
@@ -99,3 +100,5 @@ class SVConfig(BackendConfig):
                 obs.apply = MethodType(custom_energy_variance, obs)  # type: ignore[method-assign]
             if isinstance(obs, SecondMomentOfEnergy):
                 obs.apply = MethodType(custom_second_momentum_energy, obs)  # type: ignore[method-assign]
+            if isinstance(obs, CorrelationMatrix):
+                obs.apply = MethodType(custom_correlation_matrix, obs)  # type: ignore[method-assign]

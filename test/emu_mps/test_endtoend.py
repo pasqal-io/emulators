@@ -18,7 +18,9 @@ from emu_mps import (
     StateResult,
     QubitDensity,
     Energy,
-    EnergyVariance
+    EnergyVariance,
+    SecondMomentOfEnergy,
+    CorrelationMatrix
 )
 
 import pulser.noise_model
@@ -88,6 +90,8 @@ def simulate(
             QubitDensity(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
             Energy(evaluation_times = times),
             EnergyVariance(evaluation_times = times),
+            SecondMomentOfEnergy(evaluation_times = times),
+            CorrelationMatrix(basis={"r", "g"},evaluation_times = times,nqubits=nqubits)
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
@@ -240,6 +244,13 @@ def test_end_to_end_afm_ring():
 
     energy_variance = result["energy_variance"][final_time]
     assert approx(energy_variance,1e-8) == 45.90602999801922
+
+    second_moment_energy = result["second_moment_of_energy"][final_time]
+    assert approx(second_moment_energy,1e-8) == 13350.07680148
+
+    correlation_matrix = result["correlation_matrix"][final_time]
+    print(correlation_matrix)
+    
 
 
 def test_end_to_end_afm_line_with_state_preparation_errors():

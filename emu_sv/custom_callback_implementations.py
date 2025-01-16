@@ -26,6 +26,25 @@ def custom_qubit_density(
     return [(state_tensor.select(i, 1).norm() ** 2).item() for i in range(num_qubits)]
 
 
+def custom_correlation_matrix(
+    self: CorrelationMatrix,
+    config: BackendConfig,
+    t: int,
+    state: StateVector,
+    H: Operator,
+) -> Any:
+    """'Sparse' implementation of <𝜓| nᵢ nⱼ | 𝜓 >"""
+    num_qubits = int(math.log2(len(state.vector)))
+    state_tensor = state.vector.reshape((2,) * num_qubits)
+    return [
+        [
+            (state_tensor.select(i, 1).select(j, 1).norm() ** 2).item()
+            for i in range(num_qubits)
+        ]
+        for j in range(num_qubits)
+    ]
+
+
 # feeding RydbergHamiltonian class as an Operator for performance reasons
 def custom_energy(
     self: Energy, config: BackendConfig, t: int, state: StateVector, H: RydbergHamiltonian
@@ -58,4 +77,4 @@ def custom_second_momentum_energy(
 
     hstate = H * state.vector
     h_squared = torch.vdot(hstate, hstate)
-    return h_squared.real
+    return (h_squared.real).item()
