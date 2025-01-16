@@ -20,11 +20,10 @@ def custom_qubit_density(
     return [(state_tensor.select(i, 1).norm() ** 2).item() for i in range(num_qubits)]
 
 
-# feeding RydbergHamiltonian class as an Operator
-# for performance reasons
+# feeding RydbergHamiltonian class as an Operator for performance reasons
 def custom_energy(
     self: Energy, config: BackendConfig, t: int, state: StateVector, H: RydbergHamiltonian
 ) -> Any:
-    return torch.vdot(state, H * state).item()
+    return torch.vdot(state.vector, H * state.vector).item()
 
     # TODO: make a test for custom energy
