@@ -4,6 +4,7 @@ from emu_base.math.krylov_exp import krylov_exp
 from emu_sv.hamiltonian import RydbergHamiltonian
 
 
+
 def do_time_step(
     dt: float,
     omega: torch.Tensor,
@@ -19,6 +20,12 @@ def do_time_step(
         device=state_vector.device,
     )
     op = lambda x: -1j * dt * (ham * x)
-    return krylov_exp(
-        op, state_vector, norm_tolerance=krylov_tolerance, exp_tolerance=krylov_tolerance
-    ), ham
+    return (
+        krylov_exp(
+            op,
+            state_vector,
+            norm_tolerance=krylov_tolerance,
+            exp_tolerance=krylov_tolerance,
+        ),
+        ham,
+    )

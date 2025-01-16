@@ -79,4 +79,4 @@ class SVConfig(BackendConfig):
                 obs.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
 
             if isinstance(obs, Energy):
-                obs.apply = MethodType(custom_energy,obs)
+                obs.apply = MethodType(custom_energy, obs)  # type: ignore[method-assign]

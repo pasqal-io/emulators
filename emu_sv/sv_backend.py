@@ -10,8 +10,6 @@ from time import time
 from resource import RUSAGE_SELF, getrusage
 
 
-
-
 class SVBackend(Backend):
     """
     A backend for emulating Pulser sequences using state vectors and sparse matrices.
@@ -66,7 +64,6 @@ class SVBackend(Backend):
 
             # TODO: Rydberg Mamiltonian should be a dense operator
 
-            
             for callback in sv_config.callbacks:
                 callback(sv_config, (step + 1) * sv_config.dt, state, H, results)
 

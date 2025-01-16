@@ -3,18 +3,11 @@ This file deals with creation of the custom sparse matrix corresponding
 the Rydberg Hamiltonian of a neutral atoms quantum processor.
 """
 
-from sre_parse import State
-from typing import Any, Iterable
+
 import torch
 
-from emu_base.base_classes import Operator
-from emu_sv.dense_operator import DenseOperator
 
-from emu_base.base_classes.operator import FullOp, QuditOp
-from emu_sv.state_vector import StateVector
-
-
-class RydbergHamiltonian(Operator):
+class RydbergHamiltonian:
     """
     A Hamiltonian sparse form representation for the Rydberg  Hamiltonian (not complex part, yet)
 
@@ -150,60 +143,3 @@ class RydbergHamiltonian(Operator):
                 )  # note the j-1 since i was already removed
                 i_j_fixed += self.interaction_matrix[i, j]
         return diag
-    
-    def __add__(self, other:Operator)->DenseOperator:
-
-        assert isinstance(other, DenseOperator), "MPO can only be added to another MPO"
-
-        pass
-
-    def __rmul__(self, scalar: complex) -> DenseOperator:
-        """
-        Multiply an MPO by scalar.
-        Assumes the orthogonal centre is on the first factor.
-
-        Args:
-            scalar: the scale factor to multiply with
-
-        Returns:
-            the scaled MPO
-        """
-        
-        pass
-
-    def __matmul__(self, other:Operator)->DenseOperator:
-        pass
-    
-    def from_operator_string(
-        basis: Iterable[str],
-        nqubits: int,
-        operations: FullOp,
-        operators: dict[str, QuditOp] = {},
-        /,
-        **kwargs: Any,
-    ) -> DenseOperator:
-    
-        pass
-
-    def expect(self, state: State) -> float | complex:
-        """
-        Compute the expectation value of self on the given state.
-
-        Args:
-            state: the state with which to compute
-
-        Returns:
-            the expectation
-        """
-        assert isinstance(
-            state, StateVector
-        ), "currently, only expectation values of StateVectors are \
-        supported"
-
-        #return torch.vdot(state.vector, self.matrix @ state.vector)  # type: ignore [no-any-return]
-        pass
-
-
-    
-    
-
