@@ -4,7 +4,6 @@ from pathlib import Path
 import json
 import logging
 
-
 from emu_base.base_classes.callback import Callback, AggregationType
 from emu_base.base_classes.aggregators import aggregation_types_definitions
 
