@@ -3,7 +3,7 @@ name: Publish repo
 on:
   push:
     branches:
-      - main
+      - aq/github_publish
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch: {}
