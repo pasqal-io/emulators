@@ -1,4 +1,4 @@
-name: GitHub Actions Demo
+name: Lint and test
 run-name: CI/CD for ${{ github.ref_name }}
 on:
   pull_request:

@@ -340,10 +340,10 @@ def test_extract_omega_delta_phi(
         dtype=torch.complex128,
     )
 
-    assert torch.allclose(actual_omega, expected_omega, atol=1e-4)
+    assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
 
-    assert torch.allclose(actual_delta, expected_delta, atol=1e-4)
-    assert torch.allclose(actual_phi, expected_phi, atol=1e-4)
+    assert torch.allclose(actual_delta, expected_delta, rtol=0, atol=1e-4)
+    assert torch.allclose(actual_phi, expected_phi, rtol=0, atol=1e-4)
 
 
 @patch("emu_base.pulser_adapter.pulser.sampler.sample")

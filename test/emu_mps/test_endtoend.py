@@ -158,7 +158,7 @@ def test_XY_3atoms():
     assert max_bond_dim == 2
     assert approx(q_density, 1e-3) == [0.4610, 0.4786, 0.4610]
     print(torch.max(torch.abs(final_vec - expected_res)))
-    assert torch.allclose(final_vec, expected_res, atol=1e-4)
+    assert torch.allclose(final_vec, expected_res, rtol=0, atol=1e-4)
 
 
 def test_XY_3atomswith_slm():
@@ -194,7 +194,7 @@ def test_XY_3atomswith_slm():
     assert max_bond_dim == 2
     assert approx(q_density, 1e-3) == [0.2270, 0.2112, 0.0617]
     assert torch.allclose(
-        final_vec, expected_res, atol=1e-4
+        final_vec, expected_res, rtol=0, atol=1e-4
     )  # todo, compare against pulser results
 
 

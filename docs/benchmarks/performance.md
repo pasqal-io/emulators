@@ -28,7 +28,7 @@ In the right column (both CPU and GPU figure), we explore the available register
 Let us now analyze the performance of the simulation for a much larger system. We show results for the adiabatic sequence with 49 qubits arranged in a 7x7 grid. The parameters of the simulation were `max_bond_dim = 1600`, `extra_krylov_tolerance=1e-5` and `precision=1e-6`, and we ran the simulation on 2 GPUs. The maximum bond dimension of the state, its size in memory, the total memory consumption of the program on GPU 1, and the time taken per emulation timestep (there are 390 timesteps of `dt=10 ns` each) are shown in the graph below.
 
 <div style="text-align:center;">
-<img src="./images/performance.png" width="50%" style="background-color:white;">
+<img src="../benchmark_plots/afm_performance_big.png" width="50%" style="background-color:white;">
 </div>
 
 First off, note that the peak memory consumption on GPU 1 reaches almost 30GB at the end of the simulation and the memory profile on GPU 2 will be very similar. Note that this memory consumption can be estimated ([see here](../advanced/memory.md#an-example)), and that the simulation would not have fit on a single GPU. Next, the memory consumption stops increasing as quickly when the maximum bond dimension plateaus, but it does not stop increasing entirely. This is because when the maximum bond dimension reaches the cutoff value of `1600`, most of the tensors in the MPS will not have reached maximum size yet. However, the rate of memory consumption growth will decrease as more of the tensors reach this maximum size.
@@ -67,7 +67,9 @@ The unshuffled register ordering is that given by `Register.rectangle` as used i
  <tr><td> 5 </td><td> 1 </td><td> 9 </td></tr>
  <tr><td> 8 </td><td> 3 </td><td> 6 </td></tr>
 </table>
-<img src="../benchmark_plots/qubit_shuffling_cpu.png"  width="49.7%">
+<div style="text-align:center;">
+<img src="../benchmark_plots/qubit_shuffling_cpu.png"  width="90%">
+</div>
 
 The left column of the image shows no accuracy degradation from the qubit shuffling, returning equivalent observables. That is expected since both runs were able to converge to the desired precision.
 

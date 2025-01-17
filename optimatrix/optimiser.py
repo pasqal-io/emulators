@@ -113,7 +113,7 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     >>> minimize_bandwidth_global(matrix)
     [2, 1, 0]
     """
-    if not np.allclose(mat, mat.T, atol=1e-8):
+    if not np.allclose(mat, mat.T, rtol=1e-8, atol=0):
         raise ValueError("Input matrix should be symmetric")
 
     mat_amplitude = np.ptp(np.abs(mat).ravel())  # mat.abs.max - mat.abs().min()
