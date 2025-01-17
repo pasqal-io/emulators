@@ -46,7 +46,7 @@ scale_factor = 1.1
 figsize = (scale_factor * 4, scale_factor * 3)
 dpi = 300
 
-fig, ax = plt.subplots(figsize=figsize)
+fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 for i, chi in enumerate(bond_dims):  # /chi**2
     ax.scatter(N, RSS[i, :] / chi**2, label=rf"$\chi$={chi}")
 ax.plot(
@@ -82,7 +82,7 @@ n_fit = np.arange(20, 100, 1)
 for i, chi in enumerate(bond_dims):
     ax.scatter(N, runtime[i, :], label=rf"$\chi$={chi}")
     ax.plot(n_fit, func([n_fit, chi], *popt), label="fit")
-ax.legend()
+ax.legend(ncol=2)
 ax.set_xlabel("N")
 ax.set_ylabel(r"$\langle\Delta t_{TDVP}\rangle$  [s]")
 plt.tight_layout()
@@ -93,7 +93,7 @@ chi_fit = np.arange(200, 1000, 10)
 for i, n in enumerate(N):
     ax.scatter(bond_dims, runtime[:, i], label=f"N={n}")
     ax.plot(chi_fit, func([n, chi_fit], *popt), label="fit")
-ax.legend()
+ax.legend(ncol=2)
 ax.set_xlabel(r"$\chi$")
 ax.set_ylabel(r"$\langle\Delta t_{TDVP}\rangle$")
 plt.tight_layout()
@@ -103,17 +103,10 @@ print(*popt)
 print(pcov)
 print("perr:", np.sqrt(np.diag(pcov)))
 
-""" # Create 3D plot of the data points and the fitted curve
-fig = plt.figure()
-ax = fig.add_subplot(111, projection="3d")
-ax.scatter(X, Y, runtime, color="blue")
-runtime_fit = func((X, Y), *popt)
-ax.plot_surface(X, Y, runtime_fit, color="red", alpha=0.5)
-ax.set_xlabel("X")
-ax.set_ylabel("Y")
-ax.set_zlabel("Z")
 
-plt.savefig(script_dir / "prova_fit.png") """
+def isoRSS_40GB(n, max_krylov_dim):
+    # worst case max RSS emu-mps
+    return (4 * (n**2 + 34 * n + 16 * max_krylov_dim + 64) / (1e9 * 40)) ** (-0.5)
 
 
 delta = 1
@@ -124,13 +117,20 @@ N, CHI = np.meshgrid(n, chi)
 runtime_estimate = func((N, CHI), *popt)
 
 # plot
-fig, ax = plt.subplots(figsize=(4, 3), dpi=300)
+fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
-levels = [0, 1, 5, 10, 50, 100, 500, 1000]
-CS = ax.contourf(N, CHI, runtime_estimate, cmap="viridis", levels=levels)
+levels = [0, 1, 5, 10, 50, 100, 250]
+CS = ax.contourf(
+    N, CHI, runtime_estimate, cmap="viridis", levels=levels, vmax=250, norm="log"
+)
 CS2 = ax.contour(N, CHI, runtime_estimate, colors="k", linewidths=0.5, levels=levels)
+
+ax.plot(n, isoRSS_40GB(n, 30), color="red", label="40 GB", linewidth=0.8)
+ax.legend(frameon=False)
+ax.set_ylim(0, 2050)
+
 fig.colorbar(CS, ax=ax, label=r"$\langle\Delta t\rangle$ [s]")
-ax.set_title("EMU-MPS")
+ax.set_title("EMU-MPS: average timestep runtime", fontsize=10)
 ax.set_xlabel("N")
 ax.set_ylabel(r"$\chi$")
 

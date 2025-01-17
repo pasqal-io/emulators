@@ -69,7 +69,7 @@ Note that this estimate is **pessimistic**, since not all $k$ krylov vectors are
 To test the accuracy of the above memory estimations, we run the TDVP time evolution algorithm, fixing the bond dimension to a particular desired value.
 For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $chi$, we collect the maximum resident size, or RSS, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=30$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of qubit number and bond dimensions.
 
-<img src="./RSS_vs_N.png"  width="49.7%">
+<img src="../benchmarks/benchmark_plots/RSS_vs_N.png"  width="49.7%">
 <img src="../benchmarks/benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
 
 Finally, having established an estimate for the memory consumption, it makes sense to explore what are the available regimes of qubits/bond dimension can be reached for a given hardware capability.
@@ -79,3 +79,13 @@ Therefore, above, we can show (right image) the contour lines of the RSS estimat
 ## An example
 
 For example, the results from the [case study](convergence.md) were obtained using $N=49$ and $d=1600$ on 2 gpu's. Taking the above formula, and halving the contributions from $\psi$ and $|\mathrm{bath}|$ since they are split evenly on the gpu's, we reproduce the memory consumption of the program for $k=13$. Notice that the actual number of Krylov vectors required to reach convergence is likely closer to around $30$, but here we underestimate it, since the contributions of $\psi$ and $|\mathrm{bath}|$ are over-estimated.
+
+
+# Estimating the runtime of a simulation
+
+To finish...
+Let's do some complexity estimation and fit
+
+<img src="../benchmarks/benchmark_plots/runtime_vs_N.png"  width="49.7%">
+<img src="../benchmarks/benchmark_plots/runtime_vs_bond_dim.png"  width="49.7%">
+<img src="../benchmarks/benchmark_plots/emumps_runtime_map.png"  width="49.7%">

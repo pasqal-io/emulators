@@ -21,13 +21,17 @@ N, CHI = np.meshgrid(n, chi)
 RSS = rss_estimate(CHI, N, max_krylov_dim)
 
 # plot
-fig, ax = plt.subplots(figsize=(4, 3), dpi=300)
+scale_factor = 1.1
+figsize = (scale_factor * 4, scale_factor * 3)
+dpi = 300
+fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
 levels = [0, 1, 5, 10, 20, 30, 40]
 CS = ax.contourf(N, CHI, RSS, cmap="viridis", levels=levels)
 CS2 = ax.contour(N, CHI, RSS, colors="k", levels=levels, linewidths=0.5)
+ax.contour(N, CHI, RSS, colors="red", levels=[40], linewidths=0.8)
 fig.colorbar(CS, ax=ax, label="max RSS [GB]")
-ax.set_title("EMU-MPS memory footprint (k=30)")
+ax.set_title("EMU-MPS memory footprint (k=30)", fontsize=10)
 ax.set_xlabel("N")
 ax.set_ylabel(r"$\chi$")
 
