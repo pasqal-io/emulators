@@ -1,4 +1,3 @@
-from time import time
 from pulser import Sequence
 
 from emu_base import Backend, BackendConfig, Results
@@ -27,19 +26,10 @@ class MPSBackend(Backend):
 
         self.validate_sequence(sequence)
 
-        results = Results()
-
         impl = create_impl(sequence, mps_config)
         impl.init()  # This is separate from the constructor for testing purposes.
 
-        for step in range(impl.timestep_count):
-            start = time()
+        while not impl.is_finished():
+            impl.progress()
 
-            impl.do_time_step(step)
-
-            impl.fill_results(results, step)
-
-            end = time()
-            impl.log_step_statistics(results, step=step, duration=end - start)
-
-        return results
+        return impl.results

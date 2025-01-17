@@ -1,75 +1,13 @@
-from unittest.mock import MagicMock, patch
-
 import torch
-
-from emu_mps import MPO, MPS, inner
-from emu_mps.hamiltonian import make_H, update_H
-from emu_base.pulser_adapter import _rydberg_interaction, HamiltonianType
 from emu_base.math import krylov_exp
-from emu_mps.tdvp import apply_effective_Hamiltonian, evolve_tdvp, left_baths, right_baths
-
-
-def test_left_baths_bell():
-    # state = (|0> + |1>)^3 / norm
-    mps_factor1 = torch.tensor([[[1, 0], [0, 1]]], dtype=torch.complex128)
-    mps_factor2 = torch.tensor(
-        [[[1, 0], [0, 0]], [[0, 0], [0, 1]]], dtype=torch.complex128
-    )
-    mps_factor3 = torch.tensor([[[1], [0]], [[0], [1]]], dtype=torch.complex128)
-
-    # Hamiltonian X1*X2*X3
-    mpo_factor = torch.tensor([[[[0], [1]], [[1], [0]]]], dtype=torch.complex128)
-
-    state = MPS([mps_factor1, mps_factor2, mps_factor3])
-    obs = MPO([mpo_factor] * 3)
-    for i, b in enumerate(left_baths(state, obs, 1)):
-        # Because the Hamiltonian flips all the spins, the baths have shape
-        # (2,1,2) and they're all pauli_x
-        if i == 0:
-            assert torch.allclose(
-                b, torch.ones(1, 1, 1, dtype=torch.complex128, device=b.device)
-            )
-        else:
-            assert torch.allclose(
-                b,
-                torch.tensor(
-                    [[[0, 1]], [[1, 0]]], dtype=torch.complex128, device=b.device
-                ),
-            )
-
-
-def test_left_baths_total_magnetization():
-    # Hamiltonian Z1+Z2+Z3
-    mpo_factor1 = torch.tensor(
-        [[[[1, 1], [0, 0]], [[0, 0], [-1, 1]]]], dtype=torch.complex128
-    )
-    mpo_factor2 = torch.tensor(
-        [[[[1, 0], [0, 0]], [[0, 0], [1, 0]]], [[[1, 1], [0, 0]], [[0, 0], [-1, 1]]]],
-        dtype=torch.complex128,
-    )
-    mpo_factor3 = torch.tensor(
-        [[[[1], [0]], [[0], [1]]], [[[1], [0]], [[0], [-1]]]], dtype=torch.complex128
-    )
-
-    # state |111>
-    mps_factor = torch.tensor([[[0], [1]]], dtype=torch.complex128)
-
-    state = MPS([mps_factor] * 3)
-    obs = MPO([mpo_factor1, mpo_factor2, mpo_factor3])
-    baths = left_baths(state, obs, 1)
-    # The baths carry the information of the magnetization, so the baths have shape
-    # (1,2,1), and L_i = [-i,1], which basically counts how magnetized the bath is.
-    assert torch.allclose(
-        baths[0], torch.ones(1, 1, 1, dtype=torch.complex128, device=baths[0].device)
-    )
-    assert torch.allclose(
-        baths[1],
-        torch.tensor([[[-1], [1]]], dtype=torch.complex128, device=baths[1].device),
-    )
-    assert torch.allclose(
-        baths[2],
-        torch.tensor([[[-2], [1]]], dtype=torch.complex128, device=baths[2].device),
-    )
+from emu_mps import MPS, MPO
+from emu_mps.tdvp import (
+    apply_effective_Hamiltonian,
+    right_baths,
+    evolve_single,
+    EvolveConfig,
+    evolve_pair,
+)
 
 
 def test_right_baths_bell():
@@ -136,14 +74,14 @@ def test_right_baths_total_magnetization():
 
 
 def test_apply_2_site_effective_Hamiltonian():
-    left_bath = torch.randn(2, 3, 4, dtype=torch.complex128)
-    right_bath = torch.randn(5, 6, 7, dtype=torch.complex128)
+    left_bath = torch.randn(4, 3, 4, dtype=torch.complex128)
+    right_bath = torch.randn(7, 6, 7, dtype=torch.complex128)
     state = torch.randn(4, 4, 7, dtype=torch.complex128)
     left_ham = torch.randn(3, 2, 2, 8, dtype=torch.complex128)
     right_ham = torch.randn(8, 2, 2, 6, dtype=torch.complex128)
     ham = torch.einsum("ijkl,lmno->ijmkno", left_ham, right_ham).reshape(3, 4, 4, 6)
     actual = apply_effective_Hamiltonian(state, ham, left_bath, right_bath)
-    assert actual.shape == (2, 4, 5)
+    assert actual.shape == (4, 4, 7)
     # this is the expression apply_2_site_Hamiltonian implements,
     # but doing it manually is much faster
     expected = torch.einsum(
@@ -153,17 +91,17 @@ def test_apply_2_site_effective_Hamiltonian():
         right_ham,
         left_bath,
         right_bath,
-    ).reshape(2, 4, 5)
+    ).reshape(4, 4, 7)
     assert torch.allclose(actual, expected)
 
 
 def test_apply_1_site_effective_Hamiltonian():
-    left_bath = torch.randn(2, 3, 4, dtype=torch.complex128)
-    right_bath = torch.randn(5, 6, 7, dtype=torch.complex128)
+    left_bath = torch.randn(4, 3, 4, dtype=torch.complex128)
+    right_bath = torch.randn(7, 6, 7, dtype=torch.complex128)
     state = torch.randn(4, 2, 7, dtype=torch.complex128)
     ham = torch.randn(3, 2, 2, 6, dtype=torch.complex128)
     actual = apply_effective_Hamiltonian(state, ham, left_bath, right_bath)
-    assert actual.shape == (2, 2, 5)
+    assert actual.shape == (4, 2, 7)
     # this is the expression apply_2_site_Hamiltonian implements,
     # but doing it manually is much faster
     expected = torch.einsum(
@@ -172,7 +110,7 @@ def test_apply_1_site_effective_Hamiltonian():
         ham,
         left_bath,
         right_bath,
-    ).reshape(2, 2, 5)
+    ).reshape(4, 2, 7)
     assert torch.allclose(actual, expected)
 
 
@@ -252,100 +190,82 @@ def test_krylov_exp_krylov_exp_tolerance():
     assert torch.allclose(result[:, 0, 0], expected)
 
 
-def test_evolve_tdvp():
-    # X1+X2+X3
-    mpo_factor1 = torch.tensor(
-        [[[[0, 1], [1, 0]], [[1, 0], [0, 1]]]], dtype=torch.complex128
-    )
-    mpo_factor2 = torch.tensor(
-        [[[[1, 0], [0, 0]], [[0, 0], [1, 0]]], [[[0, 1], [1, 0]], [[1, 0], [0, 1]]]],
-        dtype=torch.complex128,
-    )
-    mpo_factor3 = torch.tensor(
-        [[[[1], [0]], [[0], [1]]], [[[0], [1]], [[1], [0]]]], dtype=torch.complex128
+def test_evolve_single():
+    left_bath = torch.rand(3, 4, 3, dtype=torch.complex128)
+    right_bath = torch.rand(4, 5, 4, dtype=torch.complex128)
+    state_factor = torch.rand(3, 2, 4, dtype=torch.complex128)
+    ham_factor = torch.rand(4, 2, 2, 5, dtype=torch.complex128)
+
+    op = torch.einsum("abc,bdef,gfh->adgceh", left_bath, ham_factor, right_bath).reshape(
+        3 * 2 * 4, -1
     )
 
-    # state |11111>
-    mps_factor = torch.tensor([[[0], [1]]], dtype=torch.complex128)
+    dt = 10
 
-    state = MPS([mps_factor] * 5)
-    obs = MPO([mpo_factor1, mpo_factor2, mpo_factor2, mpo_factor2, mpo_factor3])
+    exp_op = torch.linalg.matrix_exp(-1j * 0.001 * dt * op)
 
-    # this applies tdvp in place
-    evolve_tdvp(-0.5j * torch.pi, state, obs, state.precision)
-    assert abs(inner(state, state) - 1) < 1e-8
+    expected = torch.tensordot(exp_op, state_factor.reshape(-1), dims=1).reshape(3, 2, 4)
 
-    # state -i|00000>
-    expected_factor = torch.tensor([[[-1.0j], [0]]], dtype=torch.complex128)
-    expected = MPS([expected_factor] * 5)
-
-    for factor in state.factors:
-        assert factor.shape == (1, 2, 1)
-    assert abs(inner(state, expected) - 1) < 1e-8
-
-
-@patch("emu_base.pulser_adapter.pulser.sequence.Sequence")
-def test_tdvp_state_vector(mock_sequence):
-    nqubits = 9
-    num_gpus = 0
-    c6 = 5420158.53  # mock device c6
-
-    qubit_positions = []
-    for i in range(3):
-        for j in range(3):
-            qubit_positions.append([7.0 * i, 7.0 * j])
-    qubit_positions = torch.tensor(qubit_positions)
-
-    omegas = torch.tensor([12.566370614359172] * nqubits, dtype=torch.complex128)
-    deltas = torch.tensor([10.771174812307862] * nqubits, dtype=torch.complex128)
-    phi = torch.tensor([1.570796327] * nqubits, dtype=torch.complex128)
-    mock_device = MagicMock(interaction_coeff=c6)
-    mock_sequence.device = mock_device
-
-    mock_register = MagicMock()
-    qubits_ids = [f"q{i}" for i in range(9)]
-    mock_register.qubit_ids = qubits_ids
-
-    abstract_q = []
-    for qubit in qubit_positions:
-        mock_abstract = MagicMock()
-        mock_abstract.as_tensor.return_value = qubit
-        abstract_q.append(mock_abstract)
-    mock_register.qubits = dict(zip(qubits_ids, abstract_q))
-    mock_sequence.register = mock_register
-    interaction_matrix = _rydberg_interaction(mock_sequence)
-
-    ham = make_H(
-        interaction_matrix=interaction_matrix,
-        hamiltonian_type=HamiltonianType.Rydberg,
-        num_gpus_to_use=num_gpus,
-    )
-    update_H(
-        hamiltonian=ham,
-        omega=omegas,
-        delta=deltas,
-        phi=phi,
+    actual = evolve_single(
+        state_factor=state_factor,
+        baths=(left_bath, right_bath),
+        ham_factor=ham_factor,
+        dt=dt,
+        config=EvolveConfig(
+            exp_tolerance=1e-8,
+            norm_tolerance=1e-8,
+            max_krylov_dim=100,
+            is_hermitian=False,
+            max_error=1e-5,
+            max_rank=10,  # FIXME: max_error and max_rank are irrelevant for evolve_single
+        ),
     )
 
-    # |000000000>
-    state = MPS(
-        [torch.tensor([1.0, 0.0]).reshape(1, 2, 1).to(dtype=torch.complex128)] * nqubits,
-        precision=1e-10,
-        # run this on cpu, collecting the state vector from
-        # multiple devices is beside the point of the test
-        num_gpus_to_use=num_gpus,
+    assert torch.allclose(expected, actual, rtol=0, atol=1e-8)
+
+
+def test_evolve_pair():
+    left_bath = torch.rand(3, 4, 3, dtype=torch.complex128)
+    right_bath = torch.rand(5, 6, 5, dtype=torch.complex128)
+    left_state_factor = torch.rand(3, 2, 4, dtype=torch.complex128)
+    right_state_factor = torch.rand(4, 2, 5, dtype=torch.complex128)
+    left_ham_factor = torch.rand(4, 2, 2, 5, dtype=torch.complex128)
+    right_ham_factor = torch.rand(5, 2, 2, 6, dtype=torch.complex128)
+
+    op = torch.einsum(
+        "abc,bdef,fghi,jik->adgjcehk",
+        left_bath,
+        left_ham_factor,
+        right_ham_factor,
+        right_bath,
+    ).reshape(3 * 2 * 2 * 5, -1)
+
+    dt = 10
+
+    exp_op = torch.linalg.matrix_exp(-1j * 0.001 * dt * op)
+
+    expected = torch.tensordot(
+        exp_op,
+        torch.tensordot(left_state_factor, right_state_factor, dims=1).reshape(-1),
+        dims=1,
+    ).reshape(3, 2, 2, 5)
+
+    actual_left, actual_right = evolve_pair(
+        state_factors=(left_state_factor, right_state_factor),
+        baths=(left_bath, right_bath),
+        ham_factors=(left_ham_factor, right_ham_factor),
+        dt=dt,
+        config=EvolveConfig(
+            exp_tolerance=1e-8,
+            norm_tolerance=1e-8,
+            max_krylov_dim=100,
+            is_hermitian=False,
+            max_error=1e-5,
+            max_rank=10,  # FIXME: max_error and max_rank are irrelevant for evolve_single
+        ),
+        orth_center_right=False,
     )
 
-    vec = torch.einsum(
-        "abtc,cdue,efvg,ghwi,ijxk,klym,mnzo,opAq,qrBs->abdfhjlnprtuvwxyzABs",
-        *(ham.factors),
-    ).reshape(2**nqubits, 2**nqubits)
-    expected = torch.linalg.matrix_exp(-0.01j * vec)[:, 0]
-    for _ in range(10):
-        evolve_tdvp(-0.001j, state, ham, state.precision)
-    vec = torch.einsum(
-        "abc,cde,efg,ghi,ijk,klm,mno,opq,qrs->abdfhjlnprs", *(state.factors)
-    ).reshape(2**nqubits)
-    assert abs(torch.dot(vec.conj(), expected) - 1) < 1e-10  # very dependent on precision
-    assert abs(torch.dot(vec.conj(), vec) - 1) < 1e-8
-    assert abs(torch.dot(expected.conj(), expected) - 1) < 1e-8
+    actual = torch.tensordot(actual_left, actual_right, dims=1)
+
+    assert torch.allclose(expected, actual, rtol=0, atol=1e-8)

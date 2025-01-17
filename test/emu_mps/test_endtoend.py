@@ -158,7 +158,7 @@ def test_XY_3atoms():
     assert max_bond_dim == 2
     assert approx(q_density, 1e-3) == [0.4610, 0.4786, 0.4610]
     print(torch.max(torch.abs(final_vec - expected_res)))
-    assert torch.allclose(final_vec, expected_res, atol=1e-4)
+    assert torch.allclose(final_vec, expected_res, rtol=0, atol=1e-4)
 
 
 def test_XY_3atomswith_slm():
@@ -194,7 +194,7 @@ def test_XY_3atomswith_slm():
     assert max_bond_dim == 2
     assert approx(q_density, 1e-3) == [0.2270, 0.2112, 0.0617]
     assert torch.allclose(
-        final_vec, expected_res, atol=1e-4
+        final_vec, expected_res, rtol=0, atol=1e-4
     )  # todo, compare against pulser results
 
 
@@ -227,6 +227,9 @@ def test_end_to_end_afm_ring():
     assert bitstrings["0101010101"] == 135
     assert fidelity_state.inner(final_state) == approx(final_fidelity, abs=1e-10)
     assert max_bond_dim == 29
+
+    q_density = result["qubit_density"][final_time]
+    assert approx(q_density, 1e-3) == [0.578] * 10
 
 
 def test_end_to_end_afm_line_with_state_preparation_errors():

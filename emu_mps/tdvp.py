@@ -1,9 +1,8 @@
 import torch
 
-from emu_base import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
-from emu_mps.mpo import MPO
-from emu_mps.mps import MPS
-from emu_mps.utils import split_tensor, new_left_bath
+from emu_base import krylov_exp
+from emu_mps import MPS, MPO
+from emu_mps.utils import split_tensor
 
 
 def new_right_bath(
@@ -12,29 +11,6 @@ def new_right_bath(
     bath = torch.tensordot(state, bath, ([2], [2]))
     bath = torch.tensordot(op.to(bath.device), bath, ([2, 3], [1, 3]))
     return torch.tensordot(state.conj(), bath, ([1, 2], [1, 3]))
-
-
-"""
-function to compute the left baths. The three indices in the bath are as follows:
-(bond of state conj, bond of operator, bond of state)
-The baths have shape
-xx-
-xx-
-xx-
-with the index ordering (top, middle, bottom)
-bath tensors are put on the device of the factor to the right
-"""
-
-
-def left_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
-    state_factor = state.factors[0]
-    bath = torch.ones(1, 1, 1, device=state_factor.device, dtype=state_factor.dtype)
-    baths = [bath]
-    for i in range(final_qubit + 1):
-        bath = new_left_bath(bath, state.factors[i], op.factors[i])
-        bath = bath.to(state.factors[i + 1].device)
-        baths.append(bath)
-    return baths
 
 
 """
@@ -75,7 +51,7 @@ with one 'fat' physical index of dim 4 and index ordering
       -xxxxxx-
 The Hamiltonian should have an index ordering of
 (left bond, out, in, right bond).
-The baths must have shape as returned by the functions above.
+The baths must have shape (top, middle, bottom).
 All tensors must be on the same device
 """
 
@@ -86,6 +62,11 @@ def apply_effective_Hamiltonian(
     left_bath: torch.Tensor,
     right_bath: torch.Tensor,
 ) -> torch.Tensor:
+    assert left_bath.ndim == 3 and left_bath.shape[0] == left_bath.shape[2]
+    assert right_bath.ndim == 3 and right_bath.shape[0] == right_bath.shape[2]
+    assert left_bath.shape[2] == state.shape[0] and right_bath.shape[2] == state.shape[2]
+    assert left_bath.shape[1] == ham.shape[0] and right_bath.shape[1] == ham.shape[3]
+
     # the optimal contraction order depends on the details
     # this order seems to be pretty balanced, but needs to be
     # revisited when use-cases are more well-known
@@ -95,145 +76,134 @@ def apply_effective_Hamiltonian(
     return state
 
 
-def evolve_tdvp(
-    t: float | complex,
-    state: MPS,
-    hamiltonian: MPO,
-    extra_krylov_tolerance: float,
-    max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
-    is_hermitian: bool = True,
-) -> None:
+_TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
+
+
+class EvolveConfig:
+    def __init__(
+        self,
+        *,
+        exp_tolerance: float,
+        norm_tolerance: float,
+        max_krylov_dim: int,
+        is_hermitian: bool,
+        max_error: float,
+        max_rank: int
+    ) -> None:
+        self.exp_tolerance = exp_tolerance
+        self.norm_tolerance = norm_tolerance
+        self.max_krylov_dim = max_krylov_dim
+        self.is_hermitian = is_hermitian
+        self.max_error = (
+            max_error  # FIXME: max_error and max_rank are irrelevant for evolve_single
+        )
+        self.max_rank = max_rank
+
+
+def evolve_pair(
+    *,
+    state_factors: list[torch.Tensor],
+    baths: tuple[torch.Tensor, torch.Tensor],
+    ham_factors: list[torch.Tensor],
+    dt: float,
+    orth_center_right: bool,
+    config: EvolveConfig
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
-    Applies second-order, 2-site TDVP to state in-place.
+    Time evolution of a pair of tensors of a tensor train using baths and truncated SVD.
+    Returned state tensors are kept on their respective devices.
     """
-    state.orthogonalize(0)
+    assert len(state_factors) == 2
+    assert len(baths) == 2
+    assert len(ham_factors) == 2
 
-    t /= 2
-    nfactors = len(state.factors)
-    assert nfactors > 1, "tdvp is not implemented for 1 site, just use state vector"
+    left_state_factor, right_state_factor = state_factors
+    left_bath, right_bath = baths
+    left_ham_factor, right_ham_factor = ham_factors
 
-    # sweep left-right
-    lbs = [
-        torch.ones(1, 1, 1, dtype=state.factors[0].dtype, device=state.factors[0].device)
-    ]
-    rbs = right_baths(state, hamiltonian, 2)
-    for i in range(nfactors - 1):
-        ls = state.factors[i]
-        lss = ls.shape
-        rs = state.factors[i + 1].to(ls.device)
-        rss = rs.shape
-        s = torch.tensordot(ls, rs, dims=1).reshape(lss[0], 4, rss[-1])
-        lh = hamiltonian.factors[i]
-        lhs = lh.shape
-        rh = hamiltonian.factors[i + 1].to(lh.device)
-        rb = rbs.pop()
+    left_device = left_state_factor.device
+    right_device = right_state_factor.device
 
-        h = (
-            torch.tensordot(lh, rh, dims=1)
-            .transpose(2, 3)
-            .reshape(lhs[0], 4, 4, -1)
-            .to(s.device)
-        )
+    left_bond_dim = left_state_factor.shape[0]
+    right_bond_dim = right_state_factor.shape[-1]
 
-        op = lambda x: t * apply_effective_Hamiltonian(x, h, lbs[i], rb.to(s.device))
+    # Computation is done on left_device (arbitrary)
 
-        evol = krylov_exp(
-            op,
-            s,
-            exp_tolerance=state.precision * extra_krylov_tolerance,
-            norm_tolerance=state.precision * extra_krylov_tolerance,
-            max_krylov_dim=max_krylov_dim,
-            is_hermitian=is_hermitian,
-        ).reshape(lss[0] * 2, 2 * rss[-1])
+    combined_state_factors = torch.tensordot(
+        left_state_factor, right_state_factor.to(left_device), dims=1
+    ).reshape(left_bond_dim, 4, right_bond_dim)
 
-        l, r = split_tensor(evol, max_error=state.precision, max_rank=state.max_bond_dim)
+    left_ham_factor = left_ham_factor.to(left_device)
+    right_ham_factor = right_ham_factor.to(left_device)
 
-        state.factors[i] = l.reshape(lss[0], 2, -1)
-        state.factors[i + 1] = r.reshape(-1, 2, rss[-1]).to(state.factors[i + 1].device)
-
-        if i == nfactors - 2:
-            break
-
-        lbs.append(
-            new_left_bath(lbs[i], state.factors[i], lh).to(state.factors[i + 1].device)
-        )
-        h = hamiltonian.factors[i + 1].to(state.factors[i + 1].device)
-        op = lambda x: -t * apply_effective_Hamiltonian(x, h, lbs[i + 1], rb)
-
-        evol = krylov_exp(
-            op,
-            state.factors[i + 1],
-            exp_tolerance=state.precision * extra_krylov_tolerance,
-            norm_tolerance=state.precision * extra_krylov_tolerance,
-            max_krylov_dim=max_krylov_dim,
-            is_hermitian=is_hermitian,
-        )
-        state.factors[i + 1] = evol
-
-    # sweep right-left
-    right_bath = torch.ones(
-        1, 1, 1, dtype=state.factors[0].dtype, device=state.factors[-1].device
+    combined_hamiltonian_factors = (
+        torch.tensordot(left_ham_factor, right_ham_factor, dims=1)
+        .transpose(2, 3)
+        .reshape(left_ham_factor.shape[0], 4, 4, -1)
     )
-    for i in range(nfactors - 2, -1, -1):
-        rs = state.factors[i + 1]
-        rss = rs.shape
-        ls = state.factors[i].to(rs.device)
-        lss = ls.shape
-        s = torch.tensordot(ls, rs, dims=1).reshape(lss[0], 4, rss[-1])
-        lh = hamiltonian.factors[i]
-        rh = hamiltonian.factors[i + 1].to(lh.device)
-        lhs = lh.shape
-        lb = lbs.pop()
 
-        h = (
-            torch.tensordot(lh, rh, dims=1)
-            .transpose(2, 3)
-            .reshape(lhs[0], 4, 4, -1)
-            .to(s.device)
+    op = (
+        lambda x: -_TIME_CONVERSION_COEFF
+        * 1j
+        * dt
+        * apply_effective_Hamiltonian(
+            x, combined_hamiltonian_factors, left_bath, right_bath
         )
+    )
 
-        op = lambda x: t * apply_effective_Hamiltonian(x, h, lb.to(s.device), right_bath)
+    evol = krylov_exp(
+        op,
+        combined_state_factors,
+        exp_tolerance=config.exp_tolerance,
+        norm_tolerance=config.norm_tolerance,
+        max_krylov_dim=config.max_krylov_dim,
+        is_hermitian=config.is_hermitian,
+    ).reshape(left_bond_dim * 2, 2 * right_bond_dim)
 
-        evol = krylov_exp(
-            op,
-            s,
-            exp_tolerance=state.precision * extra_krylov_tolerance,
-            norm_tolerance=state.precision * extra_krylov_tolerance,
-            max_krylov_dim=max_krylov_dim,
-            is_hermitian=is_hermitian,
-        ).reshape(lss[0] * 2, 2 * rss[-1])
+    l, r = split_tensor(
+        evol,
+        max_error=config.max_error,
+        max_rank=config.max_rank,
+        orth_center_right=orth_center_right,
+    )
 
-        l, r = split_tensor(
-            evol,
-            max_error=state.precision,
-            max_rank=state.max_bond_dim,
-            orth_center_right=False,
+    return l.reshape(left_bond_dim, 2, -1), r.reshape(-1, 2, right_bond_dim).to(
+        right_device
+    )
+
+
+def evolve_single(
+    *,
+    state_factor: torch.Tensor,
+    baths: tuple[torch.Tensor, torch.Tensor],
+    ham_factor: torch.Tensor,
+    dt: float,
+    config: EvolveConfig
+) -> torch.Tensor:
+    """
+    Time evolution of a single tensor of a tensor train using baths.
+    """
+    assert len(baths) == 2
+
+    left_bath, right_bath = baths
+
+    op = (
+        lambda x: -_TIME_CONVERSION_COEFF
+        * 1j
+        * dt
+        * apply_effective_Hamiltonian(
+            x,
+            ham_factor,
+            left_bath,
+            right_bath,
         )
+    )
 
-        state.factors[i + 1] = r.reshape(-1, 2, rss[-1])
-        state.factors[i] = l.reshape(lss[0], 2, -1).to(state.factors[i].device)
-
-        if i == 0:
-            break
-
-        right_bath = new_right_bath(right_bath, state.factors[i + 1], rh).to(
-            state.factors[i].device
-        )
-
-        h = hamiltonian.factors[i].to(state.factors[i].device)
-        op = lambda x: -t * apply_effective_Hamiltonian(x, h, lb, right_bath)
-
-        evol = krylov_exp(
-            op,
-            state.factors[i],
-            exp_tolerance=state.precision * extra_krylov_tolerance,
-            norm_tolerance=state.precision * extra_krylov_tolerance,
-            max_krylov_dim=max_krylov_dim,
-            is_hermitian=is_hermitian,
-        )
-
-        state.factors[i] = evol.reshape(lss[0], 2, -1)
-
-    # At this point, the energy of the evolved state can be computed for cheap
-    # by finishing the contraction of `right_bath` with the first two factors
-    # of the hamiltonian and evolved state.
+    return krylov_exp(
+        op,
+        state_factor,
+        exp_tolerance=config.exp_tolerance,
+        norm_tolerance=config.norm_tolerance,
+        max_krylov_dim=config.max_krylov_dim,
+        is_hermitian=config.is_hermitian,
+    )
