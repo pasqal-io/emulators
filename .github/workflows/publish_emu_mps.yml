@@ -3,7 +3,7 @@ run-name: Publish emu-mps
 
 on:
   workflow_run:
-    workflows: [Publish emu-base, Lint and test]
+    workflows: [Publish emu-base]
     types:
       - completed
 concurrency:
@@ -15,7 +15,6 @@ jobs:
     name: Publish emu-mps to PyPI
     if: |
       ${{ github.event.workflow_run.conclusion == 'success' }}
-#      && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       # IMPORTANT: this permission is mandatory for trusted publishing
@@ -40,7 +39,6 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          repository-url: https://test.pypi.org/legacy/
           packages-dir: ${{ github.workspace }}/ci/emu_mps/dist
           verbose: true
   deploy_docs:
