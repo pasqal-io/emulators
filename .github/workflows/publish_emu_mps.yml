@@ -1,8 +1,8 @@
-name: "Publish emu-mps"
+name: emu-mps
 
 on:
   workflow_run:
-    workflows: ["Publish emu-base"]
+    workflows: [emu-base]
     types:
       - completed
 concurrency:
@@ -13,6 +13,7 @@ jobs:
   publish_emu_mps:
     name: Publish emu-mps to PyPI
     #if: startsWith(github.ref, 'refs/tags/v')
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       # IMPORTANT: this permission is mandatory for trusted publishing
