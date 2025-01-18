@@ -1,4 +1,5 @@
-name: emu-base
+name: Publish emu-base
+run-name: Publish emu-base
 
 on:
   push:
