@@ -1,8 +1,8 @@
-name: Publish emu-mps
+name: "Publish emu-mps"
 
 on:
   workflow_run:
-    workflows: [Publish emu-base]
+    workflows: ["Publish emu-base"]
     types:
       - completed
 concurrency:

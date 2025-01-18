@@ -1,4 +1,4 @@
-name: Publish emu-base
+name: "Publish emu-base"
 
 on:
   push:
