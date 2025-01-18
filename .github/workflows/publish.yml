@@ -39,7 +39,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
-          packages-dir: ${{ github.workspace }}/ci/emu_mps/dist
+          packages-dir: ${{ github.workspace }}/ci/emu_base/dist
   publish_emu_mps:
     name: Publish to emu-base to PyPI
     needs: publish_emu_base
