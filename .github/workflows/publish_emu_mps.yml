@@ -60,4 +60,4 @@ jobs:
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
         git fetch origin gh-pages
-        mike deploy --push --update-aliases ${{ github.ref_name }} latest
+        mike deploy --push --update-aliases ${{ github.event.workflow_run.head_branch }} latest
