@@ -2,8 +2,7 @@ name: Publish emu-mps
 
 on:
   workflow_run:
-    workflows: ["Publish emu-base"]
-    branches: ["aq/github_publish"]
+    workflows: [Publish emu-base]
     types:
       - completed
 concurrency:
@@ -23,8 +22,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-      - name: Set up Python
+      - name: Set up Python 3.10
         uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
