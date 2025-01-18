@@ -1,3 +1,4 @@
+#!/bin/bash
 mps_string=`grep emu-base ci/emu_mps/pyproject.toml`
 [[ "$mps_string" =~ .*([0-9]\.[0-9]\.[0-9]).* ]]
 mps_dep=${BASH_REMATCH[1]}
