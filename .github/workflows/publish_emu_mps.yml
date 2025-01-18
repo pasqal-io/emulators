@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   publish_emu_mps:
-    name: Publish to emu-base to PyPI
+    name: Publish emu-mps to PyPI
     #if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -38,6 +38,7 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
           packages-dir: ${{ github.workspace }}/ci/emu_mps/dist
+          verbose: true
   deploy_docs:
     name: Deploy docs (ubuntu)
     needs: publish_emu_mps
