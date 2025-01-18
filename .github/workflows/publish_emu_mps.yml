@@ -3,7 +3,7 @@ run-name: Publish emu-mps
 
 on:
   workflow_run:
-    workflows: [Publish emu-base]
+    workflows: [Publish emu-base, Lint and test]
     types:
       - completed
 concurrency:
@@ -13,8 +13,9 @@ concurrency:
 jobs:
   publish_emu_mps:
     name: Publish emu-mps to PyPI
-    #if: startsWith(github.ref, 'refs/tags/v')
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: |
+      ${{ github.event.workflow_run.conclusion == 'success' }}
+#      && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       # IMPORTANT: this permission is mandatory for trusted publishing
