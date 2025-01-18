@@ -3,7 +3,7 @@
 mps_string=`grep emu-base ci/emu_mps/pyproject.toml`
 [[ "$mps_string" =~ .*([0-9]\.[0-9]\.[0-9]).* ]]
 mps_dep=${BASH_REMATCH[1]}
-echo mps depends on emu-base version $mps_dep
+echo emu-mps depends on emu-base version $mps_dep
 
 base_string=`grep version emu_base/__init__.py`
 [[ "$base_string" =~ .*([0-9]\.[0-9]\.[0-9]).* ]]
