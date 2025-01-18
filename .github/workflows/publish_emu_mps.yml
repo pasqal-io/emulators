@@ -1,48 +1,18 @@
-name: Publish repo
+name: Publish emu-mps
 
 on:
-  push:
-    branches:
-      - aq/github_publish
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-  workflow_dispatch: {}
-
+  workflow_run:
+    workflows: ["Publish emu-base"]
+    branches: ["aq/github_publish"]
+    types:
+      - completed
 concurrency:
   group: fast-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  publish_emu_base:
-    name: Publish to emu-base to PyPI
-    #if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      # IMPORTANT: this permission is mandatory for trusted publishing
-      id-token: write
-    steps:
-      - name: Check emulators
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-      - name: Set up Python
-        uses: actions/setup-python@v5
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install hatch
-      - name: Build and publish package
-        run: |
-          cd ci/emu_base
-          hatch build
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-          packages-dir: ${{ github.workspace }}/ci/emu_base/dist
   publish_emu_mps:
     name: Publish to emu-base to PyPI
-    needs: publish_emu_base
     #if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
