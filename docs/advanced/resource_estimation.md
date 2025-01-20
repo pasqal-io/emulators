@@ -91,9 +91,12 @@ In both cases, it will boil down to an exercise in complexity estimation of tens
 Importantly, another significant contribution to the runtime can come from computing complex observables like two-point correlation functions, which here is not included.
 
 ## Contribution from the baths
-To finish...
 
-The left and right baths need to be computed roughly N times, thus their computation is expected to take $O(N\chi^3)$
+Roughly, bath computation involves the represented tensor network contraction:
+
+<img src="../benchmarks/benchmark_plots/tdvp_complexity_bath.png" class="center" width="49.7%">
+
+Each of these tensor multiplication takes respectively $O(ph\chi^3)$, $O(p^2h^2\chi^2)$, and $O(ph\chi^3)$. In an all-to-all Rydberg interaction, we already argued that the bond dimension of the Hamiltonian MPO should scale as the number of atoms. Moreover, the left and right baths need to be computed roughly N times, thus the overall expected complexity is $O(N^2\chi^3) + O(N^3\chi^2)$.
 
 ## Contribution from the effective Hamiltonian
 To finish...
@@ -101,10 +104,10 @@ To finish...
 ## Benchmarking runtime
 From the previous complexity estimations, we thus expect the complexity of the two-sites TDVP algorithm to have two contributions
 
-$$T(N,\chi,k)\sim \alpha N^2\chi^3 + \beta N^3\chi^2$$
+$$\Delta t_{\text{TDVP}}(N,\chi,k)\sim \alpha N^2\chi^3 + \beta N^3\chi^2$$
 
-To check such estimation, as before, we run the TDVP time evolution algorithm multiple times, measuring the average runtime to perform a step.
-We show below the obtained results for different number of atoms in a register $N$ at fixed bond dimension $chi$ (left), and at different fixed $N$ but increasing the bond dimension (left). On top of these data points, we also plot the resulting fit of the complexity estimation, with good agreement.
+To check such estimation, as before, we run TDVP multiple times, measuring the average runtime to perform a step.
+Below, we show the obtained results for different number of atoms in a register $N$ at fixed bond dimension $chi$ (left), and at different fixed $N$ but increasing the bond dimension (left). On top of these data points, we also plot the resulting fit of the complexity estimation, with good agreement.
 
 <img src="../benchmarks/benchmark_plots/runtime_vs_N.png"  width="49.7%">
 <img src="../benchmarks/benchmark_plots/runtime_vs_bond_dim.png"  width="49.7%">
