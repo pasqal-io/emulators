@@ -15,6 +15,7 @@ from emu_base.base_classes.operator import Operator
 
 from emu_sv import StateVector
 from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.dense_operator import DenseOperator
 
 
 def custom_qubit_density(
@@ -36,13 +37,23 @@ def custom_correlation_matrix(
     """'Sparse' implementation of <𝜓| nᵢ nⱼ | 𝜓 >"""
     num_qubits = int(math.log2(len(state.vector)))
     state_tensor = state.vector.reshape((2,) * num_qubits)
-    return [
-        [
-            (state_tensor.select(i, 1).select(j, 1).norm() ** 2).item()
-            for i in range(num_qubits)
-        ]
-        for j in range(num_qubits)
-    ]
+
+    correlation_matrix = []
+    for numi in range(num_qubits):
+        one_correlation = []
+        select_i = state_tensor.select(numi,1) 
+        for numj in range(num_qubits): 
+            if numj < numi:
+                one_correlation.append((select_i.select(numj,1).norm()**2).item())
+            elif numj>numi: # the selected atom is deleted
+                one_correlation.append((select_i.select(numj-1,1).norm()**2).item())
+            else:
+                one_correlation.append((select_i.norm()**2).item()) 
+    
+        correlation_matrix.append(one_correlation)
+    return correlation_matrix
+            
+
 
 
 # feeding RydbergHamiltonian class as an Operator for performance reasons

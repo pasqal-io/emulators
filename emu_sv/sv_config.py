@@ -1,13 +1,13 @@
 from emu_base.base_classes import (
-    BitStrings,
-    StateResult,
     CorrelationMatrix,
     QubitDensity,
-    Fidelity,
     Energy,
     EnergyVariance,
     SecondMomentOfEnergy
 )
+
+import copy  
+
 
 
 from emu_base import BackendConfig
@@ -68,37 +68,27 @@ class SVConfig(BackendConfig):
     ):
         super().__init__(**kwargs)
 
-        observables = set(map(type, self.callbacks))
-
-        supported_observables = {
-            BitStrings,
-            StateResult,
-            CorrelationMatrix,
-            QubitDensity,
-            Fidelity,
-            Energy,
-            EnergyVariance,
-            SecondMomentOfEnergy
-        }
-
-        unsupported_observables = observables - supported_observables
-        if unsupported_observables:
-            raise ValueError(f"{unsupported_observables} are not supported in emu-sv")
         self.initial_state = initial_state
         self.dt = dt
         self.max_krylov_dim = max_krylov_dim
         self.gpu = gpu
         self.krylov_tolerance = krylov_tolerance
 
-        for obs in self.callbacks:
-            if isinstance(obs, QubitDensity):
-                # mypy: ignoring dynamically replacing method
-                obs.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
-            if isinstance(obs, Energy):
-                obs.apply = MethodType(custom_energy, obs)  # type: ignore[method-assign]
-            if isinstance(obs, EnergyVariance):
-                obs.apply = MethodType(custom_energy_variance, obs)  # type: ignore[method-assign]
-            if isinstance(obs, SecondMomentOfEnergy):
-                obs.apply = MethodType(custom_second_momentum_energy, obs)  # type: ignore[method-assign]
-            if isinstance(obs, CorrelationMatrix):
-                obs.apply = MethodType(custom_correlation_matrix, obs)  # type: ignore[method-assign]
+        for num,obs in enumerate(self.callbacks):
+            obs_copy = copy.deepcopy(obs)
+            if isinstance(obs, QubitDensity): 
+                obs_copy.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
+                self.callbacks[num] = obs_copy
+            elif isinstance(obs, Energy):
+                obs_copy.apply = MethodType(custom_energy, obs)  # type: ignore[method-assign]
+                self.callbacks[num] = obs_copy
+            elif isinstance(obs, EnergyVariance):
+                obs_copy.apply = MethodType(custom_energy_variance, obs)  # type: ignore[method-assign]
+                self.callbacks[num] = obs_copy
+            elif isinstance(obs, SecondMomentOfEnergy):
+                obs_copy.apply = MethodType(custom_second_momentum_energy, obs)  # type: ignore[method-assign]
+                self.callbacks[num] = obs_copy
+            elif isinstance(obs, CorrelationMatrix):
+                obs_copy.apply = MethodType(custom_correlation_matrix, obs)  # type: ignore[method-assign]
+                self.callbacks[num] = obs_copy
+

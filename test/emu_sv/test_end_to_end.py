@@ -160,3 +160,6 @@ def test_end_to_end_afm_ring():
 
     second_moment_energy = result["second_moment_of_energy"][final_time] #13350.505342183847
     assert approx(second_moment_energy,1e-8) == 13350.5053421
+
+    correlation = result["correlation_matrix"][final_time]
+    print(correlation)
