@@ -15,7 +15,6 @@ from emu_base.base_classes.operator import Operator
 
 from emu_sv import StateVector
 from emu_sv.hamiltonian import RydbergHamiltonian
-from emu_sv.dense_operator import DenseOperator
 
 
 def custom_qubit_density(
@@ -41,19 +40,17 @@ def custom_correlation_matrix(
     correlation_matrix = []
     for numi in range(num_qubits):
         one_correlation = []
-        select_i = state_tensor.select(numi,1) 
-        for numj in range(num_qubits): 
+        select_i = state_tensor.select(numi, 1)
+        for numj in range(num_qubits):
             if numj < numi:
-                one_correlation.append((select_i.select(numj,1).norm()**2).item())
-            elif numj>numi: # the selected atom is deleted
-                one_correlation.append((select_i.select(numj-1,1).norm()**2).item())
+                one_correlation.append((select_i.select(numj, 1).norm() ** 2).item())
+            elif numj > numi:  # the selected atom is deleted
+                one_correlation.append((select_i.select(numj - 1, 1).norm() ** 2).item())
             else:
-                one_correlation.append((select_i.norm()**2).item()) 
-    
+                one_correlation.append((select_i.norm() ** 2).item())
+
         correlation_matrix.append(one_correlation)
     return correlation_matrix
-            
-
 
 
 # feeding RydbergHamiltonian class as an Operator for performance reasons
@@ -61,8 +58,6 @@ def custom_energy(
     self: Energy, config: BackendConfig, t: int, state: StateVector, H: RydbergHamiltonian
 ) -> Any:
     return torch.vdot(state.vector, H * state.vector).item()
-
-    # TODO: make a test for custom energy
 
 
 def custom_energy_variance(

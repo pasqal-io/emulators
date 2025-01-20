@@ -1,16 +1,28 @@
+import torch
 from emu_sv.state_vector import StateVector
 from emu_sv.dense_operator import DenseOperator
 from emu_sv.sv_config import SVConfig
 from emu_sv.custom_callback_implementations import (
     custom_qubit_density,
     custom_correlation_matrix,
+    custom_energy,
 )
-from emu_base.base_classes.default_callbacks import QubitDensity, CorrelationMatrix
+from emu_base.base_classes.default_callbacks import (
+    QubitDensity,
+    CorrelationMatrix,
+    Energy,
+    EnergyVariance,
+    SecondMomentOfEnergy,
+)
 
 from pytest import approx
 
 from unittest.mock import MagicMock
 
+from emu_sv.hamiltonian import RydbergHamiltonian
+
+#device = "cuda"
+device = "cpu"
 
 def test_custom_qubit_density():
     # set up for state
@@ -42,7 +54,7 @@ def test_custom_correlation():
     # set up for state
     basis = ("r", "g")
     num_qubits = 4
-    strings = {"rrrr": 1.0, "gggg": 1.0}
+    strings = {"rgrg": 1.0, "grgr": 1.0}
     state = StateVector.from_state_string(
         basis=basis, nqubits=num_qubits, strings=strings
     )
@@ -52,11 +64,49 @@ def test_custom_correlation():
     MockCorrelation = MagicMock(spec=CorrelationMatrix)
     correlation_mock = MockCorrelation.return_value
     t = 1
-    correlation = custom_correlation_matrix(
-        correlation_mock, config, t, state, H_mock)
-    print(correlation)
-    expected = [[0.5] * num_qubits]*num_qubits
+    correlation = custom_correlation_matrix(correlation_mock, config, t, state, H_mock)
+
+    expected = []
+    for qubiti in range(num_qubits):
+        correlation_one = []
+        for qubitj in range(num_qubits):
+            if (qubiti + qubitj) % 2 == 0:
+                correlation_one.append(0.5)
+            else:
+                correlation_one.append(0.0)
+        expected.append(correlation_one)
+
     for i, row in enumerate(correlation):
         for j, col in enumerate(row):
             assert col == approx(expected[i][j], abs=1e-8)
+
+
+def test_custom_energy():
+    
+    torch.manual_seed(1337)
+    dtype = torch.complex128
+
+    basis = ("r", "g")
+    num_qubits = 4
+    strings = {"rgrg": 1.0, "grgr": 1.0}
+    state = StateVector.from_state_string(
+        basis=basis, nqubits=num_qubits, strings=strings
+    )
+    config = SVConfig()
+    
+    omega = torch.randn(num_qubits, dtype=dtype, device=device)
+    delta = torch.randn(num_qubits, dtype=dtype, device=device)
+    interaction_matrix = torch.randn((num_qubits, num_qubits))
+    h_rydberg = RydbergHamiltonian(
+        omegas=omega, deltas=delta, interaction_matrix=interaction_matrix, device=device
+    )
+    
+    MockEnergy = MagicMock(spec=Energy)
+    energy_mock = MockEnergy.return_value
+    t = 1
+    energy = custom_energy(energy_mock, config, t, state, h_rydberg)
+    print(energy)
+    expected = 0.438415110
+
+    assert energy == approx(expected, abs=1e-8)
 

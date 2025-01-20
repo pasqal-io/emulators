@@ -7,6 +7,7 @@ from emu_base.base_classes.operator import Operator
 from emu_base.base_classes.state import State
 
 
+
 class StateResult(Callback):
     """
     Store the quantum state in whatever format the backend provides
