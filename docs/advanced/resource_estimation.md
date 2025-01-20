@@ -56,7 +56,7 @@ $$
 
 It should be noted that the value of $h$ cited above assumes that all qubits in the system interact via a two-body term, which is technically true for the Rydberg interaction. When some of these interaction terms can be neglected, the value of $h$ can be reduced, leading to significant memory savings in $|intermediate|$ and $|bath|$. These optimizations have yet to be performed.
 
-## Final result
+## Benchmarking memory footprint
 
 Putting all of this together, for the total memory consumption $m$ of the program, we can write the following bound:
 
@@ -74,18 +74,43 @@ For different combinations of the number of atoms in a register $N$ and the fixe
 
 Finally, having established an estimate for the memory consumption, it makes sense to explore what are the available regimes of qubits/bond dimension can be reached for a given hardware capability.
 Since all heavy simulations will be run on an NVIDIA A100 (on Pasqal's DGX cluster), we have 40 GB of available memory.
-Therefore, above, we can show (right image) the contour lines of the RSS estimate $m(N,\chi,k=30) < 40$  GB for particular useful values of the total memory, allowing to quickly estimate the memory footprint of an _EMU-MPS_ emulation.
+Therefore, above, we show (right image) the contour lines of the RSS estimate $m(N,\chi,k=30) < 40$ GB for particular useful values of the total memory, allowing to quickly estimate the memory footprint of an _EMU-MPS_ emulation.
 
 ## An example
 
-For example, the results from the [case study](convergence.md) were obtained using $N=49$ and $d=1600$ on 2 gpu's. Taking the above formula, and halving the contributions from $\psi$ and $|\mathrm{bath}|$ since they are split evenly on the gpu's, we reproduce the memory consumption of the program for $k=13$. Notice that the actual number of Krylov vectors required to reach convergence is likely closer to around $30$, but here we underestimate it, since the contributions of $\psi$ and $|\mathrm{bath}|$ are over-estimated.
+For example, the results from the [case study](convergence.md) were obtained using $N=49$ and $d=1600$ on 2 GPUs. Taking the above formula, and halving the contributions from $\psi$ and $|\mathrm{bath}|$ since they are split evenly on the gpu's, we reproduce the memory consumption of the program for $k=13$. Notice that the actual number of Krylov vectors required to reach convergence is likely closer to around $30$, but here we underestimate it, since the contributions of $\psi$ and $|\mathrm{bath}|$ are over-estimated.
 
 
 # Estimating the runtime of a simulation
 
+Similarly to the previous section, here, we briefly estimate the complexity of the two-site TDVP algorithm we use to time evolve the state in a single pulse sequence step.
+As before, the two relevant computational steps are
+- Computing the baths
+- Applying the effective Hamiltonian
+In both cases, it will boil down to an exercise in complexity estimation of tensor network contractions. For simplicity, we will restrict to the worst case scenario in which the bond dimension $\chi$ always take the maximum allowed value.
+Importantly, another significant contribution to the runtime can come from computing complex observables like two-point correlation functions, which here is not included.
+
+## Contribution from the baths
 To finish...
-Let's do some complexity estimation and fit
+
+The left and right baths need to be computed roughly N times, thus their computation is expected to take $O(N\chi^3)$
+
+## Contribution from the effective Hamiltonian
+To finish...
+
+## Benchmarking runtime
+From the previous complexity estimations, we thus expect the complexity of the two-sites TDVP algorithm to have two contributions
+
+$$T(N,\chi,k)\sim \alpha N^2\chi^3 + \beta N^3\chi^2$$
+
+To check such estimation, as before, we run the TDVP time evolution algorithm multiple times, measuring the average runtime to perform a step.
+We show below the obtained results for different number of atoms in a register $N$ at fixed bond dimension $chi$ (left), and at different fixed $N$ but increasing the bond dimension (left). On top of these data points, we also plot the resulting fit of the complexity estimation, with good agreement.
 
 <img src="../benchmarks/benchmark_plots/runtime_vs_N.png"  width="49.7%">
 <img src="../benchmarks/benchmark_plots/runtime_vs_bond_dim.png"  width="49.7%">
+
+To wrap up, and to provide an useful tool for runtime estimation for _EMU-MPS_, the time to perform a **single**  time step in a sequence can be conveniently visualized (below) for both $N$ and $chi$ on contour lines.
+
 <img src="../benchmarks/benchmark_plots/emumps_runtime_map.png"  width="49.7%">
+
+Superimposing the 40 GB hardware constrain derived in the previous section, it is easy to see that in worst-case scenario, a TDVP step will take roughly 250 seconds to be computed.

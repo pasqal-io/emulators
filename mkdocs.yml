@@ -22,7 +22,7 @@ nav:
     - Noise: advanced/noise.md
     - Config: advanced/config.md
     - Validating Correctness of Results: advanced/convergence.md
-    - Estimating Memory Consumption: advanced/memory.md
+    - Estimating Memory Consumption: advanced/resource_estimation.md
   - Benchmarks:
     - Index: benchmarks/index.md
     - Accuracy: benchmarks/accuracy.md
