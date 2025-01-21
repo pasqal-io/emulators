@@ -99,7 +99,20 @@ Roughly, bath computation involves the represented tensor network contraction:
 Each of these tensor multiplication takes respectively $O(ph\chi^3)$, $O(p^2h^2\chi^2)$, and $O(ph\chi^3)$. In an all-to-all Rydberg interaction, we already argued that the bond dimension of the Hamiltonian MPO should scale as the number of atoms. Moreover, the left and right baths need to be computed roughly N times, thus the overall expected complexity is $O(N^2\chi^3) + O(N^3\chi^2)$.
 
 ## Contribution from the effective Hamiltonian
-To finish...
+
+Applying the effective two-body Hamiltonian is slightly a more involved tensor network contraction:
+
+<img src="../benchmarks/benchmark_plots/tdvp_complexity_apply_eff_ham.png" class="center" width="49.7%">
+
+In steps, it is composed by applying:
+- the left bath: $O(p^2h\chi^3)$
+- a two-body term coming form the MPO Hamiltonian: $O(p^4h^2\chi^2)$
+- the right bath: $O(p^2h\chi^3)$
+
+As before, for an all-to-all Rydberg interaction we expect $h\sim N$. Moreover, the effective Hamiltonian application needs to be done $k$ times, to build the appropriate Krylov subspace, and for every pair.
+Finally, to complete the time evolution and bring back the tensors of the state into an MPS form, a final singular value decomposition is required.
+For every pair, this requires $O(N\chi^3)$ to be done.
+Overall, the expected complexity is thus $O(kN^2\chi^3) + O(kN^3\chi^2) + O(N\chi^3)$.
 
 ## Benchmarking runtime
 From the previous complexity estimations, we thus expect the complexity of the two-sites TDVP algorithm to have two contributions
