@@ -69,8 +69,8 @@ Note that this estimate is **pessimistic**, since not all $k$ Krylov vectors are
 To test the accuracy of the above memory estimations, we run the TDVP time evolution algorithm, fixing the bond dimension to a particular desired value.
 For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $chi$, we collect the maximum resident size, or RSS, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=30$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of qubit number and bond dimensions.
 
-<img src="../benchmarks/benchmark_plots/RSS_vs_N.png"  width="49.7%">
-<img src="../benchmarks/benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
+<img src="../../benchmarks/benchmark_plots/RSS_vs_N.png"  width="49.7%">
+<img src="../../benchmarks/benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
 
 Finally, having established an estimate for the memory consumption, it makes sense to explore what are the available regimes of qubits/bond dimension can be reached for a given hardware capability.
 Since all heavy simulations will be run on an NVIDIA A100 (on Pasqal's DGX cluster), we have 40 GB of available memory.
@@ -94,7 +94,7 @@ Importantly, another significant contribution to the runtime can come from compu
 
 Roughly, bath computation involves the represented tensor network contraction:
 
-<img src="../benchmarks/figures/tdvp_complexity_bath.png" class="center" width="49.7%">
+<img src="../../benchmarks/figures/tdvp_complexity_bath.png" width="100%">
 
 Each of these tensor multiplication takes respectively $O(ph\chi^3)$, $O(p^2h^2\chi^2)$, and $O(ph\chi^3)$. In an all-to-all Rydberg interaction, we already argued that the bond dimension of the Hamiltonian MPO should scale as the number of atoms. Moreover, the left and right baths need to be computed roughly N times, thus the overall expected complexity is $O(N^2\chi^3) + O(N^3\chi^2)$.
 
@@ -102,7 +102,7 @@ Each of these tensor multiplication takes respectively $O(ph\chi^3)$, $O(p^2h^2\
 
 Applying the effective two-body Hamiltonian is slightly a more involved tensor network contraction:
 
-<img src="../benchmarks/figures/tdvp_complexity_apply_eff_ham.png" class="center" width="49.7%">
+<img src="../../benchmarks/figures/tdvp_complexity_apply_eff_ham.png" width="100%">
 
 In steps, it is composed by applying:
 - the left bath: $O(p^2h\chi^3)$
@@ -122,11 +122,11 @@ $$\Delta t_{\text{TDVP}}(N,\chi,k)\sim \alpha N^2\chi^3 + \beta N^3\chi^2$$
 To check such estimation, as before, we run TDVP multiple times, measuring the average runtime to perform a step.
 Below, we show the obtained results for different number of atoms in a register $N$ at fixed bond dimension $chi$ (left), and at different fixed $N$ but increasing the bond dimension (left). On top of these data points, we also plot the resulting fit of the complexity estimation, with good agreement.
 
-<img src="../benchmarks/benchmark_plots/runtime_vs_N.png"  width="49.7%">
-<img src="../benchmarks/benchmark_plots/runtime_vs_bond_dim.png"  width="49.7%">
+<img src="../../benchmarks/benchmark_plots/runtime_vs_N.png"  width="49.7%">
+<img src="../../benchmarks/benchmark_plots/runtime_vs_bond_dim.png"  width="49.7%">
 
-To wrap up, and to provide an useful tool for runtime estimation for _EMU-MPS_, the time to perform a **single**  time step in a sequence can be conveniently visualized (below) for both $N$ and $chi$ on contour lines.
+To wrap up, and to provide an useful tool for runtime estimation for _EMU-MPS_, the time to perform a **single**  time step in a sequence can be conveniently visualized (below) for both $N$ and $\chi$ on contour lines.
 
-<img src="../benchmarks/benchmark_plots/emumps_runtime_map.png"  width="49.7%">
+<img src="../../benchmarks/benchmark_plots/emumps_runtime_map.png"  width="49.7%">
 
 Superimposing the 40 GB hardware constrain derived in the previous section, it is easy to see that in worst-case scenario, a TDVP step will take roughly 250 seconds to be computed.
