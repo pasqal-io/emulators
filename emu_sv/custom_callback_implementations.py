@@ -5,7 +5,6 @@ import torch
 
 from emu_base.base_classes.config import BackendConfig
 from emu_base.base_classes.default_callbacks import (
-    Energy,
     QubitDensity,
     EnergyVariance,
     SecondMomentOfEnergy,

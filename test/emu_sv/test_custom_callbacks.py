@@ -5,7 +5,6 @@ from emu_sv.sv_config import SVConfig
 from emu_sv.custom_callback_implementations import (
     custom_qubit_density,
     custom_correlation_matrix,
-    custom_energy,
     custom_energy_variance,
     custom_second_momentum_energy,
 )
@@ -104,13 +103,7 @@ def test_custom_energy_and_variance_and_second():
         omegas=omega, deltas=delta, interaction_matrix=interaction_matrix, device=device
     )
 
-    MockEnergy = MagicMock(spec=Energy)
-    energy_mock = MockEnergy.return_value
     t = 1
-    energy = custom_energy(energy_mock, config, t, state, h_rydberg)
-    expected_energy = 0.73826361936
-
-    assert energy == approx(expected_energy, abs=1e-8)
 
     energy_mock = MagicMock(spec=EnergyVariance)
     energy_variance_mock = energy_mock.return_value
@@ -119,6 +112,7 @@ def test_custom_energy_and_variance_and_second():
         energy_variance_mock, config, t, state, h_rydberg
     )
     expected_varaince = 3.67378968943955
+    
     assert energy_variance == approx(expected_varaince, abs=1e-8)
 
     second_momentum_energy_mock = MagicMock(spec=SecondMomentOfEnergy)
