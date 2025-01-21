@@ -112,3 +112,7 @@ extra_javascript:
 watch:
   - emu_base
   - emu_mps
+
+extra:
+  version:
+    provider: mike
