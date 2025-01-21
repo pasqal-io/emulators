@@ -11,7 +11,6 @@ from emu_sv.custom_callback_implementations import (
 from emu_base.base_classes.default_callbacks import (
     QubitDensity,
     CorrelationMatrix,
-    Energy,
     EnergyVariance,
     SecondMomentOfEnergy,
 )
@@ -112,7 +111,7 @@ def test_custom_energy_and_variance_and_second():
         energy_variance_mock, config, t, state, h_rydberg
     )
     expected_varaince = 3.67378968943955
-    
+
     assert energy_variance == approx(expected_varaince, abs=1e-8)
 
     second_momentum_energy_mock = MagicMock(spec=SecondMomentOfEnergy)
