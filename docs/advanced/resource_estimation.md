@@ -18,30 +18,30 @@ $$
 2,4,8,16...,16,8,4,2
 $$
 
-in which case an MPS will take __more__ memory than a state vector. When `max_bond_dim < 2^{nqubits/2}` the bond dimensions in the center all cap at `max_bond_dim`. Let $d$ denote the value of `max_bond_dim`. Since each tensor in the MPS has 2 bonds of size at most $d$, and a physical index of size $p=2$, where each element in the tensor takes $s=16$ bytes (2 8-byte floats to store a complex number), the memory consumption of the state
+in which case an MPS will take __more__ memory than a state vector. When `max_bond_dim < 2^{nqubits/2}` the bond dimensions in the center all cap at `max_bond_dim`. Let $d$ denote the value of `max_bond_dim`. Since each tensor in the MPS has 2 bonds of size at most $\chi$, and a physical index of size $p=2$, where each element in the tensor takes $s=16$ bytes (2 8-byte floats to store a complex number), the memory consumption of the state
 
 $$
-|\psi| < spNd^2 = 32Nd^2
+|\psi| < spN\chi^2 = 32N\chi^2
 $$
 
-Note that this is a strict over-estimation because the outer bonds in the MPS will be much smaller than $d$.
+Note that this is a strict over-estimation because the outer bonds in the MPS will be much smaller than $\chi$.
 
 ## Contribution from the baths
 
 For TDVP, for each qubit a bath tensor is stored which has 3 indices whose size depends on the state that is evolved, and on the Hamiltonian. The bath tensors are used to compute an effective interaction between the 2-qubit subsystem being evolved, and the rest of the system ([see here](tdvp.md)). The computation is slightly involved, but the result is as follows.
 
 $$
-|\mathrm{bath}| < sd^2N[N+10]/4 = 4d^2N(N+10)
+|\mathrm{bath}| < s\chi^2N[N+10]/4 = 4\chi^2N(N+10)
 $$
 
 Note that the baths take up more memory than the state, always, and potentially much more. Furthermore, just as for the state this is a strict over-estimation, because it assumes all the bonds in the state are of size $d$.
 
 ## Contribution from the Krylov space
 
-The remainder of the memory consumption is to compute the time-evolution of qubit pairs in TDVP. This is done by contracting 2 tensors from the MPS together into a single 2-qubit tensor, and time-evolving it by applying an effective Hamiltonian constructed from the baths and the Hamiltonian MPO. Each 2-qubit tensor has a size bounded by $sp^2d^2$, so the memory of the Krylov vectors used in the Lanczos algorithm reads
+The remainder of the memory consumption is to compute the time-evolution of qubit pairs in TDVP. This is done by contracting 2 tensors from the MPS together into a single 2-qubit tensor, and time-evolving it by applying an effective Hamiltonian constructed from the baths and the Hamiltonian MPO. Each 2-qubit tensor has a size bounded by $sp^2\chi^2$, so the memory of the Krylov vectors used in the Lanczos algorithm reads
 
 $$
-|\mathrm{krylov}| \leq ksp^2d^2 = 64*k*d^2
+|\mathrm{krylov}| \leq ksp^2\chi^2 = 64*k*\chi^2
 $$
 
 where $k$ is the value of `max_krylov_dim`. Recall that the default value of $k=100$ and if the Lanczos algorithm requires more Krylov vectors to converge to the tolerance, it will error, rather than exceed the above bound.
@@ -51,7 +51,7 @@ where $k$ is the value of `max_krylov_dim`. Recall that the default value of $k=
 Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. The intermediate results take the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$, where
 
 $$
-|\mathrm{intermediate}| = 2*shp^2d^2 = 128hd^2
+|\mathrm{intermediate}| = 2*shp^2\chi^2 = 128h\chi^2
 $$
 
 It should be noted that the value of $h$ cited above assumes that all qubits in the system interact via a two-body term, which is technically true for the Rydberg interaction. When some of these interaction terms can be neglected, the value of $h$ can be reduced, leading to significant memory savings in $|intermediate|$ and $|bath|$. These optimizations have yet to be performed.
@@ -61,10 +61,10 @@ It should be noted that the value of $h$ cited above assumes that all qubits in 
 Putting all of this together, for the total memory consumption $m$ of the program, we can write the following bound:
 
 $$
- m(N,\chi,k) = |\psi| + |\mathrm{bath}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32Nd^2 + 4d^2N(N+10) + 64*k*d^2 + 64(N+4)d^2 = 4d^2[N(N+34) + 16k + 64]
+ m(N,\chi,k) = |\psi| + |\mathrm{bath}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32N\chi^2 + 4\chi^2N(N+10) + 64*k*\chi^2 + 64(N+4)\chi^2 = 4\chi^2[N(N+34) + 16k + 64]
 $$
 
-Note that this estimate is **pessimistic**, since not all $k$ Krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $d$ is probably attained at the center qubit.
+Note that this estimate is **pessimistic**, since not all $k$ Krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $\chi$ is probably attained at the center qubit.
 
 To test the accuracy of the above memory estimations, we run the TDVP time evolution algorithm, fixing the bond dimension to a particular desired value.
 For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $chi$, we collect the maximum resident size, or RSS, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=30$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of qubit number and bond dimensions.
