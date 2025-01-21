@@ -1,7 +1,6 @@
 from emu_base.base_classes import (
     CorrelationMatrix,
     QubitDensity,
-    Energy,
     EnergyVariance,
     SecondMomentOfEnergy,
 )
@@ -15,7 +14,6 @@ from typing import Any
 
 from emu_sv.custom_callback_implementations import (
     custom_qubit_density,
-    custom_energy,
     custom_energy_variance,
     custom_second_momentum_energy,
     custom_correlation_matrix,
@@ -72,9 +70,6 @@ class SVConfig(BackendConfig):
             obs_copy = copy.deepcopy(obs)
             if isinstance(obs, QubitDensity):
                 obs_copy.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
-                self.callbacks[num] = obs_copy
-            elif isinstance(obs, Energy):
-                obs_copy.apply = MethodType(custom_energy, obs)  # type: ignore[method-assign]
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, EnergyVariance):
                 obs_copy.apply = MethodType(custom_energy_variance, obs)  # type: ignore[method-assign]

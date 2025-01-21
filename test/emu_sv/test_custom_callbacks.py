@@ -112,8 +112,8 @@ def test_custom_energy_and_variance_and_second():
 
     assert energy == approx(expected_energy, abs=1e-8)
 
-    MockEnergy = MagicMock(spec=EnergyVariance)
-    energy_variance_mock = MockEnergy.return_value
+    energy_mock = MagicMock(spec=EnergyVariance)
+    energy_variance_mock = energy_mock.return_value
 
     energy_variance = custom_energy_variance(
         energy_variance_mock, config, t, state, h_rydberg
@@ -121,8 +121,8 @@ def test_custom_energy_and_variance_and_second():
     expected_varaince = 3.67378968943955
     assert energy_variance == approx(expected_varaince, abs=1e-8)
 
-    MockEnergy = MagicMock(spec=SecondMomentOfEnergy)
-    second_momentum_mock = MockEnergy.return_value
+    second_momentum_energy_mock = MagicMock(spec=SecondMomentOfEnergy)
+    second_momentum_mock = second_momentum_energy_mock.return_value
 
     second_momentum = custom_second_momentum_energy(
         second_momentum_mock, config, t, state, h_rydberg

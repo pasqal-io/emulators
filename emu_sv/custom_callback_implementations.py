@@ -53,13 +53,6 @@ def custom_correlation_matrix(
     return correlation_matrix
 
 
-# feeding RydbergHamiltonian class as an Operator for performance reasons
-def custom_energy(
-    self: Energy, config: BackendConfig, t: int, state: StateVector, H: RydbergHamiltonian
-) -> Any:
-    return torch.vdot(state.vector, H * state.vector).item()
-
-
 def custom_energy_variance(
     self: EnergyVariance,
     config: BackendConfig,

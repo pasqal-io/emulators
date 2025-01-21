@@ -62,8 +62,6 @@ class SVBackend(Backend):
                 sv_config.krylov_tolerance,
             )
 
-            # TODO: Rydberg Mamiltonian should be a dense operator
-
             for callback in sv_config.callbacks:
                 callback(sv_config, (step + 1) * sv_config.dt, state, H, results)
 

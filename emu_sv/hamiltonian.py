@@ -3,8 +3,9 @@ This file deals with creation of the custom sparse matrix corresponding
 the Rydberg Hamiltonian of a neutral atoms quantum processor.
 """
 
-
 import torch
+
+from emu_sv.state_vector import StateVector
 
 
 class RydbergHamiltonian:
@@ -143,3 +144,9 @@ class RydbergHamiltonian:
                 )  # note the j-1 since i was already removed
                 i_j_fixed += self.interaction_matrix[i, j]
         return diag
+
+    def expect(self, state: StateVector) -> float | complex:
+        assert isinstance(
+            state, StateVector
+        ), "currently, only expectation values of StateVectors are supported"
+        return torch.vdot(state.vector, self * state.vector).item()  # type: ignore [no-any-return]
