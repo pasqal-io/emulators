@@ -3,11 +3,10 @@ from emu_base.base_classes import (
     QubitDensity,
     Energy,
     EnergyVariance,
-    SecondMomentOfEnergy
+    SecondMomentOfEnergy,
 )
 
-import copy  
-
+import copy
 
 
 from emu_base import BackendConfig
@@ -19,15 +18,10 @@ from emu_sv.custom_callback_implementations import (
     custom_energy,
     custom_energy_variance,
     custom_second_momentum_energy,
-    custom_correlation_matrix
+    custom_correlation_matrix,
 )
 
 from types import MethodType
-
-
-from types import MethodType
-
-from emu_sv.custom_callback_implementations import custom_qubit_density
 
 
 class SVConfig(BackendConfig):
@@ -74,9 +68,9 @@ class SVConfig(BackendConfig):
         self.gpu = gpu
         self.krylov_tolerance = krylov_tolerance
 
-        for num,obs in enumerate(self.callbacks): # monkey patch 
+        for num, obs in enumerate(self.callbacks):  # monkey patch
             obs_copy = copy.deepcopy(obs)
-            if isinstance(obs, QubitDensity): 
+            if isinstance(obs, QubitDensity):
                 obs_copy.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, Energy):
@@ -91,4 +85,3 @@ class SVConfig(BackendConfig):
             elif isinstance(obs, CorrelationMatrix):
                 obs_copy.apply = MethodType(custom_correlation_matrix, obs)  # type: ignore[method-assign]
                 self.callbacks[num] = obs_copy
-

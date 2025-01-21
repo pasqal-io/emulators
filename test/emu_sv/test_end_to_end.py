@@ -13,7 +13,7 @@ from emu_base.base_classes import (
     Energy,
     EnergyVariance,
     SecondMomentOfEnergy,
-    CorrelationMatrix
+    CorrelationMatrix,
 )
 
 from emu_sv.sv_config import SVConfig, StateVector
@@ -105,7 +105,7 @@ def simulate(
             Energy(evaluation_times=times),
             EnergyVariance(evaluation_times=times),
             SecondMomentOfEnergy(evaluation_times=times),
-            CorrelationMatrix(evaluation_times=times,basis={"r", "g"},nqubits=nqubits)
+            CorrelationMatrix(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
@@ -155,10 +155,10 @@ def test_end_to_end_afm_ring():
     energy = result["energy"][final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
     assert approx(energy, 1e-8) == -115.34554274708604
 
-    energy_variance = result["energy_variance"][final_time] # 45.911110563993134
+    energy_variance = result["energy_variance"][final_time]  # 45.911110563993134
     assert approx(energy_variance, 1e-8) == 45.91111056399
 
-    second_moment_energy = result["second_moment_of_energy"][final_time] #13350.505342183847
-    assert approx(second_moment_energy,1e-8) == 13350.5053421
-
-    correlation = result["correlation_matrix"][final_time]
+    second_moment_energy = result["second_moment_of_energy"][
+        final_time
+    ]  # 13350.505342183847
+    assert approx(second_moment_energy, 1e-8) == 13350.5053421

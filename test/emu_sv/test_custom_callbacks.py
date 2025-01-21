@@ -7,7 +7,7 @@ from emu_sv.custom_callback_implementations import (
     custom_correlation_matrix,
     custom_energy,
     custom_energy_variance,
-    custom_second_momentum_energy
+    custom_second_momentum_energy,
 )
 from emu_base.base_classes.default_callbacks import (
     QubitDensity,
@@ -23,8 +23,9 @@ from unittest.mock import MagicMock
 
 from emu_sv.hamiltonian import RydbergHamiltonian
 
-#device = "cuda"
+# device = "cuda"
 device = "cpu"
+
 
 def test_custom_qubit_density():
     # set up for state
@@ -84,7 +85,7 @@ def test_custom_correlation():
 
 
 def test_custom_energy_and_variance_and_second():
-    
+
     torch.manual_seed(1337)
     dtype = torch.float64
 
@@ -95,14 +96,14 @@ def test_custom_energy_and_variance_and_second():
         basis=basis, nqubits=num_qubits, strings=strings
     )
     config = SVConfig()
-    
+
     omega = torch.randn(num_qubits, dtype=dtype, device=device)
     delta = torch.randn(num_qubits, dtype=dtype, device=device)
     interaction_matrix = torch.randn((num_qubits, num_qubits))
     h_rydberg = RydbergHamiltonian(
         omegas=omega, deltas=delta, interaction_matrix=interaction_matrix, device=device
     )
-    
+
     MockEnergy = MagicMock(spec=Energy)
     energy_mock = MockEnergy.return_value
     t = 1
@@ -114,23 +115,18 @@ def test_custom_energy_and_variance_and_second():
     MockEnergy = MagicMock(spec=EnergyVariance)
     energy_variance_mock = MockEnergy.return_value
 
-    energy_variance = custom_energy_variance(energy_variance_mock, config, t, state, h_rydberg)
+    energy_variance = custom_energy_variance(
+        energy_variance_mock, config, t, state, h_rydberg
+    )
     expected_varaince = 3.67378968943955
-    assert energy_variance == approx(expected_varaince,abs=1e-8)
+    assert energy_variance == approx(expected_varaince, abs=1e-8)
 
     MockEnergy = MagicMock(spec=SecondMomentOfEnergy)
     second_momentum_mock = MockEnergy.return_value
 
-    second_momentum = custom_second_momentum_energy(second_momentum_mock, config, t, state, h_rydberg)
+    second_momentum = custom_second_momentum_energy(
+        second_momentum_mock, config, t, state, h_rydberg
+    )
     expected_second = 4.2188228611101
 
     assert second_momentum == approx(expected_second, abs=1e-8)
-
-
-
-
-
-
-
-
-

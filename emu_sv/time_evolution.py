@@ -4,7 +4,6 @@ from emu_base.math.krylov_exp import krylov_exp
 from emu_sv.hamiltonian import RydbergHamiltonian
 
 
-
 def do_time_step(
     dt: float,
     omega: torch.Tensor,
