@@ -58,18 +58,11 @@ class BackendConfig:
         self.interaction_matrix = interaction_matrix
         self.interaction_cutoff = interaction_cutoff
         self.logger = logging.getLogger("global_logger")
-        if log_file is None:
-            logging.basicConfig(
-                level=log_level, format="%(message)s", stream=sys.stdout, force=True
-            )  # default to stream = sys.stderr
-        else:
-            logging.basicConfig(
-                level=log_level,
-                format="%(message)s",
-                filename=str(log_file),
-                filemode="w",
-                force=True,
-            )
+        self.log_file = log_file
+        self.log_level = log_level
+
+        self.init_logging()
+
         if noise_model is not None and (
             noise_model.runs != 1
             or noise_model.samples_per_run != 1
@@ -78,4 +71,18 @@ class BackendConfig:
         ):
             self.logger.warning(
                 "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
+            )
+
+    def init_logging(self) -> None:
+        if self.log_file is None:
+            logging.basicConfig(
+                level=self.log_level, format="%(message)s", stream=sys.stdout, force=True
+            )  # default to stream = sys.stderr
+        else:
+            logging.basicConfig(
+                level=self.log_level,
+                format="%(message)s",
+                filename=str(self.log_file),
+                filemode="w",
+                force=True,
             )

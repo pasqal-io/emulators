@@ -1,7 +1,11 @@
 import math
+import pathlib
 import random
+import uuid
 from resource import RUSAGE_SELF, getrusage
 from typing import Optional
+import pickle
+import os
 
 import torch
 import time
@@ -17,7 +21,6 @@ from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qu
 from emu_mps.tdvp import (
     evolve_single,
     evolve_pair,
-    EvolveConfig,
     new_right_bath,
     right_baths,
 )
@@ -52,6 +55,7 @@ class MPSBackendImpl:
     def __init__(self, mps_config: MPSConfig, pulser_data: PulserData):
         self.config = mps_config
         self.target_time = float(self.config.dt)
+        self.pulser_data = pulser_data
         self.qubit_count = pulser_data.qubit_count
         assert self.qubit_count >= 2
         self.omega = pulser_data.omega
@@ -71,15 +75,17 @@ class MPSBackendImpl:
         self.tdvp_index = 0
         self.timestep_index = 0
         self.results = Results()
-
-        self.evolve_config = EvolveConfig(
-            exp_tolerance=self.config.precision * self.config.extra_krylov_tolerance,
-            norm_tolerance=self.config.precision * self.config.extra_krylov_tolerance,
-            max_krylov_dim=self.config.max_krylov_dim,
-            is_hermitian=not self.has_lindblad_noise,
-            max_error=self.config.precision,
-            max_rank=self.config.max_bond_dim,
+        self.autosave_file = self._get_autosave_filepath(self.config.autosave_prefix)
+        self.config.logger.warning(
+            f"""Will save simulation state to file "{self.autosave_file.name}"
+            every {self.config.autosave_dt} seconds.\n"""
+            f"""To resume: `MPSBackend().resume("{self.autosave_file}")`"""
         )
+        self.last_save_time = time.time()
+
+    @staticmethod
+    def _get_autosave_filepath(autosave_prefix: str) -> pathlib.Path:
+        return pathlib.Path(os.getcwd()) / (autosave_prefix + str(uuid.uuid1()) + ".dat")
 
     def init_dark_qubits(self) -> None:
         has_state_preparation_error: bool = (
@@ -112,8 +118,7 @@ class MPSBackendImpl:
         if initial_state is None:
             self.state = MPS.make(
                 self.qubit_count,
-                precision=self.config.precision,
-                max_bond_dim=self.config.max_bond_dim,
+                config=self.config,
                 num_gpus_to_use=self.config.num_gpus_to_use,
             )
             return
@@ -128,8 +133,7 @@ class MPSBackendImpl:
         initial_state = MPS(
             # Deep copy of every tensor of the initial state.
             [f.clone().detach() for f in initial_state.factors],
-            precision=self.config.precision,
-            max_bond_dim=self.config.max_bond_dim,
+            config=self.config,
             num_gpus_to_use=self.config.num_gpus_to_use,
         )
         initial_state.truncate()
@@ -198,7 +202,8 @@ class MPSBackendImpl:
                 ham_factor=self.hamiltonian.factors[index],
                 baths=baths,
                 dt=dt,
-                config=self.evolve_config,
+                config=self.config,
+                is_hermitian=not self.has_lindblad_noise,
             )
         else:
             assert orth_center_right is not None
@@ -213,8 +218,9 @@ class MPSBackendImpl:
                 ham_factors=self.hamiltonian.factors[l : r + 1],
                 baths=baths,
                 dt=dt,
-                config=self.evolve_config,
+                config=self.config,
                 orth_center_right=orth_center_right,
+                is_hermitian=not self.has_lindblad_noise,
             )
 
             self.state.orthogonality_center = r if orth_center_right else l
@@ -312,7 +318,7 @@ class MPSBackendImpl:
         else:
             raise Exception("Didn't expect this")
 
-        # TODO: checkpoint/autosave here
+        self.save_simulation()
 
     def tdvp_complete(self) -> None:
         self.current_time = self.target_time
@@ -342,6 +348,29 @@ class MPSBackendImpl:
 
         self.log_step_statistics(duration=time.time() - self.time)
         self.time = time.time()
+
+    def save_simulation(self) -> None:
+        if self.last_save_time > time.time() - self.config.autosave_dt:
+            return
+
+        basename = self.autosave_file
+        with open(basename.with_suffix(".new"), "wb") as file_handle:
+            pickle.dump(self, file_handle)
+
+        if basename.is_file():
+            os.rename(basename, basename.with_suffix(".bak"))
+
+        os.rename(basename.with_suffix(".new"), basename)
+        autosave_filesize = os.path.getsize(self.autosave_file) / 1e6
+
+        if basename.with_suffix(".bak").is_file():
+            os.remove(basename.with_suffix(".bak"))
+
+        self.last_save_time = time.time()
+
+        self.config.logger.debug(
+            f"Saved simulation state in file {self.autosave_file} ({autosave_filesize}MB)"
+        )
 
     def fill_results(self) -> None:
         normalized_state = 1 / self.state.norm() * self.state

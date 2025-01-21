@@ -285,6 +285,7 @@ def _get_interactions_to_keep(interaction_matrix: torch.Tensor) -> list[torch.Te
     returns a list of bool valued tensors,
     indicating which interaction terms to keep for each bond in the MPO
     """
+    interaction_matrix = interaction_matrix.clone()
     nqubits = interaction_matrix.size(dim=1)
     middle = nqubits // 2
     interaction_matrix += torch.eye(
