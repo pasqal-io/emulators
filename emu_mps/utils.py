@@ -3,7 +3,7 @@ import torch
 import random
 from collections import Counter
 
-DEVICE_COUNT = torch.cuda.device_count()
+from emu_mps import MPSConfig
 
 
 def new_left_bath(
@@ -61,8 +61,7 @@ def split_tensor(
 
 def truncate_impl(
     factors: list[torch.tensor],
-    max_error: float = 1e-5,
-    max_rank: int = 1024,
+    config: MPSConfig,
 ) -> None:
     """
     Eigenvalues-based truncation of a matrix product.
@@ -78,8 +77,8 @@ def truncate_impl(
 
         l, r = split_tensor(
             factors[i].reshape(factor_shape[0], -1),
-            max_error=max_error,
-            max_rank=max_rank,
+            max_error=config.precision,
+            max_rank=config.max_bond_dim,
             orth_center_right=False,
         )
 
@@ -241,7 +240,7 @@ def apply_measurement_errors(
     return result
 
 
-n_operator = torch.tensor(
+n_operator: torch.Tensor = torch.tensor(
     [
         [0, 0],
         [0, 1],

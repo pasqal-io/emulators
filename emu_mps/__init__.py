@@ -10,10 +10,10 @@ from emu_base import (
     StateResult,
     SecondMomentOfEnergy,
 )
+from .mps_config import MPSConfig
 from .mpo import MPO
 from .mps import MPS, inner
 from .mps_backend import MPSBackend
-from .mps_config import MPSConfig
 
 
 __all__ = [
