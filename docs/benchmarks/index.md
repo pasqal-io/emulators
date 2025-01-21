@@ -17,8 +17,8 @@ the resources needed to emulate a sequence **can be estimated** by providing som
 
 These quantities are represented, in the following plots:
 
-<img src="./benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
-<img src="./benchmark_plots/emumps_runtime_map.png"  width="49.7%">
+<img src="../benchmarks/benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
+<img src="../benchmarks/benchmark_plots/emumps_runtime_map.png"  width="49.7%">
 
 The RSS plot (left) shows the memory cost of the emulation.
 It is expected to stay constant at fixed bond dimension and thus represent the total memory occupation of the emulation of a sequence.
