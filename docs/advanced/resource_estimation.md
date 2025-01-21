@@ -38,17 +38,17 @@ Note that the baths take up more memory than the state, always, and potentially 
 
 ## Contribution from the Krylov space
 
-The remainder of the memory consumption is to compute the time-evolution of qubit pairs in TDVP. This is done by contracting 2 tensors from the MPS together into a single 2-qubit tensor, and time-evolving it by applying an effective Hamiltonian constructed from the baths and the Hamiltonian MPO. Each 2-qubit tensor has a size bounded by $sp^2d^2$, so the memory of the Krylov vectors used in the Lanczos algorithm is obeys
+The remainder of the memory consumption is to compute the time-evolution of qubit pairs in TDVP. This is done by contracting 2 tensors from the MPS together into a single 2-qubit tensor, and time-evolving it by applying an effective Hamiltonian constructed from the baths and the Hamiltonian MPO. Each 2-qubit tensor has a size bounded by $sp^2d^2$, so the memory of the Krylov vectors used in the Lanczos algorithm reads
 
 $$
 |\mathrm{krylov}| \leq ksp^2d^2 = 64*k*d^2
 $$
 
-where $k$ is the value of `max_krylov_dim`. Recall that the default value of $k = 100$ and if the Lanczos algorithm requires more Krylov vectors to converge to the tolerance, it will error, rather than exceed the above bound.
+where $k$ is the value of `max_krylov_dim`. Recall that the default value of $k=100$ and if the Lanczos algorithm requires more Krylov vectors to converge to the tolerance, it will error, rather than exceed the above bound.
 
 ## Contribution from temporary tensors
 
-Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. The intermediate results takes the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$, where
+Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. The intermediate results take the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$, where
 
 $$
 |\mathrm{intermediate}| = 2*shp^2d^2 = 128hd^2
@@ -64,7 +64,7 @@ $$
  m(N,\chi,k) = |\psi| + |\mathrm{bath}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32Nd^2 + 4d^2N(N+10) + 64*k*d^2 + 64(N+4)d^2 = 4d^2[N(N+34) + 16k + 64]
 $$
 
-Note that this estimate is **pessimistic**, since not all $k$ krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $d$ is probably attained at the center qubit.
+Note that this estimate is **pessimistic**, since not all $k$ Krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $d$ is probably attained at the center qubit.
 
 To test the accuracy of the above memory estimations, we run the TDVP time evolution algorithm, fixing the bond dimension to a particular desired value.
 For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $chi$, we collect the maximum resident size, or RSS, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=30$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of qubit number and bond dimensions.
@@ -78,7 +78,7 @@ Therefore, above, we show (right image) the contour lines of the RSS estimate $m
 
 ## An example
 
-For example, the results from the [case study](convergence.md) were obtained using $N=49$ and $d=1600$ on 2 GPUs. Taking the above formula, and halving the contributions from $\psi$ and $|\mathrm{bath}|$ since they are split evenly on the gpu's, we reproduce the memory consumption of the program for $k=13$. Notice that the actual number of Krylov vectors required to reach convergence is likely closer to around $30$, but here we underestimate it, since the contributions of $\psi$ and $|\mathrm{bath}|$ are over-estimated.
+For example, the results from the [case study](convergence.md) were obtained using $N=49$ and $d=1600$ on 2 GPUs. Taking the above formula, and halving the contributions from $\psi$ and $|\mathrm{bath}|$ since they are split evenly on the GPUs, we reproduce the memory consumption of the program for $k=13$. Notice that the actual number of Krylov vectors required to reach convergence is likely closer to around $30$, but here we underestimate it, since the contributions of $\psi$ and $|\mathrm{bath}|$ are over-estimated.
 
 
 # Estimating the runtime of a simulation
@@ -94,7 +94,7 @@ Importantly, another significant contribution to the runtime can come from compu
 
 Roughly, bath computation involves the represented tensor network contraction:
 
-<img src="../benchmarks/benchmark_plots/tdvp_complexity_bath.png" class="center" width="49.7%">
+<img src="../benchmarks/figures/tdvp_complexity_bath.png" class="center" width="49.7%">
 
 Each of these tensor multiplication takes respectively $O(ph\chi^3)$, $O(p^2h^2\chi^2)$, and $O(ph\chi^3)$. In an all-to-all Rydberg interaction, we already argued that the bond dimension of the Hamiltonian MPO should scale as the number of atoms. Moreover, the left and right baths need to be computed roughly N times, thus the overall expected complexity is $O(N^2\chi^3) + O(N^3\chi^2)$.
 
@@ -102,7 +102,7 @@ Each of these tensor multiplication takes respectively $O(ph\chi^3)$, $O(p^2h^2\
 
 Applying the effective two-body Hamiltonian is slightly a more involved tensor network contraction:
 
-<img src="../benchmarks/benchmark_plots/tdvp_complexity_apply_eff_ham.png" class="center" width="49.7%">
+<img src="../benchmarks/figures/tdvp_complexity_apply_eff_ham.png" class="center" width="49.7%">
 
 In steps, it is composed by applying:
 - the left bath: $O(p^2h\chi^3)$
@@ -115,7 +115,7 @@ For every pair, this requires $O(N\chi^3)$ to be done.
 Overall, the expected complexity is thus $O(kN^2\chi^3) + O(kN^3\chi^2) + O(N\chi^3)$.
 
 ## Benchmarking runtime
-From the previous complexity estimations, we thus expect the complexity of the two-sites TDVP algorithm to have two contributions
+From the previous complexity estimations, we thus expect the complexity of the two-sites TDVP algorithm to have two main contributions
 
 $$\Delta t_{\text{TDVP}}(N,\chi,k)\sim \alpha N^2\chi^3 + \beta N^3\chi^2$$
 
