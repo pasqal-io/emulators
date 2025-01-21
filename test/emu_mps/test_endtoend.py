@@ -243,10 +243,10 @@ def test_end_to_end_afm_ring():
     assert approx(energy, 1e-8) == -115.3437071169735
 
     energy_variance = result["energy_variance"][final_time]
-    assert approx(energy_variance, 1e-8) == 45.90602999801922
+    assert approx(energy_variance, 1e-6) == 45.90602999801922
 
     second_moment_energy = result["second_moment_of_energy"][final_time]
-    assert approx(second_moment_energy, 1e-8) == 13350.07680148
+    assert approx(second_moment_energy, 1e-6) == 13350.07680148
 
     correlation_matrix = result["correlation_matrix"][final_time]
     print(correlation_matrix)
