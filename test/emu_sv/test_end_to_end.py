@@ -155,8 +155,13 @@ def test_end_to_end_afm_ring():
     energy = result["energy"][final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
     assert approx(energy, 1e-8) == -115.34554274708604
 
+<<<<<<< HEAD
     # energy_variance = result["energy_variance"][final_time]  # 45.911110563993134
     # assert approx(energy_variance) == 45.91111056399
+=======
+    #energy_variance = result["energy_variance"][final_time]  # 45.911110563993134
+    #assert approx(energy_variance) == 45.91111056399
+>>>>>>> deaecbc2b859b3691cd101ef43dc91154eed19c3
 
     second_moment_energy = result["second_moment_of_energy"][
         final_time
