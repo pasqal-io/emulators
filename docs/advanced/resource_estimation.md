@@ -18,7 +18,7 @@ $$
 2,4,8,16...,16,8,4,2
 $$
 
-in which case an MPS will take __more__ memory than a state vector. When `max_bond_dim < 2^{nqubits/2}` the bond dimensions in the center all cap at `max_bond_dim`. Let $d$ denote the value of `max_bond_dim`. Since each tensor in the MPS has 2 bonds of size at most $\chi$, and a physical index of size $p=2$, where each element in the tensor takes $s=16$ bytes (2 8-byte floats to store a complex number), the memory consumption of the state
+in which case an MPS will take __more__ memory than a state vector. When `max_bond_dim < 2^{N/2}` the bond dimensions in the center all cap at `max_bond_dim`. Let $\chi$ denote the value of `max_bond_dim`. Since each tensor in the MPS has 2 bonds of size at most $\chi$, and a physical index of size $p=2$, where each element in the tensor takes $s=16$ bytes (2 8-byte floats to store a complex number), the memory consumption of the state
 
 $$
 |\psi| < spN\chi^2 = 32N\chi^2
@@ -94,7 +94,7 @@ Importantly, another significant contribution to the runtime can come from compu
 
 Roughly, bath computation involves the represented tensor network contraction:
 
-<img src="../../benchmarks/figures/tdvp_complexity_bath.png" width="100%">
+<img src="../../benchmarks/figures/tdvp_complexity_bath.png">
 
 Each of these tensor multiplication takes respectively $O(ph\chi^3)$, $O(p^2h^2\chi^2)$, and $O(ph\chi^3)$. In an all-to-all Rydberg interaction, we already argued that the bond dimension of the Hamiltonian MPO should scale as the number of atoms. Moreover, the left and right baths need to be computed roughly N times, thus the overall expected complexity is $O(N^2\chi^3) + O(N^3\chi^2)$.
 
@@ -102,9 +102,10 @@ Each of these tensor multiplication takes respectively $O(ph\chi^3)$, $O(p^2h^2\
 
 Applying the effective two-body Hamiltonian is slightly a more involved tensor network contraction:
 
-<img src="../../benchmarks/figures/tdvp_complexity_apply_eff_ham.png" width="100%">
+<img src="../../benchmarks/figures/tdvp_complexity_apply_eff_ham.png">
 
 In steps, it is composed by applying:
+
 - the left bath: $O(p^2h\chi^3)$
 - a two-body term coming form the MPO Hamiltonian: $O(p^4h^2\chi^2)$
 - the right bath: $O(p^2h\chi^3)$
