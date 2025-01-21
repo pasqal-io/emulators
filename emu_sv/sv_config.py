@@ -74,7 +74,7 @@ class SVConfig(BackendConfig):
         self.gpu = gpu
         self.krylov_tolerance = krylov_tolerance
 
-        for num,obs in enumerate(self.callbacks):
+        for num,obs in enumerate(self.callbacks): # monkey patch 
             obs_copy = copy.deepcopy(obs)
             if isinstance(obs, QubitDensity): 
                 obs_copy.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
