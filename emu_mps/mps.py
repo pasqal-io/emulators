@@ -50,8 +50,7 @@ class MPS(State):
                 of the data to this constructor, or some shared objects.
             orthogonality_center: the orthogonality center of the MPS, or None (in which case
                 it will be orthogonalized when needed)
-            precision: the precision with which to truncate here or in tdvp
-            max_bond_dim: the maximum bond dimension to allow
+            config: the emu-mps config object passed to the run method
             num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu, None=keep the existing device assignment.
         """
