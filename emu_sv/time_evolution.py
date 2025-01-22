@@ -11,7 +11,7 @@ def do_time_step(
     full_interaction_matrix: torch.Tensor,
     state_vector: torch.Tensor,
     krylov_tolerance: float,
-) -> torch.Tensor:
+) -> tuple[torch.Tensor, RydbergHamiltonian]:
     ham = RydbergHamiltonian(
         omegas=omega,
         deltas=delta,
