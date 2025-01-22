@@ -62,8 +62,8 @@ def test_custom_correlation():
     config = SVConfig()
     operator_mock = MagicMock(spec=DenseOperator)
     H_mock = operator_mock.return_value
-    MockCorrelation = MagicMock(spec=CorrelationMatrix)
-    correlation_mock = MockCorrelation.return_value
+    correlation_matrix_mock = MagicMock(spec=CorrelationMatrix)
+    correlation_mock = correlation_matrix_mock.return_value
     t = 1
     correlation = correlation_matrix_sv_impl(correlation_mock, config, t, state, H_mock)
 
