@@ -1,11 +1,10 @@
 import torch
 from emu_base.math import krylov_exp
-from emu_mps import MPS, MPO
+from emu_mps import MPS, MPO, MPSConfig
 from emu_mps.tdvp import (
     apply_effective_Hamiltonian,
     right_baths,
     evolve_single,
-    EvolveConfig,
     evolve_pair,
 )
 
@@ -196,11 +195,11 @@ def test_evolve_single():
     state_factor = torch.rand(3, 2, 4, dtype=torch.complex128)
     ham_factor = torch.rand(4, 2, 2, 5, dtype=torch.complex128)
 
-    op = torch.einsum("abc,bdef,gfh->cehadg", left_bath, ham_factor, right_bath).reshape(
+    op = torch.einsum("abc,bdef,gfh->adgceh", left_bath, ham_factor, right_bath).reshape(
         3 * 2 * 4, -1
     )
 
-    dt = 0.0001
+    dt = 10
 
     exp_op = torch.linalg.matrix_exp(-1j * 0.001 * dt * op)
 
@@ -211,17 +210,13 @@ def test_evolve_single():
         baths=(left_bath, right_bath),
         ham_factor=ham_factor,
         dt=dt,
-        config=EvolveConfig(
-            exp_tolerance=1e-10,
-            norm_tolerance=1e-10,
-            max_krylov_dim=1000,
-            is_hermitian=False,
-            max_error=1e-10,
-            max_rank=100,  # FIXME: max_error and max_rank are irrelevant for evolve_single
+        config=MPSConfig(
+            max_bond_dim=10,
         ),
+        is_hermitian=False,
     )
 
-    assert torch.allclose(expected, actual, atol=1e-4)
+    assert torch.allclose(expected, actual, rtol=0, atol=1e-8)
 
 
 def test_evolve_pair():
@@ -233,14 +228,14 @@ def test_evolve_pair():
     right_ham_factor = torch.rand(5, 2, 2, 6, dtype=torch.complex128)
 
     op = torch.einsum(
-        "abc,bdef,fghi,jik->cehkadgj",
+        "abc,bdef,fghi,jik->adgjcehk",
         left_bath,
         left_ham_factor,
         right_ham_factor,
         right_bath,
     ).reshape(3 * 2 * 2 * 5, -1)
 
-    dt = 0.0001
+    dt = 10
 
     exp_op = torch.linalg.matrix_exp(-1j * 0.001 * dt * op)
 
@@ -251,21 +246,17 @@ def test_evolve_pair():
     ).reshape(3, 2, 2, 5)
 
     actual_left, actual_right = evolve_pair(
-        state_factors=(left_state_factor, right_state_factor),
+        state_factors=[left_state_factor, right_state_factor],
         baths=(left_bath, right_bath),
-        ham_factors=(left_ham_factor, right_ham_factor),
+        ham_factors=[left_ham_factor, right_ham_factor],
         dt=dt,
-        config=EvolveConfig(
-            exp_tolerance=1e-10,
-            norm_tolerance=1e-10,
-            max_krylov_dim=1000,
-            is_hermitian=False,
-            max_error=1e-10,
-            max_rank=1000,  # FIXME: max_error and max_rank are irrelevant for evolve_single
+        config=MPSConfig(
+            max_bond_dim=10,
         ),
+        is_hermitian=False,
         orth_center_right=False,
     )
 
     actual = torch.tensordot(actual_left, actual_right, dims=1)
 
-    assert torch.allclose(expected, actual, atol=1e-3)
+    assert torch.allclose(expected, actual, rtol=0, atol=1e-8)

@@ -261,6 +261,7 @@ def test_from_string_not_normalized_state(mock_print, zero, one):
             dtype=torch.complex128,
             device=afm_mps_state_normalized.factors[0].device,
         ),
+        rtol=0,
         atol=1e-4,
     )
     assert torch.allclose(

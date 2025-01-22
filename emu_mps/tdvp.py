@@ -3,6 +3,7 @@ import torch
 from emu_base import krylov_exp
 from emu_mps import MPS, MPO
 from emu_mps.utils import split_tensor
+from emu_mps.mps_config import MPSConfig
 
 
 def new_right_bath(
@@ -79,27 +80,6 @@ def apply_effective_Hamiltonian(
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
 
 
-class EvolveConfig:
-    def __init__(
-        self,
-        *,
-        exp_tolerance: float,
-        norm_tolerance: float,
-        max_krylov_dim: int,
-        is_hermitian: bool,
-        max_error: float,
-        max_rank: int
-    ) -> None:
-        self.exp_tolerance = exp_tolerance
-        self.norm_tolerance = norm_tolerance
-        self.max_krylov_dim = max_krylov_dim
-        self.is_hermitian = is_hermitian
-        self.max_error = (
-            max_error  # FIXME: max_error and max_rank are irrelevant for evolve_single
-        )
-        self.max_rank = max_rank
-
-
 def evolve_pair(
     *,
     state_factors: list[torch.Tensor],
@@ -107,7 +87,8 @@ def evolve_pair(
     ham_factors: list[torch.Tensor],
     dt: float,
     orth_center_right: bool,
-    config: EvolveConfig
+    is_hermitian: bool,
+    config: MPSConfig,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Time evolution of a pair of tensors of a tensor train using baths and truncated SVD.
@@ -154,16 +135,16 @@ def evolve_pair(
     evol = krylov_exp(
         op,
         combined_state_factors,
-        exp_tolerance=config.exp_tolerance,
-        norm_tolerance=config.norm_tolerance,
+        exp_tolerance=config.precision * config.extra_krylov_tolerance,
+        norm_tolerance=config.precision * config.extra_krylov_tolerance,
         max_krylov_dim=config.max_krylov_dim,
-        is_hermitian=config.is_hermitian,
+        is_hermitian=is_hermitian,
     ).reshape(left_bond_dim * 2, 2 * right_bond_dim)
 
     l, r = split_tensor(
         evol,
-        max_error=config.max_error,
-        max_rank=config.max_rank,
+        max_error=config.precision,
+        max_rank=config.max_bond_dim,
         orth_center_right=orth_center_right,
     )
 
@@ -178,7 +159,8 @@ def evolve_single(
     baths: tuple[torch.Tensor, torch.Tensor],
     ham_factor: torch.Tensor,
     dt: float,
-    config: EvolveConfig
+    is_hermitian: bool,
+    config: MPSConfig,
 ) -> torch.Tensor:
     """
     Time evolution of a single tensor of a tensor train using baths.
@@ -202,8 +184,8 @@ def evolve_single(
     return krylov_exp(
         op,
         state_factor,
-        exp_tolerance=config.exp_tolerance,
-        norm_tolerance=config.norm_tolerance,
+        exp_tolerance=config.precision * config.extra_krylov_tolerance,
+        norm_tolerance=config.precision * config.extra_krylov_tolerance,
         max_krylov_dim=config.max_krylov_dim,
-        is_hermitian=config.is_hermitian,
+        is_hermitian=is_hermitian,
     )

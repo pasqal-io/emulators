@@ -8,3 +8,4 @@ mkdocs-exclude
 notebook<7
 markdown-exec
 jupyter_contrib_nbextensions
+mike

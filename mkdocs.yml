@@ -1,5 +1,5 @@
 site_name: Emu-MPS
-repo_url: "https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct"
+repo_url: "https://github.com/pasqal-io/emulators"
 repo_name: "emu-mps"
 
 nav:
@@ -112,3 +112,7 @@ extra_javascript:
 watch:
   - emu_base
   - emu_mps
+
+extra:
+  version:
+    provider: mike

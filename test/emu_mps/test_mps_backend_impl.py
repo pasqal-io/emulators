@@ -241,8 +241,8 @@ def test_init_initial_state_default(pick_well_prepared_qubits_mock):
         torch.allclose(factor1, factor2)
         for factor1, factor2 in zip(expected.factors, victim.state.factors)
     )
-    assert victim.state.precision == 0.001
-    assert victim.state.max_bond_dim == 100
+    assert victim.state.config.precision == 0.001
+    assert victim.state.config.max_bond_dim == 100
 
 
 def test_init_initial_state_provided_filter():

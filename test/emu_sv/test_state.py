@@ -36,7 +36,7 @@ def test_inner_algebra_sample():
         [1.0 / factor, -factor, 0.0, 0.0, 0.0, 0.0, 0.0, -1 / factor], dtype=dtype
     )
 
-    assert torch.allclose(add_result.vector, add_expected, atol=1e-7)
+    assert torch.allclose(add_result.vector, add_expected, rtol=0, atol=1e-6)
 
     torch.manual_seed(seed)
     sampling1 = state1.sample(1000)

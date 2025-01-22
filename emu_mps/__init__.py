@@ -10,10 +10,10 @@ from emu_base import (
     StateResult,
     SecondMomentOfEnergy,
 )
+from .mps_config import MPSConfig
 from .mpo import MPO
 from .mps import MPS, inner
 from .mps_backend import MPSBackend
-from .mps_config import MPSConfig
 
 
 __all__ = [
@@ -35,4 +35,4 @@ __all__ = [
     "SecondMomentOfEnergy",
 ]
 
-__version__ = "1.2.0"
+__version__ = "1.2.3"
