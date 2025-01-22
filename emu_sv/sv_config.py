@@ -13,10 +13,10 @@ from emu_sv import StateVector
 from typing import Any
 
 from emu_sv.custom_callback_implementations import (
-    custom_qubit_density,
-    custom_energy_variance,
-    custom_second_momentum_energy,
-    custom_correlation_matrix,
+    qubit_density_sv_impl,
+    energy_variance_sv_impl,
+    second_momentum_sv_impl,
+    correlation_matrix_sv_impl,
 )
 
 from types import MethodType
@@ -69,14 +69,14 @@ class SVConfig(BackendConfig):
         for num, obs in enumerate(self.callbacks):  # monkey patch
             obs_copy = copy.deepcopy(obs)
             if isinstance(obs, QubitDensity):
-                obs_copy.apply = MethodType(custom_qubit_density, obs)  # type: ignore[method-assign]
+                obs_copy.apply = MethodType(qubit_density_sv_impl, obs)  # type: ignore[method-assign]
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, EnergyVariance):
-                obs_copy.apply = MethodType(custom_energy_variance, obs)  # type: ignore[method-assign]
+                obs_copy.apply = MethodType(energy_variance_sv_impl, obs)  # type: ignore[method-assign]
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, SecondMomentOfEnergy):
-                obs_copy.apply = MethodType(custom_second_momentum_energy, obs)  # type: ignore[method-assign]
+                obs_copy.apply = MethodType(second_momentum_sv_impl, obs)  # type: ignore[method-assign]
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, CorrelationMatrix):
-                obs_copy.apply = MethodType(custom_correlation_matrix, obs)  # type: ignore[method-assign]
+                obs_copy.apply = MethodType(correlation_matrix_sv_impl, obs)  # type: ignore[method-assign]
                 self.callbacks[num] = obs_copy

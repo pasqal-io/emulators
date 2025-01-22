@@ -3,10 +3,10 @@ from emu_sv.state_vector import StateVector
 from emu_sv.dense_operator import DenseOperator
 from emu_sv.sv_config import SVConfig
 from emu_sv.custom_callback_implementations import (
-    custom_qubit_density,
-    custom_correlation_matrix,
-    custom_energy_variance,
-    custom_second_momentum_energy,
+    qubit_density_sv_impl,
+    correlation_matrix_sv_impl,
+    energy_variance_sv_impl,
+    second_momentum_sv_impl,
 )
 from emu_base.base_classes.default_callbacks import (
     QubitDensity,
@@ -46,7 +46,7 @@ def test_custom_qubit_density():
 
     t = 1
 
-    qubit_density = custom_qubit_density(qubit_density_mock, config, t, state, H_mock)
+    qubit_density = qubit_density_sv_impl(qubit_density_mock, config, t, state, H_mock)
     expected = [0.5] * num_qubits
     assert qubit_density == approx(expected, abs=1e-8)
 
@@ -65,7 +65,7 @@ def test_custom_correlation():
     MockCorrelation = MagicMock(spec=CorrelationMatrix)
     correlation_mock = MockCorrelation.return_value
     t = 1
-    correlation = custom_correlation_matrix(correlation_mock, config, t, state, H_mock)
+    correlation = correlation_matrix_sv_impl(correlation_mock, config, t, state, H_mock)
 
     expected = []
     for qubiti in range(num_qubits):
@@ -107,7 +107,7 @@ def test_custom_energy_and_variance_and_second():
     energy_mock = MagicMock(spec=EnergyVariance)
     energy_variance_mock = energy_mock.return_value
 
-    energy_variance = custom_energy_variance(
+    energy_variance = energy_variance_sv_impl(
         energy_variance_mock, config, t, state, h_rydberg
     )
     expected_varaince = 3.67378968943955
@@ -117,7 +117,7 @@ def test_custom_energy_and_variance_and_second():
     second_momentum_energy_mock = MagicMock(spec=SecondMomentOfEnergy)
     second_momentum_mock = second_momentum_energy_mock.return_value
 
-    second_momentum = custom_second_momentum_energy(
+    second_momentum = second_momentum_sv_impl(
         second_momentum_mock, config, t, state, h_rydberg
     )
     expected_second = 4.2188228611101

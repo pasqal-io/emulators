@@ -16,7 +16,7 @@ from emu_sv import StateVector
 from emu_sv.hamiltonian import RydbergHamiltonian
 
 
-def custom_qubit_density(
+def qubit_density_sv_impl(
     self: QubitDensity, config: BackendConfig, t: int, state: StateVector, H: Operator
 ) -> Any:
 
@@ -25,7 +25,7 @@ def custom_qubit_density(
     return [(state_tensor.select(i, 1).norm() ** 2).item() for i in range(num_qubits)]
 
 
-def custom_correlation_matrix(
+def correlation_matrix_sv_impl(
     self: CorrelationMatrix,
     config: BackendConfig,
     t: int,
@@ -52,7 +52,7 @@ def custom_correlation_matrix(
     return correlation_matrix
 
 
-def custom_energy_variance(
+def energy_variance_sv_impl(
     self: EnergyVariance,
     config: BackendConfig,
     t: int,
@@ -65,7 +65,7 @@ def custom_energy_variance(
     return (h_squared.real - h_state.real**2).item()
 
 
-def custom_second_momentum_energy(
+def second_momentum_sv_impl(
     self: SecondMomentOfEnergy,
     config: BackendConfig,
     t: int,
