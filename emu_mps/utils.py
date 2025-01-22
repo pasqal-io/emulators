@@ -12,15 +12,16 @@ def new_left_bath(
     # this order is more efficient than contracting the op first in general
     bath = torch.tensordot(bath, state.conj(), ([0], [0]))
     bath = torch.tensordot(bath, op.to(bath.device), ([0, 2], [0, 1]))
-    return torch.tensordot(bath, state, ([0, 2], [0, 1]))
+    bath = torch.tensordot(bath, state, ([0, 2], [0, 1]))
+    return bath
 
 
 def _determine_cutoff_index(d: torch.Tensor, max_error: float) -> int:
     assert max_error > 0
     squared_max_error = max_error * max_error
-    acc = 0
+    acc = 0.0
     for i in range(d.shape[0]):
-        acc += d[i]
+        acc += d[i].item()
         if acc > squared_max_error:
             return i
     return 0  # type: ignore[no-any-return]
@@ -60,7 +61,7 @@ def split_tensor(
 
 
 def truncate_impl(
-    factors: list[torch.tensor],
+    factors: list[torch.Tensor],
     config: MPSConfig,
 ) -> None:
     """

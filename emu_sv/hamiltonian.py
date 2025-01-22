@@ -47,7 +47,7 @@ class RydbergHamiltonian:
         omegas: torch.Tensor,
         deltas: torch.Tensor,
         interaction_matrix: torch.Tensor,
-        device: torch.DeviceObjType,
+        device: torch.device,
     ):
         self.nqubits: int = len(omegas)
         self.omegas: torch.Tensor = omegas / 2.0
