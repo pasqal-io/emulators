@@ -73,7 +73,7 @@ def test_forward():
     h = sv_hamiltonian(interactions, omega, delta).to(device)
     dt = 1.0
     ed = torch.linalg.matrix_exp(-1j * dt * h) @ state
-    krylov = do_time_step(
+    krylov, _ = do_time_step(
         dt,
         omega,
         delta,

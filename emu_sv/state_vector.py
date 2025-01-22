@@ -109,7 +109,7 @@ class StateVector(State):
         tensor([1.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
         """
 
-        device = "gpu" if gpu else "cpu"
+        device = "cuda" if gpu else "cpu"
         ground_state = torch.zeros(2**num_sites, dtype=dtype, device=device)
         ground_state[0] = torch.tensor(1.0, dtype=dtype, device=device)
         return cls(ground_state)
