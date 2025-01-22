@@ -1,14 +1,13 @@
 # Estimating the memory consumption of a simulation
 
-The presence of the `max_bond_dim` and `max_krylov_dim` [config](config.md) parameters means an upper bound on memory consumption can be computed. By limiting the `max_bond_dim` of a simulation, it can be guaranteed to run for arbitrary times for an arbitrary number of qubits. Of course, the sources of error described on the [error page](errors.md) imply that limiting the memory consumption of the program will negatively impact the quality of the results once a certain threshold is exceeded. The page in [this link](convergence.md) outlines a case study to determine whether emulation results are accurate. This page will outline how to estimate the memory consumption of a simulation, given `max_bond_dim`, `max_krylov_dim` and $N$, the latter being the number of qubits to be simulated.
+The presence of the `max_bond_dim` and `max_krylov_dim` [config](config.md) parameters means an upper bound on memory consumption can be computed. By limiting the `max_bond_dim` of a simulation to make it fit in the available hardware memory, it can be guaranteed to run for arbitrary times for an arbitrary number of qubits. Of course, the sources of error described on the [error page](errors.md) imply that limiting the memory consumption of the program will negatively impact the quality of the results once a certain threshold is exceeded. The page in [this link](convergence.md) outlines a case study to determine whether emulation results are accurate. This page will outline how to estimate the memory consumption of a simulation, for a given `max_bond_dim`, a Krylov subspace of size `max_krylov_dim`, and for $N$ being the number of qubits to be simulated.
 
-There are four contributions to the peak memory consumption of EMU-MPS
+There are four contributions to the peak memory consumption of EMU-MPS that will be discussed in the next sections:
 
 - the state
 - the baths
-- the krylov space
+- the Krylov space
 - temporary tensors
-
 
 ## Contribution from the state
 
@@ -18,7 +17,8 @@ $$
 2,4,8,16...,16,8,4,2
 $$
 
-in which case an MPS will take __more__ memory than a state vector. When `max_bond_dim < 2^{N/2}` the bond dimensions in the center all cap at `max_bond_dim`. Let $\chi$ denote the value of `max_bond_dim`. Since each tensor in the MPS has 2 bonds of size at most $\chi$, and a physical index of size $p=2$, where each element in the tensor takes $s=16$ bytes (2 8-byte floats to store a complex number), the memory consumption of the state
+in which case an MPS will take __more__ memory than a state vector. Let $\chi$ denote the value of `max_bond_dim`.
+When $\chi<2^{N/2}$, the bond dimensions in the center all cap at that fixed value of `max_bond_dim`.  Since each tensor in the MPS has 2 bonds of size at most $\chi$, and a physical index of size $p=2$, where each element in the tensor takes $s=16$ bytes (2 8-byte floats to store a complex number), the memory consumption of the state reads
 
 $$
 |\psi| < spN\chi^2 = 32N\chi^2
@@ -28,20 +28,21 @@ Note that this is a strict over-estimation because the outer bonds in the MPS wi
 
 ## Contribution from the baths
 
-For TDVP, for each qubit a bath tensor is stored which has 3 indices whose size depends on the state that is evolved, and on the Hamiltonian. The bath tensors are used to compute an effective interaction between the 2-qubit subsystem being evolved, and the rest of the system ([see here](tdvp.md)). The computation is slightly involved, but the result is as follows.
+For TDVP, for each qubit a left and a right bath tensor is stored. The bath tensors are used to compute an effective interaction between the 2-qubit subsystem being evolved, and the rest of the system ([see here](tdvp.md)). Each of them has 3 indices. Two of them will have a size that depends on the state that is evolved, here upper bounded by the maximum allowed value $\chi$ for the bond dimension. For the third, the size $h$ will depend on the interaction type. In concrete, for each qubit, $h$ will be the bond dimension of the [MPO representation](../advanced/hamiltonian.md) of the Hamiltonian.
+In summary, for the Rydberg Hamiltonian we expect that $h=2+\text{floor}(n/2)$, and for the XY Hamiltonian that $h=2+2\text{floor}(n/2)$, where in both cases $n=\text{min}(i,N-i)$ for qubit $i$. The computation is slightly involved, but summing all the contributions leads to a total memory occupation of the baths:
 
 $$
-|\mathrm{bath}| < s\chi^2N[N+10]/4 = 4\chi^2N(N+10)
+|\mathrm{bath}| < N \times s\chi^2h = 4\chi^2N(N+10)
 $$
 
-Note that the baths take up more memory than the state, always, and potentially much more. Furthermore, just as for the state this is a strict over-estimation, because it assumes all the bonds in the state are of size $d$.
+Note that the baths take up more memory than the state, always, and potentially much more. Furthermore, just as for the state this is a strict over-estimation, because it assumes all the bonds in the state are of size $\chi$.
 
 ## Contribution from the Krylov space
 
 The remainder of the memory consumption is to compute the time-evolution of qubit pairs in TDVP. This is done by contracting 2 tensors from the MPS together into a single 2-qubit tensor, and time-evolving it by applying an effective Hamiltonian constructed from the baths and the Hamiltonian MPO. Each 2-qubit tensor has a size bounded by $sp^2\chi^2$, so the memory of the Krylov vectors used in the Lanczos algorithm reads
 
 $$
-|\mathrm{krylov}| \leq ksp^2\chi^2 = 64*k*\chi^2
+|\mathrm{krylov}| \leq ksp^2\chi^2 = 64k\chi^2
 $$
 
 where $k$ is the value of `max_krylov_dim`. Recall that the default value of $k=100$ and if the Lanczos algorithm requires more Krylov vectors to converge to the tolerance, it will error, rather than exceed the above bound.
@@ -54,7 +55,7 @@ $$
 |\mathrm{intermediate}| = 2*shp^2\chi^2 = 128h\chi^2
 $$
 
-It should be noted that the value of $h$ cited above assumes that all qubits in the system interact via a two-body term, which is technically true for the Rydberg interaction. When some of these interaction terms can be neglected, the value of $h$ can be reduced, leading to significant memory savings in $|intermediate|$ and $|bath|$. These optimizations have yet to be performed.
+It should be noted that the value of $h$ cited above assumes that all qubits in the system interact via a two-body term, which is technically true for the Rydberg interaction.
 
 ## Benchmarking memory footprint
 
