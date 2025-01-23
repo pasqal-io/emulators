@@ -167,11 +167,17 @@ def minimize_bandwidth(matrix: np.ndarray) -> list[int]:
     >>> minimize_bandwidth(matrix)
     [0, 1, 2, 3, 4]
     """
-    mat = matrix.copy()
-    permutations: list[list[int]] = []
+    if not np.allclose(matrix, matrix.T, atol=1e-8):
+        raise ValueError("Input matrix should be symmetric")
+    mat = abs(
+        matrix.copy()
+    )  # sanitizer for cuthill-mckee. We are interested in strength of the interaction, not sign
 
-    trivial_permutation = list(range(matrix.shape[0]))
-    trivial_permutation.reverse()
+    acc_permutation = list(
+        range(matrix.shape[0])
+    )  # start with trivial permutation [0, 1, 2, ...]
+
+    bandwidth = matrix_bandwidth(mat)
 
     counter = 100
     while True:
@@ -184,22 +190,17 @@ def minimize_bandwidth(matrix: np.ndarray) -> list[int]:
         counter -= 1
 
         optimal_perm = minimize_bandwidth_global(mat)
-        if optimal_perm == trivial_permutation:
-            # when the search converges, it suggests
-            # a permutation [N, N-1, .., 3, 2, 1, 0]
-            # which corresponds to the trivial order inversion
+        test_mat = permute_matrix(mat, optimal_perm)
+        new_bandwidth = matrix_bandwidth(test_mat)
+
+        if bandwidth <= new_bandwidth:
             break
 
-        permutations.append(optimal_perm)
-        mat = permute_matrix(mat, optimal_perm)
+        mat = test_mat
+        acc_permutation = permute_list(acc_permutation, optimal_perm)
+        bandwidth = new_bandwidth
 
-    composition_permutation = list(
-        range(matrix.shape[0])
-    )  # start with trivial permutation
-    for perm in permutations:
-        composition_permutation = permute_list(composition_permutation, perm)
-
-    return composition_permutation
+    return acc_permutation
 
 
 if __name__ == "__main__":

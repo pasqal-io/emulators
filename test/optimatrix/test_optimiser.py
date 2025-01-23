@@ -65,15 +65,6 @@ def test_matrix_bandwidth() -> None:
 
 @pytest.mark.parametrize("N", [10, 20, 30])
 def test_minimize_bandwidth_global(N: int) -> None:
-    def test_symmetric(matrix: np.ndarray) -> None:
-        with pytest.raises(ValueError) as exc_msg:
-            optimiser.minimize_bandwidth_global(matrix)
-        assert str(exc_msg.value) == "Input matrix should be symmetric"
-
-    mat = np.random.rand(N, N)
-    mat[0, N - 1] = N  # just a number to break symmetric condition
-    test_symmetric(mat)
-
     # Test shuffled 1D ising chain which is described by tridiagonal matrix {1, 0 , 1}
     mat = np.diag([1] * (N - 1), k=1)
     mat += np.diag([1] * (N - 1), k=-1)
@@ -84,6 +75,13 @@ def test_minimize_bandwidth_global(N: int) -> None:
 
 @pytest.mark.parametrize("N", [10, 20, 30])
 def test_minimize_bandwidth(N: int) -> None:
+    #Test sanytizer of symmetric matrices
+    mat = np.random.rand(N, N)
+    mat[0, N - 1] *= -1.0  # just a sign to break symmetric condition
+    with pytest.raises(ValueError) as exc_msg:
+        optimiser.minimize_bandwidth(mat)
+    assert str(exc_msg.value) == "Input matrix should be symmetric"
+    
     def random_permute_matrix(mat: np.ndarray) -> np.ndarray:
         s = mat.shape[0]
         perm_random = random.sample(list(range(s)), s)
