@@ -4,7 +4,7 @@
   # Emu-MPS
 </div>
 
-**EMU-MPS** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io). EMU-MPS lets you transparently run Quantum Algorithms on a simulated device, using GPU acceleration if available. More in depth, EMU-MPS is designed to **EMU**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**MPS**). This design makes it faster and more memory-efficient than previous generations of quantum emulators, which means that you can emulate systems with larger number of qubits, faster.
+**EMU-MPS** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io). EMU-MPS lets you transparently run Quantum Algorithms on a simulated device, using GPU acceleration if available. More in depth, EMU-MPS is designed to **EMU**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**MPS**). While benchmarking is incomplete as of this writing, early results suggest that this design makes EMU-MPS faster and more memory-efficient than previous generations of quantum emulators at running simulations with large numbers of qubits.
 
 ## Installation
 
@@ -59,15 +59,10 @@ Join us on [Slack](https://pasqalworkspace.slack.com/archives/C07MUV5K7EU) or by
 ## Usage
 
 For the time being, the easiest way to learn how to use this package is to look
-at the [examples](examples/emu_mps_examples).
+at the [examples](examples/emu_mps_examples) and [notebooks](https://pasqal-io.github.io/emulators/latest/).
 
-See also the [full API documentation](https://pqs.pages.pasqal.com/emu_mps/).
-
-For more information, you can check the tutorials and examples located in the [examples folder](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct/-/tree/main/examples?ref_type=heads)
-
-## Documentation
-
-Please check the [documentation](./docs/index.md) page for more info about contributing, the API, benchmarks, etc.
+See also the [full documentation](https://github.com/pasqal-io/emulators/blob/main/docs/index.md) for
+the API, information about contributing, benchmarks, etc.
 
 
 ## Getting in touch
