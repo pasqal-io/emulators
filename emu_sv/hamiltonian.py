@@ -5,6 +5,8 @@ the Rydberg Hamiltonian of a neutral atoms quantum processor.
 
 import torch
 
+from emu_sv.state_vector import StateVector
+
 
 class RydbergHamiltonian:
     """
@@ -34,7 +36,7 @@ class RydbergHamiltonian:
             strengths between each pair of qubits.
 
     Methods:
-        __matmul__(vec): Performs matrix-vector multiplication with a vector.
+        __mul__(vec): Performs matrix-vector multiplication with a vector.
         _diag_elemts(): Constructs the diagonal elements of the Hamiltonian
             based on `deltas` and `interaction_matrix`.
         _size(): Calculates the memory size of the `RydbergHamiltonian` object in MiB.
@@ -54,7 +56,7 @@ class RydbergHamiltonian:
         self.diag: torch.Tensor = self._create_diagonal().to(device=device)
         self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
 
-    def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
+    def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
         Performs a matrix-vector multiplication between the `RydbergHamiltonian` form and
         a torch vector
@@ -142,3 +144,9 @@ class RydbergHamiltonian:
                 )  # note the j-1 since i was already removed
                 i_j_fixed += self.interaction_matrix[i, j]
         return diag
+
+    def expect(self, state: StateVector) -> float | complex:
+        assert isinstance(
+            state, StateVector
+        ), "currently, only expectation values of StateVectors are supported"
+        return torch.vdot(state.vector, self * state.vector).item()  # type: ignore [no-any-return]

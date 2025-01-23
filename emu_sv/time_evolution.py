@@ -11,15 +11,20 @@ def do_time_step(
     full_interaction_matrix: torch.Tensor,
     state_vector: torch.Tensor,
     krylov_tolerance: float,
-) -> torch.Tensor:
+) -> tuple[torch.Tensor, RydbergHamiltonian]:
     ham = RydbergHamiltonian(
         omegas=omega,
         deltas=delta,
         interaction_matrix=full_interaction_matrix,
         device=state_vector.device,
     )
-    op = lambda x: -1j * dt * (ham @ x)
-
-    return krylov_exp(
-        op, state_vector, norm_tolerance=krylov_tolerance, exp_tolerance=krylov_tolerance
+    op = lambda x: -1j * dt * (ham * x)
+    return (
+        krylov_exp(
+            op,
+            state_vector,
+            norm_tolerance=krylov_tolerance,
+            exp_tolerance=krylov_tolerance,
+        ),
+        ham,
     )
