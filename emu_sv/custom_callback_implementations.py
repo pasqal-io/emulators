@@ -36,18 +36,18 @@ def correlation_matrix_sv_impl(
     num_qubits = int(math.log2(len(state.vector)))
     state_tensor = state.vector.reshape((2,) * num_qubits)
 
-    correlation_matrix = [[0.0]*num_qubits for _ in range(num_qubits)]
-    
+    correlation_matrix = [[0.0] * num_qubits for _ in range(num_qubits)]
+
     for numi in range(num_qubits):
         select_i = state_tensor.select(numi, 1)
-        for numj in range(numi, num_qubits): # select the upper triangle 
+        for numj in range(numi, num_qubits):  # select the upper triangle
             if numi == numj:
-                value = (select_i.norm()**2).item()
-            else: 
-                value = (select_i.select(numj-1 ,1).norm()**2).item()
+                value = (select_i.norm() ** 2).item()
+            else:
+                value = (select_i.select(numj - 1, 1).norm() ** 2).item()
 
-            correlation_matrix[numi][numj]=value
-            correlation_matrix[numj][numi]=value
+            correlation_matrix[numi][numj] = value
+            correlation_matrix[numj][numi] = value
     return correlation_matrix
 
 
