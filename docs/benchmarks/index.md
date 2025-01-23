@@ -7,10 +7,9 @@ There, users should expect _EMU-MPS_ to emulate up to
 - 50 atoms for **adiabatic sequences**
 
 for 2D systems and for realistic pulse sequences (~μs) that can be run on the QPU.
-For these relevant hard use-cases, described more in detail in the [next section](#use-case-benchmarks), the bond dimension is let to grow free to achieve the desired precision.
+For these relevant hard use-cases, described in more detail in the [next section](#use-case-benchmarks), the bond dimension is let to grow free to achieve the desired precision.
 
-In all other scenarios, for specific combinations of number of qubits $N$ and bond dimension $\chi$,
-the resources needed to emulate a sequence **can be estimated** by providing some upper bounds to:
+In all other scenarios, for specific combinations of number of qubits $N$ and bond dimension $\chi$, the resources needed to emulate a sequence **can be estimated** by providing some upper bounds to:
 
 - RSS: the resident set size, i.e. the maximum needed memory
 - $\langle\Delta t\rangle$: GPU time to do a single step in the time evolution
@@ -23,13 +22,13 @@ These quantities are represented, in the following plots:
 The RSS plot (left) shows the memory cost of the emulation.
 It is expected to stay constant at fixed bond dimension and thus represent the total memory occupation of the emulation of a sequence.
 As evident, the emulator is mostly limited by the available memory (40 GB on NVIDIA A100), as it restricts the maximum number of qubits/bond dimension pair allowed.
-To get the total estimated runtime instead, one should just simply multiply the time estimate in the timing plot (right) by the number of steps in the emulated sequence.
+To get the total estimated runtime instead, one should simply multiply the time estimate in the timing plot (right) by the number of steps in the emulated sequence.
 Finally, given the technical nature of these estimates, which rely on some previous knowledge about [matrix product states](../advanced/mps/index.md) and the [TDVP](../advanced/tdvp.md) algorithm. We encourage anyone who might be interested into understanding how they are computed in the first place, to have a look at the [resource estimation](../advanced/resource_estimation.md) page in advanced topic section of this documentation.
 
 While the simple resources estimate provided above allows to upper bound the memory/time cost of an emulation, a final very important remark has to be made. If during an emulation, the bond dimension reach a user-set maximum value (with the `max_bond_dim` argument), the accuracy of the subsequent results of the time evolution cannot be guaranteed anymore, as discussed [here](../advanced/convergence.md).
 
 Having sketched up the expected performance, in the next section, we make those statements more concrete providing more details about use-cases benchmarks.
-In concrete, we will discuss the relevant register/ pulse sequences and the performance metrics of choice.
+Concretely, we will discuss the relevant register/ pulse sequences and the performance metrics of choice.
 
 ## Use-case benchmarks
 
@@ -42,9 +41,9 @@ given a set of meaningful sequences of interest (quench, adiabatic and use-case 
 
 The benchmarks are ordered in subpages by general topic.
 
-- [Accuracy](./accuracy.md)
-- [Performance](./performance.md)
-- [Noise](./noise.md)
+- [Accuracy](../benchmarks/accuracy.md)
+- [Performance](../benchmarks/performance.md)
+- [Noise](../benchmarks/noise.md)
 
 The accuracy benchmarks compare results between emulators to create confidence in the results _EMU-MPS_ generates. The performance benchmarks exist to exhibit the runtime and memory consumption characteristics of _EMU-MPS_. Based on these, the reader should get a feel for what kind of parameters would be required to be able to run a given sequence in a given time. Note that this is independent of whether the emulation results are actually accurate ([see here](../advanced/convergence.md)). Finally, the noise page presents benchmarks regarding noisy simulations, focusing on effects specific to noise that are not already covered in the other pages.
 
