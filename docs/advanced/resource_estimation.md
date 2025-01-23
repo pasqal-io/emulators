@@ -86,8 +86,10 @@ For example, the results from the [case study](convergence.md) were obtained usi
 
 Similarly to the previous section, here, we briefly estimate the complexity of the two-site TDVP algorithm we use to time evolve the state in a single pulse sequence step.
 As before, the two relevant computational steps are
+
 - Computing the baths
 - Applying the effective Hamiltonian
+
 In both cases, it will boil down to an exercise in complexity estimation of tensor network contractions. For simplicity, as before, we will restrict to the worst case scenario in which the bond dimension $\chi$ always take the maximum allowed value.
 Importantly, another significant contribution to the runtime can come from computing complex observables like two-point correlation functions, which is not included here.
 
