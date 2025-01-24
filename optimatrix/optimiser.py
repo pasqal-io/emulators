@@ -201,36 +201,50 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
 
 
 def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
+    #L = input_mat.shape[0]
+    #best_bandwidth = matrix_bandwidth(input_mat)
+    #best_perm = list(range(L))
+#
+    #for _ in range(samples):
+    #    rand_perm = list(np.random.permutation(L))
+    #    test_mat = permute_matrix(input_mat.copy(), rand_perm)
+#
+    #    optimal_permutation = minimize_bandwidth_impl(test_mat)
+    #    tes_mat = permute_matrix(test_mat, optimal_permutation)
+    #    new_bandwidth = matrix_bandwidth(tes_mat)
+#
+    #    if best_bandwidth > new_bandwidth:
+    #        print(f"Bandwidth {new_bandwidth}")
+    #        # composition of initial random and final optimal
+    #        best_perm = permute_list(rand_perm, optimal_permutation)
+    #        best_bandwidth = new_bandwidth
+    #return best_perm
+
+#Pablo:
+###
     L = input_mat.shape[0]
-    best_bandwidth = matrix_bandwidth(input_mat)
-    best_perm = list(range(L))
+    rnd_permutations = (np.random.permutation(L) for _ in range(samples))
 
-    for _ in range(samples):
-        rand_perm = list(np.random.permutation(L))
-        test_mat = permute_matrix(input_mat.copy(), rand_perm)
+    #remove copy, it's not necessary
+    opt_permutations = (
+        minimize_bandwidth_impl(permute_matrix(input_mat.copy(), rnd_perm))
+        for rnd_perm in rnd_permutations
+    )
+    best_permutations = (
+        permute_list(rnd_perm, opt_perm)
+        for rnd_perm, opt_perm in zip(rnd_permutations, opt_permutations)
+    )
 
-        optimal_permutation = minimize_bandwidth_impl(test_mat)
-        tes_mat = permute_matrix(test_mat, optimal_permutation)
-        new_bandwidth = matrix_bandwidth(tes_mat)
+    #key = lambda perm: matrix_bandwidth(permute_matrix(input_mat, perm))
 
-        if best_bandwidth > new_bandwidth:
-            print(f"Bandwidth {new_bandwidth}")
-            # composition of initial random and final optimal
-            best_perm = permute_list(rand_perm, optimal_permutation)
-            best_bandwidth = new_bandwidth
-
-    return best_perm
+    return min(best_permutations, key = lambda perm: matrix_bandwidth(permute_matrix(input_mat, perm)))
 
 
-#def minimize_bandwidth_P(input_mat: np.ndarray, samples: int) -> list[int]:
-#    def get_bandwidth(perm):
-#        permuted_mat = permute_matrix(input_mat, perm)
-#        return matrix_bandwidth(permuted_mat)
-#
-#    # alternatively
-#    key = lambda perm: matrix_bandwidth(permute_matrix(input_mat, perm))
-#
-#    return min(np.random.permutation(L) for _ in range(samples), key=get_bandwidth)
+
+###
+
+    
+
 
 
 
