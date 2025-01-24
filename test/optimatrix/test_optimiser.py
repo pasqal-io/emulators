@@ -79,7 +79,7 @@ def test_minimize_bandwidth(N: int) -> None:
     mat = np.random.rand(N, N)
     mat[0, N - 1] *= -1.0  # just a sign to break symmetric condition
     with pytest.raises(ValueError) as exc_msg:
-        optimiser.minimize_bandwidth(mat)
+        optimiser.minimize_bandwidth_impl(mat)
     assert str(exc_msg.value) == "Input matrix should be symmetric"
     
     def random_permute_matrix(mat: np.ndarray) -> np.ndarray:
@@ -92,7 +92,7 @@ def test_minimize_bandwidth(N: int) -> None:
     tridiagonal_matrix = np.diag(subdiagonal, k=1) + np.diag(subdiagonal, k=-1)
 
     shuffled_matrix = random_permute_matrix(tridiagonal_matrix)
-    optimal_perm = optimiser.minimize_bandwidth(shuffled_matrix)
+    optimal_perm = optimiser.minimize_bandwidth_impl(shuffled_matrix)
     opt_matrix = optimiser.permute_matrix(shuffled_matrix, optimal_perm)
     assert np.array_equal(tridiagonal_matrix, opt_matrix)
 
@@ -107,11 +107,11 @@ def test_minimize_bandwidth(N: int) -> None:
     expected_mat[1, 0] = expected_mat[0, 1] = 1
     expected_mat[N - 1, N - 2] = expected_mat[N - 2, N - 1] = 1
 
-    optimal_perm = optimiser.minimize_bandwidth(initial_mat)
+    optimal_perm = optimiser.minimize_bandwidth_impl(initial_mat)
     opt_matrix = optimiser.permute_matrix(initial_mat, optimal_perm)
     assert np.array_equal(expected_mat, opt_matrix)
 
     shuffled_matrix = random_permute_matrix(initial_mat)
-    optimal_perm = optimiser.minimize_bandwidth(shuffled_matrix)
+    optimal_perm = optimiser.minimize_bandwidth_impl(shuffled_matrix)
     opt_matrix = optimiser.permute_matrix(shuffled_matrix, optimal_perm)
     assert np.array_equal(expected_mat, opt_matrix)
