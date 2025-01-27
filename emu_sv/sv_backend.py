@@ -63,7 +63,13 @@ class SVBackend(Backend):
             )
 
             for callback in sv_config.callbacks:
-                callback(sv_config, (step + 1) * sv_config.dt, state, H, results)
+                callback(
+                    sv_config,
+                    (step + 1) * sv_config.dt,
+                    state,
+                    H,  # type: ignore[arg-type]
+                    results,
+                )
 
             end = time()
             self.log_step_statistics(
