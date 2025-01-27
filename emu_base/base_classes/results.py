@@ -163,7 +163,9 @@ class Results:
     def get_aggregation_type(self, name: str) -> Optional[AggregationType]:
         return self._default_aggregation_types[name]
 
-    def dump(self, file_path: Path) -> None:
+    def dump(self, file_path: Path | str) -> None:
+        file_path = Path(file_path)
+
         with file_path.open("w") as file_handle:
             json.dump(
                 {
