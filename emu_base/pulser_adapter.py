@@ -62,7 +62,7 @@ def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     qubit_positions = _get_qubit_positions(sequence.register)
     interaction_matrix = torch.zeros(num_qubits, num_qubits)
     mag_field = torch.tensor(sequence.magnetic_field)  # by default [0.0,0.0,30.0]
-    mag_norm = torch.norm(mag_field)
+    mag_norm = torch.linalg.norm(mag_field)
 
     for numi in range(len(qubit_positions)):
         for numj in range(numi + 1, len(qubit_positions)):
@@ -70,7 +70,10 @@ def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
             if mag_norm >= 1e-8:  # selected by hand
                 cosine = torch.dot(
                     (qubit_positions[numi] - qubit_positions[numj]), mag_field
-                ) / (torch.norm(qubit_positions[numi] - qubit_positions[numj]) * mag_norm)
+                ) / (
+                    torch.linalg.norm(qubit_positions[numi] - qubit_positions[numj])
+                    * mag_norm
+                )
 
             interaction_matrix[numi][numj] = (
                 c3  # check this value with pulser people

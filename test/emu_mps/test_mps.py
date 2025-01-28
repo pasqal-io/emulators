@@ -168,7 +168,7 @@ def test_add_to_make_ghz_state():
     assert get_bitstring_coeff(mps_sum, 2**num_sites - 1) == pytest.approx(1.0, tol)
 
     # sum state is orthogonal
-    norm = torch.norm(mps_sum.factors[0]).item()
+    norm = torch.linalg.norm(mps_sum.factors[0]).item()
     assert norm == pytest.approx(math.sqrt(2), tol)
 
 
@@ -191,7 +191,7 @@ def test_add_to_make_w_state():
     for i in range(num_sites):
         bitstring = 1 << (num_sites - 1 - i)
         assert get_bitstring_coeff(mps_sum, bitstring) == pytest.approx(1.0, tol)
-    norm = torch.norm(mps_sum.factors[0]).item()
+    norm = torch.linalg.norm(mps_sum.factors[0]).item()
     assert norm == pytest.approx(math.sqrt(num_sites), tol)
 
 

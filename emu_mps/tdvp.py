@@ -11,7 +11,8 @@ def new_right_bath(
 ) -> torch.Tensor:
     bath = torch.tensordot(state, bath, ([2], [2]))
     bath = torch.tensordot(op.to(bath.device), bath, ([2, 3], [1, 3]))
-    return torch.tensordot(state.conj(), bath, ([1, 2], [1, 3]))
+    bath = torch.tensordot(state.conj(), bath, ([1, 2], [1, 3]))
+    return bath
 
 
 """

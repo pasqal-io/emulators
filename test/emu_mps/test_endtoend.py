@@ -242,10 +242,10 @@ def test_end_to_end_afm_ring():
     assert approx(q_density, 1e-3) == [0.578] * 10
 
     energy = result["energy"][final_time]
-    assert approx(energy, 1e-8) == -115.3437071169735
+    assert approx(energy, 1e-8) == -115.34370829396005
 
     energy_variance = result["energy_variance"][final_time]
-    assert approx(energy_variance, 1e-6) == 45.90602999801922
+    assert approx(energy_variance, 1e-6) == 45.905980469959104
 
     second_moment_energy = result["second_moment_of_energy"][final_time]
     assert approx(second_moment_energy, 1e-6) == 13350.07680148

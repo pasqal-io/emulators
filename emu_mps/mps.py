@@ -225,7 +225,7 @@ class MPS(State):
         num_qubits = len(self.factors)
 
         bitstring = ""
-        acc_mps_j: torch.tensor = self.factors[0]
+        acc_mps_j: torch.Tensor = self.factors[0]
 
         for qubit in range(num_qubits):
             # comp_basis is a projector: 0 is for ket |0> and 1 for ket |1>

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import itertools
-from typing import Any, List, cast, Iterable, Optional
+from typing import Any, List, Iterable, Optional
 
 import torch
 
@@ -175,14 +175,15 @@ class MPO(Operator):
         Returns:
             the operator in MPO form.
         """
+        operators_with_tensors: dict[str, torch.Tensor | QuditOp] = dict(operators)
 
         _validate_operator_targets(operations, nqubits)
 
         basis = set(basis)
         if basis == {"r", "g"}:
-            # operators will now contain the basis for single qubit ops, and potentially
-            # user defined strings in terms of these
-            operators |= {
+            # operators_with_tensors will now contain the basis for single qubit ops,
+            # and potentially user defined strings in terms of these
+            operators_with_tensors |= {
                 "gg": torch.tensor(
                     [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
                 ).reshape(1, 2, 2, 1),
@@ -197,9 +198,9 @@ class MPO(Operator):
                 ).reshape(1, 2, 2, 1),
             }
         elif basis == {"0", "1"}:
-            # operators will now contain the basis for single qubit ops, and potentially
-            # user defined strings in terms of these
-            operators |= {
+            # operators_with_tensors will now contain the basis for single qubit ops,
+            # and potentially user defined strings in terms of these
+            operators_with_tensors |= {
                 "00": torch.tensor(
                     [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
                 ).reshape(1, 2, 2, 1),
@@ -218,26 +219,28 @@ class MPO(Operator):
 
         mpos = []
         for coeff, tensorop in operations:
-            # this function will recurse through the operators, and replace any definitions
+            # this function will recurse through the operators_with_tensors,
+            # and replace any definitions
             # in terms of strings by the computed tensor
             def replace_operator_string(op: QuditOp | torch.Tensor) -> torch.Tensor:
-                if isinstance(op, dict):
-                    for opstr, coeff in op.items():
-                        tensor = replace_operator_string(operators[opstr])
-                        operators[opstr] = tensor
-                        op[opstr] = tensor * coeff
-                    op = sum(cast(list[torch.Tensor], op.values()))
-                return op
+                if isinstance(op, torch.Tensor):
+                    return op
+
+                result = torch.zeros(1, 2, 2, 1, dtype=torch.complex128)
+                for opstr, coeff in op.items():
+                    tensor = replace_operator_string(operators_with_tensors[opstr])
+                    operators_with_tensors[opstr] = tensor
+                    result += tensor * coeff
+                return result
 
             factors = [
                 torch.eye(2, 2, dtype=torch.complex128).reshape(1, 2, 2, 1)
             ] * nqubits
 
-            for i, op in enumerate(tensorop):
-                tensorop[i] = (replace_operator_string(op[0]), op[1])
-
             for op in tensorop:
-                for i in op[1]:
-                    factors[i] = op[0]
+                factor = replace_operator_string(op[0])
+                for target_qubit in op[1]:
+                    factors[target_qubit] = factor
+
             mpos.append(coeff * MPO(factors, **kwargs))
         return sum(mpos[1:], start=mpos[0])

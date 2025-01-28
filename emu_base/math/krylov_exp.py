@@ -21,7 +21,7 @@ class KrylovExpResult:
 
 
 def krylov_exp_impl(
-    op: Callable,
+    op: Callable[[torch.Tensor], torch.Tensor],
     v: torch.Tensor,
     is_hermitian: bool,  # note: complex-proportional to its adjoint is enough
     exp_tolerance: float,
@@ -103,7 +103,7 @@ def krylov_exp_impl(
 
 
 def krylov_exp(
-    op: torch.Tensor,
+    op: Callable[[torch.Tensor], torch.Tensor],
     v: torch.Tensor,
     exp_tolerance: float,
     norm_tolerance: float,
