@@ -69,18 +69,22 @@ class SVConfig(BackendConfig):
         for num, obs in enumerate(self.callbacks):  # monkey patch
             obs_copy = copy.deepcopy(obs)
             if isinstance(obs, QubitDensity):
-                # type: ignore[method-assign]
-                obs_copy.apply = MethodType(qubit_density_sv_impl, obs)
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    qubit_density_sv_impl, obs
+                )
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, EnergyVariance):
-                # type: ignore[method-assign]
-                obs_copy.apply = MethodType(energy_variance_sv_impl, obs)
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    energy_variance_sv_impl, obs
+                )
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, SecondMomentOfEnergy):
-                # type: ignore[method-assign]
-                obs_copy.apply = MethodType(second_momentum_sv_impl, obs)
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    second_momentum_sv_impl, obs
+                )
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, CorrelationMatrix):
-                # type: ignore[method-assign]
-                obs_copy.apply = MethodType(correlation_matrix_sv_impl, obs)
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    correlation_matrix_sv_impl, obs
+                )
                 self.callbacks[num] = obs_copy
