@@ -10,8 +10,8 @@ from emu_mps.utils import truncate_impl
 
 
 def add_factors(
-    left: list[torch.tensor], right: list[torch.tensor]
-) -> list[torch.tensor]:
+    left: list[torch.Tensor], right: list[torch.Tensor]
+) -> list[torch.Tensor]:
     """
     Direct sum algorithm implementation to sum two tensor trains (MPS/MPO).
     It assumes the left and right bond are along the dimension 0 and -1 of each tensor.
@@ -52,8 +52,8 @@ def add_factors(
 
 
 def scale_factors(
-    factors: list[torch.tensor], scalar: complex, *, which: int
-) -> list[torch.tensor]:
+    factors: list[torch.Tensor], scalar: complex, *, which: int
+) -> list[torch.Tensor]:
     """
     Returns a new list of factors where the tensor at the given index is scaled by `scalar`.
     """
@@ -61,10 +61,10 @@ def scale_factors(
 
 
 def zip_right_step(
-    slider: torch.tensor,
-    top: torch.tensor,
-    bottom: torch.tensor,
-) -> torch.tensor:
+    slider: torch.Tensor,
+    top: torch.Tensor,
+    bottom: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Returns a new `MPS/O` factor of the result of the multiplication MPO @ MPS/O,
     and the updated slider, performing a single step of the
@@ -117,10 +117,10 @@ def zip_right_step(
 
 
 def zip_right(
-    top_factors: list[torch.tensor],
-    bottom_factors: list[torch.tensor],
+    top_factors: list[torch.Tensor],
+    bottom_factors: list[torch.Tensor],
     config: Optional[MPSConfig] = None,
-) -> list[torch.tensor]:
+) -> list[torch.Tensor]:
     """
     Returns a new matrix product, resulting from applying `top` to `bottom`.
     The resulting factors are:

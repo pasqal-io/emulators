@@ -25,11 +25,15 @@ class StateVector(State):
         vector (torch.Tensor): 1D tensor representation of a state vector.
 
     Methods:
-        __init__(vector: torch.Tensor):
+        __init__(vector: torch.Tensor, gpu: bool = False):
             Initializes the state vector. Ensures the length is a power of 2.
 
-        _normalize() -> torch.Tensor:
+        _normalize() -> None:
             Normalizes the state vector to ensure it represents a valid quantum state.
+
+        zero(num_sites: int, gpu: bool = False) -> StateVector:
+            Creates a zero uninitialized "state" vector for a specified number of qubits.
+            Warning, this has no physical meaning as-is!
 
         make(num_sites: int, gpu: bool = False) -> StateVector:
             Creates a ground state vector |000...0> for a specified number of qubits.
@@ -75,6 +79,8 @@ class StateVector(State):
     def __init__(
         self,
         vector: torch.Tensor,
+        *,
+        gpu: bool = False,
     ):
         # NOTE: this accepts also zero vectors.
 
@@ -82,16 +88,36 @@ class StateVector(State):
             len(vector)
         ).is_integer(), "The number of elements in the vector should be power of 2"
 
-        self.vector = vector.to(dtype=dtype)
+        device = "cuda" if gpu else "cpu"
+        self.vector = vector.to(dtype=dtype, device=device)
 
-    def _normalize(self) -> torch.Tensor:
+    def _normalize(self) -> None:
         # NOTE: use this in the callbacks
         """Checks if the input is normalized or not"""
         norm_state = torch.linalg.vector_norm(self.vector)
 
         if not torch.allclose(norm_state, torch.tensor(1.0, dtype=torch.float64)):
             self.vector = self.vector / norm_state
-        return self.vector
+
+    @classmethod
+    def zero(cls, num_sites: int, gpu: bool = False) -> StateVector:
+        """
+        Returns a zero uninitialized "state" vector. Warning, this has no physical meaning as-is!
+        The vector in the output StateVector instance has the shape (2,)*number of qubits
+
+        Args:
+            num_sites: the number of qubits
+            gpu: whether gpu or cpu
+
+        Example:
+        -------
+        >>> StateVector.zero(2)
+        tensor([0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
+        """
+
+        device = "cuda" if gpu else "cpu"
+        vector = torch.zeros(2**num_sites, dtype=dtype, device=device)
+        return cls(vector, gpu=gpu)
 
     @classmethod
     def make(cls, num_sites: int, gpu: bool = False) -> StateVector:
@@ -101,7 +127,7 @@ class StateVector(State):
 
         Args:
             num_sites: the number of qubits
-            gpu: weather gpu or cpu
+            gpu: whether gpu or cpu
 
         Example:
         -------
@@ -109,12 +135,11 @@ class StateVector(State):
         tensor([1.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
         """
 
-        device = "cuda" if gpu else "cpu"
-        ground_state = torch.zeros(2**num_sites, dtype=dtype, device=device)
-        ground_state[0] = torch.tensor(1.0, dtype=dtype, device=device)
-        return cls(ground_state)
+        result = cls.zero(num_sites=num_sites, gpu=gpu)
+        result.vector[0] = 1.0
+        return result
 
-    def inner(self, other: State) -> torch.Tensor:
+    def inner(self, other: State) -> float | complex:
         assert isinstance(
             other, StateVector
         ), "Other state also needs to be a StateVector"
@@ -122,14 +147,14 @@ class StateVector(State):
             self.vector.shape == other.vector.shape
         ), "States do not have the same number of sites"
 
-        return torch.vdot(self.vector, other.vector)
+        return torch.vdot(self.vector, other.vector).item()
 
     def sample(
         self, num_shots: int = 1000, p_false_pos: float = 0.0, p_false_neg: float = 0.0
     ) -> Counter[str]:
         """Probability distribution over measurement outcomes"""
 
-        probabilities = torch.abs((self.vector)) ** 2
+        probabilities = torch.abs(self.vector) ** 2
         probabilities /= probabilities.sum()  # multinomial does not normalize the input
 
         outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
@@ -161,12 +186,12 @@ class StateVector(State):
 
         return StateVector(result)
 
-    def norm(self) -> torch.tensor:
+    def norm(self) -> float | complex:
         """Norm of the state"""
-        return torch.linalg.norm(self.vector)
+        norm: float | complex = torch.linalg.vector_norm(self.vector).item()
+        return norm
 
     def __repr__(self) -> str:
-
         return repr(self.vector)
 
     @staticmethod
@@ -175,7 +200,6 @@ class StateVector(State):
         basis: Iterable[str],
         nqubits: int,
         strings: dict[str, complex],
-        gpu: bool = False,
         **kwargs: Any,
     ) -> StateVector:
         """Transforms a state given by a string into a state vector.
@@ -187,7 +211,6 @@ class StateVector(State):
             basis: A tuple containing the basis states (e.g., ('r', 'g')).
             nqubits: the number of qubits.
             strings: A dictionary mapping state strings to complex or floats amplitudes.
-            gpu: weather gpu or cpu. By deafult, cpu
 
         Returns:
             The resulting state.
@@ -195,14 +218,12 @@ class StateVector(State):
         Example:
         -------
         >>> basis = ("r","g")
-        >>> nqubits = 2
-        >>> st=StateVector.from_state_string(basis=basis,nqubits=nqubits,strings={"rr":1,"gg":1.0})
+        >>> n = 2
+        >>> st=StateVector.from_state_string(basis=basis,nqubits=n,strings={"rr":1.0,"gg":1.0})
         >>> print(st)
         tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
                dtype=torch.complex128)
         """
-
-        device = "gpu" if gpu else "cpu"
 
         basis = set(basis)
         if basis == {"r", "g"}:
@@ -212,14 +233,13 @@ class StateVector(State):
         else:
             raise ValueError("Unsupported basis provided")
 
-        accum_zero = torch.zeros(2**nqubits, dtype=dtype, device=device)
-        accum_state = StateVector(accum_zero)
+        accum_state = StateVector.zero(num_sites=nqubits, **kwargs)
 
         for state, amplitude in strings.items():
             bin_to_int = int(
                 state.replace(one, "1").replace("g", "0"), 2
             )  # "0" basis is already in "0"
-            accum_state.vector[bin_to_int] = amplitude
+            accum_state.vector[bin_to_int] = torch.tensor([amplitude])
 
         accum_state._normalize()
 

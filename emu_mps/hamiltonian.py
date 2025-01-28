@@ -363,7 +363,7 @@ def make_H(
 
     interactions_to_keep = _get_interactions_to_keep(interaction_matrix)
 
-    cores = [_first_factor(interactions_to_keep[0].item())]
+    cores = [_first_factor(interactions_to_keep[0].item() != 0.0)]
 
     if nqubits > 2:
         for i in range(1, middle):
@@ -395,7 +395,7 @@ def make_H(
                 )
             )
     if nqubits == 2:
-        scale = interaction_matrix[0, 1]
+        scale = interaction_matrix[0, 1].item()
     elif interactions_to_keep[-1][0]:
         scale = 1.0
     else:

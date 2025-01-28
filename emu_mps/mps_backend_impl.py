@@ -298,7 +298,7 @@ class MPSBackendImpl:
             )
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
-                self.right_baths[-2] = None
+                self.right_baths[-2] = torch.zeros(0)
 
             self._evolve(self.tdvp_index, dt=-delta_time / 2)
             self.left_baths.pop()
@@ -453,13 +453,12 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
     """
 
     jump_threshold: float
-    aggregated_lindblad_ops: Optional[torch.Tensor]
+    aggregated_lindblad_ops: torch.Tensor
     norm_gap_before_jump: float
     root_finder: Optional[BrentsRootFinder]
 
     def __init__(self, config: MPSConfig, pulser_data: PulserData):
         super().__init__(config, pulser_data)
-        self.aggregated_lindblad_ops = None
         self.lindblad_ops = pulser_data.lindblad_ops
         self.root_finder = None
 
@@ -520,7 +519,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
                 for qubit in range(self.state.num_sites)
                 for op in self.lindblad_ops
             ],
-            weights=jump_operator_weights.reshape(-1),
+            weights=jump_operator_weights.reshape(-1).tolist(),
         )[0]
 
         self.state.apply(jumped_qubit_index, jump_operator)
