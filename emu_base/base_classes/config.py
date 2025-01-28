@@ -3,6 +3,10 @@ from pulser.noise_model import NoiseModel
 import logging
 import sys
 import pathlib
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from emu_base.base_classes.callback import Callback
 
 
 class BackendConfig:
@@ -30,8 +34,7 @@ class BackendConfig:
     def __init__(
         self,
         *,
-        # "Callback" is a forward type reference because of the circular import otherwise.
-        observables: list["Callback"] | None = None,  # type: ignore # noqa: F821
+        observables: list[Callback] | None = None,
         with_modulation: bool = False,
         noise_model: NoiseModel = None,
         interaction_matrix: list[list[float]] | None = None,

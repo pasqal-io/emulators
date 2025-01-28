@@ -375,11 +375,14 @@ class MPSBackendImpl:
     def fill_results(self) -> None:
         normalized_state = 1 / self.state.norm() * self.state
 
+        current_time_int: int = round(self.current_time)
+        assert abs(self.current_time - current_time_int) < 1e-10
+
         if self.well_prepared_qubits_filter is None:
             for callback in self.config.callbacks:
                 callback(
                     self.config,
-                    self.current_time,
+                    current_time_int,
                     normalized_state,
                     self.hamiltonian,
                     self.results,
@@ -388,7 +391,7 @@ class MPSBackendImpl:
 
         full_mpo, full_state = None, None
         for callback in self.config.callbacks:
-            if self.current_time not in callback.evaluation_times:
+            if current_time_int not in callback.evaluation_times:
                 continue
 
             if full_mpo is None or full_state is None:
@@ -409,7 +412,7 @@ class MPSBackendImpl:
                     ),
                 )
 
-            callback(self.config, self.current_time, full_state, full_mpo, self.results)
+            callback(self.config, current_time_int, full_state, full_mpo, self.results)
 
     def log_step_statistics(self, *, duration: float) -> None:
         if self.state.factors[0].is_cuda:
