@@ -3,7 +3,7 @@ mkdocs-material
 mkdocstrings
 mkdocstrings-python
 mkdocs-section-index
-mkdocs-jupyter
+mkdocs-jupyter==0.24.7 # on 0.25 latex in notebooks is not rendered
 mkdocs-exclude
 notebook<7
 markdown-exec
