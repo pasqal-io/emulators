@@ -12,7 +12,7 @@
 
 ### Using `hatch`, `uv` or any pyproject-compatible Python manager
 
-Edit file `pyproject.toml` to add the line
+To add `emu-mps` to your project, edit your `pyproject.toml` to add the line
 
 ```toml
   "emu-mps"
