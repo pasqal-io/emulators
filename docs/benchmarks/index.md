@@ -23,11 +23,11 @@ The RSS plot (left) shows the peak memory cost of the emulation.
 It is expected to stay constant at fixed bond dimension and thus represent the total memory occupation of the emulation of a sequence.
 As evident, the emulator is mostly limited by the available memory (40 GB on NVIDIA A100), as it restricts the maximum number of qubits/bond dimension pair allowed.
 To get the total estimated runtime instead, one should simply multiply the time estimate in the timing plot (right) by the number of steps in the emulated sequence.
-Finally, given the technical nature of these estimates, which rely on some previous knowledge about [matrix product states](../advanced/mps/index.md) and the [TDVP](../advanced/tdvp.md) algorithm. We encourage anyone who might be interested into understanding how they are computed in the first place, to have a look at the [resource estimation](../advanced/resource_estimation.md) page in advanced topic section of this documentation.
+Finally, given the technical nature of these estimates, they rely on some previous knowledge about [matrix product states](../advanced/mps/index.md) and the [TDVP](../advanced/tdvp.md) algorithm. We encourage anyone who might be interested into the derivation, to have a look at the [resource estimation](../advanced/resource_estimation.md) page in advanced topic section of this documentation.
 
-While the simple resources estimate provided above allows to upper bound the memory/time cost of an emulation, a final very important remark has to be made. If during an emulation, the bond dimension reach a user-set maximum value (with the `max_bond_dim` argument), the accuracy of the subsequent results of the time evolution cannot be guaranteed anymore, as discussed [here](../advanced/convergence.md).
+While the simple resource estimation provided above allows to upper bound the memory/time cost of an emulation, a final very important remark has to be made. If during an emulation, the bond dimension reach a user-set maximum value (with the `max_bond_dim` argument), the accuracy of the subsequent results of the time evolution cannot be guaranteed anymore, as discussed [here](../advanced/convergence.md).
 
-Having sketched up the expected performance, in the next section, we make those statements more concrete providing more details about use-cases benchmarks.
+Having sketched up the expected performance, in the next section, we make those statements more concrete by providing more details about use-cases benchmarks.
 Concretely, we will discuss the relevant register/ pulse sequences and the performance metrics of choice.
 
 ## Use-case benchmarks
