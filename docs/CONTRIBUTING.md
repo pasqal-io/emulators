@@ -4,7 +4,7 @@ We're grateful for your interest in participating in EMU-MPS! Please follow our 
 
 ## Reporting an Issue or Proposing a Feature
 
-Your course of action will depend on your objective, but generally, you should start by creating an issue. If you've discovered a bug or have a feature you'd like to see added to EMU-MPS, feel free to create an issue on [the issue tracker](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct/-/issues). Here are some steps to take:
+Your course of action will depend on your objective, but generally, you should start by creating an issue. If you've discovered a bug or have a feature you'd like to see added to EMU-MPS, feel free to create an issue on [the issue tracker](https://github.com/pasqal-io/emulators/issues). Here are some steps to take:
 
 1. Quickly search the existing issues using relevant keywords to ensure your issue hasn't been addressed already.
 2. If your issue is not listed, create a new one. Try to be as detailed and clear as possible in your description.
@@ -14,7 +14,7 @@ Your course of action will depend on your objective, but generally, you should s
 
 ## Submitting a Pull Request
 
-We're excited that you're eager to contribute to EMU-MPS! To contribute, create a branch on the EMU-MPS repository and once you are satisfied with your feature and all the tests pass create a [Merge Request](https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct/-/merge_requests).
+We're excited that you're eager to contribute to EMU-MPS! To contribute, create a branch on the EMU-MPS repository and once you are satisfied with your feature and all the tests pass create a [Merge Request](https://github.com/pasqal-io/emulators/pulls).
 
 Here's the process for making a contribution:
 
@@ -24,7 +24,7 @@ Make a new branch via
 git branch <your initials>/<branch name>
 ```
 
-Next, checkout your new branch, and associate a branch to it on the gitlab server:
+Next, checkout your new branch, and associate a branch to it on the GitHub server:
 
 ```shell
 git checkout <your initials>/<branch name>
@@ -89,17 +89,11 @@ hatch -e docs run mkdocs build --clean --strict
 ```
 
 Without `hatch`, `pip` install those libraries first:
-"mkdocs",
-"mkdocs-material",
-"mkdocstrings",
-"mkdocstrings-python",
-"mkdocs-section-index",
-"mkdocs-jupyter",
-"mkdocs-exclude",
-"markdown-exec"
+```shell
+pip install -r doc_requirements.txt
+```
 
-
-And then:
+Then build the documentation:
 
 ```shell
  mkdocs build --clean --strict
