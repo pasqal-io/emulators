@@ -1,10 +1,13 @@
 from typing import Any
 
-from emu_base import BackendConfig, State
+from pulser.backend import EmulationConfig, State
 from emu_mps.constants import DEVICE_COUNT
+import logging
+import pathlib
+import sys
 
 
-class MPSConfig(BackendConfig):
+class MPSConfig(EmulationConfig):
     """
     The configuration of the emu-ct MPSBackend. The kwargs passed to this class
     are passed on to the base class.
@@ -40,19 +43,21 @@ class MPSConfig(BackendConfig):
     def __init__(
         self,
         *,
-        initial_state: State | None = None,
         dt: int = 10,
         precision: float = 1e-5,
         max_bond_dim: int = 1024,
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
         num_gpus_to_use: int = DEVICE_COUNT,
+        interaction_cutoff: float = 0.0,
+        log_level: int = logging.INFO,
+        log_file: pathlib.Path | None = None,
         autosave_prefix: str = "emu_mps_save_",
         autosave_dt: int = 600,  # 10 minutes
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
-        self.initial_state = initial_state
+        self.interaction_cutoff = interaction_cutoff
         self.dt = dt
         self.precision = precision
         self.max_bond_dim = max_bond_dim
@@ -60,14 +65,36 @@ class MPSConfig(BackendConfig):
         self.num_gpus_to_use = num_gpus_to_use
         self.extra_krylov_tolerance = extra_krylov_tolerance
 
-        if self.noise_model is not None:
-            if "doppler" in self.noise_model.noise_types:
-                raise NotImplementedError("Unsupported noise type: doppler")
-            if (
-                "amplitude" in self.noise_model.noise_types
-                and self.noise_model.amp_sigma != 0.0
-            ):
-                raise NotImplementedError("Unsupported noise type: amp_sigma")
+        if "doppler" in self.noise_model.noise_types:
+            raise NotImplementedError("Unsupported noise type: doppler")
+        if (
+            "amplitude" in self.noise_model.noise_types
+            and self.noise_model.amp_sigma != 0.0
+        ):
+            raise NotImplementedError("Unsupported noise type: amp_sigma")
+
+        self.logger = logging.getLogger("global_logger")
+        if log_file is None:
+            logging.basicConfig(
+                level=log_level, format="%(message)s", stream=sys.stdout, force=True
+            )  # default to stream = sys.stderr
+        else:
+            logging.basicConfig(
+                level=log_level,
+                format="%(message)s",
+                filename=str(log_file),
+                filemode="w",
+                force=True,
+            )
+        if self.noise_model is not None and (
+            self.noise_model.runs != 1
+            or self.noise_model.samples_per_run != 1
+            or self.noise_model.runs is not None
+            or self.noise_model.samples_per_run is not None
+        ):
+            self.logger.warning(
+                "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
+            )
 
         self.autosave_prefix = autosave_prefix
         self.autosave_dt = autosave_dt

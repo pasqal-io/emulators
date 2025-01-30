@@ -6,7 +6,7 @@ from emu_base.pulser_adapter import (
     PulserData,
     HamiltonianType,
 )
-from emu_base import BackendConfig
+from pulser.backend import EmulationConfig
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -575,9 +575,9 @@ def test_parsed_sequence(mock_pulser_sample):
     mock_pulser_sample.return_value = sample_instance
 
     interaction_matrix = [
-        [0.4251, 0.4588, -0.4607],
-        [0.0929, -0.1636, -1.0463],
-        [-0.4037, 0.1067, -0.9528],
+        [0.4251, 0.0929, -0.4607],
+        [0.0929, -0.1636, 0.2067],
+        [-0.4607, 0.2067, -0.9528],
     ]
 
     sequence._slm_mask_time = []
@@ -592,7 +592,7 @@ def test_parsed_sequence(mock_pulser_sample):
 
     ops = _get_all_lindblad_noise_operators(noise_model)
 
-    config = BackendConfig(
+    config = EmulationConfig(
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
@@ -604,7 +604,7 @@ def test_parsed_sequence(mock_pulser_sample):
     )
 
     cutoff_interaction_matrix = torch.tensor(
-        [[0.4251, 0.4588, -0.4607], [0.0, -0.1636, -1.0463], [-0.4037, 0.0, -0.9528]],
+        [[0.4251, 0.0, -0.4607], [0.0, -0.1636, 0.2067], [-0.4607, 0.2067, -0.9528]],
         dtype=torch.float64,
     )
     assert torch.allclose(parsed_sequence.omega, omega)
@@ -625,7 +625,7 @@ def test_parsed_sequence(mock_pulser_sample):
     sequence._slm_mask_time = [1.0, 10.0]
     sequence._slm_mask_targets = [1]
     masked_interaction_matrix = torch.tensor(
-        [[0.4251, 0.0, -0.4607], [0.0, -0.0, -0.0], [-0.4037, 0.0, -0.9528]],
+        [[0.4251, 0.0, -0.4607], [0.0, -0.0, -0.0], [-0.4607, 0.0, -0.9528]],
         dtype=torch.float64,
     )
 
@@ -665,8 +665,8 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
 
     interaction_matrix = [
         [0.4251, 0.4588, -0.4607],
-        [0.0929, -0.1636, -1.0463],
-        [-0.4037, 0.1067, -0.9528],
+        [0.4588, -0.1636, -1.0463],
+        [-0.4607, -1.0463, -0.9528],
     ]
     sequence._slm_mask_time = []
 
@@ -674,7 +674,7 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
         laser_waist=0.1,
     )
 
-    config = BackendConfig(
+    config = EmulationConfig(
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,

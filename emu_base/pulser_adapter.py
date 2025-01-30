@@ -5,7 +5,7 @@ import math
 from pulser.noise_model import NoiseModel
 from enum import Enum
 
-from emu_base.base_classes.config import BackendConfig
+from pulser.backend.config import EmulationConfig
 from emu_base.lindblad_operators import get_lindblad_operators
 from emu_base.utils import dist2, dist3
 
@@ -191,6 +191,7 @@ def _get_all_lindblad_noise_operators(
 
 
 class PulserData:
+    sequence_duration: int
     slm_end_time: int
     full_interaction_matrix: torch.Tensor
     masked_interaction_matrix: torch.Tensor
@@ -200,7 +201,8 @@ class PulserData:
     hamiltonian_type: HamiltonianType
     lindblad_ops: list[torch.Tensor]
 
-    def __init__(self, *, sequence: pulser.Sequence, config: BackendConfig, dt: int):
+    def __init__(self, *, sequence: pulser.Sequence, config: EmulationConfig, dt: int):
+        self.sequence_duration = sequence.get_duration()
         self.qubit_count = len(sequence.register.qubit_ids)
 
         laser_waist = (
@@ -229,9 +231,7 @@ class PulserData:
                 "the interaction matrix"
             )
 
-            self.full_interaction_matrix = torch.tensor(
-                config.interaction_matrix, dtype=torch.float64
-            )
+            self.full_interaction_matrix = config.interaction_matrix.as_tensor()
         elif self.hamiltonian_type == HamiltonianType.Rydberg:
             self.full_interaction_matrix = _rydberg_interaction(sequence)
         elif self.hamiltonian_type == HamiltonianType.XY:

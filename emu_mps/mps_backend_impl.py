@@ -11,7 +11,8 @@ import torch
 import time
 from pulser import Sequence
 
-from emu_base import Results, State, PulserData
+from pulser.backend import State, Results
+from emu_base import PulserData
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
@@ -57,6 +58,7 @@ class MPSBackendImpl:
         self.target_time = float(self.config.dt)
         self.pulser_data = pulser_data
         self.qubit_count = pulser_data.qubit_count
+        self.sequence_duration = pulser_data.sequence_duration
         assert self.qubit_count >= 2
         self.omega = pulser_data.omega
         self.delta = pulser_data.delta
@@ -74,7 +76,10 @@ class MPSBackendImpl:
         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
         self.tdvp_index = 0
         self.timestep_index = 0
-        self.results = Results()
+        self.results = Results(
+            atom_order=[], total_duration=self._sequence.get_duration()
+        )
+        self.results.statistics = None
         self.autosave_file = self._get_autosave_filepath(self.config.autosave_prefix)
         self.config.logger.warning(
             f"""Will save simulation state to file "{self.autosave_file.name}"
@@ -375,11 +380,11 @@ class MPSBackendImpl:
     def fill_results(self) -> None:
         normalized_state = 1 / self.state.norm() * self.state
 
-        current_time_int: int = round(self.current_time)
+        current_time_int = self.current_time / self.sequence_duration
         assert abs(self.current_time - current_time_int) < 1e-10
 
         if self.well_prepared_qubits_filter is None:
-            for callback in self.config.callbacks:
+            for callback in self.config.observables:
                 callback(
                     self.config,
                     current_time_int,
@@ -390,7 +395,7 @@ class MPSBackendImpl:
             return
 
         full_mpo, full_state = None, None
-        for callback in self.config.callbacks:
+        for callback in self.config.observables:
             if current_time_int not in callback.evaluation_times:
                 continue
 
