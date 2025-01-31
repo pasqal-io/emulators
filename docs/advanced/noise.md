@@ -1,7 +1,7 @@
-# Noise Implementation in EMU-MPS
-To faithfully emulate the Pasqal QPU using EMU-MPS, we need to include noise effects, as these effects cannot be neglected in a real quantum system—they significantly impact the performance and fidelity of the QPU.
+# Noise Implementation in emu-mps
+To faithfully emulate the Pasqal QPU using emu-mps, we need to include noise effects, as these effects cannot be neglected in a real quantum system—they significantly impact the performance and fidelity of the QPU.
 
-In open quantum many-body systems, noise is typically expressed in terms of **mixed states** and **noise channels** using a **density matrix representation**. Similar to a state-vector emulator, EMU-MPS **only handles pure states**. Therefore, we implement noise using a higher order Monte Carlo method ([see here](https://www.phys.ens.psl.eu/~dalibard/publi3/osa_93.pdf)), where we evolve the system using an **effective Hamiltonian** and then apply a quantum jump at certain times. This method is probabilistic in the sense that it approximates the simulation of a mixed state using many non-deterministic pure state simulations.
+In open quantum many-body systems, noise is typically expressed in terms of **mixed states** and **noise channels** using a **density matrix representation**. Similar to a state-vector emulator, emu-mps **only handles pure states**. Therefore, we implement noise using a higher order Monte Carlo method ([see here](https://www.phys.ens.psl.eu/~dalibard/publi3/osa_93.pdf)), where we evolve the system using an **effective Hamiltonian** and then apply a quantum jump at certain times. This method is probabilistic in the sense that it approximates the simulation of a mixed state using many non-deterministic pure state simulations.
 
 ## Noise Types
 
@@ -13,10 +13,10 @@ Our implementation supports different types of noise:
 - **eff_noise**: general effective noise channel defined by the set of collapse operators **eff_noise_opers** and their corresponding rates **eff_noise_rates**.
 - **SPAM errors**: parameterized by **state_prep_error**, **p_false_pos** and **p_false_neg**.
 
- Users can refer to the [Pulser documentation](https://pulser.readthedocs.io/en/stable/tutorials/noisy_sim.html) for a detailed overview of the different noise models currently available. EMU-MPS currently does not support the **amplitude noise**, **Doppler noise** and **leakage**.
+ Users can refer to the [Pulser documentation](https://pulser.readthedocs.io/en/stable/tutorials/noisy_sim.html) for a detailed overview of the different noise models currently available. emu-mps currently does not support the **amplitude noise**, **Doppler noise** and **leakage**.
 
 ## Effective Hamiltonian
-The non-hermitian **effective Hamiltonian** used in noisy EMU-MPS simulations includes both the physical Hamiltonian $H_{physical}$, which governs the noiseless evolution of the system, and a term representing noise:
+The non-hermitian **effective Hamiltonian** used in noisy emu-mps simulations includes both the physical Hamiltonian $H_{physical}$, which governs the noiseless evolution of the system, and a term representing noise:
 
 $$
 H_{\text{eff}} = H_{\text{physical}} \ - \ \frac{i}{2} \sum_m L^{\dagger}_m L_m.

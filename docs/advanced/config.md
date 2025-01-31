@@ -1,6 +1,6 @@
 # Explanation of config values
 
-The following config values to EMU-MPS relate to the functioning of the tdvp algorithm used to evolve the quantum state in time, and will be explained in more detail below:
+The following config values to emu-mps relate to the functioning of the tdvp algorithm used to evolve the quantum state in time, and will be explained in more detail below:
 
 - dt
 - precision
@@ -10,7 +10,7 @@ The following config values to EMU-MPS relate to the functioning of the tdvp alg
 
 ## dt
 
-Emu-MPS assumes the Hamiltonian is piece-wise constant in time for intervals of `dt`. It then constructs the Hamiltonian by sampling the amplitude, detuning and phase of the pulse midway through the interval, and making a single Hamiltonian. The TDVP algorithm is then used to evolve the state by `dt`. There are two sources of error related to `dt`.
+Note that emu-mps assumes the Hamiltonian is piece-wise constant in time for intervals of `dt`. It then constructs the Hamiltonian by sampling the amplitude, detuning and phase of the pulse midway through the interval, and making a single Hamiltonian. The TDVP algorithm is then used to evolve the state by `dt`. There are two sources of error related to `dt`.
 
 - The discretization of the pulse
 - [TDVP](errors.md)
@@ -19,7 +19,7 @@ Both sources of error dictate that `dt` shall not be too small, but the function
 
 ## precision
 
-The 2-site TDVP algorithm used in EMU-MPS works by repeatedly time-evolving two neighbouring qubits in the MPS, and then truncating the result. Truncation is done by applying an [SVD](https://en.wikipedia.org/wiki/Singular_value_decomposition) to the matrix representing the 2-qubit subsystem.
+The 2-site TDVP algorithm used in emu-mps works by repeatedly time-evolving two neighbouring qubits in the MPS, and then truncating the result. Truncation is done by applying an [SVD](https://en.wikipedia.org/wiki/Singular_value_decomposition) to the matrix representing the 2-qubit subsystem.
 The singular values give much information about the state. Denote the singular values by $d_i$, and assume they are ordered in decreasing magnitude.
 Then the norm of the state will be $\sum_i d_i^2$ and the entanglement entropy between the left and right parts of the state will be $\sum_i d_i \log_2(d_i)$, for example.
 
