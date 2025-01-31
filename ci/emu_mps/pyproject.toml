@@ -23,7 +23,7 @@ classifiers=[
 ]
 dynamic = ["version"]
 dependencies = [
-  "emu-base==1.2.3"]
+  "emu-base==1.2.4"]
 
 [tool.hatch.version]
 path = "../../emu_mps/__init__.py"

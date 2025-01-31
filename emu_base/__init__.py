@@ -44,4 +44,4 @@ __all__ = [
     "DEFAULT_MAX_KRYLOV_DIM",
 ]
 
-__version__ = "1.2.3"
+__version__ = "1.2.4"

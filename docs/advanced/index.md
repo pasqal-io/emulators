@@ -1,6 +1,6 @@
 #Advanced topics
 You have reached the advanced topics. Links to the individual pages discussing the various topics can be found in the sidebar to the left.
-The content here all relates to the inner workings of _EMU-MPS_ and is more conceptual in nature. You will not find information here about
+The content here all relates to the inner workings of emu-mps and is more conceptual in nature. You will not find information here about
 how to actually run a simulation, but rather
 
 - What Hamiltonian the emulator uses for time-evolution
@@ -11,4 +11,4 @@ how to actually run a simulation, but rather
 - How to determine whether your results are accurate
 - How to estimate the memory consumption and the runtime of a simulation in advance
 
-For the experienced user, this will help get the most out of _EMU-MPS_.
+For the experienced user, this will help get the most out of emu-mps.

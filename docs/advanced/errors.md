@@ -1,6 +1,6 @@
 # An explanation of the sources of error in TDVP
 
-EMU-MPS uses a 2nd order 2-site time-dependent variational principle to compute the time evolution of the qubit registers ([see here](tdvp.md)).
+Emu-mps uses a 2nd order 2-site time-dependent variational principle to compute the time evolution of the qubit registers ([see here](tdvp.md)).
 There are four sources of error inherent in this algorithm ([see here](https://tensornetwork.org/mps/algorithms/timeevo/tdvp.html))
 
 - effective description of long-range terms in the Hamiltonian
