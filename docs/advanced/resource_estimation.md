@@ -3,7 +3,7 @@ The presence of the `max_bond_dim` and `max_krylov_dim` [config](config.md) para
 ## Estimating the memory consumption of a simulation
 
 In this section we outline how to estimate the memory consumption of a simulation, for a given `max_bond_dim`, a Krylov subspace of size `max_krylov_dim`, and for $N$ being the number of qubits to be simulated.
-There are four contributions to the peak memory consumption of EMU-MPS that will be discussed in the next sections:
+There are four contributions to the peak memory consumption of emu-mps that will be discussed in the next sections:
 
 - the state
 - the baths
@@ -76,7 +76,7 @@ For different combinations of the number of atoms in a register $N$ and the fixe
 
 Finally, having established an estimate for the memory consumption, it makes sense to explore what are the available regimes of qubits/bond dimension can be reached for a given hardware capability.
 Since all heavy simulations will be run on an NVIDIA A100 (on Pasqal's DGX cluster), we have 40 GB of available memory.
-Therefore, above, we show (right image) the contour lines of the RSS estimate $m(N,\chi,k=30) < 40$ GB for particular useful values of the total memory, allowing to quickly estimate the memory footprint of an _EMU-MPS_ emulation.
+Therefore, above, we show (right image) the contour lines of the RSS estimate $m(N,\chi,k=30) < 40$ GB for particular useful values of the total memory, allowing to quickly estimate the memory footprint of an emu-mps emulation.
 
 ### An example
 
@@ -130,7 +130,7 @@ Below, we show the obtained results for different number of atoms in a register 
 <img src="../../benchmarks/benchmark_plots/runtime_vs_N.png"  width="49.7%">
 <img src="../../benchmarks/benchmark_plots/runtime_vs_bond_dim.png"  width="49.7%">
 
-To wrap up, and to provide an useful tool for runtime estimation for _EMU-MPS_, the time to perform a **single**  time step in a sequence can be conveniently visualized (below) for both $N$ and $\chi$ on contour lines.
+To wrap up, and to provide an useful tool for runtime estimation for emu-mps, the time to perform a **single**  time step in a sequence can be conveniently visualized (below) for both $N$ and $\chi$ on contour lines.
 
 <img src="../../benchmarks/benchmark_plots/emumps_runtime_map.png"  width="49.7%">
 
