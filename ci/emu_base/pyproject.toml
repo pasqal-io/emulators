@@ -14,7 +14,6 @@ authors = [
 ]
 url="https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct"
 requires-python = ">=3.10"
-license = "LicenseRef-MIT-Derived"
 license-files = ["LICENSE"]
 classifiers=[
     "Programming Language :: Python :: 3.10",
