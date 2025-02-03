@@ -1,6 +1,6 @@
 # The callback mechanism
 
-Since the desired output of the emulator can be quite user dependent, EMU-MPS uses a callback mechanism to specify its output.
+Since the desired output of the emulator can be quite user dependent, emu-mps uses a callback mechanism to specify its output.
 The available callbacks, together with examples for how to create them are on this page. How to use created callbacks to obtain results from an emulation is shown in the example notebooks ([here](./notebooks/emu_mps_notebooks/getting_started.ipynb)).
 
 The following default callbacks are available:

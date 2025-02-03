@@ -4,7 +4,7 @@
   # Emu-MPS
 </div>
 
-**EMU-MPS** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io). EMU-MPS lets you transparently run Quantum Algorithms on a simulated device, using GPU acceleration if available. More in depth, EMU-MPS is designed to **EMU**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**MPS**). While benchmarking is incomplete as of this writing, early results suggest that this design makes EMU-MPS faster and more memory-efficient than previous generations of quantum emulators at running simulations with large numbers of qubits.
+**Emu-mps** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io) that lets you run Quantum Algorithms on a simulated device, using GPU acceleration if available. More in depth, emu-mps is designed to **emu**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**mps**). While benchmarking is incomplete as of this writing, early results suggest that this design makes emu-mps faster and more memory-efficient than previous generations of quantum emulators at running simulations with large numbers of qubits.
 
 ## Installation
 
