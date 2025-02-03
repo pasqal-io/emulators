@@ -14,7 +14,7 @@ authors = [
 ]
 requires-python = ">=3.10"
 license = "LicenseRef-MIT-Derived"
-license-files = "LICENSE"
+license-files = ["LICENSE"]
 classifiers=[
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: Implementation :: CPython",
