@@ -115,3 +115,4 @@ def test_minimize_bandwidth(N: int) -> None:
     optimal_perm = optimiser.minimize_bandwidth_impl(shuffled_matrix)
     opt_matrix = optimiser.permute_matrix(shuffled_matrix, optimal_perm)
     assert np.array_equal(expected_mat, opt_matrix)
+

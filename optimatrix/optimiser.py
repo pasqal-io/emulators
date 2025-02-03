@@ -202,8 +202,9 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
 
 def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
     L = input_mat.shape[0]
-    rnd_permutations = (np.random.permutation(L).tolist() for _ in range(samples))
-
+    rnd_permutations = [
+        np.random.permutation(L).tolist() for _ in range(samples)
+    ] #rnd samples cannot be generator
     opt_permutations = (
         minimize_bandwidth_impl(permute_matrix(input_mat, rnd_perm))
         for rnd_perm in rnd_permutations
@@ -213,6 +214,10 @@ def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
         for rnd_perm, opt_perm in zip(rnd_permutations, opt_permutations)
     )
     return min(best_permutations, key = lambda perm: matrix_bandwidth(permute_matrix(input_mat, perm)))
+
+
+
+
 
 
 if __name__ == "__main__":
