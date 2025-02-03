@@ -1,6 +1,6 @@
 # Performance
 
-Here, as introduced in the [introduction](../benchmarks/index.md) page of the benchmarks, we will track several relevant metrics associated with runtime, memory usage and bond dimension:
+Here, as anticipated in the [introduction](../benchmarks/index.md) page of the benchmarks, we will track several relevant metrics associated with runtime, memory usage and bond dimension:
 
 - __Bond dimension $\chi$:__ the maximum internal link dimension of the MPS representation of the time evolved state ([see here](../advanced/mps/index.md#bond-dimension)).
 - __State size $|\psi|$:__ memory footprint of the state (in MB).

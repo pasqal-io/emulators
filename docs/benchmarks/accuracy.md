@@ -5,7 +5,7 @@ Accuracy, here, specifically refers to observables:
 
 - __Energy:__ $E = \langle\psi|H|\psi\rangle$
 - __Energy variance:__ $\Delta E = \langle\psi|H^2|\psi\rangle-E^2$
-- __Magnetization:__ $\langle P_{0}^j\rangle$ where $P_{0}^j$ projects qubit $j$ onto the $|0>$ state
+- __Magnetization:__ $\langle P_{0}^j\rangle$ where $P_{0}^j$ projects qubit $j$ onto the $|0\rangle$ state
 
 The emulated sequences are going to be the same as before, an adiabatic and a quench. In both cases, 9 qubits arrayed in a 3x3 grid are used, so that the results can also be simulated in Pulser. We will check accuracy against two main tunable parameters in emu-mps:
 
