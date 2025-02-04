@@ -76,7 +76,7 @@ def test_minimize_bandwidth(N: int) -> None:
     tridiagonal_matrix = np.diag(subdiagonal, k=1) + np.diag(subdiagonal, k=-1)
 
     shuffled_matrix = random_permute_matrix(tridiagonal_matrix)
-    optimal_perm = optimiser.minimize_bandwidth_impl(shuffled_matrix)
+    optimal_perm = optimiser.minimize_bandwidth(shuffled_matrix, samples = 10)
     opt_matrix = optimiser.permute_matrix(shuffled_matrix, optimal_perm)
     assert np.array_equal(tridiagonal_matrix, opt_matrix)
 
@@ -91,19 +91,19 @@ def test_minimize_bandwidth(N: int) -> None:
     expected_mat[1, 0] = expected_mat[0, 1] = 1
     expected_mat[N - 1, N - 2] = expected_mat[N - 2, N - 1] = 1
 
-    optimal_perm = optimiser.minimize_bandwidth_impl(initial_mat)
+    optimal_perm = optimiser.minimize_bandwidth(initial_mat, samples = 10)
     opt_matrix = optimiser.permute_matrix(initial_mat, optimal_perm)
     assert np.array_equal(expected_mat, opt_matrix)
 
     shuffled_matrix = random_permute_matrix(initial_mat)
-    optimal_perm = optimiser.minimize_bandwidth_impl(shuffled_matrix)
+    optimal_perm = optimiser.minimize_bandwidth(shuffled_matrix, samples = 10)
     opt_matrix = optimiser.permute_matrix(shuffled_matrix, optimal_perm)
     assert np.array_equal(expected_mat, opt_matrix)
 
 
 @pytest.mark.parametrize("N", [10, 20, 30])
 def test_is_symmetric(N: int) -> None:
-    #Test sanytizer of symmetric matrices
+    #Test sanitizer of symmetric matrices
     mat = np.zeros((N, N))
     mat[0, N - 1] = 1.0  # just a sign to break symmetric condition
     with pytest.raises(ValueError) as exc_msg:
