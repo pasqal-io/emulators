@@ -4,6 +4,17 @@ import numpy as np
 from optimatrix.permutations import permute_matrix, permute_list
 
 
+def is_symmetric(mat: np.ndarray) -> None:
+    if mat.shape[0] != mat.shape[1]:
+        raise ValueError(
+            f"Input matrix should be square matrix, you provide matrix {mat.shape}"
+        )
+    if not np.allclose(mat, mat.T, atol=1e-8):
+        raise ValueError("Input matrix should be symmetric")
+    
+    return None
+
+
 def matrix_bandwidth(mat: np.ndarray) -> float:
     """matrix_bandwidth(matrix: np.ndarray) -> float
 
@@ -43,10 +54,6 @@ def matrix_bandwidth(mat: np.ndarray) -> float:
     30.0
     """
 
-    if mat.shape[0] != mat.shape[1]:
-        raise ValueError(
-            f"Input matrix should be square matrix, you provide matrix {mat.shape}"
-        )
     bandwidth = max(abs(el * (index[0] - index[1])) for index, el in np.ndenumerate(mat))
     return float(bandwidth)
 
@@ -164,8 +171,7 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
     >>> minimize_bandwidth_impl(matrix)
     [0, 1, 2, 3, 4]
     """
-    if not np.allclose(matrix, matrix.T, atol=1e-8):
-        raise ValueError("Input matrix should be symmetric")
+
     mat = abs(
         matrix.copy()
     )  # sanitizer for cuthill-mckee. We are interested in strength of the interaction, not sign
