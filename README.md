@@ -6,9 +6,9 @@
 
 **Emu-mps** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io) that lets you run Quantum Algorithms on a simulated device, using GPU acceleration if available. More in depth, emu-mps is designed to **emu**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**mps**). While benchmarking is incomplete as of this writing, early results suggest that this design makes emu-mps faster and more memory-efficient than previous generations of quantum emulators at running simulations with large numbers of qubits.
 
-## Installation
+As of this writing, Emu-MPS is provided for Linux and macOS but will not work under Windows.
 
-**Warning:** installing emu-mps will update pulser-core
+## Installation
 
 ### Using `hatch`, `uv` or any pyproject-compatible Python manager
 
@@ -33,16 +33,8 @@ $ python -m venv venv
 
 2. Enter the venv
 
-If you're running Unix:
-
 ```sh
 $ . venv/bin/activate
-```
-
-If you're running Windows:
-
-```sh
-C:\> /path/to/new/virtual/environment/Scripts/activate
 ```
 
 3. Install the package
