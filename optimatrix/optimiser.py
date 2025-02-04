@@ -205,6 +205,8 @@ def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
     rnd_permutations = [
         np.random.permutation(L).tolist() for _ in range(samples)
     ] #rnd samples cannot be generator
+    rnd_permutations.insert(0, list(range(L))) #initial non-randomized order
+
     opt_permutations = (
         minimize_bandwidth_impl(permute_matrix(input_mat, rnd_perm))
         for rnd_perm in rnd_permutations
