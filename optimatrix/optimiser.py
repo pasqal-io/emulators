@@ -88,9 +88,9 @@ def minimize_bandwidth_above_threshold(mat: np.ndarray, threshold: float) -> np.
     array([1, 2, 0], dtype=int32)
     """
 
-    #matrix_truncated = mat.copy()
-    mat[mat < threshold] = 0
-    rcm_permutation = reverse_cuthill_mckee(csr_matrix(mat), symmetric_mode=True)
+    matrix_truncated = mat.copy()
+    matrix_truncated[mat < threshold] = 0
+    rcm_permutation = reverse_cuthill_mckee(csr_matrix(matrix_truncated), symmetric_mode=True)
     return np.array(rcm_permutation)
 
 
@@ -176,17 +176,16 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
     )  # start with trivial permutation [0, 1, 2, ...]
     bandwidth = matrix_bandwidth(matrix)
 
-    counter = 100
-    while True:
-        if counter < 0:
+
+    for counter in range(101):
+        if counter == 100:
             raise (
                 NotImplementedError(
                     "The algorithm takes too many steps, " "probably not converging."
                 )
             )
-        counter -= 1
 
-        optimal_perm = minimize_bandwidth_global(matrix.copy()) #modifies the matrix
+        optimal_perm = minimize_bandwidth_global(matrix.copy())  # modifies the matrix
         test_mat = permute_matrix(matrix, optimal_perm)
         new_bandwidth = matrix_bandwidth(test_mat)
 
@@ -202,9 +201,8 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
 
 def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
     is_symmetric(input_mat)
-    input_mat = abs(input_mat.copy())
-    # sanitizer for cuthill-mckee. We are interested in strength of the interaction, not sign
-
+    input_mat = abs(input_mat)
+    # We are interested in strength of the interaction, not sign
 
     L = input_mat.shape[0]
     rnd_permutations = [
