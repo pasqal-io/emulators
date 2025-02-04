@@ -24,12 +24,16 @@ jobs:
       - run: ./test_dependency_versions.sh
   test:
     needs: check_dependency_versions
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubutu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
       - run: pip install -r test_requirements.txt
       - run: pip install -e .
