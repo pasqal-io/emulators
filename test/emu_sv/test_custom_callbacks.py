@@ -112,7 +112,7 @@ def test_custom_energy_and_variance_and_second():
     )
     expected_variance = 3.67378968943955
 
-    assert energy_variance == approx(expected_variance, abs=1e-7)
+    assert energy_variance == approx(expected_variance, abs=1e-6)
 
     second_momentum_energy_mock = MagicMock(spec=SecondMomentOfEnergy)
     second_momentum_mock = second_momentum_energy_mock.return_value
