@@ -88,10 +88,9 @@ def minimize_bandwidth_above_threshold(mat: np.ndarray, threshold: float) -> np.
     array([1, 2, 0], dtype=int32)
     """
 
-    matrix_truncated = mat.copy()
-    matrix_truncated[mat < threshold] = 0
-    sparse_matrix = csr_matrix(matrix_truncated)  # required for the next line
-    rcm_permutation = reverse_cuthill_mckee(sparse_matrix, symmetric_mode=True)
+    #matrix_truncated = mat.copy()
+    mat[mat < threshold] = 0
+    rcm_permutation = reverse_cuthill_mckee(csr_matrix(mat), symmetric_mode=True)
     return np.array(rcm_permutation)
 
 
@@ -120,9 +119,10 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     >>> minimize_bandwidth_global(matrix)
     [2, 1, 0]
     """
-    mat_amplitude = np.ptp(np.abs(mat).ravel())  # mat.abs.max - mat.abs().min()
+    mat_amplitude = np.max(np.abs(mat))#np.ptp(np.abs(mat).ravel())  # mat.abs.max - mat.abs().min()
 
     # Search from 1.0 to 0.1 doesn't change result
+    # Search from 0.1 to 1.0 allows to remove copying from minimize_bandwidth_above_threshold
     permutations = (
         minimize_bandwidth_above_threshold(mat, trunc * mat_amplitude)
         for trunc in np.arange(start=0.1, stop=1.0, step=0.01)
@@ -171,16 +171,10 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
     >>> minimize_bandwidth_impl(matrix)
     [0, 1, 2, 3, 4]
     """
-
-    mat = abs(
-        matrix.copy()
-    )  # sanitizer for cuthill-mckee. We are interested in strength of the interaction, not sign
-
     acc_permutation = list(
         range(matrix.shape[0])
     )  # start with trivial permutation [0, 1, 2, ...]
-
-    bandwidth = matrix_bandwidth(mat)
+    bandwidth = matrix_bandwidth(matrix)
 
     counter = 100
     while True:
@@ -192,14 +186,14 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
             )
         counter -= 1
 
-        optimal_perm = minimize_bandwidth_global(mat)
-        test_mat = permute_matrix(mat, optimal_perm)
+        optimal_perm = minimize_bandwidth_global(matrix.copy()) #modifies the matrix
+        test_mat = permute_matrix(matrix, optimal_perm)
         new_bandwidth = matrix_bandwidth(test_mat)
 
         if bandwidth <= new_bandwidth:
             break
 
-        mat = test_mat
+        matrix = test_mat
         acc_permutation = permute_list(acc_permutation, optimal_perm)
         bandwidth = new_bandwidth
 
@@ -207,6 +201,11 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
 
 
 def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
+    is_symmetric(input_mat)
+    input_mat = abs(input_mat.copy())
+    # sanitizer for cuthill-mckee. We are interested in strength of the interaction, not sign
+
+
     L = input_mat.shape[0]
     rnd_permutations = [
         np.random.permutation(L).tolist() for _ in range(samples)
