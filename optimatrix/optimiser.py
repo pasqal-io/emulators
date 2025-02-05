@@ -4,7 +4,7 @@ import numpy as np
 from optimatrix.permutations import permute_matrix, permute_list
 
 
-def is_symmetric(mat: np.ndarray) -> None:
+def is_symmetric(mat: np.ndarray) -> bool:
     if mat.shape[0] != mat.shape[1]:
         raise ValueError(
             f"Input matrix should be square matrix, you provide matrix {mat.shape}"
@@ -12,7 +12,7 @@ def is_symmetric(mat: np.ndarray) -> None:
     if not np.allclose(mat, mat.T, atol=1e-8):
         raise ValueError("Input matrix should be symmetric")
 
-    return None
+    return True
 
 
 def matrix_bandwidth(mat: np.ndarray) -> float:
@@ -203,7 +203,7 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
 
 
 def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
-    is_symmetric(input_mat)
+    assert is_symmetric(input_mat)
     input_mat = abs(input_mat)
     # We are interested in strength of the interaction, not sign
 
