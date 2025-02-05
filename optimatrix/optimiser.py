@@ -2,7 +2,7 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import reverse_cuthill_mckee
 import numpy as np
 from optimatrix.permutations import permute_matrix, permute_list
-
+import itertools
 
 def is_symmetric(mat: np.ndarray) -> bool:
     if mat.shape[0] != mat.shape[1]:
@@ -121,8 +121,7 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     """
     mat_amplitude = np.max(
         np.abs(mat)
-    )  # np.ptp(np.abs(mat).ravel())  # mat.abs.max - mat.abs().min()
-
+    )
     # Search from 1.0 to 0.1 doesn't change result
     permutations = (
         minimize_bandwidth_above_threshold(mat, trunc * mat_amplitude)
@@ -135,9 +134,9 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     return list(opt_permutation)  # opt_permutation is np.ndarray
 
 
-def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
+def minimize_bandwidth_impl(matrix: np.ndarray, initial_perm: list[int]) -> tuple[list[int], float]:
     """
-    minimize_bandwidth_impl(matrix) -> list
+    minimize_bandwidth_impl(matrix, initial_perm) -> list
 
     Finds the permutation list for a symmetric matrix that iteratively minimizes matrix bandwidth.
 
@@ -172,10 +171,10 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
     >>> minimize_bandwidth_impl(matrix)
     [0, 1, 2, 3, 4]
     """
-    acc_permutation = list(
-        range(matrix.shape[0])
-    )  # start with trivial permutation [0, 1, 2, ...]
+    if initial_perm != list(range(matrix.shape[0])):
+        matrix = permute_matrix(matrix, initial_perm)
     bandwidth = matrix_bandwidth(matrix)
+    acc_permutation = initial_perm
 
     for counter in range(101):
         if counter == 100:
@@ -196,7 +195,7 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
         acc_permutation = permute_list(acc_permutation, optimal_perm)
         bandwidth = new_bandwidth
 
-    return acc_permutation
+    return acc_permutation, bandwidth
 
 
 def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
@@ -205,22 +204,20 @@ def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
     # We are interested in strength of the interaction, not sign
 
     L = input_mat.shape[0]
-    rnd_permutations = [list(range(L))] # initial non-randomized order
-    rnd_permutations.extend(np.random.permutation(L).tolist() for _ in range(samples))
-    # rnd samples cannot be generator in the current impl
+    rnd_permutations = itertools.chain(
+        [list(range(L))],  # First element is always the identity list
+        (np.random.permutation(L).tolist() for _ in range(samples))
+    )
 
-    opt_permutations = (
-        minimize_bandwidth_impl(permute_matrix(input_mat, rnd_perm))
+    opt_permutations_and_opt_bandwidth = (
+        minimize_bandwidth_impl(input_mat, rnd_perm)
         for rnd_perm in rnd_permutations
     )
-    best_permutations = (
-        permute_list(rnd_perm, opt_perm)
-        for rnd_perm, opt_perm in zip(rnd_permutations, opt_permutations)
-    )
+
     return min(
-        best_permutations,
-        key=lambda perm: matrix_bandwidth(permute_matrix(input_mat, perm)),
-    )
+        opt_permutations_and_opt_bandwidth,
+        key=lambda perm_and_bandwidth: perm_and_bandwidth[1],
+        )[0]
 
 
 if __name__ == "__main__":
