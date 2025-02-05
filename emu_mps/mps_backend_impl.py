@@ -13,6 +13,7 @@ from pulser import Sequence
 
 from emu_base import Results, State, PulserData
 from emu_base.math.brents_root_finding import BrentsRootFinder
+from emu_mps.constants import DEVICE_COUNT
 from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
@@ -82,6 +83,12 @@ class MPSBackendImpl:
             f"""To resume: `MPSBackend().resume("{self.autosave_file}")`"""
         )
         self.last_save_time = time.time()
+
+        if self.config.num_gpus_to_use > DEVICE_COUNT:
+            self.config.logger.warning(
+                f"Requested to use {self.config.num_gpus_to_use} GPU(s) "
+                f"but only {DEVICE_COUNT if DEVICE_COUNT > 0 else 'cpu'} available"
+            )
 
     @staticmethod
     def _get_autosave_filepath(autosave_prefix: str) -> pathlib.Path:
