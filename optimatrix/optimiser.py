@@ -219,10 +219,12 @@ def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
         minimize_bandwidth_impl(input_mat, rnd_perm) for rnd_perm in rnd_permutations
     )
 
-    return min(
+    best_perm, best_bandwidth = min(
         opt_permutations_and_opt_bandwidth,
         key=lambda perm_and_bandwidth: perm_and_bandwidth[1],
-    )[0]
+    )
+    assert best_bandwidth < matrix_bandwidth(input_mat), "Matrix is not optimised"
+    return best_perm
 
 
 if __name__ == "__main__":
