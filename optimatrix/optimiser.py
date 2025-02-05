@@ -138,12 +138,15 @@ def minimize_bandwidth_impl(matrix: np.ndarray, initial_perm: list[int]) -> tupl
     """
     minimize_bandwidth_impl(matrix, initial_perm) -> list
 
-    Finds the permutation list for a symmetric matrix that iteratively minimizes matrix bandwidth.
+    Applies initial_perm to a matrix and
+    finds the permutation list for a symmetric matrix that iteratively minimizes matrix bandwidth.
 
     Parameters
     -------
     matrix :
         symmetric square matrix
+    initial_perm: list of integers
+
 
     Returns
     -------
@@ -158,8 +161,9 @@ def minimize_bandwidth_impl(matrix: np.ndarray, initial_perm: list[int]) -> tupl
     ...    [0, 1, 0, 1, 0],
     ...    [0, 0, 1, 0, 1],
     ...    [1, 0, 0, 1, 0]])
-    >>> minimize_bandwidth_impl(matrix) # [3, 2, 4, 1, 0] does zig-zag
-    [3, 2, 4, 1, 0]
+    >>> id_perm = list(range(matrix.shape[0]))
+    >>> minimize_bandwidth_impl(matrix, id_perm) # [3, 2, 4, 1, 0] does zig-zag
+    ([3, 2, 4, 1, 0], 2.0)
 
     Simple 1D chain. Cannot be optimised further
     >>> matrix = np.array([
@@ -168,8 +172,9 @@ def minimize_bandwidth_impl(matrix: np.ndarray, initial_perm: list[int]) -> tupl
     ...    [0, 1, 0, 1, 0],
     ...    [0, 0, 1, 0, 1],
     ...    [0, 0, 0, 1, 0]])
-    >>> minimize_bandwidth_impl(matrix)
-    [0, 1, 2, 3, 4]
+    >>> id_perm = list(range(matrix.shape[0]))
+    >>> minimize_bandwidth_impl(matrix, id_perm)
+    ([0, 1, 2, 3, 4], 1.0)
     """
     if initial_perm != list(range(matrix.shape[0])):
         matrix = permute_matrix(matrix, initial_perm)
