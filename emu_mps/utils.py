@@ -256,3 +256,21 @@ def tensor_trace(tensor: torch.Tensor, dim1: int, dim2: int) -> torch.Tensor:
     """
     assert tensor.shape[dim1] == tensor.shape[dim2], "dimensions should match"
     return tensor.diagonal(offset=0, dim1=dim1, dim2=dim2).sum(-1)
+
+
+def interaction_matrix_is_symmetric(interaction_matrix : list[list[float]], tol : float = 1e-15) -> bool:
+    if len(interaction_matrix) == 0:
+        raise ValueError("Interaction matrix is empty")
+    
+    for column in interaction_matrix:
+        if len(column) != len(interaction_matrix[0]):
+            raise ValueError("Interaction matrix is not a rectangular matrix")
+    
+    if len(interaction_matrix) != len(interaction_matrix[0]):
+        raise ValueError("Interaction matrix is not a square matrix")
+    
+    int_mat = torch.tensor(interaction_matrix)
+    if not torch.allclose(int_mat, int_mat.T, atol=tol):
+        raise ValueError("Interaction matrix is not symmetric")
+
+    return True
