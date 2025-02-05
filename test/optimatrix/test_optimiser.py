@@ -111,7 +111,7 @@ def test_minimize_bandwidth(N: int) -> None:
 @pytest.mark.parametrize("N", [10, 20, 30])
 def test_is_symmetric(N: int) -> None:
     mat = np.zeros((N, N))
-    mat[0, N - 1] = 1.0 
+    mat[0, N - 1] = 1.0
     assert not optimiser.is_symmetric(mat)
 
     assert not optimiser.is_symmetric(np.arange(6).reshape((3, 2)))

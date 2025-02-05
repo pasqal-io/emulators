@@ -4,6 +4,7 @@ import numpy as np
 from optimatrix.permutations import permute_matrix, permute_list
 import itertools
 
+
 def is_symmetric(mat: np.ndarray) -> bool:
     if mat.shape[0] != mat.shape[1]:
         return False
@@ -119,9 +120,7 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     >>> minimize_bandwidth_global(matrix)
     [2, 1, 0]
     """
-    mat_amplitude = np.max(
-        np.abs(mat)
-    )
+    mat_amplitude = np.max(np.abs(mat))
     # Search from 1.0 to 0.1 doesn't change result
     permutations = (
         minimize_bandwidth_above_threshold(mat, trunc * mat_amplitude)
@@ -134,7 +133,9 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     return list(opt_permutation)  # opt_permutation is np.ndarray
 
 
-def minimize_bandwidth_impl(matrix: np.ndarray, initial_perm: list[int]) -> tuple[list[int], float]:
+def minimize_bandwidth_impl(
+    matrix: np.ndarray, initial_perm: list[int]
+) -> tuple[list[int], float]:
     """
     minimize_bandwidth_impl(matrix, initial_perm) -> list
 
@@ -211,18 +212,17 @@ def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
     L = input_mat.shape[0]
     rnd_permutations = itertools.chain(
         [list(range(L))],  # First element is always the identity list
-        (np.random.permutation(L).tolist() for _ in range(samples))
+        (np.random.permutation(L).tolist() for _ in range(samples)),
     )
 
     opt_permutations_and_opt_bandwidth = (
-        minimize_bandwidth_impl(input_mat, rnd_perm)
-        for rnd_perm in rnd_permutations
+        minimize_bandwidth_impl(input_mat, rnd_perm) for rnd_perm in rnd_permutations
     )
 
     return min(
         opt_permutations_and_opt_bandwidth,
         key=lambda perm_and_bandwidth: perm_and_bandwidth[1],
-        )[0]
+    )[0]
 
 
 if __name__ == "__main__":
