@@ -124,7 +124,6 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     )  # np.ptp(np.abs(mat).ravel())  # mat.abs.max - mat.abs().min()
 
     # Search from 1.0 to 0.1 doesn't change result
-    # Search from 0.1 to 1.0 allows to remove copying from minimize_bandwidth_above_threshold
     permutations = (
         minimize_bandwidth_above_threshold(mat, trunc * mat_amplitude)
         for trunc in np.arange(start=0.1, stop=1.0, step=0.01)
@@ -186,7 +185,7 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
                 )
             )
 
-        optimal_perm = minimize_bandwidth_global(matrix)  # modifies the matrix
+        optimal_perm = minimize_bandwidth_global(matrix)
         test_mat = permute_matrix(matrix, optimal_perm)
         new_bandwidth = matrix_bandwidth(test_mat)
 
@@ -206,10 +205,9 @@ def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
     # We are interested in strength of the interaction, not sign
 
     L = input_mat.shape[0]
-    rnd_permutations = [
-        np.random.permutation(L).tolist() for _ in range(samples)
-    ]  # rnd samples cannot be generator
-    rnd_permutations.insert(0, list(range(L)))  # initial non-randomized order
+    rnd_permutations = [list(range(L))] # initial non-randomized order
+    rnd_permutations.extend(np.random.permutation(L).tolist() for _ in range(samples))
+    # rnd samples cannot be generator in the current impl
 
     opt_permutations = (
         minimize_bandwidth_impl(permute_matrix(input_mat, rnd_perm))
