@@ -83,7 +83,7 @@ def permute_matrix(mat: np.ndarray, permutation: list[int]) -> np.ndarray:
            [2, 1, 3],
            [8, 7, 9]])
     """
-    
+
     perm = np.array(permutation)
     return mat[perm, :][:, perm]
 

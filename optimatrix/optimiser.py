@@ -11,7 +11,7 @@ def is_symmetric(mat: np.ndarray) -> None:
         )
     if not np.allclose(mat, mat.T, atol=1e-8):
         raise ValueError("Input matrix should be symmetric")
-    
+
     return None
 
 
@@ -90,7 +90,9 @@ def minimize_bandwidth_above_threshold(mat: np.ndarray, threshold: float) -> np.
 
     matrix_truncated = mat.copy()
     matrix_truncated[mat < threshold] = 0
-    rcm_permutation = reverse_cuthill_mckee(csr_matrix(matrix_truncated), symmetric_mode=True)
+    rcm_permutation = reverse_cuthill_mckee(
+        csr_matrix(matrix_truncated), symmetric_mode=True
+    )
     return np.array(rcm_permutation)
 
 
@@ -119,7 +121,9 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     >>> minimize_bandwidth_global(matrix)
     [2, 1, 0]
     """
-    mat_amplitude = np.max(np.abs(mat))#np.ptp(np.abs(mat).ravel())  # mat.abs.max - mat.abs().min()
+    mat_amplitude = np.max(
+        np.abs(mat)
+    )  # np.ptp(np.abs(mat).ravel())  # mat.abs.max - mat.abs().min()
 
     # Search from 1.0 to 0.1 doesn't change result
     # Search from 0.1 to 1.0 allows to remove copying from minimize_bandwidth_above_threshold
@@ -176,7 +180,6 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
     )  # start with trivial permutation [0, 1, 2, ...]
     bandwidth = matrix_bandwidth(matrix)
 
-
     for counter in range(101):
         if counter == 100:
             raise (
@@ -207,8 +210,8 @@ def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
     L = input_mat.shape[0]
     rnd_permutations = [
         np.random.permutation(L).tolist() for _ in range(samples)
-    ] #rnd samples cannot be generator
-    rnd_permutations.insert(0, list(range(L))) #initial non-randomized order
+    ]  # rnd samples cannot be generator
+    rnd_permutations.insert(0, list(range(L)))  # initial non-randomized order
 
     opt_permutations = (
         minimize_bandwidth_impl(permute_matrix(input_mat, rnd_perm))
@@ -218,8 +221,10 @@ def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
         permute_list(rnd_perm, opt_perm)
         for rnd_perm, opt_perm in zip(rnd_permutations, opt_permutations)
     )
-    return min(best_permutations, key = lambda perm: matrix_bandwidth(permute_matrix(input_mat, perm)))
-
+    return min(
+        best_permutations,
+        key=lambda perm: matrix_bandwidth(permute_matrix(input_mat, perm)),
+    )
 
 
 if __name__ == "__main__":
