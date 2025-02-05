@@ -6,11 +6,9 @@ from optimatrix.permutations import permute_matrix, permute_list
 
 def is_symmetric(mat: np.ndarray) -> bool:
     if mat.shape[0] != mat.shape[1]:
-        raise ValueError(
-            f"Input matrix should be square matrix, you provide matrix {mat.shape}"
-        )
+        return False
     if not np.allclose(mat, mat.T, atol=1e-8):
-        raise ValueError("Input matrix should be symmetric")
+        return False
 
     return True
 
@@ -203,7 +201,7 @@ def minimize_bandwidth_impl(matrix: np.ndarray) -> list[int]:
 
 
 def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
-    assert is_symmetric(input_mat)
+    assert is_symmetric(input_mat), "Input matrix is not symmetric"
     input_mat = abs(input_mat)
     # We are interested in strength of the interaction, not sign
 

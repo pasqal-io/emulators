@@ -66,6 +66,13 @@ def test_minimize_bandwidth_global(N: int) -> None:
 
 @pytest.mark.parametrize("N", [10, 20, 30])
 def test_minimize_bandwidth(N: int) -> None:
+    # Test sanitizer of symmetric matrices
+    mat = np.zeros((N, N))
+    mat[0, N - 1] = 1.0  # just a sign to break symmetric condition
+    with pytest.raises(AssertionError) as exc_msg:
+        optimiser.minimize_bandwidth(mat)
+    assert str(exc_msg.value) == "Input matrix is not symmetric"
+
     def random_permute_matrix(mat: np.ndarray) -> np.ndarray:
         s = mat.shape[0]
         perm_random = random.sample(list(range(s)), s)
@@ -103,21 +110,14 @@ def test_minimize_bandwidth(N: int) -> None:
 
 @pytest.mark.parametrize("N", [10, 20, 30])
 def test_is_symmetric(N: int) -> None:
-    # Test sanitizer of symmetric matrices
     mat = np.zeros((N, N))
-    mat[0, N - 1] = 1.0  # just a sign to break symmetric condition
-    with pytest.raises(ValueError) as exc_msg:
-        optimiser.is_symmetric(mat)
-    assert str(exc_msg.value) == "Input matrix should be symmetric"
+    mat[0, N - 1] = 1.0 
+    assert not optimiser.is_symmetric(mat)
 
-    def test_shape(matrix: np.ndarray) -> None:
-        msg = f"Input matrix should be square matrix, you provide matrix {matrix.shape}"
-        with pytest.raises(ValueError) as exc_msg:
-            optimiser.is_symmetric(matrix)
-        assert str(exc_msg.value) == msg
+    assert not optimiser.is_symmetric(np.arange(6).reshape((3, 2)))
+    assert not optimiser.is_symmetric(np.arange(8).reshape((2, 4)))
 
-    test_shape(np.arange(6).reshape((3, 2)))
-    test_shape(np.arange(8).reshape((2, 4)))
+    assert optimiser.is_symmetric(mat + mat.T)
 
 
 def test_2rings_1bar() -> None:
