@@ -7,15 +7,6 @@ random.seed(42)
 
 
 def test_matrix_bandwidth() -> None:
-    def test_shape(matrix: np.ndarray) -> None:
-        msg = f"Input matrix should be square matrix, you provide matrix {matrix.shape}"
-        with pytest.raises(ValueError) as exc_msg:
-            optimiser.matrix_bandwidth(matrix)
-        assert str(exc_msg.value) == msg
-
-    test_shape(np.arange(6).reshape((3, 2)))
-    test_shape(np.arange(8).reshape((2, 4)))
-
     # Test bandwidth for small matrices 3x3
     def check_bandwidth(matrix: np.ndarray, bandwidth_expected: int) -> None:
         bandwidth = optimiser.matrix_bandwidth(matrix)
@@ -65,15 +56,6 @@ def test_matrix_bandwidth() -> None:
 
 @pytest.mark.parametrize("N", [10, 20, 30])
 def test_minimize_bandwidth_global(N: int) -> None:
-    def test_symmetric(matrix: np.ndarray) -> None:
-        with pytest.raises(ValueError) as exc_msg:
-            optimiser.minimize_bandwidth_global(matrix)
-        assert str(exc_msg.value) == "Input matrix should be symmetric"
-
-    mat = np.random.rand(N, N)
-    mat[0, N - 1] = N  # just a number to break symmetric condition
-    test_symmetric(mat)
-
     # Test shuffled 1D ising chain which is described by tridiagonal matrix {1, 0 , 1}
     mat = np.diag([1] * (N - 1), k=1)
     mat += np.diag([1] * (N - 1), k=-1)
@@ -84,6 +66,13 @@ def test_minimize_bandwidth_global(N: int) -> None:
 
 @pytest.mark.parametrize("N", [10, 20, 30])
 def test_minimize_bandwidth(N: int) -> None:
+    # Test sanitizer of symmetric matrices
+    mat = np.zeros((N, N))
+    mat[0, N - 1] = 1.0  # just a sign to break symmetric condition
+    with pytest.raises(AssertionError) as exc_msg:
+        optimiser.minimize_bandwidth(mat)
+    assert str(exc_msg.value) == "Input matrix is not symmetric"
+
     def random_permute_matrix(mat: np.ndarray) -> np.ndarray:
         s = mat.shape[0]
         perm_random = random.sample(list(range(s)), s)
@@ -94,7 +83,7 @@ def test_minimize_bandwidth(N: int) -> None:
     tridiagonal_matrix = np.diag(subdiagonal, k=1) + np.diag(subdiagonal, k=-1)
 
     shuffled_matrix = random_permute_matrix(tridiagonal_matrix)
-    optimal_perm = optimiser.minimize_bandwidth(shuffled_matrix)
+    optimal_perm = optimiser.minimize_bandwidth(shuffled_matrix, samples=10)
     opt_matrix = optimiser.permute_matrix(shuffled_matrix, optimal_perm)
     assert np.array_equal(tridiagonal_matrix, opt_matrix)
 
@@ -109,11 +98,56 @@ def test_minimize_bandwidth(N: int) -> None:
     expected_mat[1, 0] = expected_mat[0, 1] = 1
     expected_mat[N - 1, N - 2] = expected_mat[N - 2, N - 1] = 1
 
-    optimal_perm = optimiser.minimize_bandwidth(initial_mat)
+    optimal_perm = optimiser.minimize_bandwidth(initial_mat, samples=10)
     opt_matrix = optimiser.permute_matrix(initial_mat, optimal_perm)
     assert np.array_equal(expected_mat, opt_matrix)
 
     shuffled_matrix = random_permute_matrix(initial_mat)
-    optimal_perm = optimiser.minimize_bandwidth(shuffled_matrix)
+    optimal_perm = optimiser.minimize_bandwidth(shuffled_matrix, samples=10)
     opt_matrix = optimiser.permute_matrix(shuffled_matrix, optimal_perm)
     assert np.array_equal(expected_mat, opt_matrix)
+
+
+@pytest.mark.parametrize("N", [10, 20, 30])
+def test_is_symmetric(N: int) -> None:
+    mat = np.zeros((N, N))
+    mat[0, N - 1] = 1.0
+    assert not optimiser.is_symmetric(mat)
+
+    assert not optimiser.is_symmetric(np.arange(6).reshape((3, 2)))
+    assert not optimiser.is_symmetric(np.arange(8).reshape((2, 4)))
+
+    assert optimiser.is_symmetric(mat + mat.T)
+
+
+def test_2rings_1bar() -> None:
+    # ring with 3 qubits, bar with 1 qubit
+    input_mat = np.array(
+        [
+            [0.0, 0.3655409, 0.3655409, 0.04386491, 0.08435559, 0.08435559, 0.25],
+            [0.3655409, 0.0, 0.3655409, 0.02550285, 0.04386491, 0.0391651, 0.08022302],
+            [0.3655409, 0.3655409, 0.0, 0.02550285, 0.0391651, 0.04386491, 0.08022302],
+            [0.04386491, 0.02550285, 0.02550285, 0.0, 0.3655409, 0.3655409, 0.12989251],
+            [0.08435559, 0.04386491, 0.0391651, 0.3655409, 0.0, 0.3655409, 0.40232329],
+            [0.08435559, 0.0391651, 0.04386491, 0.3655409, 0.3655409, 0.0, 0.40232329],
+            [0.25, 0.08022302, 0.08022302, 0.12989251, 0.40232329, 0.40232329, 0.0],
+        ]
+    )
+
+    expected_mat = np.array(
+        [
+            [0.0, 0.3655409, 0.3655409, 0.12989251, 0.04386491, 0.02550285, 0.02550285],
+            [0.3655409, 0.0, 0.3655409, 0.40232329, 0.08435559, 0.0391651, 0.04386491],
+            [0.3655409, 0.3655409, 0.0, 0.40232329, 0.08435559, 0.04386491, 0.0391651],
+            [0.12989251, 0.40232329, 0.40232329, 0.0, 0.25, 0.08022302, 0.08022302],
+            [0.04386491, 0.08435559, 0.08435559, 0.25, 0.0, 0.3655409, 0.3655409],
+            [0.02550285, 0.0391651, 0.04386491, 0.08022302, 0.3655409, 0.0, 0.3655409],
+            [0.02550285, 0.04386491, 0.0391651, 0.08022302, 0.3655409, 0.3655409, 0.0],
+        ]
+    )
+
+    optimal_perm = optimiser.minimize_bandwidth(input_mat)
+    opt_matrix = optimiser.permute_matrix(input_mat, optimal_perm)
+    exp_bandwidth = optimiser.matrix_bandwidth(expected_mat)
+    opt_bandwidth = optimiser.matrix_bandwidth(opt_matrix)
+    assert exp_bandwidth == opt_bandwidth

@@ -2,6 +2,16 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import reverse_cuthill_mckee
 import numpy as np
 from optimatrix.permutations import permute_matrix, permute_list
+import itertools
+
+
+def is_symmetric(mat: np.ndarray) -> bool:
+    if mat.shape[0] != mat.shape[1]:
+        return False
+    if not np.allclose(mat, mat.T, atol=1e-8):
+        return False
+
+    return True
 
 
 def matrix_bandwidth(mat: np.ndarray) -> float:
@@ -43,10 +53,6 @@ def matrix_bandwidth(mat: np.ndarray) -> float:
     30.0
     """
 
-    if mat.shape[0] != mat.shape[1]:
-        raise ValueError(
-            f"Input matrix should be square matrix, you provide matrix {mat.shape}"
-        )
     bandwidth = max(abs(el * (index[0] - index[1])) for index, el in np.ndenumerate(mat))
     return float(bandwidth)
 
@@ -83,8 +89,9 @@ def minimize_bandwidth_above_threshold(mat: np.ndarray, threshold: float) -> np.
 
     matrix_truncated = mat.copy()
     matrix_truncated[mat < threshold] = 0
-    sparse_matrix = csr_matrix(matrix_truncated)  # required for the next line
-    rcm_permutation = reverse_cuthill_mckee(sparse_matrix, symmetric_mode=True)
+    rcm_permutation = reverse_cuthill_mckee(
+        csr_matrix(matrix_truncated), symmetric_mode=True
+    )
     return np.array(rcm_permutation)
 
 
@@ -113,11 +120,7 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     >>> minimize_bandwidth_global(matrix)
     [2, 1, 0]
     """
-    if not np.allclose(mat, mat.T, rtol=1e-8, atol=0):
-        raise ValueError("Input matrix should be symmetric")
-
-    mat_amplitude = np.ptp(np.abs(mat).ravel())  # mat.abs.max - mat.abs().min()
-
+    mat_amplitude = np.max(np.abs(mat))
     # Search from 1.0 to 0.1 doesn't change result
     permutations = (
         minimize_bandwidth_above_threshold(mat, trunc * mat_amplitude)
@@ -130,16 +133,21 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     return list(opt_permutation)  # opt_permutation is np.ndarray
 
 
-def minimize_bandwidth(matrix: np.ndarray) -> list[int]:
+def minimize_bandwidth_impl(
+    matrix: np.ndarray, initial_perm: list[int]
+) -> tuple[list[int], float]:
     """
-    minimize_bandwidth(matrix) -> list
+    minimize_bandwidth_impl(matrix, initial_perm) -> list
 
-    Finds the permutation list for a symmetric matrix that iteratively minimizes matrix bandwidth.
+    Applies initial_perm to a matrix and
+    finds the permutation list for a symmetric matrix that iteratively minimizes matrix bandwidth.
 
     Parameters
     -------
     matrix :
         symmetric square matrix
+    initial_perm: list of integers
+
 
     Returns
     -------
@@ -154,8 +162,9 @@ def minimize_bandwidth(matrix: np.ndarray) -> list[int]:
     ...    [0, 1, 0, 1, 0],
     ...    [0, 0, 1, 0, 1],
     ...    [1, 0, 0, 1, 0]])
-    >>> minimize_bandwidth(matrix) # [3, 2, 4, 1, 0] does zig-zag
-    [3, 2, 4, 1, 0]
+    >>> id_perm = list(range(matrix.shape[0]))
+    >>> minimize_bandwidth_impl(matrix, id_perm) # [3, 2, 4, 1, 0] does zig-zag
+    ([3, 2, 4, 1, 0], 2.0)
 
     Simple 1D chain. Cannot be optimised further
     >>> matrix = np.array([
@@ -164,42 +173,58 @@ def minimize_bandwidth(matrix: np.ndarray) -> list[int]:
     ...    [0, 1, 0, 1, 0],
     ...    [0, 0, 1, 0, 1],
     ...    [0, 0, 0, 1, 0]])
-    >>> minimize_bandwidth(matrix)
-    [0, 1, 2, 3, 4]
+    >>> id_perm = list(range(matrix.shape[0]))
+    >>> minimize_bandwidth_impl(matrix, id_perm)
+    ([0, 1, 2, 3, 4], 1.0)
     """
-    mat = matrix.copy()
-    permutations: list[list[int]] = []
+    if initial_perm != list(range(matrix.shape[0])):
+        matrix = permute_matrix(matrix, initial_perm)
+    bandwidth = matrix_bandwidth(matrix)
+    acc_permutation = initial_perm
 
-    trivial_permutation = list(range(matrix.shape[0]))
-    trivial_permutation.reverse()
-
-    counter = 100
-    while True:
-        if counter < 0:
+    for counter in range(101):
+        if counter == 100:
             raise (
                 NotImplementedError(
                     "The algorithm takes too many steps, " "probably not converging."
                 )
             )
-        counter -= 1
 
-        optimal_perm = minimize_bandwidth_global(mat)
-        if optimal_perm == trivial_permutation:
-            # when the search converges, it suggests
-            # a permutation [N, N-1, .., 3, 2, 1, 0]
-            # which corresponds to the trivial order inversion
+        optimal_perm = minimize_bandwidth_global(matrix)
+        test_mat = permute_matrix(matrix, optimal_perm)
+        new_bandwidth = matrix_bandwidth(test_mat)
+
+        if bandwidth <= new_bandwidth:
             break
 
-        permutations.append(optimal_perm)
-        mat = permute_matrix(mat, optimal_perm)
+        matrix = test_mat
+        acc_permutation = permute_list(acc_permutation, optimal_perm)
+        bandwidth = new_bandwidth
 
-    composition_permutation = list(
-        range(matrix.shape[0])
-    )  # start with trivial permutation
-    for perm in permutations:
-        composition_permutation = permute_list(composition_permutation, perm)
+    return acc_permutation, bandwidth
 
-    return composition_permutation
+
+def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
+    assert is_symmetric(input_mat), "Input matrix is not symmetric"
+    input_mat = abs(input_mat)
+    # We are interested in strength of the interaction, not sign
+
+    L = input_mat.shape[0]
+    rnd_permutations = itertools.chain(
+        [list(range(L))],  # First element is always the identity list
+        (np.random.permutation(L).tolist() for _ in range(samples)),
+    )
+
+    opt_permutations_and_opt_bandwidth = (
+        minimize_bandwidth_impl(input_mat, rnd_perm) for rnd_perm in rnd_permutations
+    )
+
+    best_perm, best_bandwidth = min(
+        opt_permutations_and_opt_bandwidth,
+        key=lambda perm_and_bandwidth: perm_and_bandwidth[1],
+    )
+    assert best_bandwidth < matrix_bandwidth(input_mat), "Matrix is not optimised"
+    return best_perm
 
 
 if __name__ == "__main__":
