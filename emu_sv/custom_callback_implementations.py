@@ -64,7 +64,7 @@ def energy_variance_sv_impl(
     return (h_squared.real - h_state.real**2).item()
 
 
-def second_momentum_sv_impl(
+def second_moment_sv_impl(
     self: SecondMomentOfEnergy,
     config: BackendConfig,
     t: int,

@@ -15,7 +15,7 @@ from typing import Any
 from emu_sv.custom_callback_implementations import (
     qubit_density_sv_impl,
     energy_variance_sv_impl,
-    second_momentum_sv_impl,
+    second_moment_sv_impl,
     correlation_matrix_sv_impl,
 )
 
@@ -80,7 +80,7 @@ class SVConfig(BackendConfig):
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, SecondMomentOfEnergy):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    second_momentum_sv_impl, obs
+                    second_moment_sv_impl, obs
                 )
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, CorrelationMatrix):

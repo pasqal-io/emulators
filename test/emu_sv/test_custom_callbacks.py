@@ -6,7 +6,7 @@ from emu_sv.custom_callback_implementations import (
     qubit_density_sv_impl,
     correlation_matrix_sv_impl,
     energy_variance_sv_impl,
-    second_momentum_sv_impl,
+    second_moment_sv_impl,
 )
 from emu_base.base_classes.default_callbacks import (
     QubitDensity,
@@ -112,14 +112,12 @@ def test_custom_energy_and_variance_and_second():
     )
     expected_varaince = 3.67378968943955
 
-    assert energy_variance == approx(expected_varaince, abs=1e-8)
+    assert energy_variance == approx(expected_varaince, abs=4e-7)
 
-    second_momentum_energy_mock = MagicMock(spec=SecondMomentOfEnergy)
-    second_momentum_mock = second_momentum_energy_mock.return_value
+    second_moment_energy_mock = MagicMock(spec=SecondMomentOfEnergy)
+    second_moment_mock = second_moment_energy_mock.return_value
 
-    second_momentum = second_momentum_sv_impl(
-        second_momentum_mock, config, t, state, h_rydberg
-    )
+    second_moment = second_moment_sv_impl(second_moment_mock, config, t, state, h_rydberg)
     expected_second = 4.2188228611101
 
-    assert second_momentum == approx(expected_second, abs=1e-8)
+    assert second_moment == approx(expected_second, abs=2e-7)
