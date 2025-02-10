@@ -84,9 +84,8 @@ def permute_matrix(mat: np.ndarray, permutation: list[int]) -> np.ndarray:
            [8, 7, 9]])
     """
 
-    matrix_copy = mat.copy()
     perm = np.array(permutation)
-    return matrix_copy[perm, :][:, perm]
+    return mat[perm, :][:, perm]
 
 
 if __name__ == "__main__":
