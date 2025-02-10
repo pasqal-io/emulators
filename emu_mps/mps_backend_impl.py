@@ -20,11 +20,12 @@ from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
 from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
 from emu_mps.tdvp import (
-    evolve_single,
-    evolve_pair,
+    # evolve_single,
+    # evolve_pair,
     new_right_bath,
     right_baths,
 )
+from emulators_cpp import evolve_single, evolve_pair
 from emu_mps.utils import (
     extended_mpo_factors,
     extended_mps_factors,
@@ -204,6 +205,7 @@ class MPSBackendImpl:
             (index,) = indices
             assert self.state.orthogonality_center == index
 
+            s = time.time()
             self.state.factors[index] = evolve_single(
                 state_factor=self.state.factors[index],
                 ham_factor=self.hamiltonian.factors[index],
@@ -212,6 +214,8 @@ class MPSBackendImpl:
                 config=self.config,
                 is_hermitian=not self.has_lindblad_noise,
             )
+            if self.timestep_index == 389:
+                print("evolve_single", time.time() - s)
         else:
             assert orth_center_right is not None
             l, r = indices
@@ -220,6 +224,7 @@ class MPSBackendImpl:
                 "State needs to be orthogonalized" " on one of the evolved indices"
             )
 
+            s = time.time()
             self.state.factors[l : r + 1] = evolve_pair(
                 state_factors=self.state.factors[l : r + 1],
                 ham_factors=self.hamiltonian.factors[l : r + 1],
@@ -229,6 +234,8 @@ class MPSBackendImpl:
                 orth_center_right=orth_center_right,
                 is_hermitian=not self.has_lindblad_noise,
             )
+            if self.timestep_index == 389:
+                print("evolve_pair  ", time.time() - s)
 
             self.state.orthogonality_center = r if orth_center_right else l
 

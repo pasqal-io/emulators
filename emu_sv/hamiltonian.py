@@ -7,6 +7,8 @@ import torch
 
 from emu_sv.state_vector import StateVector
 
+from emulators_cpp import apply_rydberg_sv
+
 
 class RydbergHamiltonian:
     """
@@ -77,6 +79,8 @@ class RydbergHamiltonian:
             torch.Tensor: resulting vector after applying the matrix-vector multiplication.
 
         """
+        return apply_rydberg_sv(hamiltonian=self, state_vector=vec)
+
         # TODO: add the complex part of the Hamiltonian
         vec = vec if len(vec) == self.nqubits else vec.reshape((2,) * self.nqubits)
 

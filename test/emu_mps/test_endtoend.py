@@ -97,6 +97,7 @@ def simulate(
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
+        # num_gpus_to_use=0,
     )
 
     result = mps_backend.run(seq, mps_config)
