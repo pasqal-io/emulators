@@ -1,6 +1,7 @@
 from emu_sv.state_vector import StateVector, inner
 from emu_sv.dense_operator import DenseOperator
 from emu_sv.sv_backend import SVBackend, SVConfig
+from emu_sv.time_evolution import evolve_sv_rydberg
 from emu_base.base_classes import Results
 from emu_base.base_classes.callback import AggregationType
 
@@ -36,6 +37,7 @@ __all__ = [
     "SecondMomentOfEnergy",
     "AggregationType",
     "Results",
+    "evolve_sv_rydberg",
 ]
 
 

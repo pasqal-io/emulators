@@ -20,11 +20,12 @@ from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
 from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
 from emu_mps.tdvp import (
-    evolve_single,
-    evolve_pair,
+    # evolve_single,
+    # evolve_pair,
     new_right_bath,
     right_baths,
 )
+from emulators_cpp import evolve_single, evolve_pair
 from emu_mps.utils import (
     extended_mpo_factors,
     extended_mps_factors,

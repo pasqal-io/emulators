@@ -56,6 +56,7 @@ class SVConfig(BackendConfig):
         max_krylov_dim: int = 100,
         krylov_tolerance: float = 1e-12,
         gpu: bool = False,
+        cpp: bool = False,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
@@ -65,6 +66,7 @@ class SVConfig(BackendConfig):
         self.max_krylov_dim = max_krylov_dim
         self.gpu = gpu
         self.krylov_tolerance = krylov_tolerance
+        self.cpp = cpp
 
         for num, obs in enumerate(self.callbacks):  # monkey patch
             obs_copy = copy.deepcopy(obs)

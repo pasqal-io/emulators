@@ -109,6 +109,8 @@ def simulate(
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
+        gpu=True,
+        cpp=True,
     )
 
     result = sv_backend.run(seq, sv_config)
@@ -141,23 +143,25 @@ def test_end_to_end_afm_ring():
 
     fidelity_state = create_antiferromagnetic_state_vector(num_qubits)
 
-    assert bitstrings["1010101010"] == 136
-    assert bitstrings["0101010101"] == 159
+    assert bitstrings["1010101010"] == 140
+    assert bitstrings["0101010101"] == 136
     assert fidelity_state.inner(final_state) == approx(final_fidelity, abs=1e-10)
 
     q_density = result["qubit_density"][final_time]
 
     assert torch.allclose(
-        torch.tensor([0.578] * 10, dtype=torch.float64), q_density, atol=1e-3
+        torch.tensor([0.578] * 10, dtype=torch.float64, device="cuda:0"),
+        q_density,
+        atol=1e-3,
     )
 
     energy = result["energy"][final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
-    assert approx(energy, 1e-7) == -115.34554479213088
+    assert approx(energy.item(), 1e-7) == -115.34554479213088
 
     energy_variance = result["energy_variance"][final_time]  # 45.911110563993134
-    assert approx(energy_variance, 1e-3) == 45.91111056399
+    assert approx(energy_variance.item(), 1e-3) == 45.91111056399
 
     second_moment_energy = result["second_moment_of_energy"][
         final_time
     ]  # 13350.505342183847
-    assert approx(second_moment_energy, 1e-6) == 13350.5053421
+    assert approx(second_moment_energy.item(), 1e-6) == 13350.5053421

@@ -1,6 +1,8 @@
 import torch
 from functools import reduce
-from emu_sv.time_evolution import do_time_step
+
+from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.time_evolution import evolve_sv_rydberg
 from emu_sv.sv_config import SVConfig
 
 dtype = torch.complex128
@@ -73,11 +75,15 @@ def test_forward():
     h = sv_hamiltonian(interactions, omega, delta).to(device)
     dt = 1.0
     ed = torch.linalg.matrix_exp(-1j * dt * h) @ state
-    krylov, _ = do_time_step(
+    ham = RydbergHamiltonian(
+        omegas=omega,
+        deltas=delta,
+        interaction_matrix=interactions,
+        device=device,
+    )
+    krylov = evolve_sv_rydberg(
         dt,
-        omega,
-        delta,
-        interactions,
+        ham,
         state,  # .reshape((2,) * N),
         sv_config.krylov_tolerance,
     )  # .reshape(-1)

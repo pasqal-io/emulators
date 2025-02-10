@@ -4,9 +4,10 @@ from emu_mps import MPS, MPO, MPSConfig
 from emu_mps.tdvp import (
     apply_effective_Hamiltonian,
     right_baths,
-    evolve_single,
-    evolve_pair,
+    # evolve_single,
+    # evolve_pair,
 )
+from emulators_cpp import evolve_single, evolve_pair
 
 
 def test_right_baths_bell():

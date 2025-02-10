@@ -39,7 +39,7 @@ def _rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     c6 = sequence.device.interaction_coeff
 
     qubit_positions = _get_qubit_positions(sequence.register)
-    interaction_matrix = torch.zeros(num_qubits, num_qubits)
+    interaction_matrix = torch.zeros(num_qubits, num_qubits, dtype=torch.float64)
 
     for numi in range(len(qubit_positions)):
         for numj in range(numi + 1, len(qubit_positions)):
@@ -129,18 +129,18 @@ def _extract_omega_delta_phi(
     omega = torch.zeros(
         nsamples,
         len(sequence.register.qubit_ids),
-        dtype=torch.complex128,
+        dtype=torch.float64,
     )
 
     delta = torch.zeros(
         nsamples,
         len(sequence.register.qubit_ids),
-        dtype=torch.complex128,
+        dtype=torch.float64,
     )
     phi = torch.zeros(
         nsamples,
         len(sequence.register.qubit_ids),
-        dtype=torch.complex128,
+        dtype=torch.float64,
     )
 
     if laser_waist:

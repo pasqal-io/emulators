@@ -6,6 +6,7 @@ the Rydberg Hamiltonian of a neutral atoms quantum processor.
 import torch
 
 from emu_sv.state_vector import StateVector
+from emulators_cpp import apply_rydberg_sv
 
 
 class RydbergHamiltonian:
@@ -48,13 +49,16 @@ class RydbergHamiltonian:
         deltas: torch.Tensor,
         interaction_matrix: torch.Tensor,
         device: torch.device,
+        cpp: bool = False,
     ):
         self.nqubits: int = len(omegas)
-        self.omegas: torch.Tensor = omegas / 2.0
-        self.deltas: torch.Tensor = deltas
-        self.interaction_matrix: torch.Tensor = interaction_matrix
-        self.diag: torch.Tensor = self._create_diagonal().to(device=device)
-        self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
+        self.omegas: torch.Tensor = omegas.to(device=device) / 2.0
+        self.deltas: torch.Tensor = deltas.to(device=device)
+        self.interaction_matrix: torch.Tensor = interaction_matrix.to(device=device)
+        self.cpp = cpp
+        if not self.cpp:
+            self.diag: torch.Tensor = self._create_diagonal().to(device=device)
+            self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
@@ -77,6 +81,9 @@ class RydbergHamiltonian:
             torch.Tensor: resulting vector after applying the matrix-vector multiplication.
 
         """
+        if self.cpp:
+            return apply_rydberg_sv(hamiltonian=self, state_vector=vec)
+
         # TODO: add the complex part of the Hamiltonian
 
         diag_result = self.diag * vec  # (-∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ nⱼ) * |𝜓>

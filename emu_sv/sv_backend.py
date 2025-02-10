@@ -1,9 +1,10 @@
 from emu_base.base_classes.backend import Backend, BackendConfig
 from emu_base.base_classes.results import Results
+from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.sv_config import SVConfig
 from pulser import Sequence
 from emu_base.pulser_adapter import PulserData
-from emu_sv.time_evolution import do_time_step
+
 from emu_sv import StateVector
 import torch
 from time import time
@@ -49,17 +50,26 @@ class SVBackend(Backend):
 
         dt = sv_config.dt * 1e-3  # ns to µs
 
-        for step in range(nsteps):
+        if sv_config.cpp:
+            from emulators_cpp import evolve_sv_rydberg
+        else:
+            from emu_sv.time_evolution import evolve_sv_rydberg
 
+        for step in range(nsteps):
             start = time()
 
-            state.vector, H = do_time_step(
-                dt,
-                omega[step],
-                delta[step],
-                data.full_interaction_matrix,
-                state.vector,
-                sv_config.krylov_tolerance,
+            ham = RydbergHamiltonian(
+                omegas=omega[step],
+                deltas=delta[step],
+                interaction_matrix=data.full_interaction_matrix,
+                device=state.vector.device,
+            )
+
+            state.vector = evolve_sv_rydberg(
+                dt=dt,
+                ham=ham,
+                state_vector=state.vector,
+                krylov_tolerance=sv_config.krylov_tolerance,
             )
 
             for callback in sv_config.callbacks:
@@ -67,7 +77,7 @@ class SVBackend(Backend):
                     sv_config,
                     (step + 1) * sv_config.dt,
                     state,
-                    H,  # type: ignore[arg-type]
+                    ham,  # type: ignore[arg-type]
                     results,
                 )
 

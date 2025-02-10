@@ -437,9 +437,9 @@ def update_H(
     assert noise.shape == (2, 2)
     nqubits = omega.size(dim=0)
 
-    a = torch.tensordot(omega * torch.cos(phi), sx, dims=0)
-    c = torch.tensordot(delta, pu, dims=0)
-    b = torch.tensordot(omega * torch.sin(phi), sy, dims=0)
+    a = torch.tensordot(omega.type(torch.complex128) * torch.cos(phi), sx, dims=0)
+    c = torch.tensordot(delta.type(torch.complex128), pu, dims=0)
+    b = torch.tensordot(omega.type(torch.complex128) * torch.sin(phi), sy, dims=0)
 
     single_qubit_terms = a + b - c + noise
     factors = hamiltonian.factors

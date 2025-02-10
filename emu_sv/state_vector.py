@@ -147,7 +147,7 @@ class StateVector(State):
             self.vector.shape == other.vector.shape
         ), "States do not have the same number of sites"
 
-        return torch.vdot(self.vector, other.vector).item()
+        return torch.vdot(self.vector, other.vector.to(self.vector.device)).item()
 
     def sample(
         self, num_shots: int = 1000, p_false_pos: float = 0.0, p_false_neg: float = 0.0
@@ -246,7 +246,7 @@ class StateVector(State):
         return accum_state
 
 
-def inner(left: StateVector, right: StateVector) -> torch.Tensor:
+def inner(left: StateVector, right: StateVector) -> float | complex:
     """
     Wrapper around StateVector.inner.
 
@@ -272,7 +272,7 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
     assert (left.vector.shape == right.vector.shape) and (
         left.vector.dim() == 1
     ), "Shape of a and b should be the same and both needs to be 1D tesnor"
-    return torch.inner(left.vector, right.vector)
+    return torch.inner(left.vector, right.vector).item()
 
 
 if __name__ == "__main__":

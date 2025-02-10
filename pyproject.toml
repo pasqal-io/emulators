@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=74.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -26,6 +26,8 @@ dynamic = ["version"]
 
 [tool.setuptools]
 packages = ["emu_base", "emu_mps", "emu_sv"]
+ext-modules = [{name = "emulators_cpp", sources = ["cpp/src/core.cpp", "cpp/src/python_bindings.cpp"], include-dirs = ["cpp/include", "/home/pablo/code/venv/lib64/python3.10/site-packages/torch/include", "/home/pablo/code/venv/lib64/python3.10/site-packages/torch/include/torch/csrc/api/include"], library-dirs=["/home/pablo/code/venv/lib64/python3.10/site-packages/torch/lib", "cpp/lib"], runtime-library-dirs=["/home/pablo/code/venv/lib64/python3.10/site-packages/torch/lib", "cpp/lib"], libraries=["emulators_cuda_kernels", "c10", "torch", "torch_cpu", "torch_cuda", "torch_python"], extra-compile-args=["-std=c++17", "-O3", "-D_GLIBCXX_USE_CXX11_ABI=0"], py-limited-api = true}]
+# For debug: "-ggdb", "-O0",
 
 [tool.coverage.run]
 branch = true

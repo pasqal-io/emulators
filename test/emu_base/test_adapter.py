@@ -306,38 +306,38 @@ def test_extract_omega_delta_phi(
 
     expected_omega = torch.tensor(
         [
-            [4.7500 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [8.2500 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [10.0000 + 0.0j, 10.0000 + 0.0j, 10.0000 + 0.0j],
-            [7.1429 + 0.0j, 7.1429 + 0.0j, 7.1429 + 0.0j],
-            [4.2857 + 0.0j, 4.2857 + 0.0j, 4.2857 + 0.0j],
-            [1.4286 + 0.0j, 1.4286 + 0.0j, 1.4286 + 0.0j],
+            [4.7500, 0.0000, 0.0000],
+            [8.2500, 0.0000, 0.0000],
+            [10.0000, 10.0000, 10.0000],
+            [7.1429, 7.1429, 7.1429],
+            [4.2857, 4.2857, 4.2857],
+            [1.4286, 1.4286, 1.4286],
         ],
-        dtype=torch.complex128,
+        dtype=torch.float64,
     )
     to_modify = expected_omega[2:]
     to_modify *= waist_amplitudes
     expected_delta = torch.tensor(
         [
-            [-1.3750 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [-7.1250 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [-10.0000 + 0.0j, -10.0000 + 0.0j, -10.0000 + 0.0j],
-            [-4.2857 + 0.0j, -4.2857 + 0.0j, -4.2857 + 0.0j],
-            [1.4286 + 0.0j, 1.4286 + 0.0j, 1.4286 + 0.0j],
-            [7.1429 + 0.0j, 7.1429 + 0.0j, 7.1429 + 0.0j],
+            [-1.3750, 0.0000, 0.0000],
+            [-7.1250, 0.0000, 0.0000],
+            [-10.0000, -10.0000, -10.0000],
+            [-4.2857, -4.2857, -4.2857],
+            [1.4286, 1.4286, 1.4286],
+            [7.1429, 7.1429, 7.1429],
         ],
-        dtype=torch.complex128,
+        dtype=torch.float64,
     )
     expected_phi = torch.tensor(
         [
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+            [0.1000, 0.0000, 0.0000],
+            [0.1000, 0.0000, 0.0000],
+            [0.2000, 0.2000, 0.2000],
+            [0.2000, 0.2000, 0.2000],
+            [0.2000, 0.2000, 0.2000],
+            [0.2000, 0.2000, 0.2000],
         ],
-        dtype=torch.complex128,
+        dtype=torch.float64,
     )
 
     assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
@@ -364,7 +364,7 @@ def test_autograd(mock_pulser_sample):
             1.11111111,
             0.0,
         ],
-        dtype=torch.complex128,
+        dtype=torch.float64,
         requires_grad=True,
     )
     det_tensor = torch.tensor(
@@ -380,12 +380,12 @@ def test_autograd(mock_pulser_sample):
             7.77777778,
             10.0,
         ],
-        dtype=torch.complex128,
+        dtype=torch.float64,
         requires_grad=True,
     )
     phase_tensor = torch.tensor(
         [0.2] * 10,
-        dtype=torch.complex128,
+        dtype=torch.float64,
         requires_grad=True,
     )
 
@@ -427,7 +427,7 @@ def test_autograd(mock_pulser_sample):
         omega_value,
         dict_sample_atom2,
     )
-    expected = torch.zeros(TEST_DURATION, dtype=torch.complex128)
+    expected = torch.zeros(TEST_DURATION, dtype=torch.float64)
     expected[5] = 1
     assert torch.allclose(res[0], expected)
 
