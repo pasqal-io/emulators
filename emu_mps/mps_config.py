@@ -2,7 +2,6 @@ from typing import Any
 
 from emu_base import BackendConfig, State
 from emu_mps.constants import DEVICE_COUNT
-from emu_mps.utils import interaction_matrix_is_symmetric
 
 
 class MPSConfig(BackendConfig):
@@ -61,8 +60,6 @@ class MPSConfig(BackendConfig):
         self.num_gpus_to_use = num_gpus_to_use
         self.extra_krylov_tolerance = extra_krylov_tolerance
 
-        assert interaction_matrix_is_symmetric(interaction_matrix)
-
         if self.noise_model is not None:
             if "doppler" in self.noise_model.noise_types:
                 raise NotImplementedError("Unsupported noise type: doppler")
@@ -79,5 +76,3 @@ class MPSConfig(BackendConfig):
         assert (
             self.autosave_dt > MIN_AUTOSAVE_DT
         ), f"autosave_dt must be larger than {MIN_AUTOSAVE_DT} seconds"
-
-        

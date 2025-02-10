@@ -258,19 +258,24 @@ def tensor_trace(tensor: torch.Tensor, dim1: int, dim2: int) -> torch.Tensor:
     return tensor.diagonal(offset=0, dim1=dim1, dim2=dim2).sum(-1)
 
 
-def interaction_matrix_is_symmetric(interaction_matrix : list[list[float]], tol : float = 1e-15) -> bool:
-    if len(interaction_matrix) == 0:
-        raise ValueError("Interaction matrix is empty")
-    
-    for column in interaction_matrix:
-        if len(column) != len(interaction_matrix[0]):
-            raise ValueError("Interaction matrix is not a rectangular matrix")
-    
-    if len(interaction_matrix) != len(interaction_matrix[0]):
-        raise ValueError("Interaction matrix is not a square matrix")
-    
-    int_mat = torch.tensor(interaction_matrix)
+def is_symmetric_zero_diag_matrix(
+    inter_matrix: list[list[float]] | torch.Tensor, tol: float = 1e-15
+) -> bool:
+    if len(inter_matrix) == 0:
+        return False
+
+    for column in inter_matrix:
+        if len(column) != len(inter_matrix[0]):
+            return False
+
+    if len(inter_matrix) != len(inter_matrix[0]):
+        return False
+
+    int_mat = torch.tensor(inter_matrix)
     if not torch.allclose(int_mat, int_mat.T, atol=tol):
-        raise ValueError("Interaction matrix is not symmetric")
+        return False
+
+    if torch.norm(torch.diag(int_mat)) > tol:
+        return False
 
     return True
