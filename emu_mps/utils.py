@@ -256,16 +256,3 @@ def tensor_trace(tensor: torch.Tensor, dim1: int, dim2: int) -> torch.Tensor:
     """
     assert tensor.shape[dim1] == tensor.shape[dim2], "dimensions should match"
     return tensor.diagonal(offset=0, dim1=dim1, dim2=dim2).sum(-1)
-
-
-def is_symmetric_zero_diag_matrix(int_mat: torch.Tensor, tol: float = 1e-15) -> bool:
-    if not (
-        int_mat.numel() != 0
-        and int_mat.dim() == 2
-        and int_mat.shape[0] == int_mat.shape[1]
-        and torch.allclose(int_mat, int_mat.T, atol=tol)
-        and torch.norm(torch.diag(int_mat)) < tol
-    ):
-        return False
-
-    return True

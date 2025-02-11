@@ -7,7 +7,6 @@ from emu_base import HamiltonianType
 import torch
 
 from emu_mps.mpo import MPO
-from emu_mps.utils import is_symmetric_zero_diag_matrix
 
 dtype = torch.complex128  # always complex128
 iden_op = torch.eye(2, 2, dtype=dtype)  # dtype is always complex128
@@ -358,10 +357,6 @@ def make_H(
         _middle_factor = _middle_factor_xy
     else:
         raise ValueError(f"Unsupported hamiltonian type {hamiltonian_type}")
-
-    assert is_symmetric_zero_diag_matrix(
-        interaction_matrix
-    ), "Interaction matrix is not symmetric and zero diag"
 
     nqubits = interaction_matrix.size(dim=1)
     middle = nqubits // 2

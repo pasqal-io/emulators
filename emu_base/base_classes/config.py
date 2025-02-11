@@ -58,6 +58,27 @@ class BackendConfig:
                 "Interaction matrix must be provided as a Python list of lists of floats"
             )
 
+        def is_symmetric_zero_diag_matrix(
+            interaction_mat: list[list[float]] | None, tol: float = 1e-15
+        ) -> bool:
+            import torch
+
+            int_mat = torch.tensor(interaction_mat)
+            if not (
+                int_mat.numel() != 0
+                and int_mat.dim() == 2
+                and int_mat.shape[0] == int_mat.shape[1]
+                and torch.allclose(int_mat, int_mat.T, atol=tol)
+                and torch.norm(torch.diag(int_mat)) < tol
+            ):
+                return False
+
+            return True
+
+        assert is_symmetric_zero_diag_matrix(
+            interaction_matrix
+        ), "Interaction matrix is not symmetric and zero diag"
+
         self.interaction_matrix = interaction_matrix
         self.interaction_cutoff = interaction_cutoff
         self.logger = logging.getLogger("global_logger")
