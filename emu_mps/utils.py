@@ -258,20 +258,16 @@ def tensor_trace(tensor: torch.Tensor, dim1: int, dim2: int) -> torch.Tensor:
     return tensor.diagonal(offset=0, dim1=dim1, dim2=dim2).sum(-1)
 
 
-def is_symmetric_zero_diag_matrix(
-    inter_matrix: list[list[float]] | torch.Tensor, tol: float = 1e-15
-) -> bool:
-    if len(inter_matrix) == 0:
+def is_symmetric_zero_diag_matrix(int_mat: torch.Tensor, tol: float = 1e-15) -> bool:
+    if int_mat.numel() == 0:
         return False
 
-    for column in inter_matrix:
-        if len(column) != len(inter_matrix[0]):
-            return False
-
-    if len(inter_matrix) != len(inter_matrix[0]):
+    if int_mat.dim() != 2:
         return False
 
-    int_mat = torch.tensor(inter_matrix)
+    if int_mat.shape[0] != int_mat.shape[1]:
+        return False
+
     if not torch.allclose(int_mat, int_mat.T, atol=tol):
         return False
 

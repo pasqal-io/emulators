@@ -359,12 +359,12 @@ def make_H(
     else:
         raise ValueError(f"Unsupported hamiltonian type {hamiltonian_type}")
 
-    nqubits = interaction_matrix.size(dim=1)
-    middle = nqubits // 2
-
     assert is_symmetric_zero_diag_matrix(
         interaction_matrix
     ), "Interaction matrix is not symmetric and zero diag"
+
+    nqubits = interaction_matrix.size(dim=1)
+    middle = nqubits // 2
     interactions_to_keep = _get_interactions_to_keep(interaction_matrix)
 
     cores = [_first_factor(interactions_to_keep[0].item() != 0.0)]
