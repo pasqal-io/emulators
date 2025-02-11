@@ -575,44 +575,11 @@ def test_truncation_nn(hamiltonian_type):
     ],
 )
 @pytest.mark.parametrize(
-    "system_size",
+    "n_qubits",
     [10, 25, 50],
 )
-def test_N_qubit(hamiltonian_type, system_size):
-    def test_make_H(int_mat):
-        with pytest.raises(
-            AssertionError, match="Interaction matrix is not symmetric and zero diag"
-        ):
-            make_H(
-                interaction_matrix=int_mat,
-                hamiltonian_type=hamiltonian_type,
-                num_gpus_to_use=0,
-            )
-
-    interaction_matrix = torch.randn(system_size, system_size, dtype=torch.float64)
-    test_make_H(interaction_matrix)
-
-    interaction_matrix = (interaction_matrix + interaction_matrix.T) / 2
-    test_make_H(interaction_matrix)
-
-    interaction_matrix.fill_diagonal_(0)
-
-    make_H(
-        interaction_matrix=interaction_matrix,
-        hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=0,
-    )
-
-
-@pytest.mark.parametrize(
-    "hamiltonian_type",
-    [
-        HamiltonianType.Rydberg,
-        HamiltonianType.XY,
-    ],
-)
-def test_interaction_matrix_shape(hamiltonian_type):
-    def test_assert_make_H(int_mat):
+def test_interaction_matrix_shape(hamiltonian_type, n_qubits):
+    def test_assert_make_H(int_mat: int) -> None:
         with pytest.raises(
             AssertionError, match="Interaction matrix is not symmetric and zero diag"
         ):
@@ -625,16 +592,27 @@ def test_interaction_matrix_shape(hamiltonian_type):
     wrong_interaction_matrix = torch.tensor([[]])  # empty matrix
     test_assert_make_H(wrong_interaction_matrix)
 
-    wrong_interaction_matrix = torch.randn(2, dtype=torch.float64)  # 1D not matrix
+    wrong_interaction_matrix = torch.randn(n_qubits, dtype=torch.float64)  # 1D not matrix
     test_assert_make_H(wrong_interaction_matrix)
 
-    wrong_interaction_matrix = torch.randn(2, 2, 2, dtype=torch.float64)  # 3D not matrix
+    wrong_interaction_matrix = torch.randn(
+        n_qubits, n_qubits, n_qubits, dtype=torch.float64
+    )  # 3D not matrix
     test_assert_make_H(wrong_interaction_matrix)
 
-    wrong_interaction_matrix = torch.randn(2, 3, dtype=torch.float64)  # not square
+    wrong_interaction_matrix = torch.randn(
+        n_qubits, n_qubits + 1, dtype=torch.float64
+    )  # not square
     test_assert_make_H(wrong_interaction_matrix)
 
-    wrong_interaction_matrix = torch.randn(3, 3, dtype=torch.float64)  # not symmetric
+    wrong_interaction_matrix = torch.randn(
+        n_qubits, n_qubits - 1, dtype=torch.float64
+    )  # not square
+    test_assert_make_H(wrong_interaction_matrix)
+
+    wrong_interaction_matrix = torch.randn(
+        n_qubits, n_qubits, dtype=torch.float64
+    )  # not symmetric
     test_assert_make_H(wrong_interaction_matrix)
 
     wrong_interaction_matrix = (
