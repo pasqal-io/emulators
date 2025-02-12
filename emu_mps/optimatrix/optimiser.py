@@ -223,9 +223,8 @@ def minimize_bandwidth(input_matrix: np.ndarray, samples: int = 100) -> list[int
         opt_permutations_and_opt_bandwidth,
         key=lambda perm_and_bandwidth: perm_and_bandwidth[1],
     )
-    initial_bw = matrix_bandwidth(input_matrix)
-    msg = f"Matrix is not optimised {initial_bw} -> {best_bandwidth}"
-    assert best_bandwidth <= initial_bw, msg
+
+    assert best_bandwidth <= matrix_bandwidth(input_matrix), "Matrix is not optimised"
     return best_perm
 
 
