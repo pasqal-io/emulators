@@ -4,7 +4,11 @@ import torch
 import numpy
 
 
-def test_interaction_matrix():
+@pytest.mark.parametrize(
+    "n_qubits",
+    [10, 25, 50],
+)
+def test_interaction_matrix(n_qubits: int) -> None:
     BackendConfig(interaction_matrix=None)  # None is ok, empty tensor not ok
     BackendConfig(interaction_matrix=[[0.0, 1.0], [1.0, 0.0]])
 
@@ -19,13 +23,7 @@ def test_interaction_matrix():
     test_BackendConfig(int_mat=torch.eye(3))
     test_BackendConfig(int_mat=numpy.eye(3))
 
-
-@pytest.mark.parametrize(
-    "n_qubits",
-    [10, 25, 50],
-)
-def test_shape_interaction_matrix(n_qubits):
-    def test_BackendConfig(int_mat: int) -> None:
+    def test_BackendConfig(int_mat: torch.tensor) -> None:
         with pytest.raises(
             ValueError, match="Interaction matrix is not symmetric and zero diag"
         ):
