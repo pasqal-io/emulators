@@ -204,9 +204,9 @@ def minimize_bandwidth_impl(
     return acc_permutation, bandwidth
 
 
-def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
-    assert is_symmetric(input_mat), "Input matrix is not symmetric"
-    input_mat = abs(input_mat)
+def minimize_bandwidth(input_matrix: np.ndarray, samples: int = 100) -> list[int]:
+    assert is_symmetric(input_matrix), "Input matrix is not symmetric"
+    input_mat = abs(input_matrix)
     # We are interested in strength of the interaction, not sign
 
     L = input_mat.shape[0]
@@ -223,7 +223,9 @@ def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
         opt_permutations_and_opt_bandwidth,
         key=lambda perm_and_bandwidth: perm_and_bandwidth[1],
     )
-    assert best_bandwidth < matrix_bandwidth(input_mat), "Matrix is not optimised"
+    initial_bw = matrix_bandwidth(input_matrix)
+    msg = f"Matrix is not optimised {initial_bw} -> {best_bandwidth}"
+    assert best_bandwidth <= initial_bw, msg
     return best_perm
 
 
