@@ -1,6 +1,10 @@
 import pytest
 import numpy as np
-from optimatrix.permutations import permute_list, invert_permutation, permute_matrix
+from emu_mps.optimatrix.permutations import (
+    permute_list,
+    invert_permutation,
+    permute_matrix,
+)
 import random
 
 
