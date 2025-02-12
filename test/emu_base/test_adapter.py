@@ -606,8 +606,6 @@ def test_parsed_sequence(mock_pulser_sample):
         [[0, 0, -0.4], [0, 0, 0], [-0.4, 0, 0]],
         dtype=torch.float64,
     )
-    # print(cutoff_interaction_matrix)
-    # print(parsed_sequence.masked_interaction_matrix)
 
     assert torch.allclose(parsed_sequence.omega, omega)
     assert torch.allclose(parsed_sequence.delta, delta)
