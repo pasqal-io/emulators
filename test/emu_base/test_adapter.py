@@ -575,11 +575,10 @@ def test_parsed_sequence(mock_pulser_sample):
     mock_pulser_sample.return_value = sample_instance
 
     interaction_matrix = [
-        [0.4251, 0.4588, -0.4607],
-        [0.0929, -0.1636, -1.0463],
-        [-0.4037, 0.1067, -0.9528],
+        [0.0, 0.0929, -0.4],
+        [0.0929, 0.0, 0.1067],
+        [-0.4, 0.1067, 0.0],
     ]
-
     sequence._slm_mask_time = []
 
     random_collapse = torch.rand(2, 2, dtype=torch.complex128)
@@ -604,9 +603,12 @@ def test_parsed_sequence(mock_pulser_sample):
     )
 
     cutoff_interaction_matrix = torch.tensor(
-        [[0.4251, 0.4588, -0.4607], [0.0, -0.1636, -1.0463], [-0.4037, 0.0, -0.9528]],
+        [[0, 0, -0.4], [0, 0, 0], [-0.4, 0, 0]],
         dtype=torch.float64,
     )
+    # print(cutoff_interaction_matrix)
+    # print(parsed_sequence.masked_interaction_matrix)
+
     assert torch.allclose(parsed_sequence.omega, omega)
     assert torch.allclose(parsed_sequence.delta, delta)
     assert torch.allclose(parsed_sequence.phi, phi)
@@ -625,7 +627,7 @@ def test_parsed_sequence(mock_pulser_sample):
     sequence._slm_mask_time = [1.0, 10.0]
     sequence._slm_mask_targets = [1]
     masked_interaction_matrix = torch.tensor(
-        [[0.4251, 0.0, -0.4607], [0.0, -0.0, -0.0], [-0.4037, 0.0, -0.9528]],
+        cutoff_interaction_matrix,
         dtype=torch.float64,
     )
 
@@ -663,11 +665,9 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
     sequence.get_addressed_bases.return_value = [adressed_basis]
     mock_pulser_sample.return_value = mock_sample(adressed_basis)
 
-    interaction_matrix = [
-        [0.4251, 0.4588, -0.4607],
-        [0.0929, -0.1636, -1.0463],
-        [-0.4037, 0.1067, -0.9528],
-    ]
+    mat = torch.randn(3, 3, dtype=float)
+    interaction_matrix = (mat + mat.T).fill_diagonal_(0).tolist()
+
     sequence._slm_mask_time = []
 
     noise_model = NoiseModel(

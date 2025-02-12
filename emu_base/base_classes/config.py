@@ -4,6 +4,7 @@ import logging
 import sys
 import pathlib
 from typing import TYPE_CHECKING
+import torch
 
 if TYPE_CHECKING:
     from emu_base.base_classes.callback import Callback
@@ -58,26 +59,18 @@ class BackendConfig:
                 "Interaction matrix must be provided as a Python list of lists of floats"
             )
 
-        def is_symmetric_zero_diag_matrix(
-            interaction_mat: list[list[float]] | None, tol: float = 1e-15
-        ) -> bool:
-            import torch
-
-            int_mat = torch.tensor(interaction_mat)
+        if interaction_matrix is not None:
+            int_mat = torch.tensor(interaction_matrix)
+            tol = 1e-10
             if not (
                 int_mat.numel() != 0
+                and torch.isreal(int_mat)
                 and int_mat.dim() == 2
                 and int_mat.shape[0] == int_mat.shape[1]
                 and torch.allclose(int_mat, int_mat.T, atol=tol)
                 and torch.norm(torch.diag(int_mat)) < tol
             ):
-                return False
-
-            return True
-
-        assert is_symmetric_zero_diag_matrix(
-            interaction_matrix
-        ), "Interaction matrix is not symmetric and zero diag"
+                raise ValueError("Interaction matrix is not symmetric and zero diag")
 
         self.interaction_matrix = interaction_matrix
         self.interaction_cutoff = interaction_cutoff
