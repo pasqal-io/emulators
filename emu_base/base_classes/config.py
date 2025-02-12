@@ -4,6 +4,7 @@ import logging
 import sys
 import pathlib
 from typing import TYPE_CHECKING
+import torch
 
 if TYPE_CHECKING:
     from emu_base.base_classes.callback import Callback
@@ -50,13 +51,27 @@ class BackendConfig:
         self.with_modulation = with_modulation
         self.noise_model = noise_model
 
-        if interaction_matrix is not None and (
-            not isinstance(interaction_matrix, list)
-            or not isinstance(interaction_matrix[0], list)
+        if interaction_matrix is not None and not (
+            isinstance(interaction_matrix, list)
+            and isinstance(interaction_matrix[0], list)
+            and isinstance(interaction_matrix[0][0], float)
         ):
             raise ValueError(
                 "Interaction matrix must be provided as a Python list of lists of floats"
             )
+
+        if interaction_matrix is not None:
+            int_mat = torch.tensor(interaction_matrix)
+            tol = 1e-10
+            if not (
+                int_mat.numel() != 0
+                and torch.all(torch.isreal(int_mat))
+                and int_mat.dim() == 2
+                and int_mat.shape[0] == int_mat.shape[1]
+                and torch.allclose(int_mat, int_mat.T, atol=tol)
+                and torch.norm(torch.diag(int_mat)) < tol
+            ):
+                raise ValueError("Interaction matrix is not symmetric and zero diag")
 
         self.interaction_matrix = interaction_matrix
         self.interaction_cutoff = interaction_cutoff

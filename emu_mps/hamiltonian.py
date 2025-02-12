@@ -360,7 +360,6 @@ def make_H(
 
     nqubits = interaction_matrix.size(dim=1)
     middle = nqubits // 2
-
     interactions_to_keep = _get_interactions_to_keep(interaction_matrix)
 
     cores = [_first_factor(interactions_to_keep[0].item() != 0.0)]

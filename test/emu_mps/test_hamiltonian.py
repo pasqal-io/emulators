@@ -145,15 +145,16 @@ def test_2_qubit(hamiltonian_type):
     num_gpus = 0
     omega, delta, phi = create_omega_delta_phi(2)
     if hamiltonian_type == HamiltonianType.Rydberg:
-        interaction_matrix = torch.tensor([[0.0000, 5.4202], [0.0000, 0.0000]])
+        interaction_matrix = torch.tensor([[0.0000, 5.4202], [5.4202, 0.0000]])
     elif hamiltonian_type == HamiltonianType.XY:
-        interaction_matrix = torch.tensor([[0.0000, 3.7000], [0.0000, 0.0000]])
+        interaction_matrix = torch.tensor([[0.0000, 3.7000], [3.7000, 0.0000]])
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
         hamiltonian_type=hamiltonian_type,
         num_gpus_to_use=num_gpus,
     )
+
     update_H(
         hamiltonian=ham,
         omega=omega,
@@ -204,6 +205,7 @@ def test_noise(hamiltonian_type):
         hamiltonian_type=hamiltonian_type,
         num_gpus_to_use=num_gpus,
     )
+
     update_H(hamiltonian=ham, omega=omega, delta=delta, phi=phi, noise=noise)
 
     sv = torch.einsum("ijkl,lmno->ijmkno", *(ham.factors)).reshape(4, 4)
@@ -236,6 +238,8 @@ def test_4_qubit(hamiltonian_type):
     omega, delta, phi = create_omega_delta_phi(4)
 
     interaction_matrix = torch.randn(4, 4, dtype=torch.float64)
+    interaction_matrix = (interaction_matrix + interaction_matrix.T) / 2
+    interaction_matrix.fill_diagonal_(0)
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
@@ -283,6 +287,8 @@ def test_5_qubit(hamiltonian_type):
     omega, delta, phi = create_omega_delta_phi(5)
 
     interaction_matrix = torch.randn(5, 5, dtype=torch.float64)
+    interaction_matrix = (interaction_matrix + interaction_matrix.T) / 2
+    interaction_matrix.fill_diagonal_(0)
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
@@ -302,7 +308,6 @@ def test_5_qubit(hamiltonian_type):
         assert ham.factors[2].shape == (4, 2, 2, 4)
         assert ham.factors[3].shape == (4, 2, 2, 3)
         assert ham.factors[4].shape == (3, 2, 2, 1)
-
     else:
         assert ham.factors[0].shape == (1, 2, 2, 4)
         assert ham.factors[1].shape == (4, 2, 2, 6)
@@ -338,6 +343,8 @@ def test_9_qubit_noise(hamiltonian_type):
     phi = torch.tensor([torch.pi] * 9, dtype=dtype)
 
     interaction_matrix = torch.randn(9, 9, dtype=torch.float64)
+    interaction_matrix = (interaction_matrix + interaction_matrix.T) / 2
+    interaction_matrix.fill_diagonal_(0)
 
     lindbladians = [
         torch.tensor([[-5, 4], [2, 5]], dtype=dtype),
@@ -396,6 +403,7 @@ def test_differentiation():
             [0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
         ]
     )
+    interaction_matrix = (interaction_matrix + interaction_matrix.T) / 2
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
@@ -467,7 +475,9 @@ def test_truncation_random(hamiltonian_type):
     phi = torch.zeros(n, dtype=dtype)
 
     interaction_matrix = torch.randn(n, n, dtype=torch.float64)
-    interaction_matrix = 0.5 * interaction_matrix + 0.5 * interaction_matrix.T
+    interaction_matrix = 0.5 * (interaction_matrix + interaction_matrix.T)
+    interaction_matrix.fill_diagonal_(0)
+
     interaction_matrix[interaction_matrix < 0.7] = 0.0
     ham = make_H(
         interaction_matrix=interaction_matrix,
@@ -555,6 +565,3 @@ def test_truncation_nn(hamiltonian_type):
         sv,
         expected,
     )
-
-
-test_truncation_nn(HamiltonianType.Rydberg)
