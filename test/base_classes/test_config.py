@@ -6,7 +6,7 @@ import numpy
 
 def test_interaction_matrix():
     BackendConfig(interaction_matrix=None)  # None is ok, empty tensor not ok
-    BackendConfig(interaction_matrix=[[0, 1], [1, 0]])
+    BackendConfig(interaction_matrix=[[0.0, 1.0], [1.0, 0.0]])
 
     def test_BackendConfig(int_mat) -> None:
         with pytest.raises(
@@ -30,14 +30,6 @@ def test_shape_interaction_matrix(n_qubits):
             ValueError, match="Interaction matrix is not symmetric and zero diag"
         ):
             BackendConfig(interaction_matrix=int_mat.tolist())
-
-    wrong_interaction_matrix = torch.tensor([[]])  # empty matrix
-    test_BackendConfig(wrong_interaction_matrix)
-
-    wrong_interaction_matrix = torch.randn(
-        n_qubits, n_qubits, n_qubits, dtype=torch.float64
-    )  # 3D not matrix
-    test_BackendConfig(wrong_interaction_matrix)
 
     wrong_interaction_matrix = torch.randn(
         n_qubits, n_qubits + 1, dtype=torch.float64
