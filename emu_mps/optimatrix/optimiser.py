@@ -1,7 +1,7 @@
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import reverse_cuthill_mckee
 import numpy as np
-from optimatrix.permutations import permute_matrix, permute_list
+from emu_mps.optimatrix.permutations import permute_matrix, permute_list
 import itertools
 
 
@@ -204,9 +204,9 @@ def minimize_bandwidth_impl(
     return acc_permutation, bandwidth
 
 
-def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
-    assert is_symmetric(input_mat), "Input matrix is not symmetric"
-    input_mat = abs(input_mat)
+def minimize_bandwidth(input_matrix: np.ndarray, samples: int = 100) -> list[int]:
+    assert is_symmetric(input_matrix), "Input matrix is not symmetric"
+    input_mat = abs(input_matrix)
     # We are interested in strength of the interaction, not sign
 
     L = input_mat.shape[0]
@@ -223,7 +223,8 @@ def minimize_bandwidth(input_mat: np.ndarray, samples: int = 100) -> list[int]:
         opt_permutations_and_opt_bandwidth,
         key=lambda perm_and_bandwidth: perm_and_bandwidth[1],
     )
-    assert best_bandwidth < matrix_bandwidth(input_mat), "Matrix is not optimised"
+
+    assert best_bandwidth <= matrix_bandwidth(input_matrix), "Matrix is not optimised"
     return best_perm
 
 

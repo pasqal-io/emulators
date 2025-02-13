@@ -1,7 +1,7 @@
 import pytest
 import random
 import numpy as np
-import optimatrix.optimiser as optimiser
+import emu_mps.optimatrix.optimiser as optimiser
 
 random.seed(42)
 

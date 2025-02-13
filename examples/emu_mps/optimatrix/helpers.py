@@ -2,7 +2,7 @@ import pulser
 import numpy as np
 
 import matplotlib.pyplot as plt
-import optimatrix
+import emu_mps.optimatrix as optimatrix
 
 
 def reciprocal_dist_matrix(reg: pulser.Register) -> np.ndarray:
