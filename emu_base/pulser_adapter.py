@@ -158,17 +158,26 @@ def _extract_omega_delta_phi(
                 global_times |= set(i for i in range(slot.ti, slot.tf))
 
     step = 0
-    t = int((step + 1 / 2) * dt)
+    t = (step + 1 / 2) * dt
 
     while t < max_duration:
         for q_pos, q_id in enumerate(sequence.register.qubit_ids):
-            omega[step, q_pos] = locals_a_d_p[q_id]["amp"][t]
-            delta[step, q_pos] = locals_a_d_p[q_id]["det"][t]
-            phi[step, q_pos] = locals_a_d_p[q_id]["phase"][t]
+            omega[step, q_pos] = (
+                locals_a_d_p[q_id]["amp"][math.floor(t)]
+                + locals_a_d_p[q_id]["amp"][math.ceil(t)]
+            ) / 2.0
+            delta[step, q_pos] = (
+                locals_a_d_p[q_id]["det"][math.floor(t)]
+                + locals_a_d_p[q_id]["det"][math.ceil(t)]
+            ) / 2.0
+            phi[step, q_pos] = (
+                locals_a_d_p[q_id]["phase"][math.floor(t)]
+                + locals_a_d_p[q_id]["phase"][math.ceil(t)]
+            ) / 2.0
         if t in global_times:
             omega[step] *= waist_factors
         step += 1
-        t = int((step + 1 / 2) * dt)
+        t = (step + 1 / 2) * dt
 
     return omega, delta, phi
 
