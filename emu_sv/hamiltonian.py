@@ -145,8 +145,8 @@ class RydbergHamiltonian:
                 i_j_fixed += self.interaction_matrix[i, j]
         return diag
 
-    def expect(self, state: StateVector) -> float | complex:
+    def expect(self, state: StateVector) -> torch.Tensor:
         assert isinstance(
             state, StateVector
         ), "currently, only expectation values of StateVectors are supported"
-        return torch.vdot(state.vector, self * state.vector).item()  # type: ignore [no-any-return]
+        return torch.vdot(state.vector, self * state.vector)

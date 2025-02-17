@@ -1,6 +1,4 @@
 import math
-from typing import Any
-
 import torch
 
 from emu_base.base_classes.config import BackendConfig
@@ -18,11 +16,17 @@ from emu_sv.hamiltonian import RydbergHamiltonian
 
 def qubit_density_sv_impl(
     self: QubitDensity, config: BackendConfig, t: int, state: StateVector, H: Operator
-) -> Any:
+) -> torch.Tensor:
+    """
+    Custom implementation of the qubit density ❬ψ|nᵢ|ψ❭ for the state vector solver.
+    """
+    nqubits = int(math.log2(len(state.vector)))
+    state_tensor = state.vector.reshape((2,) * nqubits)
 
-    num_qubits = int(math.log2(len(state.vector)))
-    state_tensor = state.vector.reshape((2,) * num_qubits)
-    return [(state_tensor.select(i, 1).norm() ** 2).item() for i in range(num_qubits)]
+    qubit_density = torch.zeros(nqubits, dtype=torch.float64, device=state_tensor.device)
+    for i in range(nqubits):
+        qubit_density[i] = state_tensor.select(i, 1).norm() ** 2
+    return qubit_density
 
 
 def correlation_matrix_sv_impl(
@@ -31,24 +35,30 @@ def correlation_matrix_sv_impl(
     t: int,
     state: StateVector,
     H: Operator,
-) -> Any:
-    """'Sparse' implementation of <𝜓| nᵢ nⱼ | 𝜓 >"""
-    num_qubits = int(math.log2(len(state.vector)))
-    state_tensor = state.vector.reshape((2,) * num_qubits)
+) -> torch.Tensor:
+    """
+    Custom implementation of the density-density correlation ❬ψ|nᵢnⱼ|ψ❭ for the state vector solver.
 
-    correlation_matrix = [[0.0] * num_qubits for _ in range(num_qubits)]
+    TODO: extend to arbitrary two-point correlation ❬ψ|AᵢBⱼ|ψ❭
+    """
+    nqubits = int(math.log2(len(state.vector)))
+    state_tensor = state.vector.reshape((2,) * nqubits)
 
-    for numi in range(num_qubits):
-        select_i = state_tensor.select(numi, 1)
-        for numj in range(numi, num_qubits):  # select the upper triangle
-            if numi == numj:
-                value = (select_i.norm() ** 2).item()
+    correlation = torch.zeros(
+        nqubits, nqubits, dtype=torch.float64, device=state_tensor.device
+    )
+
+    for i in range(nqubits):
+        select_i = state_tensor.select(i, 1)
+        for j in range(i, nqubits):  # select the upper triangle
+            if i == j:
+                value = select_i.norm() ** 2
             else:
-                value = (select_i.select(numj - 1, 1).norm() ** 2).item()
+                value = select_i.select(j - 1, 1).norm() ** 2
 
-            correlation_matrix[numi][numj] = value
-            correlation_matrix[numj][numi] = value
-    return correlation_matrix
+            correlation[i, j] = value
+            correlation[j, i] = value
+    return correlation
 
 
 def energy_variance_sv_impl(
@@ -57,11 +67,15 @@ def energy_variance_sv_impl(
     t: int,
     state: StateVector,
     H: RydbergHamiltonian,
-) -> Any:
+) -> torch.Tensor:
+    """
+    Custom implementation of the energy variance ❬ψ|H²|ψ❭-❬ψ|H|ψ❭² for the state vector solver.
+    """
     hstate = H * state.vector
-    h_squared = torch.vdot(hstate, hstate)
-    h_state = torch.vdot(state.vector, hstate)
-    return (h_squared.real - h_state.real**2).item()
+    h_squared = torch.vdot(hstate, hstate).real
+    energy = torch.vdot(state.vector, hstate).real
+    energy_variance: torch.Tensor = h_squared - energy**2
+    return energy_variance
 
 
 def second_moment_sv_impl(
@@ -70,8 +84,10 @@ def second_moment_sv_impl(
     t: int,
     state: StateVector,
     H: RydbergHamiltonian,
-) -> Any:
-
+) -> torch.Tensor:
+    """
+    Custom implementation of the second moment of energy ❬ψ|H²|ψ❭
+    for the state vector solver.
+    """
     hstate = H * state.vector
-    h_squared = torch.vdot(hstate, hstate)
-    return (h_squared.real).item()
+    return torch.vdot(hstate, hstate).real

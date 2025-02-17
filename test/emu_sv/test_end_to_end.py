@@ -146,7 +146,6 @@ def test_end_to_end_afm_ring():
     assert fidelity_state.inner(final_state) == approx(final_fidelity, abs=1e-10)
 
     q_density = result["qubit_density"][final_time]
-    q_density = torch.tensor(q_density, dtype=torch.float64)
 
     assert torch.allclose(
         torch.tensor([0.578] * 10, dtype=torch.float64), q_density, atol=1e-3
