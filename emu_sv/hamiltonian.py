@@ -1,16 +1,10 @@
-"""
-This file deals with creation of the custom sparse matrix corresponding
-the Rydberg Hamiltonian of a neutral atoms quantum processor.
-"""
-
 import torch
-
 from emu_sv.state_vector import StateVector
 
 
 class RydbergHamiltonian:
     """
-    A Hamiltonian sparse form representation for the Rydberg  Hamiltonian (not complex part, yet)
+    A Hamiltonian sparse form representation for the Rydberg Hamiltonian (not complex part, yet)
 
     The `RydbergHamiltonian` class represents the Rydberg Hamiltonian matrix where the diagonal
     terms are the interaction Uᵢⱼ nᵢ⊗nⱼ and detunining 𝛿ᵢnᵢ and off diagonal term omegas 𝛺ᵢ𝜎ᵢˣ
@@ -46,20 +40,23 @@ class RydbergHamiltonian:
         self,
         omegas: torch.Tensor,
         deltas: torch.Tensor,
+        phis: torch.Tensor,
         interaction_matrix: torch.Tensor,
         device: torch.device,
     ):
         self.nqubits: int = len(omegas)
         self.omegas: torch.Tensor = omegas / 2.0
         self.deltas: torch.Tensor = deltas
+        self.phis: torch.Tensor = phis
         self.interaction_matrix: torch.Tensor = interaction_matrix
         self.diag: torch.Tensor = self._create_diagonal().to(device=device)
         self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
-        Performs a matrix-vector multiplication between the `RydbergHamiltonian` form and
-        a torch vector
+        Performs a matrix-vector multiplication between the `RydbergHamiltonian`
+            H = -∑ᵢ𝛿ᵢnᵢ + ∑ᵢ𝛺ᵢ/2 𝜎ᵢˣ + 1/2∑ᵢⱼUᵢⱼnᵢnⱼ
+        and a torch vector.
 
 
         Computes the product of `RydbergHamiltonian` object's Hamiltonian
@@ -91,7 +88,7 @@ class RydbergHamiltonian:
 
     def _apply_sigma_x_operators(self, vec: torch.Tensor) -> torch.Tensor:
         """
-            Applies the ∑ᵢ (𝛺ᵢ / 2) * 𝜎ᵢˣ operator to the input vector |𝜓>.
+            Applies the ∑ᵢ(𝛺ᵢ / 2) 𝜎ᵢˣ operator to the input vector |ψ❭.
 
         Performs a matrix-vector multiplication between a sum of  𝛺ᵢ 𝜎ᵢˣ operators
         and the input state vector `vec`. For each qubit `i`, the operator
@@ -113,6 +110,27 @@ class RydbergHamiltonian:
         # when phi != 0, you need to do o and o.conj() separately, but this is SLOWER
         # res.index_add_(i, torch.tensor(0), v.select(i,1).unsqueeze(i), alpha=o)
         # res.index_add_(i, torch.tensor(1), v.select(i,0).unsqueeze(i), alpha=o.conj())
+        return result
+
+    def _apply_sigma_operators(self, vec: torch.Tensor) -> torch.Tensor:
+        """
+        Applies the ∑ᵢ(𝛺ᵢ / 2) 𝜎ᵢˣ operator to the input vector |ψ❭
+
+        Args:
+            vec (torch.Tensor): The input state vector, with 1D dimension
+
+        Returns:
+            torch.Tensor: The resulting state vector
+        """
+        result = torch.zeros(vec.shape, device=vec.device, dtype=torch.complex128)
+
+        for i, (omega, phi) in enumerate(zip(self.omegas, self.phis)):
+            if phi != 0:
+                c_omega = omega * torch.exp(1j * phi)
+                result.index_add_(i, self.inds[0], vec, alpha=c_omega)
+                result.index_add_(i, self.inds[1], vec, alpha=c_omega.conj())
+            else:
+                result.index_add_(i, self.inds, vec, alpha=omega)
         return result
 
     def _create_diagonal(self) -> torch.Tensor:
@@ -139,9 +157,7 @@ class RydbergHamiltonian:
             i_fixed = diag.select(i, 1)
             i_fixed -= self.deltas[i]  # add the delta term for this qubit
             for j in range(i + 1, self.nqubits):
-                i_j_fixed = i_fixed.select(
-                    j - 1, 1
-                )  # note the j-1 since i was already removed
+                i_j_fixed = i_fixed.select(j - 1, 1)  # j-1 since i was removed
                 i_j_fixed += self.interaction_matrix[i, j]
         return diag
 
