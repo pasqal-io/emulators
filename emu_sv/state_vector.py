@@ -251,10 +251,10 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
         >>> nqubits = 2
         >>> string_state1 = {"gg":1.0,"rr":1.0}
         >>> state1 = StateVector.from_state_string(basis=basis,
-                nqubits=nqubits,strings=string_state1)
+        >>>     nqubits=nqubits,strings=string_state1)
         >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
         >>> state2 = StateVector.from_state_string(basis=basis,
-                nqubits=nqubits,strings=string_state2)
+        >>>     nqubits=nqubits,strings=string_state2)
         >>> inner(state1,state2).item()
         (0.4999999999999999+0j)
     """
