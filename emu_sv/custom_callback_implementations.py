@@ -73,8 +73,8 @@ def energy_variance_sv_impl(
     """
     hstate = H * state.vector
     h_squared = torch.vdot(hstate, hstate).real
-    h_state = torch.vdot(state.vector, hstate).real
-    energy_variance: torch.Tensor = h_squared - h_state**2
+    energy = torch.vdot(state.vector, hstate).real
+    energy_variance: torch.Tensor = h_squared - energy**2
     return energy_variance
 
 
@@ -90,5 +90,4 @@ def second_moment_sv_impl(
     for the state vector solver.
     """
     hstate = H * state.vector
-    h_squared = torch.vdot(hstate, hstate).real
-    return h_squared
+    return torch.vdot(hstate, hstate).real
