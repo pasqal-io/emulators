@@ -14,7 +14,7 @@ Your course of action will depend on your objective, but generally, you should s
 
 ## Submitting a Pull Request
 
-We're excited that you're eager to contribute to emu-mps! To contribute, create a branch on the emu-mps repository and once you are satisfied with your feature and all the tests pass create a [Merge Request](https://github.com/pasqal-io/emulators/pulls).
+We're excited that you're eager to contribute to emu-mps! To contribute, create a branch on the emulators repository and once you are satisfied with your feature and all the tests pass create a [Pull Request](https://github.com/pasqal-io/emulators/pulls).
 
 Here's the process for making a contribution:
 
@@ -33,27 +33,18 @@ git push --set-upstream origin <your initials>/<branch name>
 
 ## Setting up your development environment
 
-We recommend to use `hatch` for managing environments:
-
-To develop within emu-mps, use:
-```shell
-pip install hatch
-hatch -v shell
-```
-
-To run the automated tests, use:
+Out repo is currently not compatible with `hatch`. The repo installs properly using `pip` directly.
 
 ```shell
-hatch -e tests run test
-```
-
-If you don't want to use `hatch`, you can use the environment manager of your
-choice and execute the following:
-
-```shell
-pip install pytest
-
 pip install -e .
+```
+
+We recommend using a virtual environment.
+To run the automated tests, assuming you installed the repo using the above, use:
+
+```shell
+pip install -r test_requirements.txt
+
 pytest
 ```
 
@@ -61,34 +52,15 @@ pytest
 
 Use `pre-commit` hooks to make sure that the code is properly linted before pushing a new commit. Make sure that the unit tests and type checks are passing since the merge request will not be accepted if the automatic CI/CD pipeline do not pass.
 
-Without `hatch`:
-
 ```shell
-pip install pytest
-
-pip install -e .
 pip install pre-commit
 pre-commit install
 pre-commit run --all-files
 pytest
 ```
 
-And with `hatch`:
-
-```shell
-hatch -e tests run pre-commit run --all-files
-hatch -e tests run test
-```
-
 Make sure your docs build too!
-
-With `hatch`:
-
-```shell
-hatch -e docs run mkdocs build --clean --strict
-```
-
-Without `hatch`, `pip` install those libraries first:
+First, `pip` install the dependencies:
 ```shell
 pip install -r doc_requirements.txt
 ```

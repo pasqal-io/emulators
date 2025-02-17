@@ -1,19 +1,17 @@
-# Welcome to emu-mps
+# Welcome to the Pasqal analog emulators
 
-**Emu-mps** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io) that lets you run Quantum Algorithms on a simulated device, using GPU acceleration if available. More in depth, emu-mps is designed to **emu**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**mps**). While benchmarking is incomplete as of this writing, early results suggest that this design makes emu-mps faster and more memory-efficient than previous generations of quantum emulators at running simulations with large numbers of qubits.
-
-As of this writing, Emu-MPS is provided for Linux and macOS but will not work under Windows.
+There are currently two emulators, emu-sv and emu-mps, the specific documentation for which you can access from the list above.
+As of this writing, the emulators are provided for Linux and macOS but will not work under Windows.
 
 ## Installation
-
-**Warning:** installing emu-mps will update pulser-core
+**Warning:** installing any emulator will update pulser-core
 
 ### Using `hatch`, `uv` or any pyproject-compatible Python manager
 
-To add `emu-mps` to your project, edit your `pyproject.toml` to add the line
+To add `emu-sv` or `emu-mps`to your project, edit your `pyproject.toml` to add the line
 
 ```toml
-  "emu-mps"
+  "<emulator>"
 ```
 
 to the list of `dependencies`.
@@ -46,9 +44,9 @@ C:\> /path/to/new/virtual/environment/Scripts/activate
 3. Install the package
 
 ```sh
-$ pip install emu-mps
+$ pip install <emulator>
 # or
-$ pipx install emu-mps
+$ pipx install <emulator>
 ```
 
 
@@ -56,63 +54,21 @@ Join us on [Slack](https://pasqalworkspace.slack.com/archives/C07MUV5K7EU) or by
 
 ## Usage
 
-For the time being, the easiest way to learn how to use this package is to look
-at the [examples](examples/emu_mps_examples) and [notebooks](https://pasqal-io.github.io/emulators/latest/).
+For the time being, the easiest way to learn how to use the emulators is to look
+at the examples in the [repo](https://github.com/pasqal-io/emulators), [the emu-sv notebooks](emu_sv/notebooks/index.md) and [the emu-mps notebooks](emu_mps/notebooks/index.md).
 
-See also the [full documentation](https://github.com/pasqal-io/emulators/blob/main/docs/index.md) for
-the API, information about contributing, benchmarks, etc.
+See also the emulator specific documentation for supported features, benchmarks etc.
 
 
 ## Getting in touch
 
 - [Pasqal Community Portal](https://community.pasqal.com/) (forums, chat, tutorials, examples, code library).
-- [GitHub Repository](https://github.com/pasqal-io/quantum-evolution-kernel) (source code, issue tracker).
+- [GitHub Repository](https://github.com/pasqal-io/emulators) (source code, issue tracker).
 - [Professional Support](https://www.pasqal.com/contact-us/) (if you need tech support, custom licenses, a variant of this library optimized for your workload, your own QPU, remote access to a QPU, ...)
 
 ## Running a Pulser sequence and getting results
 
-Several example notebooks are included in the online documentation. The index page for them can be found [here](./notebooks/index.md).
-
-## Supported features
-
-The following features are currently supported:
-
-- All Pulser sequences that use only the rydberg channel
-- MPS and MPO can be constructed using the abstract Pulser format.
-- The following noise types:
-    - [SPAM](https://pulser.readthedocs.io/en/stable/tutorials/spam.html)
-    - [Monte Carlo quantum jumps](https://pulser.readthedocs.io/en/stable/tutorials/effective_noise.html)
-    - A Gaussian laser waist for the global pulse channels.
-- The following [basis states](https://pulser.readthedocs.io/en/stable/conventions.html) in a sequence:
-    - [ground-rydberg](https://pulser.readthedocs.io/en/stable/review.html#programmable-arrays-of-rydberg-atoms)
-    - [XY](https://pulser.readthedocs.io/en/stable/tutorials/xy_spin_chain.html)
-- The following properties from a Pulser Sequence are also correctly applied:
-    - [hardware modulation](https://pulser.readthedocs.io/en/stable/tutorials/output_mod_eom.html)
-    - [SLM mask](https://pulser.readthedocs.io/en/stable/tutorials/slm_mask.html)
-    - A complex phase for the omega parameter
-- Customizable output, with the folowing inbuilt options:
-    - The quantum state in MPS format
-    - Bitstrings
-    - The fidelity with respect to a given state
-    - The expectation of a given operator
-    - The qubit density (magnetization)
-    - The correlation matrix
-    - The mean, second moment and variance of the energy
-- Specification of
-    - initial state
-    - various precision parameters
-    - whether to run on cpu or gpu(s)
-    - the $U_{ij}$ coefficients from [here](./advanced/hamiltonian.md)
-    - A cutoff below which $U_{ij}$ are set to 0 (this makes the computation more memory efficient)
-
-## Planned features
-
-- Parallel TDVP on multiple GPUs
-- More noise:
-    - the currently unsupported noises in the Pulser `NoiseModel`
-- Differentiability
+Several example notebooks are included in this documentation. Please see the links provided under [usage](#usage)
 
 ## More Info
-Please see the API specification for a list of available config options ([see here](api.md)), and the Observables page for how to compute observables ([see here](observables.md)).
-Those configuration options relating to the mathematical functioning of the backend are explained in more detail in the Config page ([see here](advanced/config.md)).
-For notebooks with examples for how to do various things, please see the notebooks page ([see here](./notebooks/index.md)).
+Many usage patterns are shared between all emulators. The computing observable page details how to compute observables ([see here](observables.md)). The base classes enforcing the usage pattern are documented [here](./base_classes.md).

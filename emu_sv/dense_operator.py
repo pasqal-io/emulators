@@ -73,10 +73,11 @@ class DenseOperator(Operator):
 
     def __rmul__(self, scalar: complex) -> DenseOperator:
         """
-        Multiply an DenseOperator by scalar.
+        Multiply a DenseOperator by scalar.
 
         Args:
             scalar: the scale factor to multiply with
+
         Returns:
             the scaled MPO
         """

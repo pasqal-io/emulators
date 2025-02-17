@@ -1,33 +1,41 @@
-site_name: Emu-MPS
+site_name: "Pasqal analog emulators"
 repo_url: "https://github.com/pasqal-io/emulators"
-repo_name: "emu-mps"
+repo_name: "emulators"
 
 nav:
-  - Emu-MPS in a nutshell: index.md
+  - Welcome: index.md
   - Base Classes: base_classes.md
-  - API: api.md
   - Computing Observables: observables.md
-  - Notebooks:
-    - Index: notebooks/index.md
-    - Getting started: notebooks/emu_mps_notebooks/getting_started.ipynb
-    - Running with noise: notebooks/emu_mps_notebooks/noise.ipynb
   - How to Contribute: CONTRIBUTING.md
   - Code of Conduct: CODE_OF_CONDUCT.md
-  - Advanced Topics:
-    - Index: advanced/index.md
-    - QPU Hamiltonian: advanced/hamiltonian.md
-    - MPS Representation: advanced/mps/index.md
-    - TDVP Summary: advanced/tdvp.md
-    - Errors in TDVP: advanced/errors.md
-    - Noise: advanced/noise.md
-    - Config: advanced/config.md
-    - Validating Correctness of Results: advanced/convergence.md
-    - Estimating Memory Consumption and Runtime: advanced/resource_estimation.md
-  - Benchmarks:
-    - Index: benchmarks/index.md
-    - Accuracy: benchmarks/accuracy.md
-    - Performance: benchmarks/performance.md
-    - Noise: benchmarks/noise.md
+  - emu-sv:
+    - Welcome to emu-sv: emu_sv/index.md
+    - API: emu_sv/api.md
+    - Notebooks:
+      - Index: emu_sv/notebooks/index.md
+      - Getting started: emu_sv/notebooks/getting_started.ipynb
+  - emu-mps:
+    - Welcome to emu-mps: emu_mps/index.md
+    - API: emu_mps/api.md
+    - Notebooks:
+      - Index: emu_mps/notebooks/index.md
+      - Getting started: emu_mps/notebooks/getting_started.ipynb
+      - Running with noise: emu_mps/notebooks/noise.ipynb
+    - Advanced Topics:
+      - Index: emu_mps/advanced/index.md
+      - QPU Hamiltonian: emu_mps/advanced/hamiltonian.md
+      - MPS Representation: emu_mps/advanced/mps/index.md
+      - TDVP Summary: emu_mps/advanced/tdvp.md
+      - Errors in TDVP: emu_mps/advanced/errors.md
+      - Noise: emu_mps/advanced/noise.md
+      - Config: emu_mps/advanced/config.md
+      - Validating Correctness of Results: emu_mps/advanced/convergence.md
+      - Estimating Memory Consumption and Runtime: emu_mps/advanced/resource_estimation.md
+    - Benchmarks:
+      - Index: emu_mps/benchmarks/index.md
+      - Accuracy: emu_mps/benchmarks/accuracy.md
+      - Performance: emu_mps/benchmarks/performance.md
+      - Noise: emu_mps/benchmarks/noise.md
 
 edit_uri: edit/main/docs/
 
