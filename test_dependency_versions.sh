@@ -16,6 +16,21 @@ then
     exit 1
 fi
 
+pulser_root_string="$(grep pulser-core pyproject.toml)"
+[[ "$pulser_root_string" =~ .*([0-9]\.[0-9\*]\.[0-9\*]).* ]]
+pulser_root_dep="${BASH_REMATCH[1]}"
+echo "The root package depends on pulser-core version $pulser_root_dep"
+
+pulser_base_string="$(grep pulser-core ci/emu_base/pyproject.toml)"
+[[ "$pulser_base_string" =~ .*([0-9]\.[0-9\*]\.[0-9\*]).* ]]
+pulser_base_dep="${BASH_REMATCH[1]}"
+echo "emu-base depends on pulser-core version $pulser_base_dep"
+
+if [[ "$pulser_root_dep" != "$pulser_base_dep" ]]
+then
+    exit 1
+fi
+
 torch_pre_commit_string="$(grep torch .pre-commit-config.yaml)"
 [[ "$torch_pre_commit_string" =~ .*([0-9]\.[0-9]\.[0-9]).* ]]
 torch_pre_commit_version="${BASH_REMATCH[1]}"
