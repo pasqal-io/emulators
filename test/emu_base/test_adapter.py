@@ -624,10 +624,7 @@ def test_parsed_sequence(mock_pulser_sample):
 
     sequence._slm_mask_time = [1.0, 10.0]
     sequence._slm_mask_targets = [1]
-    masked_interaction_matrix = torch.tensor(
-        cutoff_interaction_matrix,
-        dtype=torch.float64,
-    )
+    masked_interaction_matrix = cutoff_interaction_matrix.clone().detach()
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
     omega, delta, phi = _extract_omega_delta_phi(

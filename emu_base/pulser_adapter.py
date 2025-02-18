@@ -250,11 +250,12 @@ class PulserData:
         ] = 0.0
         self.masked_interaction_matrix = self.full_interaction_matrix.clone()
 
-        slm_targets = sequence._slm_mask_targets
         self.slm_end_time = (
             sequence._slm_mask_time[1] if len(sequence._slm_mask_time) > 1 else 0.0
         )
 
-        for target in slm_targets:
+        # disable interaction for SLM masked qubits
+        slm_targets = list(sequence._slm_mask_targets)
+        for target in sequence.register.find_indices(slm_targets):
             self.masked_interaction_matrix[target] = 0.0
             self.masked_interaction_matrix[:, target] = 0.0
