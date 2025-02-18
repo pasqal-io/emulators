@@ -328,7 +328,7 @@ def test_initial_state():
     pulse = pulser.Pulse.ConstantAmplitude(
         0.0, pulser.waveforms.ConstantWaveform(10.0, 0.0), 0.0
     )
-    reg = pulser.Register.rectangle(5, 1, spacing=1e10)
+    reg = pulser.Register.rectangle(5, 1, spacing=1e10, prefix="q")
     seq = pulser.Sequence(reg, pulser.MockDevice)
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(pulse, "ising_global")  # do nothing in the pulse
@@ -351,7 +351,7 @@ def test_initial_state_copy():
     pulse = pulser.Pulse.ConstantAmplitude(
         Omega_max, pulser.waveforms.RampWaveform(duration, delta_0, delta_f), 0.0
     )
-    reg = pulser.Register.rectangle(5, 1, spacing=1e10)
+    reg = pulser.Register.rectangle(5, 1, spacing=1e10, prefix="q")
     seq = pulser.Sequence(reg, pulser.MockDevice)
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(pulse, "ising_global")
@@ -448,7 +448,9 @@ def test_end_to_end_spontaneous_emission():
 
 def test_laser_waist():
     duration = 1000
-    reg = pulser.Register.from_coordinates([(0.0, 0.0), (10.0, 0.0)], center=False)
+    reg = pulser.Register.from_coordinates(
+        [(0.0, 0.0), (10.0, 0.0)], center=False, prefix="q"
+    )
     seq = pulser.Sequence(reg, pulser.devices.MockDevice)
     seq.declare_channel("ising_global", "rydberg_global")
     seq.declare_channel("ising_local", "rydberg_local")
