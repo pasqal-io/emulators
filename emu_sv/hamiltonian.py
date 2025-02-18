@@ -108,8 +108,16 @@ class RydbergHamiltonian:
         """
         result = torch.zeros(vec.shape, device=vec.device, dtype=torch.complex128)
 
+        dim_to_act = 1
         for num, omegai in enumerate(self.omegas):
-            result.index_add_(num, self.inds, vec, alpha=omegai)
+            shape_num = (2**num, 2, 2**(self.nqubits - num - 1))
+            vec = vec.reshape(shape_num)
+            
+            result = result.reshape(shape_num)
+            result.index_add_(dim_to_act, self.inds, vec, alpha=omegai)
+
+        result = result.reshape((2,) * self.nqubits)
+            #result.index_add_(num, self.inds, vec, alpha=omegai)
         # when phi != 0, you need to do o and o.conj() separately, but this is SLOWER
         # res.index_add_(i, torch.tensor(0), v.select(i,1).unsqueeze(i), alpha=o)
         # res.index_add_(i, torch.tensor(1), v.select(i,0).unsqueeze(i), alpha=o.conj())
