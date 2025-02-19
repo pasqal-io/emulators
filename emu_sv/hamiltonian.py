@@ -4,17 +4,16 @@ from emu_sv.state_vector import StateVector
 
 class RydbergHamiltonian:
     """
-    A Hamiltonian sparse form representation for the Rydberg Hamiltonian (not complex part, yet)
+        Representation of the Rydberg Hamiltonian with light-matter interaction,
 
-    The `RydbergHamiltonian` class represents the Rydberg Hamiltonian matrix where the diagonal
-    terms are the interaction Uᵢⱼ nᵢ⊗nⱼ and detunining 𝛿ᵢnᵢ and off diagonal term omegas 𝛺ᵢ𝜎ᵢˣ
-    for a quantum system, allowing efficient computations such as matrix-vector multiplications.
-    The Hamiltonian is parameterized by driving strengths or amplitudes 𝛺ᵢ (`omegas`), detuning
-    values 𝛿ᵢ (`deltas`), and  interaction terms Uᵢⱼ (`interaction_matrix`).
+            H = ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] - ∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
+
+        and implements sparse matrix-vector multiplication.
 
     Attributes:
         omegas (torch.Tensor): amplitudes values for each qubit, scaled by a factor of 1/2.
         deltas (torch.Tensor): detuning values for each qubit.
+        phis (torch.Tensor): 1D tensor of phase values for each qubit.
         interaction_matrix (torch.Tensor): matrix representing pairwise Rydberg
             interaction strengths between qubits.
         nqubits (int): The number of qubits in the system.
@@ -26,6 +25,7 @@ class RydbergHamiltonian:
     Args:
         omegas (torch.Tensor): 1D tensor of driving strengths for each qubit.
         deltas (torch.Tensor): 1D tensor of detuning values for each qubit.
+        phis (torch.Tensor): 1D tensor of phase values for each qubit.
         interaction_matrix (torch.Tensor): 2D tensor representing the interaction
             strengths between each pair of qubits.
 
@@ -33,7 +33,13 @@ class RydbergHamiltonian:
         __mul__(vec): Performs matrix-vector multiplication with a vector.
         _diag_elemts(): Constructs the diagonal elements of the Hamiltonian
             based on `deltas` and `interaction_matrix`.
-        _size(): Calculates the memory size of the `RydbergHamiltonian` object in MiB.
+
+    Notes:
+        The `RydbergHamiltonian` class represents the Rydberg Hamiltonian matrix where the diagonal
+        terms are the interaction Uᵢⱼ nᵢ⊗nⱼ and detunining 𝛿ᵢnᵢ and off diagonal term omegas 𝛺ᵢ𝜎ᵢˣ
+        for a quantum system, allowing efficient computations such as matrix-vector multiplications.
+        The Hamiltonian is parameterized by driving strengths or amplitudes 𝛺ᵢ (`omegas`), detuning
+        values 𝛿ᵢ (`deltas`), and  interaction terms Uᵢⱼ (`interaction_matrix`).
     """
 
     def __init__(
