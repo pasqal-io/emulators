@@ -78,7 +78,7 @@ class RydbergHamiltonian:
 
         """
         # TODO: add the complex part of the Hamiltonian
-        assert vec.dim() == 1
+        # assert vec.dim() == 1
         vec = vec if len(vec) == self.nqubits else vec.reshape((2,) * self.nqubits)
 
         vec = vec.reshape(-1)
@@ -139,17 +139,30 @@ class RydbergHamiltonian:
             diagonal elements.
         """
         diag = torch.zeros(
-            (2,) * self.nqubits, dtype=torch.complex128, device=self.omegas.device
+            (2,) * self.nqubits, dtype=torch.complex128, device=self.deltas.device
         )
 
         for i in range(self.nqubits):
+            tmp_diag = diag.clone()
+            tmp_init_shape = tmp_diag.shape
+            tmp_shape_i = (2**i, 2, 2 ** (self.nqubits - i - 1))
+            tmp_diag = tmp_diag.reshape(tmp_shape_i)
+            tmp_i_fixed = tmp_diag.select(1, 1)  # select(dim, index)
+            tmp_i_fixed -= self.deltas[i]
+            tmp_diag = tmp_diag.reshape(tmp_init_shape)
+            tmp_i_fixed = tmp_i_fixed.reshape((2,) * (self.nqubits - 1))
+
             i_fixed = diag.select(i, 1)
             i_fixed -= self.deltas[i]  # add the delta term for this qubit
+
+            assert torch.allclose(tmp_i_fixed, i_fixed)
+
             for j in range(i + 1, self.nqubits):
                 i_j_fixed = i_fixed.select(
                     j - 1, 1
                 )  # note the j-1 since i was already removed
                 i_j_fixed += self.interaction_matrix[i, j]
+                print(i_j_fixed.dim())
         return diag.reshape(-1)
 
     def expect(self, state: StateVector) -> torch.Tensor:

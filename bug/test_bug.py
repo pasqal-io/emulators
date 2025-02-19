@@ -22,7 +22,7 @@ def test():
     h_custom * v
 
 
-n = 1000
+n = 1
 elapsed_time = timeit.timeit(test, number=n) / n
 print(f"Elapsed time: {elapsed_time:.6f} seconds")
 
