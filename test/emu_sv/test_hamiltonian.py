@@ -53,17 +53,22 @@ def sv_hamiltonian(
 def test_dense_vs_sparse():
     N = 8
     torch.manual_seed(1337)
-    omega = torch.randn(N, dtype=dtype, device=device)
-    delta = torch.randn(N, dtype=dtype, device=device)
-    interaction_matrix = torch.randn((N, N))
+    omegas = torch.randn(N, dtype=dtype, device=device)
+    deltas = torch.randn(N, dtype=dtype, device=device)
+    phis = torch.zeros_like(omegas)
+    interaction_matrix = torch.randn(N, N)
 
-    h = sv_hamiltonian(interaction_matrix, omega, delta).to(device)
+    h = sv_hamiltonian(interaction_matrix, omegas, deltas).to(device)
     v = torch.randn((2,) * N, dtype=dtype, device=device)
 
     res_dense = h @ v.reshape(-1)
 
     h_custom = RydbergHamiltonian(
-        omegas=omega, deltas=delta, interaction_matrix=interaction_matrix, device=device
+        omegas=omegas,
+        deltas=deltas,
+        phis=phis,
+        interaction_matrix=interaction_matrix,
+        device=device,
     )
 
     res_sparse = (h_custom * v).reshape(-1)

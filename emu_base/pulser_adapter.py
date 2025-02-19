@@ -221,6 +221,7 @@ class PulserData:
             with_modulation=config.with_modulation,
             laser_waist=laser_waist,
         )
+
         self.lindblad_ops = _get_all_lindblad_noise_operators(config.noise_model)
         self.has_lindblad_noise: bool = self.lindblad_ops != []
 

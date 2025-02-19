@@ -56,8 +56,9 @@ def sv_hamiltonian(
 def test_forward():
     N = 8
 
-    omega = torch.randn(N, dtype=dtype_params)
-    delta = torch.randn(N, dtype=dtype_params)
+    omegas = torch.randn(N, dtype=dtype_params)
+    deltas = torch.randn(N, dtype=dtype_params)
+    phis = torch.zeros_like(omegas)
     interactions = torch.zeros(N, N, dtype=dtype_params)
     for i in range(N - 1):
         interactions[i, i + 1] = 1
@@ -70,13 +71,14 @@ def test_forward():
 
     sv_config = SVConfig()
 
-    h = sv_hamiltonian(interactions, omega, delta).to(device)
+    h = sv_hamiltonian(interactions, omegas, deltas).to(device)
     dt = 1.0
     ed = torch.linalg.matrix_exp(-1j * dt * h) @ state
     krylov, _ = do_time_step(
         dt,
-        omega,
-        delta,
+        omegas,
+        deltas,
+        phis,
         interactions,
         state,  # .reshape((2,) * N),
         sv_config.krylov_tolerance,

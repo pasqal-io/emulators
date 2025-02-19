@@ -35,7 +35,6 @@ class SVBackend(Backend):
         data = PulserData(sequence=sequence, config=sv_config, dt=sv_config.dt)
 
         omega, delta, phi = data.omega, data.delta, data.phi
-        # assert torch.count_nonzero(phi) == 0, "Complex omega is currently not supported"
 
         nsteps = omega.shape[0]
         nqubits = omega.shape[1]

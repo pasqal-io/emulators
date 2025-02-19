@@ -52,6 +52,10 @@ class RydbergHamiltonian:
         self.diag: torch.Tensor = self._create_diagonal().to(device=device)
         self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
 
+        self._apply_sigma_operators = self._apply_sigma_operators_real
+        if self.phis.all():
+            self._apply_sigma_operators = self._apply_sigma_operators_complex
+
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
         Performs a matrix-vector multiplication between the `RydbergHamiltonian`
@@ -77,18 +81,18 @@ class RydbergHamiltonian:
         # TODO: add the complex part of the Hamiltonian
         vec = vec if len(vec) == self.nqubits else vec.reshape((2,) * self.nqubits)
 
-        diag_result = self.diag * vec  # (-∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ nⱼ) * |𝜓>
+        diag_result = self.diag * vec  # (-∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ nⱼ)|ψ❭
 
-        sigmax_result = self._apply_sigma_x_operators(vec)  # ∑ᵢ 𝛺ᵢ/2 𝜎ᵢˣ |𝜓>
+        sigmax_result = self._apply_sigma_operators(vec)  # ∑ᵢ 𝛺ᵢ/2 𝜎ᵢ|ψ❭
 
         result: torch.Tensor
         result = diag_result + sigmax_result
 
         return result.reshape(-1)
 
-    def _apply_sigma_x_operators(self, vec: torch.Tensor) -> torch.Tensor:
+    def _apply_sigma_operators_real(self, vec: torch.Tensor) -> torch.Tensor:
         """
-            Applies the ∑ᵢ(𝛺ᵢ / 2) 𝜎ᵢˣ operator to the input vector |ψ❭.
+            Applies the ∑ᵢ(𝛺ᵢ / 2)𝜎ᵢˣ operator to the input vector |ψ❭.
 
         Performs a matrix-vector multiplication between a sum of  𝛺ᵢ 𝜎ᵢˣ operators
         and the input state vector `vec`. For each qubit `i`, the operator
@@ -105,16 +109,16 @@ class RydbergHamiltonian:
         """
         result = torch.zeros(vec.shape, device=vec.device, dtype=torch.complex128)
 
-        for num, omegai in enumerate(self.omegas):
-            result.index_add_(num, self.inds, vec, alpha=omegai)
+        for i, omega in enumerate(self.omegas):
+            result.index_add_(i, self.inds, vec, alpha=omega)
         # when phi != 0, you need to do o and o.conj() separately, but this is SLOWER
         # res.index_add_(i, torch.tensor(0), v.select(i,1).unsqueeze(i), alpha=o)
         # res.index_add_(i, torch.tensor(1), v.select(i,0).unsqueeze(i), alpha=o.conj())
         return result
 
-    def _apply_sigma_operators(self, vec: torch.Tensor) -> torch.Tensor:
+    def _apply_sigma_operators_complex(self, vec: torch.Tensor) -> torch.Tensor:
         """
-        Applies the ∑ᵢ(𝛺ᵢ / 2) 𝜎ᵢˣ operator to the input vector |ψ❭
+        Applies the 1/2∑ᵢ(𝛺ᵢXᵢ + 𝛺ᵢ*Yᵢ) operator to the input vector |ψ❭
 
         Args:
             vec (torch.Tensor): The input state vector, with 1D dimension
@@ -123,14 +127,10 @@ class RydbergHamiltonian:
             torch.Tensor: The resulting state vector
         """
         result = torch.zeros(vec.shape, device=vec.device, dtype=torch.complex128)
-
-        for i, (omega, phi) in enumerate(zip(self.omegas, self.phis)):
-            if phi != 0:
-                c_omega = omega * torch.exp(1j * phi)
-                result.index_add_(i, self.inds[0], vec, alpha=c_omega)
-                result.index_add_(i, self.inds[1], vec, alpha=c_omega.conj())
-            else:
-                result.index_add_(i, self.inds, vec, alpha=omega)
+        c_omegas = self.omegas * torch.exp(1j * self.phis)
+        for i, c_omega in enumerate(c_omegas):
+            result.index_add_(i, self.inds[0], vec, alpha=c_omega)
+            result.index_add_(i, self.inds[1], vec, alpha=c_omega.conj())
         return result
 
     def _create_diagonal(self) -> torch.Tensor:
