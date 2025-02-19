@@ -78,7 +78,10 @@ class RydbergHamiltonian:
 
         """
         # TODO: add the complex part of the Hamiltonian
+        assert vec.dim() == 1
         vec = vec if len(vec) == self.nqubits else vec.reshape((2,) * self.nqubits)
+
+        vec = vec.reshape(-1)
 
         diag_result = self.diag * vec  # (-∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ nⱼ) * |𝜓>
 
@@ -87,7 +90,7 @@ class RydbergHamiltonian:
         result: torch.Tensor
         result = diag_result + sigmax_result
 
-        return result.reshape(-1)
+        return result
 
     def _apply_sigma_x_operators(self, vec: torch.Tensor) -> torch.Tensor:
         """
@@ -106,22 +109,18 @@ class RydbergHamiltonian:
             torch.Tensor: The resulting state vector after applying the ∑ᵢ (𝛺ᵢ / 2) * 𝜎ᵢˣ
                           operator, with 1 D dimension
         """
+
+        assert vec.dim() == 1
         result = torch.zeros(vec.shape, device=vec.device, dtype=torch.complex128)
 
         dim_to_act = 1
-        for num, omegai in enumerate(self.omegas):
-            shape_num = (2**num, 2, 2**(self.nqubits - num - 1))
-            vec = vec.reshape(shape_num)
-            
-            result = result.reshape(shape_num)
-            result.index_add_(dim_to_act, self.inds, vec, alpha=omegai)
+        for n, omega_n in enumerate(self.omegas):
+            shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
+            vec = vec.reshape(shape_n)
+            result = result.reshape(shape_n)
+            result.index_add_(dim_to_act, self.inds, vec, alpha=omega_n)
 
-        result = result.reshape((2,) * self.nqubits)
-            #result.index_add_(num, self.inds, vec, alpha=omegai)
-        # when phi != 0, you need to do o and o.conj() separately, but this is SLOWER
-        # res.index_add_(i, torch.tensor(0), v.select(i,1).unsqueeze(i), alpha=o)
-        # res.index_add_(i, torch.tensor(1), v.select(i,0).unsqueeze(i), alpha=o.conj())
-        return result
+        return result.reshape(-1)
 
     def _create_diagonal(self) -> torch.Tensor:
         """
@@ -151,7 +150,7 @@ class RydbergHamiltonian:
                     j - 1, 1
                 )  # note the j-1 since i was already removed
                 i_j_fixed += self.interaction_matrix[i, j]
-        return diag
+        return diag.reshape(-1)
 
     def expect(self, state: StateVector) -> torch.Tensor:
         assert isinstance(
