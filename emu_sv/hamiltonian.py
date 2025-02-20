@@ -137,13 +137,13 @@ class RydbergHamiltonian:
         )
 
         for i in range(self.nqubits):
-            diag = diag.reshape((2**i, 2, -1))  # -1 means "remaining"
-            i_fixed = diag.select(dim=1, index=1)
+            diag = diag.reshape(2**i, 2, -1)
+            i_fixed = diag[:, 1, :]
             i_fixed -= self.deltas[i]
             for j in range(i + 1, self.nqubits):
-                i_fixed = i_fixed.reshape((2**i, 2 ** (j - i - 1), 2, -1))
+                i_fixed = i_fixed.reshape(2**i, 2 ** (j - i - 1), 2, -1)
                 # replacing i_j_fixed by i_fixed breaks the code :)
-                i_j_fixed = i_fixed.select(dim=2, index=1)
+                i_j_fixed = i_fixed[:, :, 1, :]
                 i_j_fixed += self.interaction_matrix[i, j]
         return diag.reshape(-1)
 
