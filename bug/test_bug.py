@@ -2,13 +2,13 @@ import torch
 import timeit
 from emu_sv.hamiltonian import RydbergHamiltonian
 
-torch.manual_seed(0)
+torch.manual_seed(1337)
 
 dtype = torch.complex128
 device = "cpu"
 
 
-N = 20
+N = 4
 omega = torch.randn(N, dtype=dtype, device=device)
 delta = torch.randn(N, dtype=dtype, device=device)
 interaction_matrix = torch.randn((N, N))

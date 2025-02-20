@@ -141,28 +141,62 @@ class RydbergHamiltonian:
         diag = torch.zeros(
             (2,) * self.nqubits, dtype=torch.complex128, device=self.deltas.device
         )
+        tmp_diag = torch.zeros(
+            (2,) * self.nqubits, dtype=torch.complex128, device=self.deltas.device
+        )
 
         for i in range(self.nqubits):
             tmp_diag = diag.clone()
-            tmp_init_shape = tmp_diag.shape
-            tmp_shape_i = (2**i, 2, 2 ** (self.nqubits - i - 1))
-            tmp_diag = tmp_diag.reshape(tmp_shape_i)
-            tmp_i_fixed = tmp_diag.select(1, 1)  # select(dim, index)
-            tmp_i_fixed -= self.deltas[i]
-            tmp_diag = tmp_diag.reshape(tmp_init_shape)
-            tmp_i_fixed = tmp_i_fixed.reshape((2,) * (self.nqubits - 1))
 
-            i_fixed = diag.select(i, 1)
+            i_fixed = diag.select(dim=i, index=1)
             i_fixed -= self.deltas[i]  # add the delta term for this qubit
 
-            assert torch.allclose(tmp_i_fixed, i_fixed)
+            tmp_diag = tmp_diag.reshape(-1)
+            tmp_shape_i = (2**i, 2, 2 ** (self.nqubits - 1 - i))
+            tmp_diag = tmp_diag.reshape(tmp_shape_i)
+            tmp_i_fixed = tmp_diag.select(dim=1, index=1)  # select(dim, index)
+            tmp_i_fixed -= self.deltas[i]
+
+            assert torch.allclose(tmp_i_fixed.reshape(i_fixed.shape), i_fixed)
+
+            err = torch.norm(tmp_diag.reshape(-1) - diag.reshape(-1))
+            assert torch.allclose(
+                tmp_diag.reshape(-1), diag.reshape(-1)
+            ), f"in outer loop (i, err) = {i, err.item()}"
+
+            # term_i = torch.norm(tmp_i_fixed.reshape(-1) - i_fixed.reshape(-1))
+            # print("i = ", i, "term_i", term_i.item())
+            # assert torch.allclose(tmp_diag.reshape(-1), diag.reshape(-1)), f"in i = {i}"
 
             for j in range(i + 1, self.nqubits):
                 i_j_fixed = i_fixed.select(
                     j - 1, 1
                 )  # note the j-1 since i was already removed
-                i_j_fixed += self.interaction_matrix[i, j]
-                print(i_j_fixed.dim())
+                # i_j_fixed += self.interaction_matrix[i, j]
+
+                tmp_shape_j = (2**j, 2, 2 ** (self.nqubits - 1 - j))
+                tmp_diag = tmp_diag.reshape(tmp_shape_j)
+                tmp_j_fixed = tmp_diag.select(dim=1, index=1)  # select(dim, index)
+                tmp_shape_i_j = (2**i, 2, 2 ** (self.nqubits - 2 - i))
+                tmp_j_fixed = tmp_j_fixed.reshape(tmp_shape_i_j)
+                tmp_i_j_fixed = tmp_j_fixed.select(dim=1, index=1)
+
+                err = diag.reshape(-1) - tmp_diag.reshape(-1)
+                n = torch.norm(err).item()
+                assert abs(n) < 1e-10, f"after (i, j, err) = {i, j, n}"
+
+                # i_j_fixed += self.interaction_matrix[i, j]
+                i_j_fixed += 1  # self.interaction_matrix[i, j]
+                tmp_i_j_fixed += 1  # self.interaction_matrix[i, j]
+
+                err = i_j_fixed.reshape(-1) - tmp_i_j_fixed.reshape(-1)
+                n = torch.norm(err).item()
+                assert abs(n) < 1e-10, f"after (i_j_fixed) = {i, j, n}"
+
+                err = diag.reshape(-1) - tmp_diag.reshape(-1)
+                n = torch.norm(err).item()
+                assert abs(n) < 1e-10, f"after (i, j, err) = {i, j, n}"
+
         return diag.reshape(-1)
 
     def expect(self, state: StateVector) -> torch.Tensor:
