@@ -78,10 +78,6 @@ class RydbergHamiltonian:
 
         """
         # TODO: add the complex part of the Hamiltonian
-        # assert vec.dim() == 1
-        vec = vec if len(vec) == self.nqubits else vec.reshape((2,) * self.nqubits)
-
-        vec = vec.reshape(-1)
 
         diag_result = self.diag * vec  # (-∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ nⱼ) * |𝜓>
 
@@ -109,8 +105,6 @@ class RydbergHamiltonian:
             torch.Tensor: The resulting state vector after applying the ∑ᵢ (𝛺ᵢ / 2) * 𝜎ᵢˣ
                           operator, with 1 D dimension
         """
-
-        assert vec.dim() == 1
         result = torch.zeros(vec.shape, device=vec.device, dtype=torch.complex128)
 
         dim_to_act = 1
@@ -144,15 +138,15 @@ class RydbergHamiltonian:
 
         for i in range(self.nqubits):
             diag = diag.reshape((2**i, 2, 2 ** (self.nqubits - i - 1)))
-            i_fixed = diag.select(dim=1, index=1)  # select(dim, index)
+            i_fixed = diag.select(dim=1, index=1)
             i_fixed -= self.deltas[i]
             for j in range(i + 1, self.nqubits):
-                i_fixed = i_fixed.reshape(
+                # removing variable i_j_fixed breaks the code
+                i_j_fixed = i_fixed.reshape(
                     (2**i, 2 ** (j - i - 1), 2, 2 ** (self.nqubits - j - 1))
                 )
-                i_j_fixed = i_fixed.select(dim=2, index=1)
+                i_j_fixed = i_j_fixed.select(dim=2, index=1)
                 i_j_fixed += self.interaction_matrix[i, j]
-
         return diag.reshape(-1)
 
     def expect(self, state: StateVector) -> torch.Tensor:
