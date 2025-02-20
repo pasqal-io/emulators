@@ -79,15 +79,14 @@ class RydbergHamiltonian:
             the resulting state vector.
 
         """
-        vec = vec if len(vec) == self.nqubits else vec.reshape((2,) * self.nqubits)
-
         # (-∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ)|ψ❭
         diag_result = self.diag * vec
         # ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ]|ψ❭
         sigmax_result = self._apply_sigma_operators(vec)
         result: torch.Tensor
         result = diag_result + sigmax_result
-        return result.reshape(-1)
+
+        return result
 
     def _apply_sigma_operators_real(self, vec: torch.Tensor) -> torch.Tensor:
         """
@@ -106,14 +105,16 @@ class RydbergHamiltonian:
             torch.Tensor: The resulting state vector after applying the ∑ᵢ (𝛺ᵢ / 2) * 𝜎ᵢˣ
                           operator, with 1 D dimension
         """
-        result = torch.zeros(vec.shape, device=vec.device, dtype=torch.complex128)
+        result = torch.zeros_like(vec)
 
-        for i, omega in enumerate(self.omegas):
-            result.index_add_(i, self.inds, vec, alpha=omega)
-        # when phi != 0, you need to do o and o.conj() separately, but this is SLOWER
-        # res.index_add_(i, torch.tensor(0), v.select(i,1).unsqueeze(i), alpha=o)
-        # res.index_add_(i, torch.tensor(1), v.select(i,0).unsqueeze(i), alpha=o.conj())
-        return result
+        dim_to_act = 1
+        for n, omega_n in enumerate(self.omegas):
+            shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
+            vec = vec.reshape(shape_n)
+            result = result.reshape(shape_n)
+            result.index_add_(dim_to_act, self.inds, vec, alpha=omega_n)
+
+        return result.reshape(-1)
 
     def _apply_sigma_operators_complex(self, vec: torch.Tensor) -> torch.Tensor:
         """
@@ -125,16 +126,25 @@ class RydbergHamiltonian:
         Returns:
             torch.Tensor: The resulting state vector
         """
-        result = torch.zeros(vec.shape, device=vec.device, dtype=torch.complex128)
         c_omegas = self.omegas * torch.exp(1j * self.phis)
-        for i, c_omega in enumerate(c_omegas):
+        result = torch.zeros_like(vec)
+
+        dim_to_act = 1
+        for n, c_omega_n in enumerate(c_omegas):
+            shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
+            vec = vec.reshape(shape_n)
+            result = result.reshape(shape_n)
             result.index_add_(
-                i, self.inds[0], vec.select(i, 0).unsqueeze(i), alpha=c_omega
+                dim_to_act, self.inds[0], vec[:, 0, :].unsqueeze(1), alpha=c_omega_n
             )
             result.index_add_(
-                i, self.inds[1], vec.select(i, 1).unsqueeze(i), alpha=c_omega.conj()
+                dim_to_act,
+                self.inds[1],
+                vec[:, 1, :].unsqueeze(1),
+                alpha=c_omega_n.conj(),
             )
-        return result
+
+        return result.reshape(-1)
 
     def _create_diagonal(self) -> torch.Tensor:
         """
@@ -153,16 +163,19 @@ class RydbergHamiltonian:
             diagonal elements.
         """
         diag = torch.zeros(
-            (2,) * self.nqubits, dtype=torch.complex128, device=self.omegas.device
+            2**self.nqubits, dtype=torch.complex128, device=self.deltas.device
         )
 
         for i in range(self.nqubits):
-            i_fixed = diag.select(i, 1)
-            i_fixed -= self.deltas[i]  # add the delta term for this qubit
+            diag = diag.reshape(2**i, 2, -1)
+            i_fixed = diag[:, 1, :]
+            i_fixed -= self.deltas[i]
             for j in range(i + 1, self.nqubits):
-                i_j_fixed = i_fixed.select(j - 1, 1)  # j-1 since i was removed
+                i_fixed = i_fixed.reshape(2**i, 2 ** (j - i - 1), 2, -1)
+                # replacing i_j_fixed by i_fixed breaks the code :)
+                i_j_fixed = i_fixed[:, :, 1, :]
                 i_j_fixed += self.interaction_matrix[i, j]
-        return diag
+        return diag.reshape(-1)
 
     def expect(self, state: StateVector) -> torch.Tensor:
         """Returns the expectation value of energy E=❬ψ|H|ψ❭"""
