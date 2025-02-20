@@ -128,8 +128,12 @@ class RydbergHamiltonian:
         result = torch.zeros(vec.shape, device=vec.device, dtype=torch.complex128)
         c_omegas = self.omegas * torch.exp(1j * self.phis)
         for i, c_omega in enumerate(c_omegas):
-            result.index_add_(i, self.inds[0], vec, alpha=c_omega)
-            result.index_add_(i, self.inds[1], vec, alpha=c_omega.conj())
+            result.index_add_(
+                i, self.inds[0], vec.select(i, 0).unsqueeze(i), alpha=c_omega
+            )
+            result.index_add_(
+                i, self.inds[1], vec.select(i, 1).unsqueeze(i), alpha=c_omega.conj()
+            )
         return result
 
     def _create_diagonal(self) -> torch.Tensor:
