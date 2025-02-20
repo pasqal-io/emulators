@@ -143,18 +143,9 @@ class RydbergHamiltonian:
 
     def _create_diagonal(self) -> torch.Tensor:
         """
-        Constructs the diagonal elements of the Rydberg Hamiltonian matrix
+        Return the diagonal elements of the Rydberg Hamiltonian matrix
 
-            -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
-
-        This method creates a tensor representing the diagonal terms of the
-        Hamiltonian, including contributions from detuning `deltas` 𝛿ᵢ
-        and interaction terms `interaction_matrix` Uᵢⱼ. This excludes the `omegas` 𝛺ᵢ.
-        Each qubit's detuning value is subtracted from the diagonal, and interaction terms are
-        added for qubit pairs to represent their couplings.
-
-        Returns:
-            the diagonal elements of the RydbergHamiltonian matrix.
+            H.diag = -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
         """
         diag = torch.zeros(2**self.nqubits, dtype=torch.complex128, device=self.device)
 
