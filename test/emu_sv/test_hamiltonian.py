@@ -58,7 +58,7 @@ def test_dense_vs_sparse():
     interaction_matrix = torch.randn((N, N))
 
     h = sv_hamiltonian(interaction_matrix, omega, delta).to(device)
-    v = torch.randn((2,) * N, dtype=dtype, device=device)
+    v = torch.randn(2**N, dtype=dtype, device=device)
 
     res_dense = h @ v.reshape(-1)
 
