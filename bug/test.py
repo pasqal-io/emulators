@@ -15,23 +15,21 @@ B = A.clone()
 # for i in range(N):
 
 i_fixed = A.select(dim=i, index=1)
-# i_j_fixed = i_fixed.select(dim=j-1, index=1)
-B = B.reshape((2**i, 2, 2 ** (N - 1 - i)))
+sh = (2**i, 2, 2 ** (j - i - 1), 2, 2 ** (N - j - 1))
+B = B.reshape(sh)
 tmp_i_fixed = B.select(dim=1, index=1)
-tmp_i_fixed = tmp_i_fixed.reshape((2,) * (N - 1))
+tmp_i_fixed = tmp_i_fixed.reshape((2**i, 2 ** (j - i - 1), 2, 2 ** (N - j - 1)))
 # print(A.reshape((2,)*N))
-assert torch.allclose(i_fixed, tmp_i_fixed)
+assert torch.allclose(i_fixed, tmp_i_fixed.reshape((2,) * (N - 1)))
 # for j in range(i+1, N):
 
 i_j_fixed = i_fixed.select(j - 1, 1)
-B = B.reshape((2**j, 2, 2 ** (N - 1 - j)))
-tmp_j_fixed = B.select(dim=1, index=1)
-tmp_j_fixed = tmp_j_fixed.reshape((2**i, 2, 2 ** (N - 2 - i)))
-tmp_i_j_fixed = tmp_j_fixed.select(dim=1, index=1)
-tmp_i_j_fixed = tmp_i_j_fixed.reshape((2,) * (N - 2))
+
+
+tmp_i_j_fixed = tmp_i_fixed.select(dim=2, index=1)
 # print("expected\n", i_j_fixed)
 # print("got\n", tmp_i_j_fixed)
-assert torch.allclose(i_j_fixed, tmp_i_j_fixed)
+assert torch.allclose(i_j_fixed, tmp_i_j_fixed.reshape((2,) * (N - 2)))
 i_j_fixed += 1.0
 tmp_i_j_fixed += 1.0
 assert torch.allclose(i_j_fixed, tmp_i_j_fixed)

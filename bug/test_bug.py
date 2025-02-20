@@ -8,7 +8,7 @@ dtype = torch.complex128
 device = "cpu"
 
 
-N = 4
+N = 10
 omega = torch.randn(N, dtype=dtype, device=device)
 delta = torch.randn(N, dtype=dtype, device=device)
 interaction_matrix = torch.randn((N, N))
