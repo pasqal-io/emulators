@@ -6,15 +6,17 @@ from emu_sv.hamiltonian import RydbergHamiltonian
 
 def do_time_step(
     dt: float,
-    omega: torch.Tensor,
-    delta: torch.Tensor,
+    omegas: torch.Tensor,
+    deltas: torch.Tensor,
+    phis: torch.Tensor,
     full_interaction_matrix: torch.Tensor,
     state_vector: torch.Tensor,
     krylov_tolerance: float,
 ) -> tuple[torch.Tensor, RydbergHamiltonian]:
     ham = RydbergHamiltonian(
-        omegas=omega,
-        deltas=delta,
+        omegas=omegas,
+        deltas=deltas,
+        phis=phis,
         interaction_matrix=full_interaction_matrix,
         device=state_vector.device,
     )

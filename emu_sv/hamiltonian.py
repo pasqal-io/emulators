@@ -1,96 +1,92 @@
-"""
-This file deals with creation of the custom sparse matrix corresponding
-the Rydberg Hamiltonian of a neutral atoms quantum processor.
-"""
-
 import torch
-
 from emu_sv.state_vector import StateVector
 
 
 class RydbergHamiltonian:
     """
-    A Hamiltonian sparse form representation for the Rydberg  Hamiltonian (not complex part, yet)
+    Representation of the Rydberg Hamiltonian with light-matter interaction:
 
-    The `RydbergHamiltonian` class represents the Rydberg Hamiltonian matrix where the diagonal
-    terms are the interaction Uᵢⱼ nᵢ⊗nⱼ and detunining 𝛿ᵢnᵢ and off diagonal term omegas 𝛺ᵢ𝜎ᵢˣ
-    for a quantum system, allowing efficient computations such as matrix-vector multiplications.
-    The Hamiltonian is parameterized by driving strengths or amplitudes 𝛺ᵢ (`omegas`), detuning
-    values 𝛿ᵢ (`deltas`), and  interaction terms Uᵢⱼ (`interaction_matrix`).
+        H = ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] - ∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
+
+    The Hamiltonian is parameterized by driving strengths or amplitudes Ωⱼ (`omegas`), detuning
+    values Δⱼ (`deltas`), phases ϕⱼ (`phis`) and interaction terms Uᵢⱼ (`interaction_matrix`).
+    Implements an efficient H*|ψ❭ as custom sparse matrix-vector multiplication.
 
     Attributes:
-        omegas (torch.Tensor): amplitudes values for each qubit, scaled by a factor of 1/2.
-        deltas (torch.Tensor): detuning values for each qubit.
-        interaction_matrix (torch.Tensor): matrix representing pairwise Rydberg
+        omegas (torch.Tensor): driving strength Ωⱼ for each qubit, scaled by a factor 1/2.
+        deltas (torch.Tensor): detuning values Δⱼ for each qubit.
+        phis (torch.Tensor): phase values ϕⱼ for each qubit.
+        interaction_matrix (torch.Tensor): matrix Uᵢⱼ representing pairwise Rydberg
             interaction strengths between qubits.
-        nqubits (int): The number of qubits in the system.
-        diag (torch.Tensor): The diagonal elements of the Hamiltonian,
+        nqubits (int): number of qubits in the system.
+        diag (torch.Tensor): diagonal elements of the Hamiltonian,
             calculated based on `deltas` and `interaction_matrix`.
-        inds (torch.Tensor): Index tensor used for vector manipulations
+        inds (torch.Tensor): index tensor used for vector manipulations
             in matrix-vector multiplications.
 
-    Args:
-        omegas (torch.Tensor): 1D tensor of driving strengths for each qubit.
-        deltas (torch.Tensor): 1D tensor of detuning values for each qubit.
-        interaction_matrix (torch.Tensor): 2D tensor representing the interaction
-            strengths between each pair of qubits.
-
     Methods:
-        __mul__(vec): Performs matrix-vector multiplication with a vector.
-        _diag_elemts(): Constructs the diagonal elements of the Hamiltonian
+        __mul__(vec): performs matrix-vector multiplication with a vector.
+        _create_diagonal(): constructs the diagonal elements of the Hamiltonian
             based on `deltas` and `interaction_matrix`.
-        _size(): Calculates the memory size of the `RydbergHamiltonian` object in MiB.
+        _apply_sigma_operators_complex(): apply all driving sigma operators,
+             with driving strenght `omegas` and phases `phis`.
+        _apply_sigma_operators_real(): only applies ∑ⱼ(Ωⱼ/2)σˣⱼ when all phases are zero (ϕⱼ=0).
     """
 
     def __init__(
         self,
         omegas: torch.Tensor,
         deltas: torch.Tensor,
+        phis: torch.Tensor,
         interaction_matrix: torch.Tensor,
         device: torch.device,
     ):
         self.nqubits: int = len(omegas)
         self.omegas: torch.Tensor = omegas / 2.0
         self.deltas: torch.Tensor = deltas
+        self.phis: torch.Tensor = phis
         self.interaction_matrix: torch.Tensor = interaction_matrix
-        self.diag: torch.Tensor = self._create_diagonal().to(device=device)
-        self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
+        self.device: torch.device = device
+
+        self.diag: torch.Tensor = self._create_diagonal()
+        self.inds = torch.tensor([1, 0], device=self.device)  # flips the state, for σˣ
+
+        self._apply_sigma_operators = self._apply_sigma_operators_real
+        if self.phis.all():
+            self._apply_sigma_operators = self._apply_sigma_operators_complex
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
-        Performs a matrix-vector multiplication between the `RydbergHamiltonian` form and
-        a torch vector
+        Performs a custom sparse matrix-vector multiplication between the `RydbergHamiltonian`
+        and a vector representing the quantum state.
 
 
         Computes the product of `RydbergHamiltonian` object's Hamiltonian
         (represented by its diagonal (𝛿ᵢ and  Uᵢⱼ) and off diagonal (𝛺ᵢ) terms) and the input
         vector `vec`. The result is initially reshaped to a tensor with dimensions corresponding
         to the number of qubits, where interactions and detunigs are applied sequentially
-        across qubit indices, scaled by the `omegas` values. The final result is reshaped
-        to a 1D tensor.
+        across qubit indices, scaled by the `omegas` values.
+        The final result is reshaped to a 1D tensor.
 
         Args:
             vec (torch.Tensor): The vector to multiply, with dimensions compatible with the
                                 Hamiltonian's representation.
 
         Returns:
-            torch.Tensor: resulting vector after applying the matrix-vector multiplication.
-
+            the resulting state vector.
         """
-        # TODO: add the complex part of the Hamiltonian
-
-        diag_result = self.diag * vec  # (-∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ nⱼ) * |𝜓>
-
-        sigmax_result = self._apply_sigma_x_operators(vec)  # ∑ᵢ 𝛺ᵢ/2 𝜎ᵢˣ |𝜓>
-
+        # (-∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ)|ψ❭
+        diag_result = self.diag * vec
+        # ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ]|ψ❭
+        sigma_result = self._apply_sigma_operators(vec)
         result: torch.Tensor
-        result = diag_result + sigmax_result
+        result = diag_result + sigma_result
 
         return result
 
-    def _apply_sigma_x_operators(self, vec: torch.Tensor) -> torch.Tensor:
+    def _apply_sigma_operators_real(self, vec: torch.Tensor) -> torch.Tensor:
         """
-            Applies the ∑ᵢ (𝛺ᵢ / 2) * 𝜎ᵢˣ operator to the input vector |𝜓>.
+        Applies the ∑ⱼ(Ωⱼ/2)σˣⱼ operator to the input vector |ψ❭.
 
         Performs a matrix-vector multiplication between a sum of  𝛺ᵢ 𝜎ᵢˣ operators
         and the input state vector `vec`. For each qubit `i`, the operator
@@ -99,13 +95,12 @@ class RydbergHamiltonian:
         The result is accumulated across all qubits to form the final transformed vector.
 
         Args:
-            vec (torch.Tensor): The input state vector, with 1D dimension
+            vec (torch.Tensor): the input state vector.
 
         Returns:
-            torch.Tensor: The resulting state vector after applying the ∑ᵢ (𝛺ᵢ / 2) * 𝜎ᵢˣ
-                          operator, with 1 D dimension
+            the resulting state vector.
         """
-        result = torch.zeros(vec.shape, device=vec.device, dtype=torch.complex128)
+        result = torch.zeros_like(vec)
 
         dim_to_act = 1
         for n, omega_n in enumerate(self.omegas):
@@ -116,25 +111,43 @@ class RydbergHamiltonian:
 
         return result.reshape(-1)
 
-    def _create_diagonal(self) -> torch.Tensor:
+    def _apply_sigma_operators_complex(self, vec: torch.Tensor) -> torch.Tensor:
         """
-        Constructs the diagonal elements of the Hamiltonian matrix
+        Applies the ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] operator to the input vector |ψ❭.
 
-        -∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ⊗nⱼ
-
-        This method creates a tensor representing the diagonal terms of the
-        Hamiltonian, including contributions from detuning `deltas` 𝛿ᵢ
-        and interaction terms `interaction_matrix` Uᵢⱼ. This excludes the `omegas` 𝛺ᵢ.
-        Each qubit's detuning value is subtracted from the diagonal, and interaction terms are
-        added for qubit pairs to represent their couplings.
+        Args:
+            vec (torch.Tensor): the input state vector.
 
         Returns:
-            torch.Tensor: A tensor with shape (2,)* number of qubits of the computed
-            diagonal elements.
+            the resulting state vector.
         """
-        diag = torch.zeros(
-            2**self.nqubits, dtype=torch.complex128, device=self.deltas.device
-        )
+        c_omegas = self.omegas * torch.exp(1j * self.phis)
+        result = torch.zeros_like(vec)
+
+        dim_to_act = 1
+        for n, c_omega_n in enumerate(c_omegas):
+            shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
+            vec = vec.reshape(shape_n)
+            result = result.reshape(shape_n)
+            result.index_add_(
+                dim_to_act, self.inds[0], vec[:, 0, :].unsqueeze(1), alpha=c_omega_n
+            )
+            result.index_add_(
+                dim_to_act,
+                self.inds[1],
+                vec[:, 1, :].unsqueeze(1),
+                alpha=c_omega_n.conj(),
+            )
+
+        return result.reshape(-1)
+
+    def _create_diagonal(self) -> torch.Tensor:
+        """
+        Return the diagonal elements of the Rydberg Hamiltonian matrix
+
+            H.diag = -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
+        """
+        diag = torch.zeros(2**self.nqubits, dtype=torch.complex128, device=self.device)
 
         for i in range(self.nqubits):
             diag = diag.reshape(2**i, 2, -1)
@@ -148,7 +161,8 @@ class RydbergHamiltonian:
         return diag.reshape(-1)
 
     def expect(self, state: StateVector) -> torch.Tensor:
+        """Return the energy expectation value E=❬ψ|H|ψ❭"""
         assert isinstance(
             state, StateVector
-        ), "currently, only expectation values of StateVectors are supported"
+        ), "Currently, only expectation values of StateVectors are supported"
         return torch.vdot(state.vector, self * state.vector)
