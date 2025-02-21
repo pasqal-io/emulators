@@ -1,24 +1,14 @@
 import torch
 import pytest
-from test.utils_testing import dense_rydberg_hamiltonian
+from test.utils_testing import (
+    dense_rydberg_hamiltonian,
+    nn_interaction_matrix,
+    randn_interaction_matrix,
+)
 from emu_sv.time_evolution import do_time_step
 
 dtype = torch.complex128
 device = "cpu"
-
-
-def randn_interaction(N: int):
-    temp_mat = torch.randn(N, N).fill_diagonal_(0.0)
-    interactions = (temp_mat + temp_mat.mT) / 2
-    return interactions
-
-
-def nn_interaction(N: int):
-    interactions = torch.zeros(N, N)
-    for i in range(N - 1):
-        interactions[i, i + 1] = 1
-        interactions[i + 1, i] = 1
-    return interactions
 
 
 @pytest.mark.parametrize(
@@ -30,8 +20,8 @@ def test_forward_no_phase(N: int, krylov_tolerance: float):
     omegas = torch.randn(N)
     deltas = torch.randn(N)
     phis = torch.zeros_like(omegas)
-    interactions = nn_interaction(N)
-    ham_params = (omegas, deltas, phis, interactions)
+    interaction = nn_interaction_matrix(N)
+    ham_params = (omegas, deltas, phis, interaction)
 
     state = torch.randn(2**N, dtype=dtype, device=device)
     state /= state.norm()
@@ -57,8 +47,8 @@ def test_forward_with_phase(N: int, krylov_tolerance: float):
     omegas = torch.randn(N)
     deltas = torch.randn(N)
     phis = torch.randn(N)
-    interactions = randn_interaction(N)
-    ham_params = (omegas, deltas, phis, interactions)
+    interaction = randn_interaction_matrix(N)
+    ham_params = (omegas, deltas, phis, interaction)
 
     state = torch.randn(2**N, dtype=dtype, device=device)
     state /= state.norm()
