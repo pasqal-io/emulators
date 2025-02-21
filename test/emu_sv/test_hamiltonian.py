@@ -19,7 +19,7 @@ def test_dense_vs_sparse(N: int, make_phases):
     phis = make_phases(N, dtype=params_dtype, device=device)
     interaction_matrix = torch.randn(N, N, dtype=params_dtype)
 
-    ham_dense = dense_rydberg_hamiltonian(interaction_matrix, omegas, deltas, phis).to(
+    ham_dense = dense_rydberg_hamiltonian(omegas, deltas, phis, interaction_matrix).to(
         device
     )
     ham = RydbergHamiltonian(
@@ -33,14 +33,14 @@ def test_dense_vs_sparse(N: int, make_phases):
     # test hamiltonian diagonal terms
     diag_sparse = ham.diag
     diag_dense = torch.diagonal(ham_dense).to(dtype=dtype)
-    assert torch.allclose(diag_sparse.reshape(-1), diag_dense)
+    assert torch.allclose(diag_sparse.reshape(-1), diag_dense, atol=1e-12)
 
-    # test H_dense @ |ψ❭ == H|ψ❭
+    # test H_dense @ |ψ❭ == H*|ψ❭
     state = torch.randn(2**N, dtype=dtype, device=device)
 
     res_dense = ham_dense @ state
     res_sparse = ham * state
-    assert torch.allclose(res_sparse, res_dense)
+    assert torch.allclose(res_sparse, res_dense, atol=1e-12)
 
 
 def test_call_real_complex():

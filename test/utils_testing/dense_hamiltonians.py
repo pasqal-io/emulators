@@ -35,10 +35,10 @@ def nn(i, j, nqubits):
 
 
 def dense_rydberg_hamiltonian(
-    interaction_matrix: torch.Tensor,
     omegas: torch.Tensor,
     deltas: torch.Tensor,
     phis: torch.Tensor,
+    interaction_matrix: torch.Tensor,
 ) -> torch.Tensor:
     """
     Dense Rydberg Hamiltonian for testing:
