@@ -123,7 +123,7 @@ class RydbergHamiltonian:
         added for qubit pairs to represent their couplings.
 
         Returns:
-            torch.Tensor: A tensor with shape (2,)* number of qubits of the computed
+            torch.Tensor: A tensor with shape 2**number of qubits of the computed
             diagonal elements.
         """
         diag = torch.zeros(
