@@ -78,15 +78,9 @@ class RydbergHamiltonian:
 
         """
         # TODO: add the complex part of the Hamiltonian
-
-        diag_result = self.diag * vec  # (-∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ nⱼ) * |𝜓>
-
-        sigmax_result = self._apply_sigma_x_operators(vec)  # ∑ᵢ 𝛺ᵢ/2 𝜎ᵢˣ |𝜓>
-
-        result: torch.Tensor
-        result = diag_result + sigmax_result
-
-        return result
+        # (-∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ nⱼ) * |𝜓>
+        # ∑ᵢ 𝛺ᵢ/2 𝜎ᵢˣ |𝜓>
+        return self.diag * vec + self._apply_sigma_x_operators(vec)
 
     def _apply_sigma_x_operators(self, vec: torch.Tensor) -> torch.Tensor:
         """
