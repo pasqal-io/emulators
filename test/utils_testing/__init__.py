@@ -6,6 +6,7 @@ from .utils_testing import (
     pulser_quench_sequence_grid,
     pulser_XY_sequence_slm_mask,
 )
+from .dense_hamiltonians import dense_rydberg_hamiltonian
 
 __all__ = [
     "pulser_afm_sequence_ring",
@@ -14,4 +15,5 @@ __all__ = [
     "pulser_afm_sequence_grid",
     "pulser_quench_sequence_grid",
     "pulser_XY_sequence_slm_mask",
+    "dense_rydberg_hamiltonian",
 ]

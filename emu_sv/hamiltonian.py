@@ -113,7 +113,7 @@ class RydbergHamiltonian:
 
     def _apply_sigma_operators_complex(self, vec: torch.Tensor) -> torch.Tensor:
         """
-        Applies the 1/2∑ᵢ(𝛺ᵢXᵢ + 𝛺ᵢ*Yᵢ) operator to the input vector |ψ❭
+        Applies the ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] operator to the input vector |ψ❭.
 
         Args:
             vec (torch.Tensor): the input state vector.
@@ -161,8 +161,8 @@ class RydbergHamiltonian:
         return diag.reshape(-1)
 
     def expect(self, state: StateVector) -> torch.Tensor:
-        """Returns the expectation value of energy E=❬ψ|H|ψ❭"""
+        """Return the energy expectation value E=❬ψ|H|ψ❭"""
         assert isinstance(
             state, StateVector
-        ), "currently, only expectation values of StateVectors are supported"
+        ), "Currently, only expectation values of StateVectors are supported"
         return torch.vdot(state.vector, self * state.vector)
