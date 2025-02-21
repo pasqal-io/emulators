@@ -159,23 +159,44 @@ def _extract_omega_delta_phi(
 
     step = 0
     t = (step + 1 / 2) * dt
+    omega_1 = torch.zeros_like(omega[0])
+    omega_2 = torch.zeros_like(omega[0])
 
     while t < max_duration:
-        for q_pos, q_id in enumerate(sequence.register.qubit_ids):
-            omega[step, q_pos] = (
-                locals_a_d_p[q_id]["amp"][math.floor(t)]
-                + locals_a_d_p[q_id]["amp"][math.ceil(t)]
-            ) / 2.0
-            delta[step, q_pos] = (
-                locals_a_d_p[q_id]["det"][math.floor(t)]
-                + locals_a_d_p[q_id]["det"][math.ceil(t)]
-            ) / 2.0
-            phi[step, q_pos] = (
-                locals_a_d_p[q_id]["phase"][math.floor(t)]
-                + locals_a_d_p[q_id]["phase"][math.ceil(t)]
-            ) / 2.0
-        if t in global_times:
-            omega[step] *= waist_factors
+        # The sampled values correspond to the start of each interval
+        # To maximize the order of the solver, we need the values in the middle
+        if math.ceil(t) < max_duration:
+            # If we're not the final step, approximate this using linear interpolation
+            # Note that for dt even, t1=t2
+            for q_pos, q_id in enumerate(sequence.register.qubit_ids):
+                t1 = math.floor(t)
+                t2 = math.ceil(t)
+                omega_1[q_pos] = locals_a_d_p[q_id]["amp"][t1]
+                omega_2[q_pos] = locals_a_d_p[q_id]["amp"][t2]
+                delta[step, q_pos] = (
+                    locals_a_d_p[q_id]["det"][t1] + locals_a_d_p[q_id]["det"][t2]
+                ) / 2.0
+                phi[step, q_pos] = (
+                    locals_a_d_p[q_id]["phase"][t1] + locals_a_d_p[q_id]["phase"][t2]
+                ) / 2.0
+            # omegas at different times need to have the laser waist applied independently
+            if t1 in global_times:
+                omega_1 *= waist_factors
+            if t2 in global_times:
+                omega_2 *= waist_factors
+            omega[step] = 0.5 * (omega_1 + omega_2)
+        else:
+            # We're in the final step and dt=1, approximate this using linear extrapolation
+            # we can reuse omega_1 and omega_2 from before
+            for q_pos, q_id in enumerate(sequence.register.qubit_ids):
+                delta[step, q_pos] = (
+                    3.0 * locals_a_d_p[q_id]["det"][t2] - locals_a_d_p[q_id]["det"][t1]
+                ) / 2.0
+                phi[step, q_pos] = (
+                    3.0 * locals_a_d_p[q_id]["phase"][t2]
+                    - locals_a_d_p[q_id]["phase"][t1]
+                ) / 2.0
+            omega[step] = 0.5 * (3 * omega_2 - omega_1)
         step += 1
         t = (step + 1 / 2) * dt
 

@@ -54,7 +54,7 @@ class SVConfig(BackendConfig):
         initial_state: StateVector | None = None,
         dt: int = 10,
         max_krylov_dim: int = 100,
-        krylov_tolerance: float = 1e-12,
+        krylov_tolerance: float = 1e-10,
         gpu: bool = False,
         **kwargs: Any,
     ):
