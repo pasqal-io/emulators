@@ -25,7 +25,7 @@ class RydbergHamiltonian:
             in matrix-vector multiplications.
 
     Methods:
-        __mul__(vec): performs matrix-vector multiplication with a vector.
+        __mul__(vec): implements matrix-vector multiplication with a state vector.
         _create_diagonal(): constructs the diagonal elements of the Hamiltonian
             based on `deltas` and `interaction_matrix`.
         _apply_sigma_operators_complex(): apply all driving sigma operators,
@@ -57,20 +57,15 @@ class RydbergHamiltonian:
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
-        Performs a custom sparse matrix-vector multiplication between the `RydbergHamiltonian`
-        and a vector representing the quantum state.
+        Apply the `RydbergHamiltonian` to the input state vector, i.e. H*|ψ❭.
 
-
-        Computes the product of `RydbergHamiltonian` object's Hamiltonian
-        (represented by its diagonal (𝛿ᵢ and  Uᵢⱼ) and off diagonal (𝛺ᵢ) terms) and the input
-        vector `vec`. The result is initially reshaped to a tensor with dimensions corresponding
-        to the number of qubits, where interactions and detunigs are applied sequentially
-        across qubit indices, scaled by the `omegas` values.
-        The final result is reshaped to a 1D tensor.
+        - The diagonal part of the Hamiltonian (Δⱼ and Uᵢⱼ terms) is stored and
+        applyed directly as H.diag*|ψ❭.
+        - The off-diagonal part (Ωⱼ and ϕⱼ terms) are applied sequentially across
+        qubit indices in `self._apply_sigma_operators`.
 
         Args:
-            vec (torch.Tensor): The vector to multiply, with dimensions compatible with the
-                                Hamiltonian's representation.
+            vec (torch.Tensor): vec (torch.Tensor): the input state vector.
 
         Returns:
             the resulting state vector.
@@ -86,13 +81,7 @@ class RydbergHamiltonian:
 
     def _apply_sigma_operators_real(self, vec: torch.Tensor) -> torch.Tensor:
         """
-        Applies the ∑ⱼ(Ωⱼ/2)σˣⱼ operator to the input vector |ψ❭.
-
-        Performs a matrix-vector multiplication between a sum of  𝛺ᵢ 𝜎ᵢˣ operators
-        and the input state vector `vec`. For each qubit `i`, the operator
-        ∑ᵢ (𝛺ᵢ / 2) 𝜎ᵢˣ  applies the Pauli-X gate 𝜎ᵢˣ to the `i`-th qubit of
-        the vector `vec`, scaled by the coefficient 𝛺ᵢ / 2.
-        The result is accumulated across all qubits to form the final transformed vector.
+        Apply the ∑ⱼ(Ωⱼ/2)σˣⱼ operator to the input vector |ψ❭.
 
         Args:
             vec (torch.Tensor): the input state vector.
@@ -113,7 +102,7 @@ class RydbergHamiltonian:
 
     def _apply_sigma_operators_complex(self, vec: torch.Tensor) -> torch.Tensor:
         """
-        Applies the ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] operator to the input vector |ψ❭.
+        Apply the ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] operator to the input vector |ψ❭.
 
         Args:
             vec (torch.Tensor): the input state vector.
