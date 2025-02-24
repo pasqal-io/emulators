@@ -52,7 +52,7 @@ class RydbergHamiltonian:
         self.inds = torch.tensor([1, 0], device=self.device)  # flips the state, for σˣ
 
         self._apply_sigma_operators = self._apply_sigma_operators_real
-        if self.phis.all():
+        if self.phis.any():
             self._apply_sigma_operators = self._apply_sigma_operators_complex
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
