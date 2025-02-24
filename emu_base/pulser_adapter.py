@@ -196,7 +196,7 @@ def _extract_omega_delta_phi(
                     3.0 * locals_a_d_p[q_id]["phase"][t2]
                     - locals_a_d_p[q_id]["phase"][t1]
                 ) / 2.0
-            omega[step] = 0.5 * (3 * omega_2 - omega_1)
+            omega[step] = torch.clamp(0.5 * (3 * omega_2 - omega_1).real, min=0.0)
         step += 1
         t = (step + 1 / 2) * dt
 
