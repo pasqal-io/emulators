@@ -78,7 +78,6 @@ class RydbergHamiltonian:
 
         """
         # TODO: add the complex part of the Hamiltonian
-        vec = vec if len(vec) == self.nqubits else vec.reshape((2,) * self.nqubits)
 
         diag_result = self.diag * vec  # (-∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ nⱼ) * |𝜓>
 
@@ -87,7 +86,7 @@ class RydbergHamiltonian:
         result: torch.Tensor
         result = diag_result + sigmax_result
 
-        return result.reshape(-1)
+        return result
 
     def _apply_sigma_x_operators(self, vec: torch.Tensor) -> torch.Tensor:
         """
@@ -108,12 +107,14 @@ class RydbergHamiltonian:
         """
         result = torch.zeros(vec.shape, device=vec.device, dtype=torch.complex128)
 
-        for num, omegai in enumerate(self.omegas):
-            result.index_add_(num, self.inds, vec, alpha=omegai)
-        # when phi != 0, you need to do o and o.conj() separately, but this is SLOWER
-        # res.index_add_(i, torch.tensor(0), v.select(i,1).unsqueeze(i), alpha=o)
-        # res.index_add_(i, torch.tensor(1), v.select(i,0).unsqueeze(i), alpha=o.conj())
-        return result
+        dim_to_act = 1
+        for n, omega_n in enumerate(self.omegas):
+            shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
+            vec = vec.reshape(shape_n)
+            result = result.reshape(shape_n)
+            result.index_add_(dim_to_act, self.inds, vec, alpha=omega_n)
+
+        return result.reshape(-1)
 
     def _create_diagonal(self) -> torch.Tensor:
         """
@@ -132,18 +133,19 @@ class RydbergHamiltonian:
             diagonal elements.
         """
         diag = torch.zeros(
-            (2,) * self.nqubits, dtype=torch.complex128, device=self.omegas.device
+            2**self.nqubits, dtype=torch.complex128, device=self.deltas.device
         )
 
         for i in range(self.nqubits):
-            i_fixed = diag.select(i, 1)
-            i_fixed -= self.deltas[i]  # add the delta term for this qubit
+            diag = diag.reshape(2**i, 2, -1)
+            i_fixed = diag[:, 1, :]
+            i_fixed -= self.deltas[i]
             for j in range(i + 1, self.nqubits):
-                i_j_fixed = i_fixed.select(
-                    j - 1, 1
-                )  # note the j-1 since i was already removed
+                i_fixed = i_fixed.reshape(2**i, 2 ** (j - i - 1), 2, -1)
+                # replacing i_j_fixed by i_fixed breaks the code :)
+                i_j_fixed = i_fixed[:, :, 1, :]
                 i_j_fixed += self.interaction_matrix[i, j]
-        return diag
+        return diag.reshape(-1)
 
     def expect(self, state: StateVector) -> torch.Tensor:
         assert isinstance(
