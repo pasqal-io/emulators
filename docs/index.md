@@ -35,12 +35,6 @@ If you're running Unix:
 $ . venv/bin/activate
 ```
 
-If you're running Windows:
-
-```sh
-C:\> /path/to/new/virtual/environment/Scripts/activate
-```
-
 3. Install the package
 
 ```sh
@@ -50,7 +44,7 @@ $ pipx install <emulator>
 ```
 
 
-Join us on [Slack](https://pasqalworkspace.slack.com/archives/C07MUV5K7EU) or by [e-mail](mailto:emulation@pasqal.com) to give us feedback about how you plan to use Emu-MPS or if you require specific feature-upgrades.
+Join us on [Slack](https://pasqalworkspace.slack.com/archives/C07MUV5K7EU) or by [e-mail](mailto:emulation@pasqal.com) to give us feedback about how you plan to use the emulators or if you require specific feature-upgrades.
 
 ## Usage
 
