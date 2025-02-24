@@ -14,6 +14,10 @@ nav:
     - Notebooks:
       - Index: emu_sv/notebooks/index.md
       - Getting started: emu_sv/notebooks/getting_started.ipynb
+    - Benchmarks:
+      - Index: emu_sv/benchmarks/index.md
+      - Accuracy: emu_sv/benchmarks/accuracy.md
+      - Performance: emu_sv/benchmarks/performance.md
   - emu-mps:
     - Welcome to emu-mps: emu_mps/index.md
     - API: emu_mps/api.md
