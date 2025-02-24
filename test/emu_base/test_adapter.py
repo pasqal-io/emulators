@@ -275,7 +275,7 @@ def test_interaction_coefficient(mock_sequence, hamiltonian_type):
 )
 @patch("emu_base.pulser_adapter._get_qubit_positions")
 @patch("emu_base.pulser_adapter.pulser.sampler.sample")
-def test_extract_omega_delta_phi(
+def test_extract_omega_delta_phi_dt_2(
     mock_pulser_sample, mock_qubit_positions, hamiltonian_type, laser_waist
 ):
     """Local pulse - targe qubit 1:
@@ -341,7 +341,180 @@ def test_extract_omega_delta_phi(
     )
 
     assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
+    assert torch.allclose(actual_delta, expected_delta, rtol=0, atol=1e-4)
+    assert torch.allclose(actual_phi, expected_phi, rtol=0, atol=1e-4)
 
+
+@pytest.mark.parametrize(
+    ("hamiltonian_type", "laser_waist"),
+    [
+        ("ground-rydberg", None),
+        ("XY", None),
+        ("ground-rydberg", 10.0),
+        ("XY", 10.0),
+    ],
+)
+@patch("emu_base.pulser_adapter._get_qubit_positions")
+@patch("emu_base.pulser_adapter.pulser.sampler.sample")
+def test_extract_omega_delta_phi_dt_1(
+    mock_pulser_sample, mock_qubit_positions, hamiltonian_type, laser_waist
+):
+    """Local pulse - targe qubit 1:
+    pulser.Pulse(RampWaveform(5,3,10),RampWaveform(5,1.5,-10),0.1) and
+    Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
+    TEST_DURATION = 13
+    dt = 1
+    sequence.get_duration.return_value = TEST_DURATION
+
+    if laser_waist is not None:
+        mock_qubit_positions.return_value = [
+            torch.tensor([-1, 0], dtype=torch.float64),
+            torch.tensor([1, 0], dtype=torch.float64),
+            torch.tensor([2, 0], dtype=torch.float64),
+        ]
+        waist_amplitudes = torch.tensor(
+            [math.exp(-((abs(i) / laser_waist) ** 2)) for i in [-1, 1, 2]],
+            dtype=torch.float64,
+        )
+    else:
+        waist_amplitudes = torch.ones(3, dtype=torch.float64)
+
+    mock_pulser_sample.return_value = mock_sample(hamiltonian_type)
+
+    actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
+        sequence=sequence, dt=dt, with_modulation=False, laser_waist=laser_waist
+    )
+
+    expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
+    assert len(actual_omega) == expected_number_of_samples
+
+    expected_omega = torch.tensor(
+        [
+            [
+                3.875,
+                5.625,
+                7.375,
+                9.125,
+                10.0,
+                9.285714285000001,
+                7.857142855,
+                6.428571425,
+                5.0,
+                3.5714285749999997,
+                2.1428571450000002,
+                0.714285715,
+                0.0,
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                5.0,
+                9.285714285000001,
+                7.857142855,
+                6.428571425,
+                5.0,
+                3.5714285749999997,
+                2.1428571450000002,
+                0.714285715,
+                0.0,
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                5.0,
+                9.285714285000001,
+                7.857142855,
+                6.428571425,
+                5.0,
+                3.5714285749999997,
+                2.1428571450000002,
+                0.714285715,
+                0.0,
+            ],
+        ],
+        dtype=torch.complex128,
+    ).T
+    to_modify = expected_omega[4:]
+    to_modify *= waist_amplitudes
+    # the element omega[4,0] should not simply be multiplied by wais_amplitudes
+    # it is the average of two samples, one of which should be multiplied, and the other not
+    # this test has different qubit positions than the dt=2 one to test precisely this.
+    if laser_waist is not None:
+        expected_omega[4, 0] = 0.5 * (expected_omega[4, 0] + 10.0)
+    expected_delta = torch.tensor(
+        [
+            [
+                0.0625,
+                -2.8125,
+                -5.6875,
+                -8.5625,
+                -10.0,
+                -8.57142857,
+                -5.714285715,
+                -2.8571428599999997,
+                0.0,
+                2.8571428599999997,
+                5.714285715,
+                8.57142857,
+                11.42857143,
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                -5.0,
+                -8.57142857,
+                -5.714285715,
+                -2.8571428599999997,
+                0.0,
+                2.8571428599999997,
+                5.714285715,
+                8.57142857,
+                11.42857143,
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                -5.0,
+                -8.57142857,
+                -5.714285715,
+                -2.8571428599999997,
+                0.0,
+                2.8571428599999997,
+                5.714285715,
+                8.57142857,
+                11.42857143,
+            ],
+        ],
+        dtype=torch.complex128,
+    ).T
+    expected_phi = torch.tensor(
+        [
+            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
+            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
+            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
+            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
+            [0.1500 + 0.0j, 0.1000 + 0.0j, 0.1000 + 0.0j],
+            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+        ],
+        dtype=torch.complex128,
+    )
+
+    assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
     assert torch.allclose(actual_delta, expected_delta, rtol=0, atol=1e-4)
     assert torch.allclose(actual_phi, expected_phi, rtol=0, atol=1e-4)
 
