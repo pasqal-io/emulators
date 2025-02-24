@@ -206,3 +206,17 @@ def pulser_XY_sequence_slm_mask(amplitude: float = 0.0, slm_masked_atoms: tuple 
     seq.add(simple_pulse, "ch0")
 
     return seq
+
+
+def pulser_blackman(duration: float, area: float, phase: float = 0.0):
+    """Sequence with just a single Blackman pulse"""
+    reg = pulser.Register({"q0": (0, 0)})
+    device = pulser.MockDevice
+    seq = pulser.Sequence(reg, device)
+    seq.declare_channel("ch0", "rydberg_global")
+
+    pi2_wf = pulser.BlackmanWaveform(duration, area)
+    pi_2 = pulser.Pulse.ConstantDetuning(pi2_wf, detuning=0, phase=phase)
+    seq.add(pi_2, "ch0")
+
+    return seq
