@@ -1,5 +1,4 @@
 #include "core.hpp"
-#include "cuda_kernels.cuh"
 
 #include "torch/torch.h"
 
@@ -144,7 +143,7 @@ std::pair<at::Tensor, at::Tensor> evolve_pair(at::Tensor const& left_state_facto
     return {l.reshape({left_state_factor.size(0), 2, -1}), r.reshape({-1, 2, right_state_factor.size(2)}).to(right_device)};
 }
 
-at::Tensor apply_rydberg_sv(HamParameters const& ham_params, at::Tensor state, std::complex<double> coeff) {
+at::Tensor apply_rydberg_sv(HamParameters const& ham_params, at::Tensor state, std::complex<double> coeff, HamDiagonalCache<std::complex<double>>* ham_diagonal_cache) {
     TORCH_CHECK(state.dtype() == at::kComplexDouble);
     TORCH_CHECK(ham_params.omegas.dtype() == at::kDouble);
     TORCH_CHECK(ham_params.deltas.dtype() == at::kDouble);
@@ -166,14 +165,22 @@ at::Tensor apply_rydberg_sv(HamParameters const& ham_params, at::Tensor state, s
         ham_params.deltas.contiguous().data_ptr<double>(),
         ham_params.omegas.contiguous().data_ptr<double>(),
         ham_params.interaction_matrix.contiguous().data_ptr<double>(),
-        state_ptr, result_ptr, coeff);
+        state_ptr, result_ptr, coeff, ham_diagonal_cache ? *ham_diagonal_cache : HamDiagonalCache<std::complex<double>>{});
 
     return result;
 }
 
 at::Tensor evolve_sv_rydberg(double dt, HamParameters const& ham_params, at::Tensor state, double krylov_tolerance) {
-    auto op = [&ham_params, dt] (at::Tensor const& x) -> at::Tensor {
-        return apply_rydberg_sv(ham_params, x, std::complex<double>(0.0, - dt));
+    HamDiagonalCache<std::complex<double>> ham_diagonal_cache;
+    ham_diagonal_cache.fill = true;
+    ham_diagonal_cache.valid = false;
+    auto diagonal_tensor = torch::empty_like(state).contiguous();
+    ham_diagonal_cache.diagonal = static_cast<std::complex<double> *>(diagonal_tensor.data_ptr());
+
+    auto op = [&ham_params, dt, &ham_diagonal_cache] (at::Tensor const& x) -> at::Tensor {
+        auto result = apply_rydberg_sv(ham_params, x, std::complex<double>(0.0, - dt), &ham_diagonal_cache);
+        ham_diagonal_cache.valid = true;
+        return result;
     };
 
     return krylov_exp(

@@ -1,4 +1,5 @@
 #include "ATen/ATen.h"
+#include "cuda_kernels.cuh"
 
 namespace emulators_cpp {
 
@@ -95,7 +96,7 @@ std::pair<at::Tensor, at::Tensor> evolve_pair(at::Tensor const& left_state_facto
         at::Tensor const& left_ham_factor, at::Tensor const& right_ham_factor,
         double dt, bool orth_center_right, bool is_hermitian, Config const& config);
 
-at::Tensor apply_rydberg_sv(HamParameters const& ham_params, at::Tensor state, std::complex<double> coeff = 1.);
+at::Tensor apply_rydberg_sv(HamParameters const& ham_params, at::Tensor state, std::complex<double> coeff = 1., HamDiagonalCache<std::complex<double>>* ham_diagonal_cache = nullptr);
 
 at::Tensor evolve_sv_rydberg(double dt, HamParameters const& ham_params, at::Tensor state, double krylov_tolerance);
 

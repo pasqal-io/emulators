@@ -8,7 +8,7 @@ __device__ bool is_bit_set(int value, int bit_index) {
     return (value & (1 << bit_index)) != 0;
 }
 
-__device__ double get_ham_diagonal_element(int qubit_count, double const* deltas, double const* omegas, double const* interaction_matrix, int index) {
+__device__ double get_ham_diagonal_element(int qubit_count, double const* deltas, double const* interaction_matrix, int index) {
     double result = 0.;
 
     for (int first_qubit = 0; first_qubit < qubit_count; ++first_qubit) {
@@ -33,13 +33,18 @@ __device__ double get_ham_diagonal_element(int qubit_count, double const* deltas
 }
 
 __global__ void sv_rydberg_kernel(int qubit_count, double const* deltas, double const* omegas, double const* interaction_matrix,
-                cuda::std::complex<double> const* state_vector, cuda::std::complex<double>* result, cuda::std::complex<double> coeff) {
+                cuda::std::complex<double> const* state_vector, cuda::std::complex<double>* result, cuda::std::complex<double> coeff,
+                HamDiagonalCache<cuda::std::complex<double>> ham_diagonal_cache) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < (1 << qubit_count)) {
-        auto diag = get_ham_diagonal_element(qubit_count, deltas, omegas, interaction_matrix, idx);
+        auto diag = ham_diagonal_cache.valid ? ham_diagonal_cache.diagonal[idx] : get_ham_diagonal_element(qubit_count, deltas, interaction_matrix, idx);
 
-        result[idx] = diag * cuda::std::complex<double>(state_vector[idx]);
+        if (ham_diagonal_cache.fill) {
+            ham_diagonal_cache.diagonal[idx] = diag;
+        }
+
+        result[idx] = diag * state_vector[idx];
 
         for (int qubit = 0; qubit < qubit_count; ++qubit) {
             // bitflip qubit
@@ -52,7 +57,8 @@ __global__ void sv_rydberg_kernel(int qubit_count, double const* deltas, double 
 }
 
 void call_sv_rydberg_kernel(int qubit_count, double const* deltas, double const* omegas, double const* interaction_matrix,
-                std::complex<double> const* state_vector, std::complex<double>* result, std::complex<double> coeff) {
+                std::complex<double> const* state_vector, std::complex<double>* result, std::complex<double> coeff,
+                HamDiagonalCache<std::complex<double>> ham_diagonal_cache) {
     sv_rydberg_kernel<<<((1 << qubit_count)+511)/512, 512>>>(
         qubit_count,
         deltas,
@@ -60,6 +66,11 @@ void call_sv_rydberg_kernel(int qubit_count, double const* deltas, double const*
         interaction_matrix,
         (cuda::std::complex<double> const*) state_vector,
         (cuda::std::complex<double> *) result,
-        cuda::std::complex<double>(coeff.real(), coeff.imag())
+        cuda::std::complex<double>(coeff.real(), coeff.imag()),
+        HamDiagonalCache<cuda::std::complex<double>>{
+            .fill = ham_diagonal_cache.fill,
+            .valid = ham_diagonal_cache.valid,
+            .diagonal = (cuda::std::complex<double>*) ham_diagonal_cache.diagonal
+        }
     );
 }
