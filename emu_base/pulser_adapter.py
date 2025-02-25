@@ -5,7 +5,10 @@ import math
 from pulser.noise_model import NoiseModel
 from enum import Enum
 
-from emu_base.base_classes.config import BackendConfig
+from emu_base.base_classes.config import BackendConfig  # to be removed
+
+# from pulser.backend.config import EmulationConfig
+
 from emu_base.lindblad_operators import get_lindblad_operators
 from emu_base.utils import dist2, dist3
 
@@ -16,7 +19,7 @@ class HamiltonianType(Enum):
 
 
 def _get_qubit_positions(
-    register: pulser.Register,
+    register: pulser.BaseRegister,
 ) -> list[torch.Tensor]:
     """Conversion from pulser Register to emu-mps register (torch type).
     Each element will be given as [Rx,Ry,Rz]"""
@@ -31,7 +34,7 @@ def _get_qubit_positions(
 def _rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     """
     Computes the Ising interaction matrix from the qubit positions.
-    Hᵢⱼ=C₆/Rᵢⱼ⁶ (nᵢ⊗ nⱼ)
+    Hᵢⱼ=C₆/R⁶ᵢⱼ (nᵢ⊗ nⱼ)
     """
 
     num_qubits = len(sequence.register.qubit_ids)
