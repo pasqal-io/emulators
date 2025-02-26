@@ -95,16 +95,14 @@ class MPSBackendImpl:
         return pathlib.Path(os.getcwd()) / (autosave_prefix + str(uuid.uuid1()) + ".dat")
 
     def init_dark_qubits(self) -> None:
-        has_state_preparation_error: bool = (
-            self.config.noise_model is not None
-            and self.config.noise_model.state_prep_error > 0.0
-        )
-
         self.well_prepared_qubits_filter = (
             pick_well_prepared_qubits(
                 self.config.noise_model.state_prep_error, self.qubit_count
             )
-            if has_state_preparation_error
+            if (
+                (self.config.noise_model is not None)
+                and (self.config.noise_model.state_prep_error > 0.0)
+            )
             else None
         )
 

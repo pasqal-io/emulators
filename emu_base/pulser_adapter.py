@@ -3,6 +3,7 @@ from typing import Tuple
 import torch
 import math
 from pulser.noise_model import NoiseModel
+from pulser.register.base_register import BaseRegister
 from enum import Enum
 
 from emu_base.base_classes.config import BackendConfig  # to be removed
@@ -19,7 +20,7 @@ class HamiltonianType(Enum):
 
 
 def _get_qubit_positions(
-    register: pulser.BaseRegister,
+    register: BaseRegister,
 ) -> list[torch.Tensor]:
     """Conversion from pulser Register to emu-mps register (torch type).
     Each element will be given as [Rx,Ry,Rz]"""
@@ -224,7 +225,7 @@ def _get_all_lindblad_noise_operators(
 
 
 class PulserData:
-    slm_end_time: int
+    slm_end_time: float
     full_interaction_matrix: torch.Tensor
     masked_interaction_matrix: torch.Tensor
     omega: torch.Tensor
