@@ -1,9 +1,9 @@
 # The callback mechanism
 
 Since the desired output of the emulator can be quite user dependent, emu-mps uses a callback mechanism to specify its output.
-The available callbacks, together with examples for how to create them are on this page. How to use created callbacks to obtain results from an emulation is shown in the example notebooks ([here](./notebooks/emu_mps_notebooks/getting_started.ipynb)).
+The available callbacks, together with examples for how to create them are on this page. How to use created callbacks to obtain results from an emulation is shown in the example notebooks [for emu-sv](./emu_sv/notebooks/getting_started.ipynb) and [for emu-mps](./emu_mps/notebooks/getting_started.ipynb).
 
-The following default callbacks are available:
+The following default callbacks are available. Please take the listed source code with a grain of salt, since individual emulators can overwrite the implementation for performance reasons.
 
 ## StateResult
 ::: emu_base.base_classes.default_callbacks.StateResult

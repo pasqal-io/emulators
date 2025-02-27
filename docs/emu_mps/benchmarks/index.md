@@ -1,6 +1,6 @@
 # emu-mps benchmarks
 
-All the benchmarks are run on a single NVIDIA A100 GPU of Pasqal's DGX-cluster and for best performance on heavy workloads we recommend using such setup.
+All the benchmarks are run on a single NVIDIA A100 GPU of Pasqal's DGX-cluster and for best performance on heavy workloads we recommend using a similar setup.
 There, users should expect emu-mps to emulate up to
 
 - 30 atoms for **quenches**
@@ -16,8 +16,8 @@ In all other scenarios, for specific combinations of number of qubits $N$ and bo
 
 These quantities are represented, in the following plots:
 
-<img src="../benchmarks/benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
-<img src="../benchmarks/benchmark_plots/emumps_runtime_map.png"  width="49.7%">
+<img src="./benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
+<img src="./benchmark_plots/emumps_runtime_map.png"  width="49.7%">
 
 The RSS plot (left) shows the peak memory cost of the emulation.
 It is expected to stay constant at fixed bond dimension and thus represent the total memory occupation of the emulation of a sequence.
@@ -41,9 +41,9 @@ given a set of meaningful sequences of interest (quench, adiabatic and use-case 
 
 The benchmarks are ordered in subpages by general topic.
 
-- [Accuracy](../benchmarks/accuracy.md)
-- [Performance](../benchmarks/performance.md)
-- [Noise](../benchmarks/noise.md)
+- [Accuracy](./accuracy.md)
+- [Performance](./performance.md)
+- [Noise](./noise.md)
 
 The accuracy benchmarks compare results between emulators to create confidence in the results emu-mps generates. The performance benchmarks exist to exhibit the runtime and memory consumption characteristics of emu-mps. Based on these, the reader should get a feel for what kind of parameters would be required to be able to run a given sequence in a given time. Note that this is independent of whether the emulation results are actually accurate ([see here](../advanced/convergence.md)). Finally, the noise page presents benchmarks regarding noisy simulations, focusing on effects specific to noise that are not already covered in the other pages.
 
@@ -108,10 +108,10 @@ Since the matrix product state approach in emu-mps strives to minimize the store
 Emu-mps is built on top of [pytorch](https://pytorch.org/). Thus, it can run on most available CPUs and GPUs, from a laptop to a cluster. The presented benchmarks are run on an NVIDIA DGX cluster node, requesting the following resources
 
 - GPU: 1 NVIDIA A100 (40 GB)
-- CPU: 16 cores on AMD EPYC 7742
+- CPU: a benchmark-dependent number of cores on an AMD EPYC 7742
 
 Of course, performance will vary depending on the hardware.
 For this reason, if at any point of your work, performance becomes critical, we always recommend to use Pasqal's DGX cluster.
 If you intend to run emu-mps on your laptop, for example, please be aware that the suggestion to use a GPU for heavier workloads might not be valid.
 In such case it is always good to check performance on a couple of runs, changing the emu-mps config default values as documented in the [API](../api.md#mpsconfig).
-In particular `num_devices_to_use = 0` will run the emulation on CPU, while `num_devices_to_use ≥ 1` on GPU/s.
+In particular `num_gpus_to_use = 0` will run the emulation on CPU, while `num_gpus_to_use ≥ 1` on GPU/s.

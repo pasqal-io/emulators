@@ -33,7 +33,6 @@ class SVBackend(Backend):
         results = Results()
 
         data = PulserData(sequence=sequence, config=sv_config, dt=sv_config.dt)
-
         omega, delta, phi = data.omega, data.delta, data.phi
 
         nsteps = omega.shape[0]

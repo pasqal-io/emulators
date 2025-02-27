@@ -7,6 +7,7 @@ how to actually run a simulation, but rather
 - Some relevant information about the MPS representation
 - A summary of the TDVP algorithm
 - What sources of error TDVP incurs
+- A page about the Monte Carlo quantum jumps emu-mps uses for noisy simulations
 - What the various configuration parameters mean mathematically
 - How to determine whether your results are accurate
 - How to estimate the memory consumption and the runtime of a simulation in advance
