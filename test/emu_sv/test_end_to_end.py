@@ -1,4 +1,5 @@
 from pytest import approx
+import math
 import pulser
 import torch
 
@@ -24,6 +25,7 @@ import pulser.noise_model
 
 from test.utils_testing import (
     pulser_afm_sequence_ring,
+    pulser_blackman,
 )
 
 
@@ -161,3 +163,34 @@ def test_end_to_end_afm_ring():
         final_time
     ]  # 13350.505342183847
     assert approx(second_moment_energy, 1e-6) == 13350.5053421
+
+
+def test_end_to_end_pi_half_pulse():
+    # π/2 pulse Blackman creates |ψ❭=(|0❭-1j|1❭)/sqrt(2)
+    duration = 1000  # ns, so 1 μs
+    area = math.pi / 2
+    seq = pulser_blackman(duration, area)
+    result = simulate(seq, dt=50)
+
+    final_time = seq.get_duration()
+    final_state = result["state"][final_time]
+
+    expected = torch.tensor([1, -1j], dtype=torch.complex128) / math.sqrt(2)
+    assert torch.allclose(final_state.vector, expected, atol=1e-8)
+
+
+def test_end_to_end_pi_half_pulse_with_phase():
+    # π/2 pulse Blackman creates |ψ❭=(|0❭-1j|1❭)/sqrt(2)
+    # with a phase factor exp(-1j*duration*φ) = 1j
+    duration = 1000  # ns, so 1 μs
+    area = math.pi / 2
+    phase = math.pi / 2
+    seq = pulser_blackman(duration, area, phase=phase)
+    result = simulate(seq, dt=50)
+    final_time = seq.get_duration()
+
+    final_state = result["state"][final_time]
+    # with the phase we expect |ψ❭=(|0❭+|1❭)/sqrt(2)
+    expected = torch.tensor([1, 1], dtype=torch.complex128) / math.sqrt(2)
+
+    assert torch.allclose(final_state.vector, expected, atol=1e-8)

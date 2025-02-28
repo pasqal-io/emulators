@@ -1,84 +1,65 @@
 import torch
-from functools import reduce
+import pytest
+from test.utils_testing import (
+    dense_rydberg_hamiltonian,
+    nn_interaction_matrix,
+    randn_interaction_matrix,
+)
 from emu_sv.time_evolution import do_time_step
-from emu_sv.sv_config import SVConfig
 
 dtype = torch.complex128
-dtype_params = torch.float64
-
-torch.manual_seed(1337)
-
-
 device = "cpu"
-# device = "cuda"
 
 
-def single_gate(i: int, nqubits: int, g: torch.Tensor):
-    matrices = [torch.eye(2, 2, dtype=dtype)] * nqubits
-    matrices[i] = g
-    return reduce(torch.kron, matrices)
+@pytest.mark.parametrize(
+    ("N", "krylov_tolerance"),
+    [(3, 1e-10), (5, 1e-12), (7, 1e-10), (8, 1e-12)],
+)
+def test_forward_no_phase(N: int, krylov_tolerance: float):
+    torch.manual_seed(1337)
+    omegas = torch.randn(N)
+    deltas = torch.randn(N)
+    phis = torch.zeros_like(omegas)
+    interaction = nn_interaction_matrix(N)
+    ham_params = (omegas, deltas, phis, interaction)
 
-
-def sigma_x(i: int, nqubits: int) -> torch.Tensor:
-    σ_x = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
-    return single_gate(i, nqubits, σ_x)
-
-
-def pu(i, nqubits):
-    n = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
-    return single_gate(i, nqubits, n)
-
-
-def n(i, j, nqubits):
-    n = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
-    matrices = [torch.eye(2, 2, dtype=dtype)] * nqubits
-    matrices[i] = n
-    matrices[j] = n
-    return reduce(torch.kron, matrices)
-
-
-def sv_hamiltonian(
-    inter_matrix: torch.Tensor, omega: list[torch.Tensor], delta: list[torch.Tensor]
-) -> torch.Tensor:
-    n_qubits = inter_matrix.size(dim=1)
-    device = omega[0].device
-    h = torch.zeros(2**n_qubits, 2**n_qubits, dtype=dtype, device=device)
-    for i in range(n_qubits):
-        h = h + omega[i] * sigma_x(i, n_qubits) / 2
-        h = h - delta[i] * pu(i, n_qubits).to(dtype=dtype, device=device)
-
-        for j in range(i + 1, n_qubits):
-            h = h + inter_matrix[i, j] * n(i, j, n_qubits).to(dtype=dtype, device=device)
-
-    return h
-
-
-def test_forward():
-    N = 8
-
-    omega = torch.randn(N, dtype=dtype_params)
-    delta = torch.randn(N, dtype=dtype_params)
-    interactions = torch.zeros(N, N, dtype=dtype_params)
-    for i in range(N - 1):
-        interactions[i, i + 1] = 1
-        interactions[i + 1, i] = 1
-
-    grad = torch.randn(2**N, dtype=dtype).to(device)
-    grad /= grad.norm()
-    state = torch.randn(2**N, dtype=dtype).to(device)
+    state = torch.randn(2**N, dtype=dtype, device=device)
     state /= state.norm()
 
-    sv_config = SVConfig()
-
-    h = sv_hamiltonian(interactions, omega, delta).to(device)
-    dt = 1.0
-    ed = torch.linalg.matrix_exp(-1j * dt * h) @ state
+    H = dense_rydberg_hamiltonian(*ham_params).to(device)
+    dt = 1.0  # 1 μs big time step
+    ed = torch.linalg.matrix_exp(-1j * dt * H) @ state
     krylov, _ = do_time_step(
         dt,
-        omega,
-        delta,
-        interactions,
-        state,  # .reshape((2,) * N),
-        sv_config.krylov_tolerance,
-    )  # .reshape(-1)
-    assert torch.allclose(ed, krylov)
+        *ham_params,
+        state,
+        krylov_tolerance,
+    )
+    assert torch.allclose(ed, krylov, atol=krylov_tolerance)
+
+
+@pytest.mark.parametrize(
+    ("N", "krylov_tolerance"),
+    [(3, 1e-10), (5, 1e-12), (7, 1e-10), (8, 1e-12)],
+)
+def test_forward_with_phase(N: int, krylov_tolerance: float):
+    torch.manual_seed(1337)
+    omegas = torch.randn(N)
+    deltas = torch.randn(N)
+    phis = torch.randn(N)
+    interaction = randn_interaction_matrix(N)
+    ham_params = (omegas, deltas, phis, interaction)
+
+    state = torch.randn(2**N, dtype=dtype, device=device)
+    state /= state.norm()
+
+    H = dense_rydberg_hamiltonian(*ham_params).to(device)
+    dt = 1.0  # 1 μs big time step
+    ed = torch.linalg.matrix_exp(-1j * dt * H) @ state
+    krylov, _ = do_time_step(
+        dt,
+        *ham_params,
+        state,
+        krylov_tolerance,
+    )
+    assert torch.allclose(ed, krylov, atol=krylov_tolerance)
