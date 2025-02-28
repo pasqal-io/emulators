@@ -1,7 +1,7 @@
 # emu-sv benchmarks
 
 All the benchmarks are run on a single NVIDIA A100 GPU of Pasqal's DGX-cluster and for best performance on heavy workloads we recommend using a similar setup.
-There, users should expect emu-sv to emulate up to > 25 qubits. However, at these qubit numbers, the exponential scaling in runtime and performance scale exponentially and emu-mps is likely to be faster.
+There, users should expect emu-sv to emulate up to 25 qubits, regardless of the pulse sequence. However, close to this limit, performance will decrease exponentially in the qubit number, and emu-mps is likely to be faster.
 
 ## Use-case benchmarks
 
