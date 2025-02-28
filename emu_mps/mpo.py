@@ -6,10 +6,9 @@ import torch
 
 from emu_mps.algebra import add_factors, scale_factors, zip_right
 from emu_base.base_classes.operator import FullOp, QuditOp
-from emu_base import Operator, State
+from emu_base import Operator, State, DEVICE_COUNT
 from emu_mps.mps import MPS
 from emu_mps.utils import new_left_bath, assign_devices
-from emu_mps.constants import DEVICE_COUNT
 
 
 def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:

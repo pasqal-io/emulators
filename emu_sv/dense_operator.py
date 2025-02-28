@@ -4,8 +4,10 @@ from typing import Any, Iterable
 
 import torch
 from emu_base.base_classes.operator import FullOp, QuditOp
-from emu_base.base_classes import Operator, State
+from emu_base import Operator, State, DEVICE_COUNT
 from emu_sv.state_vector import StateVector
+
+dtype = torch.complex128
 
 
 def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:
@@ -33,9 +35,11 @@ class DenseOperator(Operator):
     def __init__(
         self,
         matrix: torch.Tensor,
-        /,
+        *,
+        gpu: bool = True,
     ):
-        self.matrix = matrix
+        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
+        self.matrix = matrix.to(dtype=dtype, device=device)
 
     def __repr__(self) -> str:
         return repr(self.matrix)

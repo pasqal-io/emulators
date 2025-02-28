@@ -37,7 +37,7 @@ def test_algebra_dense_op(zero, one):
     expected_a[3, 6] = -12.0
     expected_a = expected_a + expected_a.T
 
-    assert torch.allclose(oper_a.matrix, expected_a)
+    assert torch.allclose(oper_a.matrix.cpu(), expected_a)
 
     # define second operator
 
@@ -63,7 +63,7 @@ def test_algebra_dense_op(zero, one):
     expected_b[3, 4] = -24.0j
     expected_b = expected_b + torch.conj(expected_b).T
 
-    assert torch.allclose(oper_b.matrix, expected_b)
+    assert torch.allclose(oper_b.matrix.cpu(), expected_b)
 
     # summing 2 operators
 
@@ -80,7 +80,7 @@ def test_algebra_dense_op(zero, one):
     expected_sum[3, 4] = -24.0j
     expected_sum = expected_sum + torch.conj(expected_sum).T
 
-    assert torch.allclose(expected_sum, result_sum.matrix)
+    assert torch.allclose(expected_sum, result_sum.matrix.cpu())
 
     # multiplication by scalar
 
@@ -94,7 +94,7 @@ def test_algebra_dense_op(zero, one):
 
     expected_mult_r = expected_mult_r + expected_mult_r.T
 
-    assert torch.allclose(result_mul_r.matrix, expected_mult_r)
+    assert torch.allclose(result_mul_r.matrix.cpu(), expected_mult_r)
 
     # application to a StateVector
 
@@ -120,7 +120,7 @@ def test_algebra_dense_op(zero, one):
         dtype=torch.complex128,
     )
 
-    assert torch.allclose(expected_mult_state, result_mult_state.vector)
+    assert torch.allclose(expected_mult_state, result_mult_state.vector.cpu())
 
     # expectation value
 
@@ -146,4 +146,4 @@ def test_algebra_dense_op(zero, one):
     expected_mult_op_op[5, 7] = 12 * 24j
     expected_mult_op_op[7, 5] = 12 * 24j
 
-    assert torch.allclose(result_op_mult_op.matrix, expected_mult_op_op)
+    assert torch.allclose(result_op_mult_op.matrix.cpu(), expected_mult_op_op)

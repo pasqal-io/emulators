@@ -1,6 +1,6 @@
 # Welcome to emu-mps
 
-You have found the documentation for emu-mps. **Emu-mps** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io) that lets you run Quantum Algorithms on a simulated device, using GPU acceleration if available. More in depth, emu-mps is designed to **emu**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**mps**). While benchmarking is incomplete as of this writing, early results suggest that this design makes emu-mps faster and more memory-efficient than previous generations of quantum emulators at running simulations with large numbers of qubits.
+You have found the documentation for emu-mps. The emulator **emu-mps** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io) that lets you run Quantum Algorithms on a simulated device, using GPU acceleration if available. More in depth, emu-mps is designed to **emu**late the dynamics of programmable arrays of neutral atoms, with matrix product states (**mps**). While benchmarking is incomplete as of this writing, early results suggest that this design makes emu-mps faster and more memory-efficient than previous generations of quantum emulators at running simulations with large numbers of qubits.
 
 ## Supported features
 
@@ -43,5 +43,5 @@ The following features are currently supported:
 
 ## More Info
 Please see the API specification for a list of available config options ([see here](api.md)).
-Those configuration options relating to the mathematical functioning of the backend are explained in more detail in the Config page ([see here](advanced/config.md)).
+Those configuration options relating to the mathematical functioning of the backend are explained in more detail in the config page ([see here](advanced/config.md)).
 For notebooks with examples for how to do various things, please see the notebooks page ([see here](./notebooks/index.md)).

@@ -8,6 +8,7 @@ from emu_sv import StateVector
 import torch
 from time import time
 from resource import RUSAGE_SELF, getrusage
+from emu_base import DEVICE_COUNT
 
 
 class SVBackend(Backend):
@@ -38,7 +39,7 @@ class SVBackend(Backend):
 
         nsteps = omega.shape[0]
         nqubits = omega.shape[1]
-        device = "cuda" if sv_config.gpu else "cpu"
+        device = "cuda" if sv_config.gpu and DEVICE_COUNT > 0 else "cpu"
 
         if sv_config.initial_state is not None:
             state = sv_config.initial_state

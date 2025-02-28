@@ -1,6 +1,6 @@
 # Welcome to emu-sv
 
-You have found the documentation for emu-sv. **Emu-sv** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io) that lets you run Quantum Algorithms on a simulated device, using GPU acceleration if available. More in depth, emu-sv is designed to **emu**late the dynamics of programmable arrays of neutral atoms, using the **s**tate **v**ector representation, . While benchmarking is incomplete as of this writing, early results suggest that twhich is faster and more accurate than tensor-network based emulators up to ~20 qubits.
+You have found the documentation for emu-sv. The emulator **emu-sv** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io) that lets you run Quantum Algorithms on a simulated device, using GPU acceleration if available. More in depth, emu-sv is designed to **emu**late the dynamics of programmable arrays of neutral atoms, using the **s**tate **v**ector representation, . While benchmarking is incomplete as of this writing, early results suggest that emu-sv is faster and more accurate than tensor-network based emulators up to ~20 qubits.
 
 ## Supported features
 
@@ -15,7 +15,7 @@ The following features are currently supported:
 - The following properties from a Pulser Sequence are also correctly applied:
     - [hardware modulation](https://pulser.readthedocs.io/en/stable/tutorials/output_mod_eom.html)
     - [SLM mask](https://pulser.readthedocs.io/en/stable/tutorials/slm_mask.html)
-- Customizable output, with the folowing inbuilt options:
+- Customizable output, with the following inbuilt options:
     - The quantum state in state vector format
     - Bitstrings
     - The fidelity with respect to a given state

@@ -5,7 +5,7 @@ from typing import Any, Iterable
 import math
 
 
-from emu_base import State
+from emu_base import State, DEVICE_COUNT
 
 import torch
 
@@ -30,7 +30,7 @@ class StateVector(State):
         self,
         vector: torch.Tensor,
         *,
-        gpu: bool = False,
+        gpu: bool = True,
     ):
         # NOTE: this accepts also zero vectors.
 
@@ -38,7 +38,7 @@ class StateVector(State):
             len(vector)
         ).is_integer(), "The number of elements in the vector should be power of 2"
 
-        device = "cuda" if gpu else "cpu"
+        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         self.vector = vector.to(dtype=dtype, device=device)
 
     def _normalize(self) -> None:
@@ -50,7 +50,7 @@ class StateVector(State):
             self.vector = self.vector / norm_state
 
     @classmethod
-    def zero(cls, num_sites: int, gpu: bool = False) -> StateVector:
+    def zero(cls, num_sites: int, gpu: bool = True) -> StateVector:
         """
         Returns a zero uninitialized "state" vector. Warning, this has no physical meaning as-is!
 
@@ -66,12 +66,12 @@ class StateVector(State):
             tensor([0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
         """
 
-        device = "cuda" if gpu else "cpu"
+        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         vector = torch.zeros(2**num_sites, dtype=dtype, device=device)
         return cls(vector, gpu=gpu)
 
     @classmethod
-    def make(cls, num_sites: int, gpu: bool = False) -> StateVector:
+    def make(cls, num_sites: int, gpu: bool = True) -> StateVector:
         """
         Returns a State vector in ground state |000..0>.
         The vector in the output of StateVector has the shape (2,)*number of qubits

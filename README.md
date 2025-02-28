@@ -16,7 +16,7 @@ the API, information about contributing, benchmarks, etc.
 <div align="center">
   <img src="docs/logos/LogoTaglineSoftGreen.svg">
 
-  # Emu-MPS
+  # Emulato
 </div>
 
 # Welcome to the Pasqal analog emulators

@@ -1,10 +1,10 @@
 # How to Contribute
 
-We're grateful for your interest in participating in emu-mps! Please follow our guidelines to ensure a smooth contribution process.
+We're grateful for your interest in contributing to our emulators! Please follow our guidelines to ensure a smooth contribution process.
 
 ## Reporting an Issue or Proposing a Feature
 
-Your course of action will depend on your objective, but generally, you should start by creating an issue. If you've discovered a bug or have a feature you'd like to see added to emu-mps, feel free to create an issue on [the issue tracker](https://github.com/pasqal-io/emulators/issues). Here are some steps to take:
+Your course of action will depend on your objective, but generally, you should start by creating an issue. If you've discovered a bug or have a feature you'd like to see added, feel free to create an issue on [the issue tracker](https://github.com/pasqal-io/emulators/issues). Here are some steps to take:
 
 1. Quickly search the existing issues using relevant keywords to ensure your issue hasn't been addressed already.
 2. If your issue is not listed, create a new one. Try to be as detailed and clear as possible in your description.
@@ -14,7 +14,7 @@ Your course of action will depend on your objective, but generally, you should s
 
 ## Submitting a Pull Request
 
-We're excited that you're eager to contribute to emu-mps! To contribute, create a branch on the emulators repository and once you are satisfied with your feature and all the tests pass create a [Pull Request](https://github.com/pasqal-io/emulators/pulls).
+We're excited that you're eager to contribute to our emulators! To contribute, create a branch on the emulators repository and once you are satisfied with your feature and all the tests pass create a [Pull Request](https://github.com/pasqal-io/emulators/pulls).
 
 Here's the process for making a contribution:
 
@@ -33,7 +33,7 @@ git push --set-upstream origin <your initials>/<branch name>
 
 ## Setting up your development environment
 
-Out repo is currently not compatible with `hatch`. The repo installs properly using `pip` directly.
+Our repo is currently not compatible with `hatch`. The repo installs properly using `pip` directly.
 
 ```shell
 pip install -e .

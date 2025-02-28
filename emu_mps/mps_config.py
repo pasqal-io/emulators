@@ -1,7 +1,6 @@
 from typing import Any
 
-from emu_base import BackendConfig, State
-from emu_mps.constants import DEVICE_COUNT
+from emu_base import BackendConfig, State, DEVICE_COUNT
 
 
 class MPSConfig(BackendConfig):
