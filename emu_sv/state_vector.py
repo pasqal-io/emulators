@@ -5,7 +5,7 @@ from typing import Any, Iterable
 import math
 
 
-from emu_base import State
+from emu_base import State, DEVICE_COUNT
 
 import torch
 
@@ -22,65 +22,15 @@ class StateVector(State):
     that is a power of 2, representing 2ⁿ basis states for n qubits.
 
     Attributes:
-        vector (torch.Tensor): 1D tensor representation of a state vector.
-
-    Methods:
-        __init__(vector: torch.Tensor, gpu: bool = False):
-            Initializes the state vector. Ensures the length is a power of 2.
-
-        _normalize() -> None:
-            Normalizes the state vector to ensure it represents a valid quantum state.
-
-        zero(num_sites: int, gpu: bool = False) -> StateVector:
-            Creates a zero uninitialized "state" vector for a specified number of qubits.
-            Warning, this has no physical meaning as-is!
-
-        make(num_sites: int, gpu: bool = False) -> StateVector:
-            Creates a ground state vector |000...0> for a specified number of qubits.
-
-        inner(other: State) -> torch.Tensor:
-            Computes the inner product of the current state vector with another.
-
-        sample(num_shots: int = 1000, p_false_pos: float = 0.0, p_false_neg: float = 0.0)
-        -> Counter[str]:
-            Samples measurement outcomes based on the state vector's probabilities.
-
-        _index_to_bitstring(index: int) -> str:
-            Converts an integer index to its corresponding bitstring representation.
-
-        __add__(other: State) -> StateVector:
-            Computes the sum of two state vectors.
-
-        __rmul__(scalar: complex) -> StateVector:
-            Scales the state vector by a scalar value.
-
-        norm() -> torch.Tensor:
-            Computes the norm of the state vector.
-
-        __repr__() -> str:
-            Returns a string representation of the state vector.
-
-        from_state_string(
-            *,
-            basis: tuple[str],
-            nqubits: int,
-            strings: dict[str, complex],
-            gpu: bool = False,
-            **kwargs: Any
-        ) -> StateVector:
-            Constructs a state vector from a string-based representation of amplitudes.
-
-
-    Static Methods:
-        inner(left: StateVector, right: StateVector) -> torch.Tensor:
-            Computes the inner product of two state vectors.
+        vector: 1D tensor representation of a state vector.
+        gpu: store the vector on GPU if True, otherwise on CPU
     """
 
     def __init__(
         self,
         vector: torch.Tensor,
         *,
-        gpu: bool = False,
+        gpu: bool = True,
     ):
         # NOTE: this accepts also zero vectors.
 
@@ -88,7 +38,7 @@ class StateVector(State):
             len(vector)
         ).is_integer(), "The number of elements in the vector should be power of 2"
 
-        device = "cuda" if gpu else "cpu"
+        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         self.vector = vector.to(dtype=dtype, device=device)
 
     def _normalize(self) -> None:
@@ -100,27 +50,28 @@ class StateVector(State):
             self.vector = self.vector / norm_state
 
     @classmethod
-    def zero(cls, num_sites: int, gpu: bool = False) -> StateVector:
+    def zero(cls, num_sites: int, gpu: bool = True) -> StateVector:
         """
         Returns a zero uninitialized "state" vector. Warning, this has no physical meaning as-is!
-        The vector in the output StateVector instance has the shape (2,)*number of qubits
 
         Args:
             num_sites: the number of qubits
             gpu: whether gpu or cpu
 
-        Example:
-        -------
-        >>> StateVector.zero(2)
-        tensor([0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
+        Returns:
+            The zero state
+
+        Examples:
+            >>> StateVector.zero(2)
+            tensor([0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
         """
 
-        device = "cuda" if gpu else "cpu"
+        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         vector = torch.zeros(2**num_sites, dtype=dtype, device=device)
         return cls(vector, gpu=gpu)
 
     @classmethod
-    def make(cls, num_sites: int, gpu: bool = False) -> StateVector:
+    def make(cls, num_sites: int, gpu: bool = True) -> StateVector:
         """
         Returns a State vector in ground state |000..0>.
         The vector in the output of StateVector has the shape (2,)*number of qubits
@@ -129,10 +80,12 @@ class StateVector(State):
             num_sites: the number of qubits
             gpu: whether gpu or cpu
 
-        Example:
-        -------
-        >>> StateVector.make(2)
-        tensor([1.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
+        Returns:
+            The described state
+
+        Examples:
+            >>> StateVector.make(2)
+            tensor([1.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
         """
 
         result = cls.zero(num_sites=num_sites, gpu=gpu)
@@ -140,6 +93,15 @@ class StateVector(State):
         return result
 
     def inner(self, other: State) -> float | complex:
+        """
+        Compute <self, other>. The type of other must be StateVector.
+
+        Args:
+            other: the other state
+
+        Returns:
+            the inner product
+        """
         assert isinstance(
             other, StateVector
         ), "Other state also needs to be a StateVector"
@@ -152,7 +114,17 @@ class StateVector(State):
     def sample(
         self, num_shots: int = 1000, p_false_pos: float = 0.0, p_false_neg: float = 0.0
     ) -> Counter[str]:
-        """Probability distribution over measurement outcomes"""
+        """
+        Samples bitstrings, taking into account the specified error rates.
+
+        Args:
+            num_shots: how many bitstrings to sample
+            p_false_pos: the rate at which a 0 is read as a 1
+            p_false_neg: teh rate at which a 1 is read as a 0
+
+        Returns:
+            the measured bitstrings, by count
+        """
 
         probabilities = torch.abs(self.vector) ** 2
         probabilities /= probabilities.sum()  # multinomial does not normalize the input
@@ -173,7 +145,14 @@ class StateVector(State):
         return format(index, f"0{nqubits}b")
 
     def __add__(self, other: State) -> StateVector:
-        """Sum of two state vectors"""
+        """Sum of two state vectors
+
+        Args:
+            other: the vector to add to this vector
+
+        Returns:
+            The summed state
+        """
         assert isinstance(
             other, StateVector
         ), "Other state also needs to be a StateVector"
@@ -181,13 +160,24 @@ class StateVector(State):
         return StateVector(result)
 
     def __rmul__(self, scalar: complex) -> StateVector:
-        """Scalar multiplication with a State vector"""
+        """Scalar multiplication
+
+        Args:
+            scalar: the scalar to multiply with
+
+        Returns:
+            The scaled state
+        """
         result = scalar * self.vector
 
         return StateVector(result)
 
     def norm(self) -> float | complex:
-        """Norm of the state"""
+        """Returns the norm of the state
+
+        Returns:
+            the norm of the state
+        """
         norm: float | complex = torch.linalg.vector_norm(self.vector).item()
         return norm
 
@@ -215,14 +205,12 @@ class StateVector(State):
         Returns:
             The resulting state.
 
-        Example:
-        -------
-        >>> basis = ("r","g")
-        >>> n = 2
-        >>> st=StateVector.from_state_string(basis=basis,nqubits=n,strings={"rr":1.0,"gg":1.0})
-        >>> print(st)
-        tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
-               dtype=torch.complex128)
+        Examples:
+            >>> basis = ("r","g")
+            >>> n = 2
+            >>> st=StateVector.from_state_string(basis=basis,nqubits=n,strings={"rr":1.0,"gg":1.0})
+            >>> print(st)
+            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j], dtype=torch.complex128)
         """
 
         basis = set(basis)
@@ -256,17 +244,19 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
 
     Returns:
         the inner product
-    Example:
-    -------
-    >>> factor = math.sqrt(2.0)
-    >>> basis = ("r","g")
-    >>> nqubits = 2
-    >>> string_state1 = {"gg":1.0,"rr":1.0}
-    >>> state1 = StateVector.from_state_string(basis=basis, nqubits=nqubits,strings=string_state1)
-    >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
-    >>> state2 = StateVector.from_state_string(basis=basis,nqubits=nqubits,strings=string_state2)
-    >>> inner(state1,state2).item()
-    (0.4999999999999999+0j)
+
+    Examples:
+        >>> factor = math.sqrt(2.0)
+        >>> basis = ("r","g")
+        >>> nqubits = 2
+        >>> string_state1 = {"gg":1.0,"rr":1.0}
+        >>> state1 = StateVector.from_state_string(basis=basis,
+        >>>     nqubits=nqubits,strings=string_state1)
+        >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
+        >>> state2 = StateVector.from_state_string(basis=basis,
+        >>>     nqubits=nqubits,strings=string_state2)
+        >>> inner(state1,state2).item()
+        (0.4999999999999999+0j)
     """
 
     assert (left.vector.shape == right.vector.shape) and (
