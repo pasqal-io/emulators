@@ -95,8 +95,8 @@ def test_custom_energy_and_variance_and_second():
     )
     config = SVConfig()
 
-    omegas = torch.randn(num_qubits, dtype=dtype, device=device)
-    deltas = torch.randn(num_qubits, dtype=dtype, device=device)
+    omegas = torch.randn(num_qubits, dtype=dtype).to(device)
+    deltas = torch.randn(num_qubits, dtype=dtype).to(device)
     phis = torch.zeros_like(omegas)
     interaction_matrix = torch.randn((num_qubits, num_qubits))
     h_rydberg = RydbergHamiltonian(
