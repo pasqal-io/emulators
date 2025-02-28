@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "emu-mps"
-description = "Pasqal MPS based pulse emulator built on PyTorch"
+name = "emu-sv"
+description = "Pasqal State Vector based pulse emulator built on PyTorch"
 readme = "../../README.md"
 authors = [
     { name = "Anton Quelle", email = "anton.quelle@pasqal.com"},
@@ -25,7 +25,7 @@ dependencies = [
   "emu-base==1.2.6"]
 
 [tool.hatch.version]
-path = "../../emu_mps/__init__.py"
+path = "../../emu_sv/__init__.py"
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -36,16 +36,16 @@ dependencies = [
 ]
 
 [tool.hatch.build.targets.sdist]
-packages = ["emu_mps"]
+packages = ["emu_sv"]
 
 [tool.hatch.build.targets.sdist.force-include]
-"../../emu_mps" = "emu_mps"
+"../../emu_sv" = "emu_sv"
 
 [tool.hatch.build.targets.wheel]
-packages = ["emu_mps"]
+packages = ["emu_sv"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"../../emu_mps" = "emu_mps"
+"../../emu_sv" = "emu_sv"
 
 [tool.coverage.run]
 branch = true

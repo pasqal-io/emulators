@@ -12,7 +12,7 @@ authors = [
     { name = "Stefano Grava", email="stefano.grava@pasqal.com" },
     { name = "Pablo Le Henaff", email="pablo.le-henaff@pasqal.com" }
 ]
-url="https://gitlab.pasqal.com/emulation/rydberg-atoms/emu-ct"
+url="https://github.com/pasqal-io/emulators"
 requires-python = ">=3.10"
 license = {file = "../../LICENSE"}
 classifiers=[
