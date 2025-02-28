@@ -36,7 +36,7 @@ class SVConfig(BackendConfig):
             the size of the krylov subspace that the Lanczos algorithm maximally builds
         krylov_tolerance:
             the Lanczos algorithm uses this as the convergence tolerance
-        gpu: Use 1 gpu if True, otherwise, cpu.
+        gpu: Use 1 gpu if True, and a GPU is available, otherwise, cpu.
             Will cause errors if True when a gpu is not available
         kwargs: arguments that are passed to the base class
 
@@ -55,7 +55,7 @@ class SVConfig(BackendConfig):
         dt: int = 10,
         max_krylov_dim: int = 100,
         krylov_tolerance: float = 1e-10,
-        gpu: bool = False,
+        gpu: bool = True,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)

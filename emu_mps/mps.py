@@ -6,7 +6,7 @@ from typing import Any, List, Optional, Iterable
 
 import torch
 
-from emu_base import State
+from emu_base import State, DEVICE_COUNT
 from emu_mps import MPSConfig
 from emu_mps.algebra import add_factors, scale_factors
 from emu_mps.utils import (
@@ -16,7 +16,6 @@ from emu_mps.utils import (
     tensor_trace,
     n_operator,
 )
-from emu_mps.constants import DEVICE_COUNT
 
 
 class MPS(State):

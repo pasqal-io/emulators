@@ -8,6 +8,7 @@ from emu_sv.custom_callback_implementations import (
     energy_variance_sv_impl,
     second_moment_sv_impl,
 )
+from emu_base import DEVICE_COUNT
 from emu_base.base_classes.default_callbacks import (
     QubitDensity,
     CorrelationMatrix,
@@ -21,8 +22,7 @@ from unittest.mock import MagicMock
 
 from emu_sv.hamiltonian import RydbergHamiltonian
 
-# device = "cuda"
-device = "cpu"
+device = "cuda" if DEVICE_COUNT > 0 else "cpu"
 
 
 def test_custom_qubit_density():
@@ -48,7 +48,7 @@ def test_custom_qubit_density():
 
     qubit_density = qubit_density_sv_impl(qubit_density_mock, config, t, state, H_mock)
     expected = [0.5] * num_qubits
-    assert qubit_density == approx(expected, abs=1e-8)
+    assert qubit_density.cpu() == approx(expected, abs=1e-8)
 
 
 def test_custom_correlation():
@@ -79,7 +79,7 @@ def test_custom_correlation():
 
     for i, row in enumerate(correlation):
         for j, col in enumerate(row):
-            assert col == approx(expected[i][j], abs=1e-8)
+            assert col.cpu() == approx(expected[i][j], abs=1e-8)
 
 
 def test_custom_energy_and_variance_and_second():
@@ -91,12 +91,12 @@ def test_custom_energy_and_variance_and_second():
     num_qubits = 4
     strings = {"rgrg": 1.0, "grgr": 1.0}
     state = StateVector.from_state_string(
-        basis=basis, nqubits=num_qubits, strings=strings
+        basis=basis, nqubits=num_qubits, strings=strings, gpu=device == "cuda"
     )
     config = SVConfig()
 
-    omegas = torch.randn(num_qubits, dtype=dtype, device=device)
-    deltas = torch.randn(num_qubits, dtype=dtype, device=device)
+    omegas = torch.randn(num_qubits, dtype=dtype).to(device)
+    deltas = torch.randn(num_qubits, dtype=dtype).to(device)
     phis = torch.zeros_like(omegas)
     interaction_matrix = torch.randn((num_qubits, num_qubits))
     h_rydberg = RydbergHamiltonian(
@@ -117,7 +117,7 @@ def test_custom_energy_and_variance_and_second():
     )
     expected_varaince = 3.67378968943955
 
-    assert energy_variance == approx(expected_varaince, abs=4e-7)
+    assert energy_variance.cpu() == approx(expected_varaince, abs=4e-7)
 
     second_moment_energy_mock = MagicMock(spec=SecondMomentOfEnergy)
     second_moment_mock = second_moment_energy_mock.return_value
@@ -125,4 +125,4 @@ def test_custom_energy_and_variance_and_second():
     second_moment = second_moment_sv_impl(second_moment_mock, config, t, state, h_rydberg)
     expected_second = 4.2188228611101
 
-    assert second_moment == approx(expected_second, abs=2e-7)
+    assert second_moment.cpu() == approx(expected_second, abs=2e-7)
