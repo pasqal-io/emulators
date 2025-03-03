@@ -12,7 +12,6 @@ authors = [
     { name = "Stefano Grava", email="stefano.grava@pasqal.com" },
     { name = "Pablo Le Henaff", email="pablo.le-henaff@pasqal.com" }
 ]
-url="https://github.com/pasqal-io/emulators"
 requires-python = ">=3.10"
 license = {file = "../../LICENSE"}
 classifiers=[
@@ -24,6 +23,11 @@ dependencies = [
   "pulser-core==1.3.*",
   "torch==2.5.0"]
 dynamic = ["version"]
+
+[project.urls]
+Documentation = "https://pasqal-io.github.io/emulators/"
+Repository = "https://github.com/pasqal-io/emulators"
+Issues = "https://github.com/pasqal-io/emulators/issues"
 
 [tool.hatch.metadata]
 allow-direct-references = true
