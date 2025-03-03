@@ -50,10 +50,10 @@ jobs:
     steps:
     - name: Checkout emulators
       uses: actions/checkout@v4
-    - name: Set up Python 3.12
+    - name: Set up Python 3.10
       uses: actions/setup-python@v5
       with:
-        python-version: '3.12'
+        python-version: '3.10'
     - name: Setup environment
       run: |
         pip install -r doc_requirements.txt
@@ -63,4 +63,4 @@ jobs:
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
         git fetch origin gh-pages
-        mike deploy --push --update-aliases ${{ github.event.workflow_run.head_branch }} latest
+        mike deploy --push --update-aliases v1.2.6 latest
