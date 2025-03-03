@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "emu-base"
-description = "Pasqal base classes for emulators"
+name = "emu-sv"
+description = "Pasqal State Vector based pulse emulator built on PyTorch"
 readme = "../../README.md"
 authors = [
     { name = "Anton Quelle", email = "anton.quelle@pasqal.com"},
@@ -19,72 +19,37 @@ classifiers=[
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "pulser-core==1.3.*",
-  "torch==2.5.0"]
 dynamic = ["version"]
+dependencies = [
+  "emu-base==1.2.6"]
 
 [project.urls]
 Documentation = "https://pasqal-io.github.io/emulators/"
 Repository = "https://github.com/pasqal-io/emulators"
 Issues = "https://github.com/pasqal-io/emulators/issues"
 
+[tool.hatch.version]
+path = "../../emu_sv/__init__.py"
+
 [tool.hatch.metadata]
 allow-direct-references = true
 allow-ambiguous-features = true
 
-[tool.hatch.version]
-path = "./../../emu_base/__init__.py"
-
-[tool.hatch.envs.default]
-dependencies = [
-  "pytest",
-  "nbmake",
-  "pytest-cov",
-  "pre-commit",
-  "flake8",
-  "black",
-  "isort",
-  "jupyter",
-  "jupyter-black"
-]
-
-[tool.hatch.envs.default.scripts]
-test = "pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps {args}"
-test_notebooks = "pytest --nbmake **/**/**/*ipynb"
-coverage_readme = "(cd .. ; readme-cov)" #run this from the root, not the dir of this file
-
-[[tool.hatch.envs.test.matrix]]
-python = ["310", "311"]
-
 [tool.hatch.envs.docs]
 dependencies = [
-  "mkdocs",
-  "mkdocs-material",
-  "mkdocstrings",
-  "mkdocstrings-python",
-  "mkdocs-section-index",
-  "mkdocs-jupyter",
-  "mkdocs-exclude",
-  "notebook<7",
-  "markdown-exec",
-  "jupyter_contrib_nbextensions",
 ]
 
-[tool.hatch.envs.docs.scripts]
-build = "mkdocs build --clean --strict {args}"
-
 [tool.hatch.build.targets.sdist]
-packages = ["emu_base"]
+packages = ["emu_sv"]
 
 [tool.hatch.build.targets.sdist.force-include]
-"../../emu_base" = "emu_base"
+"../../emu_sv" = "emu_sv"
 
 [tool.hatch.build.targets.wheel]
-packages = ["emu_base"]
+packages = ["emu_sv"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"../../emu_base" = "emu_base"
+"../../emu_sv" = "emu_sv"
 
 [tool.coverage.run]
 branch = true
@@ -96,3 +61,20 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[tool.black] #sometimes black uses this pyproject, rather than the other one for config.
+line-length = 90
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
