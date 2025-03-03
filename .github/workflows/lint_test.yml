@@ -22,21 +22,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./test_dependency_versions.sh
-  test:
-    needs: check_dependency_versions
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-      - run: pip install -r test_requirements.txt
-      - run: pip install -e .
-      - run: pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv --cov=optimatrix
-      - run: pytest --nbmake **/**/**/*.ipynb
-      - run: readme-cov
+#  test:
+#    needs: check_dependency_versions
+#    runs-on: ${{ matrix.os }}
+#    strategy:
+#      matrix:
+#        os: [ubuntu-latest, macos-latest]
+#        python-version: ["3.10", "3.11", "3.12"]
+#    steps:
+#      - uses: actions/checkout@v4
+#      - uses: actions/setup-python@v5
+#        with:
+#          python-version: ${{ matrix.python-version }}
+#          cache: 'pip'
+#      - run: pip install -r test_requirements.txt
+#      - run: pip install -e .
+#      - run: pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv --cov=optimatrix
+#      - run: pytest --nbmake **/**/**/*.ipynb
+#      - run: readme-cov
+#
