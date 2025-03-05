@@ -9,11 +9,12 @@ from emu_sv.custom_callback_implementations import (
     second_moment_sv_impl,
 )
 from emu_base import DEVICE_COUNT
-from emu_base.base_classes.default_callbacks import (
-    QubitDensity,
+
+from pulser.backend.default_observables import (
     CorrelationMatrix,
+    EnergySecondMoment,
     EnergyVariance,
-    SecondMomentOfEnergy,
+    Occupation,
 )
 
 from pytest import approx
@@ -38,9 +39,9 @@ def test_custom_qubit_density():
 
     H_mock = operator_mock.return_value
 
-    MockQubitDensity = MagicMock(spec=QubitDensity)
+    MockOccupation = MagicMock(spec=Occupation)
 
-    qubit_density_mock = MockQubitDensity.return_value
+    qubit_density_mock = MockOccupation.return_value
 
     t = 1
 
@@ -119,7 +120,7 @@ def test_custom_energy_and_variance_and_second():
 
     assert energy_variance.cpu() == approx(expected_varaince, abs=4e-7)
 
-    second_moment_energy_mock = MagicMock(spec=SecondMomentOfEnergy)
+    second_moment_energy_mock = MagicMock(spec=EnergySecondMoment)
     second_moment_mock = second_moment_energy_mock.return_value
 
     second_moment = second_moment_sv_impl(second_moment_mock, config, t, state, h_rydberg)

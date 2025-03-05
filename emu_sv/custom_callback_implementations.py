@@ -1,23 +1,24 @@
 import math
 import torch
 
-# from emu_base.base_classes.config import BackendConfig
-from emu_base.base_classes.backend import BackendConfig  # NOT USED AT ALL
-
-from emu_base.base_classes.default_callbacks import (
-    QubitDensity,
-    EnergyVariance,
-    SecondMomentOfEnergy,
+# from emu_base.base_classes.backend import BackendConfig  # NOT USED AT ALL
+from pulser.backend.config import EmulationConfig as BackendConfig
+from pulser.backend.default_observables import (
     CorrelationMatrix,
+    EnergySecondMoment,
+    EnergyVariance,
+    Occupation,
 )
-from emu_base.base_classes.operator import Operator
+
+
+from pulser.backend.operator import Operator
 
 from emu_sv import StateVector
 from emu_sv.hamiltonian import RydbergHamiltonian
 
 
 def qubit_density_sv_impl(
-    self: QubitDensity, config: BackendConfig, t: int, state: StateVector, H: Operator
+    self: Occupation, config: BackendConfig, t: int, state: StateVector, H: Operator
 ) -> torch.Tensor:
     """
     Custom implementation of the qubit density ❬ψ|nᵢ|ψ❭ for the state vector solver.
@@ -81,7 +82,7 @@ def energy_variance_sv_impl(
 
 
 def second_moment_sv_impl(
-    self: SecondMomentOfEnergy,
+    self: EnergySecondMoment,
     config: BackendConfig,
     t: int,
     state: StateVector,
