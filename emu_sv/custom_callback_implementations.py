@@ -1,9 +1,9 @@
 import math
 import torch
 
-from emu_base.base_classes.config import BackendConfig
+# from emu_base.base_classes.config import BackendConfig
+from emu_base.base_classes.backend import BackendConfig  # NOT USED AT ALL
 
-# from pulser.backend.config import EmulationConfig
 from emu_base.base_classes.default_callbacks import (
     QubitDensity,
     EnergyVariance,
