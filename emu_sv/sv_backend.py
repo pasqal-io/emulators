@@ -4,11 +4,13 @@ from time import time
 
 from pulser import Sequence
 
-# from pulser.backend.config import EmulationConfig
 from emu_base.base_classes.backend import BackendConfig
+from emu_base.base_classes.backend import Backend
+
+# from pulser.backend.config import EmulationConfig as BackendConfig
+# from pulser.backend.abc import EmulatorBackend as Backend
 
 from emu_base import DEVICE_COUNT
-from emu_base.base_classes.backend import Backend
 from emu_base.base_classes.results import Results
 from emu_base.pulser_adapter import PulserData
 
