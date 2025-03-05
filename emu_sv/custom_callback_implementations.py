@@ -2,6 +2,8 @@ import math
 import torch
 
 from emu_base.base_classes.config import BackendConfig
+
+# from pulser.backend.config import EmulationConfig
 from emu_base.base_classes.default_callbacks import (
     QubitDensity,
     EnergyVariance,
