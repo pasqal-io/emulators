@@ -32,7 +32,10 @@ def get_lindblad_operators(
         ]
 
     if noise_type == "eff_noise":
-        if not all(op.shape == (2, 2) for op in noise_model.eff_noise_opers):
+        if not all(
+            isinstance(op, torch.Tensor) and op.shape == (2, 2)
+            for op in noise_model.eff_noise_opers
+        ):
             raise ValueError("Only 2 * 2 effective noise operator matrices are supported")
 
         return [

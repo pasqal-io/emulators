@@ -94,16 +94,14 @@ class MPSBackendImpl:
         return pathlib.Path(os.getcwd()) / (autosave_prefix + str(uuid.uuid1()) + ".dat")
 
     def init_dark_qubits(self) -> None:
-        has_state_preparation_error: bool = (
-            self.config.noise_model is not None
-            and self.config.noise_model.state_prep_error > 0.0
-        )
-
         self.well_prepared_qubits_filter = (
             pick_well_prepared_qubits(
                 self.config.noise_model.state_prep_error, self.qubit_count
             )
-            if has_state_preparation_error
+            if (
+                (self.config.noise_model is not None)
+                and (self.config.noise_model.state_prep_error > 0.0)
+            )
             else None
         )
 
@@ -152,9 +150,11 @@ class MPSBackendImpl:
         too many factors are put in the Hamiltonian
         """
         self.hamiltonian = make_H(
-            interaction_matrix=self.masked_interaction_matrix
-            if self.is_masked
-            else self.full_interaction_matrix,
+            interaction_matrix=(
+                self.masked_interaction_matrix
+                if self.is_masked
+                else self.full_interaction_matrix
+            ),
             hamiltonian_type=self.hamiltonian_type,
             num_gpus_to_use=self.config.num_gpus_to_use,
         )

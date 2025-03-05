@@ -1,26 +1,27 @@
 import torch
-from emu_sv.state_vector import StateVector
-from emu_sv.dense_operator import DenseOperator
-from emu_sv.sv_config import SVConfig
-from emu_sv.custom_callback_implementations import (
-    qubit_density_sv_impl,
-    correlation_matrix_sv_impl,
-    energy_variance_sv_impl,
-    second_moment_sv_impl,
-)
-from emu_base import DEVICE_COUNT
-from emu_base.base_classes.default_callbacks import (
-    QubitDensity,
-    CorrelationMatrix,
-    EnergyVariance,
-    SecondMomentOfEnergy,
-)
 
 from pytest import approx
-
 from unittest.mock import MagicMock
 
+from emu_base import DEVICE_COUNT
+
+from emu_sv.custom_callback_implementations import (
+    correlation_matrix_sv_impl,
+    energy_variance_sv_impl,
+    qubit_density_sv_impl,
+    second_moment_sv_impl,
+)
+from emu_sv.dense_operator import DenseOperator
 from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.sv_config import SVConfig
+from emu_sv.state_vector import StateVector
+
+from pulser.backend.default_observables import (
+    CorrelationMatrix,
+    EnergySecondMoment,
+    EnergyVariance,
+    Occupation,
+)
 
 device = "cuda" if DEVICE_COUNT > 0 else "cpu"
 
@@ -34,17 +35,17 @@ def test_custom_qubit_density():
         basis=basis, nqubits=num_qubits, strings=strings
     )
 
-    config = SVConfig()
-
     operator_mock = MagicMock(spec=DenseOperator)
 
     H_mock = operator_mock.return_value
 
-    MockQubitDensity = MagicMock(spec=QubitDensity)
+    MockOccupation = MagicMock(spec=Occupation)
 
-    qubit_density_mock = MockQubitDensity.return_value
+    qubit_density_mock = MockOccupation.return_value
 
     t = 1
+
+    config = SVConfig()
 
     qubit_density = qubit_density_sv_impl(qubit_density_mock, config, t, state, H_mock)
     expected = [0.5] * num_qubits
@@ -119,7 +120,7 @@ def test_custom_energy_and_variance_and_second():
 
     assert energy_variance.cpu() == approx(expected_varaince, abs=4e-7)
 
-    second_moment_energy_mock = MagicMock(spec=SecondMomentOfEnergy)
+    second_moment_energy_mock = MagicMock(spec=EnergySecondMoment)
     second_moment_mock = second_moment_energy_mock.return_value
 
     second_moment = second_moment_sv_impl(second_moment_mock, config, t, state, h_rydberg)

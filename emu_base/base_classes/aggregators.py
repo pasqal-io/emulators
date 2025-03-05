@@ -9,9 +9,14 @@ _NUMERIC_TYPES = {int, float, complex}
 
 def mean_aggregator(
     values: list[Any],
-) -> complex | float | list[complex] | list[float] | list[list[complex]] | list[
-    list[float]
-]:  # FIXME: support tuples?
+) -> (
+    complex
+    | float
+    | list[complex]
+    | list[float]
+    | list[list[complex]]
+    | list[list[float]]
+):  # FIXME: support tuples?
     if values == []:
         raise ValueError("Cannot average 0 samples")
 
