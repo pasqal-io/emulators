@@ -1,25 +1,24 @@
-from emu_base.base_classes import (
-    CorrelationMatrix,
-    QubitDensity,
-    EnergyVariance,
-    SecondMomentOfEnergy,
-)
-
 import copy
-
-
-from emu_base import BackendConfig
-from emu_sv import StateVector
+from types import MethodType
 from typing import Any
 
-from emu_sv.custom_callback_implementations import (
-    qubit_density_sv_impl,
-    energy_variance_sv_impl,
-    second_moment_sv_impl,
-    correlation_matrix_sv_impl,
-)
+from emu_base import BackendConfig
 
-from types import MethodType
+# from pulser.backend.config import EmulationConfig
+
+from emu_base.base_classes import (
+    CorrelationMatrix,
+    EnergyVariance,
+    QubitDensity,
+    SecondMomentOfEnergy,
+)
+from emu_sv import StateVector
+from emu_sv.custom_callback_implementations import (
+    correlation_matrix_sv_impl,
+    energy_variance_sv_impl,
+    qubit_density_sv_impl,
+    second_moment_sv_impl,
+)
 
 
 class SVConfig(BackendConfig):

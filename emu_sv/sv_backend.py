@@ -1,14 +1,20 @@
-from emu_base.base_classes.backend import Backend, BackendConfig
-from emu_base.base_classes.results import Results
-from emu_sv.sv_config import SVConfig
-from pulser import Sequence
-from emu_base.pulser_adapter import PulserData
-from emu_sv.time_evolution import do_time_step
-from emu_sv import StateVector
 import torch
-from time import time
 from resource import RUSAGE_SELF, getrusage
+from time import time
+
+from pulser import Sequence
+
+# from pulser.backend.config import EmulationConfig
+from emu_base.base_classes.backend import BackendConfig
+
 from emu_base import DEVICE_COUNT
+from emu_base.base_classes.backend import Backend
+from emu_base.base_classes.results import Results
+from emu_base.pulser_adapter import PulserData
+
+from emu_sv import StateVector
+from emu_sv.sv_config import SVConfig
+from emu_sv.time_evolution import do_time_step
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
 

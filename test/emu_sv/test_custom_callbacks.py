@@ -34,8 +34,6 @@ def test_custom_qubit_density():
         basis=basis, nqubits=num_qubits, strings=strings
     )
 
-    config = SVConfig()
-
     operator_mock = MagicMock(spec=DenseOperator)
 
     H_mock = operator_mock.return_value
@@ -45,6 +43,8 @@ def test_custom_qubit_density():
     qubit_density_mock = MockQubitDensity.return_value
 
     t = 1
+
+    config = SVConfig()
 
     qubit_density = qubit_density_sv_impl(qubit_density_mock, config, t, state, H_mock)
     expected = [0.5] * num_qubits
