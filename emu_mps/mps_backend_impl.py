@@ -150,9 +150,11 @@ class MPSBackendImpl:
         too many factors are put in the Hamiltonian
         """
         self.hamiltonian = make_H(
-            interaction_matrix=self.masked_interaction_matrix
-            if self.is_masked
-            else self.full_interaction_matrix,
+            interaction_matrix=(
+                self.masked_interaction_matrix
+                if self.is_masked
+                else self.full_interaction_matrix
+            ),
             hamiltonian_type=self.hamiltonian_type,
             num_gpus_to_use=self.config.num_gpus_to_use,
         )
