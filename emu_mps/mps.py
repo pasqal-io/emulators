@@ -6,7 +6,7 @@ from typing import Any, List, Optional, Iterable
 
 import torch
 
-from emu_base import State
+from emu_base import State, DEVICE_COUNT
 from emu_mps import MPSConfig
 from emu_mps.algebra import add_factors, scale_factors
 from emu_mps.utils import (
@@ -16,7 +16,6 @@ from emu_mps.utils import (
     tensor_trace,
     n_operator,
 )
-from emu_mps.constants import DEVICE_COUNT
 
 
 class MPS(State):
@@ -190,11 +189,58 @@ class MPS(State):
         """
         self.orthogonalize(0)
 
-        num_qubits = len(self.factors)
-        rnd_matrix = torch.rand(num_shots, num_qubits)
-        bitstrings = Counter(
-            self._sample_implementation(rnd_matrix[x, :]) for x in range(num_shots)
-        )
+        rnd_matrix = torch.rand(num_shots, self.num_sites).to(self.factors[0].device)
+
+        bitstrings: Counter[str] = Counter()
+
+        # Shots are performed in batches.
+        # Larger max_batch_size is faster but uses more memory.
+        max_batch_size = 32
+
+        shots_done = 0
+        while shots_done < num_shots:
+            batch_size = min(max_batch_size, num_shots - shots_done)
+            batched_accumulator = torch.ones(
+                batch_size, 1, dtype=torch.complex128, device=self.factors[0].device
+            )
+
+            batch_outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.bool)
+
+            for qubit, factor in enumerate(self.factors):
+                batched_accumulator = torch.tensordot(
+                    batched_accumulator.to(factor.device), factor, dims=1
+                )
+
+                # Probability of measuring qubit == 0 for each shot in the batch
+                probas = (
+                    torch.linalg.vector_norm(batched_accumulator[:, 0, :], dim=1) ** 2
+                )
+
+                outcomes = (
+                    rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
+                        factor.device
+                    )
+                    > probas
+                )
+                batch_outcomes[:, qubit] = outcomes
+
+                # Batch collapse qubit
+                tmp = torch.stack((~outcomes, outcomes), dim=1).to(dtype=torch.complex128)
+
+                batched_accumulator = (
+                    torch.tensordot(batched_accumulator, tmp, dims=([1], [1]))
+                    .diagonal(dim1=0, dim2=2)
+                    .transpose(1, 0)
+                )
+                batched_accumulator /= torch.sqrt(
+                    (~outcomes) * probas + outcomes * (1 - probas)
+                ).unsqueeze(1)
+
+            shots_done += batch_size
+
+            for outcome in batch_outcomes:
+                bitstrings.update(["".join("0" if x == 0 else "1" for x in outcome)])
+
         if p_false_neg > 0 or p_false_pos > 0:
             bitstrings = apply_measurement_errors(
                 bitstrings,
@@ -214,42 +260,6 @@ class MPS(State):
         return float(
             torch.linalg.norm(self.factors[orthogonality_center].to("cpu")).item()
         )
-
-    def _sample_implementation(self, rnd_vector: torch.Tensor) -> str:
-        """
-        Samples this MPS once, returning the resulting bitstring.
-        """
-        assert rnd_vector.shape == (self.num_sites,)
-        assert self.orthogonality_center == 0
-
-        num_qubits = len(self.factors)
-
-        bitstring = ""
-        acc_mps_j: torch.Tensor = self.factors[0]
-
-        for qubit in range(num_qubits):
-            # comp_basis is a projector: 0 is for ket |0> and 1 for ket |1>
-            comp_basis = 0  # check if the qubit is in |0>
-            # Measure the qubit j by applying the projector onto nth comp basis state
-            tensorj_projected_n = acc_mps_j[:, comp_basis, :]
-            probability_n = (tensorj_projected_n.norm() ** 2).item()
-
-            if rnd_vector[qubit] > probability_n:
-                # the qubit is in |1>
-                comp_basis = 1
-                tensorj_projected_n = acc_mps_j[:, comp_basis, :]
-                probability_n = 1 - probability_n
-
-            bitstring += str(comp_basis)
-            if qubit < num_qubits - 1:
-                acc_mps_j = torch.tensordot(
-                    tensorj_projected_n.to(device=self.factors[qubit + 1].device),
-                    self.factors[qubit + 1],
-                    dims=1,
-                )
-                acc_mps_j /= math.sqrt(probability_n)
-
-        return bitstring
 
     def inner(self, other: State) -> float | complex:
         """

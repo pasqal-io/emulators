@@ -1,9 +1,9 @@
-name: Publish emu-mps
-run-name: Publish emu-mps
+name: Publish emu-sv
+run-name: Publish emu-sv
 
 on:
   workflow_run:
-    workflows: [Publish emu-sv]
+    workflows: [Publish emu-base]
     types:
       - completed
 concurrency:
@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish_emu_mps:
-    name: Publish emu-mps to PyPI
+  publish_emu_sv:
+    name: Publish emu-sv to PyPI
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions:
@@ -33,31 +33,10 @@ jobs:
           pip install hatch
       - name: Build and publish package
         run: |
-          cd ci/emu_mps
+          cd ci/emu_sv
           hatch build
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: ${{ github.workspace }}/ci/emu_mps/dist
+          packages-dir: ${{ github.workspace }}/ci/emu_sv/dist
           verbose: true
-  deploy_docs:
-    name: Deploy docs (ubuntu)
-    needs: publish_emu_mps
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout emulators
-      uses: actions/checkout@v4
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-    - name: Setup environment
-      run: |
-        pip install -r doc_requirements.txt
-        pip install -e .
-    - name: Deploy docs
-      run: |
-        git config user.name "GitHub Actions"
-        git config user.email "actions@github.com"
-        git fetch origin gh-pages
-        mike deploy --push --update-aliases ${{ github.event.workflow_run.head_branch }} latest

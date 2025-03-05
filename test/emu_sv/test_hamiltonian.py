@@ -1,76 +1,106 @@
 import torch
-
+import pytest
+from test.utils_testing import (
+    dense_rydberg_hamiltonian,
+    nn_interaction_matrix,
+    randn_interaction_matrix,
+)
 from emu_sv.hamiltonian import RydbergHamiltonian
 
-from functools import reduce
-
 dtype = torch.complex128
-# device = "cuda"
 device = "cpu"
 
 
-def single_gate(i: int, nqubits: int, g: torch.Tensor):
-    matrices = [torch.eye(2, 2, dtype=dtype)] * nqubits
-    matrices[i] = g
-    return reduce(torch.kron, matrices)
-
-
-def sigma_x(i: int, nqubits: int) -> torch.Tensor:
-    σ_x = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
-    return single_gate(i, nqubits, σ_x)
-
-
-def pu(i, nqubits):
-    n = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
-    return single_gate(i, nqubits, n)
-
-
-def n(i, j, nqubits):
-    n = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
-    matrices = [torch.eye(2, 2, dtype=dtype)] * nqubits
-    matrices[i] = n
-    matrices[j] = n
-    return reduce(torch.kron, matrices)
-
-
-def sv_hamiltonian(
-    inter_matrix: torch.Tensor, omega: list[torch.Tensor], delta: list[torch.Tensor]
-) -> torch.Tensor:
-    "Rydberg hamiltonian not complex part"
-    n_qubits = inter_matrix.size(dim=1)
-    device = omega[0].device
-    h = torch.zeros(2**n_qubits, 2**n_qubits, dtype=dtype, device=device)
-    for i in range(n_qubits):
-        h += omega[i] * sigma_x(i, n_qubits).to(dtype=dtype, device=device) / 2
-        h -= delta[i] * pu(i, n_qubits).to(dtype=dtype, device=device)
-
-        for j in range(i + 1, n_qubits):
-            h += inter_matrix[i, j] * n(i, j, n_qubits).to(dtype=dtype, device=device)
-
-    return h
-
-
-def test_dense_vs_sparse():
-    N = 8
+@pytest.mark.parametrize("N", [3, 5, 7, 8])
+def test_dense_vs_sparse_no_phase(N: int):
     torch.manual_seed(1337)
-    omega = torch.randn(N, dtype=dtype, device=device)
-    delta = torch.randn(N, dtype=dtype, device=device)
-    interaction_matrix = torch.randn((N, N))
+    omegas = torch.randn(N)
+    deltas = torch.randn(N)
+    phis = torch.zeros(N)
+    interaction_matrix = nn_interaction_matrix(N)
 
-    h = sv_hamiltonian(interaction_matrix, omega, delta).to(device)
-    v = torch.randn(2**N, dtype=dtype, device=device)
-
-    res_dense = h @ v.reshape(-1)
-
-    h_custom = RydbergHamiltonian(
-        omegas=omega, deltas=delta, interaction_matrix=interaction_matrix, device=device
+    ham_dense = dense_rydberg_hamiltonian(omegas, deltas, phis, interaction_matrix).to(
+        device
+    )
+    ham = RydbergHamiltonian(
+        omegas=omegas,
+        deltas=deltas,
+        phis=phis,
+        interaction_matrix=interaction_matrix,
+        device=device,
     )
 
-    res_sparse = (h_custom * v).reshape(-1)
+    # test hamiltonian diagonal terms
+    diag_sparse = ham.diag
+    diag_dense = torch.diagonal(ham_dense).to(dtype=dtype)
+    assert torch.allclose(diag_sparse.reshape(-1), diag_dense, atol=1e-12)
 
-    assert torch.allclose(res_sparse, res_dense)
+    # test H_dense @ |ψ❭ == H*|ψ❭
+    state = torch.randn(2**N, dtype=dtype, device=device)
 
-    diag_sparse = h_custom.diag
-    diag_dense = torch.diagonal(h).to(dtype=dtype)
+    res_dense = ham_dense @ state
+    res_sparse = ham * state
+    assert torch.allclose(res_sparse, res_dense, atol=1e-12)
 
-    assert torch.allclose(diag_sparse.reshape(-1), diag_dense)
+
+@pytest.mark.parametrize("N", [2, 4, 7, 9])
+def test_dense_vs_sparse_with_phase(N: int):
+    torch.manual_seed(1337)
+    omegas = torch.randn(N)
+    deltas = torch.randn(N)
+    phis = torch.randn(N)
+    interaction_matrix = randn_interaction_matrix(N)
+
+    ham_dense = dense_rydberg_hamiltonian(omegas, deltas, phis, interaction_matrix).to(
+        device
+    )
+    ham = RydbergHamiltonian(
+        omegas=omegas,
+        deltas=deltas,
+        phis=phis,
+        interaction_matrix=interaction_matrix,
+        device=device,
+    )
+
+    # test hamiltonian diagonal terms
+    diag_sparse = ham.diag
+    diag_dense = torch.diagonal(ham_dense).to(dtype=dtype)
+    assert torch.allclose(diag_sparse.reshape(-1), diag_dense, atol=1e-12)
+
+    # test H_dense @ |ψ❭ == H*|ψ❭
+    state = torch.randn(2**N, dtype=dtype, device=device)
+
+    res_dense = ham_dense @ state
+    res_sparse = ham * state
+    assert torch.allclose(res_sparse, res_dense, atol=1e-12)
+
+
+def test_call_sigma_real_complex():
+    torch.manual_seed(1337)
+    N = 2
+    omegas = torch.randn(N)
+    deltas = torch.randn(N)
+    interaction_matrix = torch.randn(N, N)
+
+    ham_w_phase = RydbergHamiltonian(
+        omegas=omegas,
+        deltas=deltas,
+        phis=torch.randn(2),
+        interaction_matrix=interaction_matrix,
+        device=device,
+    )
+    assert (
+        ham_w_phase._apply_sigma_operators == ham_w_phase._apply_sigma_operators_complex
+    )
+
+    ham_zero_phase = RydbergHamiltonian(
+        omegas=omegas,
+        deltas=deltas,
+        phis=torch.zeros(2),
+        interaction_matrix=interaction_matrix,
+        device=device,
+    )
+    assert (
+        ham_zero_phase._apply_sigma_operators
+        == ham_zero_phase._apply_sigma_operators_real
+    )

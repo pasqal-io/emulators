@@ -11,9 +11,8 @@ import torch
 import time
 from pulser import Sequence
 
-from emu_base import Results, State, PulserData
+from emu_base import Results, State, PulserData, DEVICE_COUNT
 from emu_base.math.brents_root_finding import BrentsRootFinder
-from emu_mps.constants import DEVICE_COUNT
 from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS

@@ -1,4 +1,5 @@
 from pytest import approx
+import math
 import pulser
 import torch
 
@@ -24,6 +25,7 @@ import pulser.noise_model
 
 from test.utils_testing import (
     pulser_afm_sequence_ring,
+    pulser_blackman,
 )
 
 
@@ -40,7 +42,9 @@ t_rise = 500
 t_fall = 1000
 
 
-def create_antiferromagnetic_state_vector(num_qubits: int) -> StateVector:
+def create_antiferromagnetic_state_vector(
+    num_qubits: int, gpu: bool = True
+) -> StateVector:
     factors = [torch.zeros(2, dtype=torch.complex128) for _ in range(num_qubits)]
     for i in range(num_qubits):
         if i % 2:
@@ -52,7 +56,7 @@ def create_antiferromagnetic_state_vector(num_qubits: int) -> StateVector:
     for i in factors[1:]:
         afm_vec = torch.kron(afm_vec, i)
 
-    return StateVector(afm_vec)
+    return StateVector(afm_vec, gpu=gpu)
 
 
 def simulate(
@@ -66,12 +70,13 @@ def simulate(
     initial_state=None,
     given_fidelity_state=True,
     interaction_cutoff=0.0,
+    gpu=True,
 ):
     final_time = seq.get_duration()
 
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_state_vector(
-            len(seq.register.qubit_ids)
+            len(seq.register.qubit_ids), gpu=gpu
         )
     else:
         fidelity_state = StateVector.make(len(seq.register.qubit_ids))
@@ -109,6 +114,7 @@ def simulate(
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
+        gpu=gpu,
     )
 
     result = sv_backend.run(seq, sv_config)
@@ -130,7 +136,9 @@ def test_end_to_end_afm_ring():
         t_fall=t_fall,
     )
 
-    result = simulate(seq)
+    result = simulate(
+        seq, gpu=False
+    )  # only run on cpu, bitstring sampling is device dependent
 
     final_time = seq.get_duration()
     bitstrings = result["bitstrings"][final_time]
@@ -139,7 +147,7 @@ def test_end_to_end_afm_ring():
         f"fidelity_{emu_base.base_classes.default_callbacks._fidelity_counter}"
     ][final_time]
 
-    fidelity_state = create_antiferromagnetic_state_vector(num_qubits)
+    fidelity_state = create_antiferromagnetic_state_vector(num_qubits, gpu=False)
 
     assert bitstrings["1010101010"] == 136
     assert bitstrings["0101010101"] == 159
@@ -161,3 +169,34 @@ def test_end_to_end_afm_ring():
         final_time
     ]  # 13350.505342183847
     assert approx(second_moment_energy, 1e-6) == 13350.5053421
+
+
+def test_end_to_end_pi_half_pulse():
+    # π/2 pulse Blackman creates |ψ❭=(|0❭-1j|1❭)/sqrt(2)
+    duration = 1000  # ns, so 1 μs
+    area = math.pi / 2
+    seq = pulser_blackman(duration, area)
+    result = simulate(seq, dt=50)
+
+    final_time = seq.get_duration()
+    final_state = result["state"][final_time]
+
+    expected = torch.tensor([1, -1j], dtype=torch.complex128) / math.sqrt(2)
+    assert torch.allclose(final_state.vector.cpu(), expected, atol=1e-8)
+
+
+def test_end_to_end_pi_half_pulse_with_phase():
+    # π/2 pulse Blackman creates |ψ❭=(|0❭-1j|1❭)/sqrt(2)
+    # with a phase factor exp(-1j*duration*φ) = 1j
+    duration = 1000  # ns, so 1 μs
+    area = math.pi / 2
+    phase = math.pi / 2
+    seq = pulser_blackman(duration, area, phase=phase)
+    result = simulate(seq, dt=50)
+    final_time = seq.get_duration()
+
+    final_state = result["state"][final_time]
+    # with the phase we expect |ψ❭=(|0❭+|1❭)/sqrt(2)
+    expected = torch.tensor([1, 1], dtype=torch.complex128) / math.sqrt(2)
+
+    assert torch.allclose(final_state.vector.cpu(), expected, atol=1e-8)

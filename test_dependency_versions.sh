@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+sv_string="$(grep emu-base ci/emu_sv/pyproject.toml)"
+[[ "$sv_string" =~ .*([0-9]\.[0-9]\.[0-9]).* ]]
+sv_dep="${BASH_REMATCH[1]}"
+echo "emu-sv depends on emu-base version $sv_dep"
+
 mps_string="$(grep emu-base ci/emu_mps/pyproject.toml)"
 [[ "$mps_string" =~ .*([0-9]\.[0-9]\.[0-9]).* ]]
 mps_dep="${BASH_REMATCH[1]}"
@@ -12,6 +17,11 @@ base_version="${BASH_REMATCH[1]}"
 echo "emu-base is version $base_version"
 
 if [[ "$mps_dep" != "$base_version" ]]
+then
+    exit 1
+fi
+
+if [[ "$sv_dep" != "$base_version" ]]
 then
     exit 1
 fi

@@ -130,13 +130,18 @@ def extended_mps_factors(
             bond_dimension = mps_factors[factor_index].shape[2]
             factor_index += 1
         elif factor_index == len(mps_factors):
-            factor = torch.zeros(bond_dimension, 2, 1, dtype=torch.complex128)
+            factor = torch.zeros(
+                bond_dimension, 2, 1, dtype=torch.complex128
+            )  # FIXME: assign device
             factor[:, 0, :] = torch.eye(bond_dimension, 1)
             bond_dimension = 1
             result.append(factor)
         else:
             factor = torch.zeros(
-                bond_dimension, 2, bond_dimension, dtype=torch.complex128
+                bond_dimension,
+                2,
+                bond_dimension,
+                dtype=torch.complex128,  # FIXME: assign device
             )
             factor[:, 0, :] = torch.eye(bond_dimension, bond_dimension)
             result.append(factor)
