@@ -1,8 +1,8 @@
 import math
 import torch
 
-# from emu_base.base_classes.backend import BackendConfig  # NOT USED AT ALL
-from pulser.backend.config import EmulationConfig as BackendConfig
+from pulser.backend.operator import Operator
+from pulser.backend.config import EmulationConfig
 from pulser.backend.default_observables import (
     CorrelationMatrix,
     EnergySecondMoment,
@@ -10,15 +10,12 @@ from pulser.backend.default_observables import (
     Occupation,
 )
 
-
-from pulser.backend.operator import Operator
-
 from emu_sv import StateVector
 from emu_sv.hamiltonian import RydbergHamiltonian
 
 
 def qubit_density_sv_impl(
-    self: Occupation, config: BackendConfig, t: int, state: StateVector, H: Operator
+    self: Occupation, config: EmulationConfig, t: int, state: StateVector, H: Operator
 ) -> torch.Tensor:
     """
     Custom implementation of the qubit density ❬ψ|nᵢ|ψ❭ for the state vector solver.
@@ -34,7 +31,7 @@ def qubit_density_sv_impl(
 
 def correlation_matrix_sv_impl(
     self: CorrelationMatrix,
-    config: BackendConfig,
+    config: EmulationConfig,
     t: int,
     state: StateVector,
     H: Operator,
@@ -66,7 +63,7 @@ def correlation_matrix_sv_impl(
 
 def energy_variance_sv_impl(
     self: EnergyVariance,
-    config: BackendConfig,
+    config: EmulationConfig,
     t: int,
     state: StateVector,
     H: RydbergHamiltonian,
@@ -83,7 +80,7 @@ def energy_variance_sv_impl(
 
 def second_moment_sv_impl(
     self: EnergySecondMoment,
-    config: BackendConfig,
+    config: EmulationConfig,
     t: int,
     state: StateVector,
     H: RydbergHamiltonian,
