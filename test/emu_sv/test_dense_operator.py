@@ -10,7 +10,7 @@ from emu_sv.state_vector import StateVector
     ("zero", "one"),
     (("g", "r"), ("0", "1")),
 )
-def test_algebra_dense_op(zero, one):
+def test_algebra_dense_op(zero: str, one: str) -> None:
 
     N = 3
     # define first operator
@@ -147,3 +147,34 @@ def test_algebra_dense_op(zero, one):
     expected_mult_op_op[7, 5] = 12 * 24j
 
     assert torch.allclose(result_op_mult_op.matrix.cpu(), expected_mult_op_op)
+
+
+@pytest.mark.parametrize(
+    ("zero", "one"),
+    (("g", "r"), ("0", "1")),
+)
+def test_single_dense_operator(zero: str, one: str) -> None:
+
+    N = 3
+    # define first operator
+    x = {zero + one: 1.0, one + zero: 1.0}
+    z = {zero + zero: 1.0, one + one: -1.0}
+
+    operators_a = {"X": x, "Z": z}
+    operations_a = [
+        (
+            1.0,
+            [
+                ({"X": 2.0}, [0, 2]),
+                ({"Z": 3.0}, [1]),
+            ],
+        )
+    ]
+
+    oper_a = DenseOperator.from_operator_string({one, zero}, N, operations_a, operators_a)
+
+    X = torch.tensor([[0, 1], [1, 0]], dtype=torch.complex128)
+    Z = torch.tensor([[1, 0], [0, -1]], dtype=torch.complex128)
+    expected = torch.kron(torch.kron(2 * X, 3 * Z), 2 * X)
+
+    assert torch.allclose(oper_a.matrix.cpu(), expected)

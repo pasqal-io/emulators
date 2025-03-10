@@ -5,6 +5,11 @@ from typing import Any, Iterable
 import torch
 from emu_base.base_classes.operator import FullOp, QuditOp
 from emu_base import Operator, State, DEVICE_COUNT
+
+# from emu_base.base_classes.operator import Operator, FullOp, QuditOp
+# from pulser.backend.operator import Operator, FullOp, QuditOp
+# from emu_base import State, DEVICE_COUNT
+
 from emu_sv.state_vector import StateVector
 
 dtype = torch.complex128
