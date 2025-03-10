@@ -163,10 +163,10 @@ def test_single_dense_operator(zero: str, one: str) -> None:
     operators_a = {"X": x, "Z": z}
     operations_a = [
         (
-            1.0,
+            1.7,
             [
-                ({"X": 2.0}, [0, 2]),
-                ({"Z": 3.0}, [1]),
+                ({"X": -2.0}, [0, 2]),
+                ({"Z": 0.3}, [1]),
             ],
         )
     ]
@@ -175,6 +175,6 @@ def test_single_dense_operator(zero: str, one: str) -> None:
 
     X = torch.tensor([[0, 1], [1, 0]], dtype=torch.complex128)
     Z = torch.tensor([[1, 0], [0, -1]], dtype=torch.complex128)
-    expected = torch.kron(torch.kron(2 * X, 3 * Z), 2 * X)
+    expected = 1.7 * torch.kron(torch.kron(-2 * X, 0.3 * Z), -2 * X)
 
     assert torch.allclose(oper_a.matrix.cpu(), expected)
