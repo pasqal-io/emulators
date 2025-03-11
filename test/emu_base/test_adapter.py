@@ -369,7 +369,6 @@ def test_extract_omega_delta_phi_dt_1(
     TEST_DURATION = 13
     dt = 1
     target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
-    print(target_times)
     sequence.get_duration.return_value = TEST_DURATION
 
     if laser_waist is not None:
