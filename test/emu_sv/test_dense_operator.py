@@ -149,32 +149,96 @@ def test_algebra_dense_op(zero: str, one: str) -> None:
     assert torch.allclose(result_op_mult_op.matrix.cpu(), expected_mult_op_op)
 
 
+X = torch.tensor([[0, 1], [1, 0]], dtype=torch.complex128)
+Y = torch.tensor([[0, 1j], [-1j, 0]], dtype=torch.complex128)
+Z = torch.tensor([[1, 0], [0, -1]], dtype=torch.complex128)
+Id = torch.tensor([[1, 0], [0, 1]], dtype=torch.complex128)
+
+
 @pytest.mark.parametrize(
     ("zero", "one"),
     (("g", "r"), ("0", "1")),
 )
 def test_single_dense_operator(zero: str, one: str) -> None:
-
     N = 3
-    # define first operator
-    x = {zero + one: 1.0, one + zero: 1.0}
-    z = {zero + zero: 1.0, one + one: -1.0}
 
-    operators_a = {"X": x, "Z": z}
-    operations_a = [
+    operations = [
         (
-            1.7,
+            1.0,
             [
-                ({"X": -2.0}, [0, 2]),
-                ({"Z": 0.3}, [1]),
+                ({zero + one: 1.0, one + zero: 1.0}, [0]),  # X
+                ({zero + one: -1.0j, one + zero: 1.0j}, [1]),  # Y
+                ({zero + zero: 1.0, one + one: -1.0}, [2]),  # Z
             ],
         )
     ]
 
-    oper_a = DenseOperator.from_operator_string({one, zero}, N, operations_a, operators_a)
+    operator = DenseOperator.from_operator_repr(
+        eigenstates=(one, zero),
+        n_qudits=N,
+        operations=operations,
+    )
+    expected = 1.0 * torch.kron(torch.kron(X, Y), Z)
+    assert torch.allclose(operator.matrix.cpu(), expected)
 
-    X = torch.tensor([[0, 1], [1, 0]], dtype=torch.complex128)
-    Z = torch.tensor([[1, 0], [0, -1]], dtype=torch.complex128)
+    operations = [
+        (
+            1.7,
+            [
+                ({zero + one: -2.0, one + zero: -2.0}, [0, 2]),
+                ({zero + zero: 0.3, one + one: -0.3}, [1]),
+            ],
+        )
+    ]
+
+    operator = DenseOperator.from_operator_repr(
+        eigenstates=(one, zero),
+        n_qudits=N,
+        operations=operations,
+    )
     expected = 1.7 * torch.kron(torch.kron(-2 * X, 0.3 * Z), -2 * X)
+    assert torch.allclose(operator.matrix.cpu(), expected)
 
-    assert torch.allclose(oper_a.matrix.cpu(), expected)
+
+@pytest.mark.parametrize(
+    ("zero", "one"),
+    (("g", "r"), ("0", "1")),
+)
+def test_sum_two_dense_operator(zero: str, one: str) -> None:
+    N = 2
+
+    ops_1 = [
+        (
+            1.0,
+            [
+                ({zero + one: 1.0, one + zero: 1.0}, [0]),  # X
+            ],
+        )
+    ]
+
+    ops_2 = [
+        (
+            1.0,
+            [
+                ({zero + zero: 1.0, one + one: -1.0}, [1]),  # Z
+            ],
+        )
+    ]
+
+    operator_1 = DenseOperator.from_operator_repr(
+        eigenstates=(one, zero),
+        n_qudits=N,
+        operations=ops_1,
+    )
+
+    operator_2 = DenseOperator.from_operator_repr(
+        eigenstates=(one, zero),
+        n_qudits=N,
+        operations=ops_2,
+    )
+
+    op = operator_1 + operator_2
+
+    expected = torch.kron(X, Id) + torch.kron(Id, Z)
+
+    assert torch.allclose(op.matrix.cpu(), expected)
