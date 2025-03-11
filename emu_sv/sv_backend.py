@@ -10,6 +10,8 @@ from time import time
 from resource import RUSAGE_SELF, getrusage
 from emu_base import DEVICE_COUNT
 
+_TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
+
 
 class SVBackend(Backend):
     """
@@ -36,6 +38,8 @@ class SVBackend(Backend):
         data = PulserData(sequence=sequence, config=sv_config, dt=sv_config.dt)
         omega, delta, phi = data.omega, data.delta, data.phi
 
+        target_times = data.target_times
+
         nsteps = omega.shape[0]
         nqubits = omega.shape[1]
         device = "cuda" if sv_config.gpu and DEVICE_COUNT > 0 else "cpu"
@@ -46,14 +50,12 @@ class SVBackend(Backend):
         else:
             state = StateVector.make(nqubits, gpu=sv_config.gpu)
 
-        dt = sv_config.dt * 1e-3  # ns to µs
-
         for step in range(nsteps):
-
             start = time()
+            dt = target_times[step + 1] - target_times[step]
 
             state.vector, H = do_time_step(
-                dt,
+                dt * _TIME_CONVERSION_COEFF,
                 omega[step],
                 delta[step],
                 phi[step],
@@ -65,7 +67,7 @@ class SVBackend(Backend):
             for callback in sv_config.callbacks:
                 callback(
                     sv_config,
-                    (step + 1) * sv_config.dt,
+                    target_times[step + 1],
                     state,
                     H,  # type: ignore[arg-type]
                     results,
