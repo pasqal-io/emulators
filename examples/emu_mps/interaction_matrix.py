@@ -57,11 +57,11 @@ seq.add(fall, "ising_global")
 sim = MPSBackend()
 
 # Configuration for the Backend and for observables
-dt = 100  # time step for discretization, by the default: dt =10
+dt = 99  # time step for discretization, by the default: dt =10
 
 # information for the observables
 
-final_time = seq.get_duration() // dt * dt
+final_time = seq.get_duration()
 # Calculate the final time of the sequence. Some observables will be measured at time steps
 # that are multiples of dt.  Using integer division // ensures time steps align with dt.
 # NOTE: The sequence is discretized by dt, so the state evolves at these time steps.
