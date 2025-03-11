@@ -3,9 +3,17 @@ from typing import Any, Callable, Optional
 from pathlib import Path
 import json
 import logging
+import torch
 
 from emu_base.base_classes.callback import Callback, AggregationType
 from emu_base.base_classes.aggregators import aggregation_types_definitions
+
+
+class ResultsEncoder(json.JSONEncoder):
+    def default(self, obj: Any) -> Any:
+        if isinstance(obj, torch.Tensor):
+            return obj.tolist()
+        return super().default(obj)
 
 
 @dataclass
@@ -171,4 +179,5 @@ class Results:
                     "statistics": self.statistics,
                 },
                 file_handle,
+                cls=ResultsEncoder,
             )
