@@ -33,20 +33,21 @@ print(state)
 
 
 print("Operators in Emu-SV")
-x = {"g" + "r": 1.0, "r" + "g": 1.0}
-z = {"g" + "g": 1.0, "r" + "g": -1.0}
-operators = {"X": x, "Z": z}
 operations = [
     (
         1.0,
         [
-            ({"X": 2.0}, [0, 2]),
-            ({"Z": 3.0}, [1]),
+            ({"g" + "r": 2.0, "r" + "g": 2.0}, [0, 2]),  # 2X
+            ({"g" + "g": 3.0, "r" + "g": -3.0}, [1]),  # 3Z
         ],
     )
 ]
 
 basis = {"r", "g"}
 N = 3
-oper = DenseOperator.from_operator_string(basis, N, operations, operators)
+oper = DenseOperator.from_operator_repr(
+    eigenstates=basis,
+    n_qudits=N,
+    operations=operations,
+)
 print(oper)
