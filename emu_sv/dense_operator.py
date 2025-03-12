@@ -8,6 +8,7 @@ import torch
 from pulser.backend.operator import Type, Sequence
 from pulser.backend.operator import Operator, FullOp, QuditOp
 from pulser.backend.state import Eigenstate
+
 from emu_base import State, DEVICE_COUNT
 from emu_sv.state_vector import StateVector
 

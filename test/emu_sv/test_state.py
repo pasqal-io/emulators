@@ -10,14 +10,13 @@ device = "cpu"
 # device= "cuda"
 
 
-def test_inner_algebra_sample():
+def test_inner_algebra_sample() -> None:
 
     factor = torch.sqrt(torch.tensor(2.0))
-    state1 = StateVector(
-        torch.tensor(
-            [1.0 / factor, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0 / factor], dtype=dtype
-        )
+    st = torch.tensor(
+        [1.0 / factor, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0 / factor], dtype=dtype
     )
+    state1 = StateVector(st)
 
     state2 = StateVector(
         torch.tensor(
@@ -39,8 +38,8 @@ def test_inner_algebra_sample():
     assert torch.allclose(add_result.vector.cpu(), add_expected, rtol=0, atol=1e-6)
 
     torch.manual_seed(seed)
-    sampling1 = StateVector(state1.vector, gpu=False).sample(1000)
-    sampling2 = StateVector(state2.vector, gpu=False).sample(1000)
+    sampling1 = StateVector(state1.vector, gpu=False).sample(num_shots=1000)
+    sampling2 = StateVector(state2.vector, gpu=False).sample(num_shots=1000)
 
     assert sampling1["111"] == 485
     assert sampling1["001"] == 0
@@ -50,7 +49,7 @@ def test_inner_algebra_sample():
     assert sampling2["001"] == 501
     assert sampling2["000"] == 0
 
-    sampling_sum = StateVector(add_result.vector, gpu=False).sample(1000)
+    sampling_sum = StateVector(add_result.vector, gpu=False).sample(num_shots=1000)
 
     results = [0] * 8
     results[0] = 157
@@ -61,18 +60,18 @@ def test_inner_algebra_sample():
         assert sampling_sum["{0:03b}".format(i)] == results[i]
 
 
-def test_from_string():
+def test_from_string() -> None:
     torch.manual_seed(seed)
 
     basis = ("r", "g")
     state = {"rr": 1.0, "gg": 1.0}
-    nqubits = 2
 
-    from_string = StateVector.from_state_string(
-        basis=basis, nqubits=nqubits, strings=state
+    from_string = StateVector.from_state_amplitudes(
+        eigenstates=basis,
+        amplitudes=state,
     )
 
-    sampling = StateVector(from_string.vector, gpu=False).sample(1000)
+    sampling = StateVector(from_string.vector, gpu=False).sample(num_shots=1000)
 
     values = from_string.vector
 
