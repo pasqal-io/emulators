@@ -54,7 +54,8 @@ class MPSBackendImpl:
 
     def __init__(self, mps_config: MPSConfig, pulser_data: PulserData):
         self.config = mps_config
-        self.target_time = float(self.config.dt)
+        self.target_times = pulser_data.target_times
+        self.target_time = self.target_times[1]
         self.pulser_data = pulser_data
         self.qubit_count = pulser_data.qubit_count
         assert self.qubit_count >= 2
@@ -333,7 +334,6 @@ class MPSBackendImpl:
     def timestep_complete(self) -> None:
         self.fill_results()
         self.timestep_index += 1
-        self.target_time = float((self.timestep_index + 1) * self.config.dt)
         if self.is_masked and self.current_time >= self.slm_end_time:
             self.is_masked = False
             self.hamiltonian = make_H(
@@ -343,6 +343,7 @@ class MPSBackendImpl:
             )
 
         if not self.is_finished():
+            self.target_time = self.target_times[self.timestep_index + 1]
             update_H(
                 hamiltonian=self.hamiltonian,
                 omega=self.omega[self.timestep_index, :],
@@ -515,7 +516,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
 
         if self.root_finder.is_converged(tolerance=1):
             self.do_random_quantum_jump()
-            self.target_time = (self.timestep_index + 1) * self.config.dt
+            self.target_time = self.target_times[self.timestep_index + 1]
             self.root_finder = None
         else:
             self.target_time = self.root_finder.get_next_abscissa()
