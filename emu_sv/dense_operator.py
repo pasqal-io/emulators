@@ -1,21 +1,13 @@
 from __future__ import annotations
-import itertools
 
-# from typing import Any, Iterable, TypeVar, cast
-from typing import Type
+import itertools
 from functools import reduce
-from collections.abc import Sequence  # , Collection, Mapping
 
 import torch
 
-# from emu_base.base_classes.operator import FullOp, QuditOp
-# from emu_base import Operator
-# from emu_base.base_classes.operator import Operator, FullOp, QuditOp
-
+from pulser.backend.operator import Type, Sequence
 from pulser.backend.operator import Operator, FullOp, QuditOp
 from pulser.backend.state import Eigenstate
-
-
 from emu_base import State, DEVICE_COUNT
 from emu_sv.state_vector import StateVector
 
@@ -83,7 +75,9 @@ class DenseOperator(Operator):
         Returns:
             the summed operator
         """
-        assert isinstance(other, DenseOperator), "MPO can only be added to another MPO"
+        assert isinstance(
+            other, DenseOperator
+        ), "Operator can only be added to another Operator"
 
         return DenseOperator(self.matrix + other.matrix)
 
@@ -95,7 +89,7 @@ class DenseOperator(Operator):
             scalar: the scale factor to multiply with
 
         Returns:
-            the scaled MPO
+            the scaled DenseOperator
         """
 
         return DenseOperator(self.matrix * scalar)
