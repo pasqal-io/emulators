@@ -12,16 +12,13 @@ device = "cpu"
 
 def test_inner_algebra_sample() -> None:
 
-    factor = torch.sqrt(torch.tensor(2.0))
-    st = torch.tensor(
-        [1.0 / factor, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0 / factor], dtype=dtype
+    factor = 1.0 / torch.sqrt(torch.tensor(2.0))
+    state1 = StateVector(
+        torch.tensor([factor, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, factor], dtype=dtype)
     )
-    state1 = StateVector(st)
 
     state2 = StateVector(
-        torch.tensor(
-            [0, 1.0 / factor, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0 / factor], dtype=dtype
-        )
+        torch.tensor([0, factor, 0.0, 0.0, 0.0, 0.0, 0.0, factor], dtype=dtype)
     )
 
     inner_prod = inner(state1, state2)
@@ -32,7 +29,7 @@ def test_inner_algebra_sample() -> None:
     add_result = state1 + 2 * torch.exp(pi * 1.0j) * state2
 
     add_expected = torch.tensor(
-        [1.0 / factor, -factor, 0.0, 0.0, 0.0, 0.0, 0.0, -1 / factor], dtype=dtype
+        [factor, -1.0 / factor, 0.0, 0.0, 0.0, 0.0, 0.0, -factor], dtype=dtype
     )
 
     assert torch.allclose(add_result.vector.cpu(), add_expected, rtol=0, atol=1e-6)
