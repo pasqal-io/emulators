@@ -70,11 +70,12 @@ class SVBackend(Backend):
                 sv_config.krylov_tolerance,
             )
 
+            # TODO: remove this type ignore thing
             for callback in sv_config.callbacks:
                 callback(
                     sv_config,
                     (step + 1) * sv_config.dt,
-                    state,
+                    state,  # type: ignore[arg-type]
                     H,  # type: ignore[arg-type]
                     results,
                 )
