@@ -1,3 +1,4 @@
+import pytest
 import torch
 import math
 from emu_sv.state_vector import StateVector, inner
@@ -37,6 +38,47 @@ def test_inner_and_overlap() -> None:
 
     assert math.isclose(abs(inner_prod - expected), 0)
     assert math.isclose(abs(ovrlp - expected), 0)
+
+
+def test_norm() -> None:
+    nqubits = 5
+    rnd_tensor = torch.rand(2**nqubits)
+    state = StateVector(rnd_tensor)
+
+    nrm_expected = torch.linalg.norm(rnd_tensor).item()
+    nrm_state = state.norm()
+    assert math.isclose(nrm_state, nrm_expected, rel_tol=1e-5)
+
+
+def test_rmul_add() -> None:
+    tensor = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
+    coeff = 5
+    state1 = StateVector(coeff * tensor)
+    state2 = coeff * StateVector(tensor)  # test __rmul__
+    assert math.isclose(state1.norm(), state2.norm(), rel_tol=1e-5)
+
+    state2 = state1 + state1  # test __rmul__
+    assert math.isclose((2 * state1).norm(), state2.norm(), rel_tol=1e-5)
+
+
+def test_index_to_bitstring() -> None:
+    nqubits = 3
+    tensor = torch.tensor([1] * 2**nqubits, dtype=dtype)
+    state = StateVector(tensor)
+    state._normalize()
+    state._index_to_bitstring(0)
+
+    assert "000" == state._index_to_bitstring(0)
+    assert "001" == state._index_to_bitstring(1)
+    assert "010" == state._index_to_bitstring(2)
+    assert "111" == state._index_to_bitstring(7)
+
+    indx = 8  # 8 is above Hilbert space of 3 qubits
+    with pytest.raises(AssertionError) as msg:
+        state._index_to_bitstring(indx)
+    assert (
+        str(msg.value) == f"index {indx} can not exceed Hilbert space size d**{nqubits}"
+    )
 
 
 def test_inner_algebra_sample() -> None:
