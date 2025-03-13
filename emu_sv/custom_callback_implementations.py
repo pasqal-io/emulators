@@ -1,7 +1,6 @@
 import math
 import torch
 
-from pulser.backend.operator import Operator
 from pulser.backend.config import EmulationConfig
 from pulser.backend.default_observables import (
     CorrelationMatrix,
@@ -10,12 +9,16 @@ from pulser.backend.default_observables import (
     Occupation,
 )
 
-from emu_sv import StateVector
+from emu_sv import StateVector, DenseOperator
 from emu_sv.hamiltonian import RydbergHamiltonian
 
 
-def qubit_density_sv_impl(
-    self: Occupation, config: EmulationConfig, t: int, state: StateVector, H: Operator
+def qubit_occupation_sv_impl(
+    self: Occupation,
+    config: EmulationConfig,
+    t: int,
+    state: StateVector,
+    H: DenseOperator,
 ) -> torch.Tensor:
     """
     Custom implementation of the qubit density ❬ψ|nᵢ|ψ❭ for the state vector solver.
@@ -34,7 +37,7 @@ def correlation_matrix_sv_impl(
     config: EmulationConfig,
     t: int,
     state: StateVector,
-    H: Operator,
+    H: DenseOperator,
 ) -> torch.Tensor:
     """
     Custom implementation of the density-density correlation ❬ψ|nᵢnⱼ|ψ❭ for the state vector solver.
@@ -78,7 +81,7 @@ def energy_variance_sv_impl(
     return energy_variance
 
 
-def second_moment_sv_impl(
+def energy_second_moment_sv_impl(
     self: EnergySecondMoment,
     config: EmulationConfig,
     t: int,
