@@ -48,7 +48,7 @@ class StateVector(State):
     @property
     def n_qudits(self) -> int:
         """The number of qudits in the state."""
-        nqudits = math.log2(len(self.vector))
+        nqudits = math.log2(self.vector.reshape(-1).shape[0])
         return int(nqudits)
 
     def _normalize(self) -> None:
@@ -156,7 +156,9 @@ class StateVector(State):
         """
         Convert an integer index into its corresponding bitstring representation.
         """
-        nqubits = int(math.log2(self.vector.reshape(-1).shape[0]))
+        nqubits = self.n_qudits
+        msg = f"index {index} can not exceed Hilbert space size d**{nqubits}"
+        assert index < 2**nqubits, msg
         return format(index, f"0{nqubits}b")
 
     def __add__(self, other: State) -> StateVector:
