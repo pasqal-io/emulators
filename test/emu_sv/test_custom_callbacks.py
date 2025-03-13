@@ -26,14 +26,12 @@ from pulser.backend.default_observables import (
 device = "cuda" if DEVICE_COUNT > 0 else "cpu"
 
 
-def test_custom_qubit_density():
+def test_custom_qubit_density() -> None:
     # set up for state
     basis = ("r", "g")
     num_qubits = 4
     strings = {"rrrr": 1.0, "ggggg": 1.0}
-    state = StateVector.from_state_string(
-        basis=basis, nqubits=num_qubits, strings=strings
-    )
+    state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
 
     operator_mock = MagicMock(spec=DenseOperator)
 
@@ -52,14 +50,12 @@ def test_custom_qubit_density():
     assert qubit_density.cpu() == approx(expected, abs=1e-8)
 
 
-def test_custom_correlation():
+def test_custom_correlation() -> None:
     # set up for state
     basis = ("r", "g")
     num_qubits = 4
     strings = {"rgrg": 1.0, "grgr": 1.0}
-    state = StateVector.from_state_string(
-        basis=basis, nqubits=num_qubits, strings=strings
-    )
+    state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
     config = SVConfig()
     operator_mock = MagicMock(spec=DenseOperator)
     H_mock = operator_mock.return_value
@@ -83,7 +79,7 @@ def test_custom_correlation():
             assert col.cpu() == approx(expected[i][j], abs=1e-8)
 
 
-def test_custom_energy_and_variance_and_second():
+def test_custom_energy_and_variance_and_second() -> None:
 
     torch.manual_seed(1337)
     dtype = torch.float64
@@ -91,8 +87,8 @@ def test_custom_energy_and_variance_and_second():
     basis = ("r", "g")
     num_qubits = 4
     strings = {"rgrg": 1.0, "grgr": 1.0}
-    state = StateVector.from_state_string(
-        basis=basis, nqubits=num_qubits, strings=strings, gpu=device == "cuda"
+    state = StateVector.from_state_amplitudes(
+        eigenstates=basis, amplitudes=strings, gpu=device == "cuda"
     )
     config = SVConfig()
 

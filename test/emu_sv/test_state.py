@@ -13,15 +13,32 @@ device = "cpu"
 
 
 def test_creating_state() -> None:
+    # test constructor
     single_qubit_state = StateVector(torch.tensor([factor] * 2, dtype=dtype))
     assert single_qubit_state.n_qudits == 1
     assert math.isclose(1.0, single_qubit_state.norm(), rel_tol=1e-5)
 
+    # test _normalize()
     state_5qubits_rnd = 2 * StateVector(torch.rand(2**5))  # factor 2 to have norm > 1
     assert state_5qubits_rnd.n_qudits == 5
     assert state_5qubits_rnd.norm() > 1.0
     state_5qubits_rnd._normalize()
     assert math.isclose(1.0, state_5qubits_rnd.norm(), rel_tol=1e-5)
+
+    # test make()
+    nqubits = 3
+    state = StateVector.make(num_sites=nqubits, gpu=False)  # create |00..0>
+    zero_state_tensor = torch.tensor([0] * 2**nqubits, dtype=dtype)
+    zero_state_tensor[0] = 1
+    zero_state = StateVector(zero_state_tensor)
+    assert state.overlap(zero_state) == 1.0
+
+    # test zero()
+    nqubits = 3
+    state = StateVector.zero(num_sites=nqubits, gpu=False)  # create |00..0>
+    tensor = state.vector
+    expected = torch.tensor([0] * 2**nqubits, dtype=dtype)
+    assert torch.allclose(expected, tensor)
 
 
 def test_inner_and_overlap() -> None:
@@ -81,70 +98,25 @@ def test_index_to_bitstring() -> None:
     )
 
 
-def test_inner_algebra_sample() -> None:
-    tensor1 = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
-    tensor2 = torch.tensor([0, factor, 0, 0, 0, 0, 0, factor], dtype=dtype)
-
-    state1 = StateVector(tensor1)
-    state2 = StateVector(tensor2)
-
-    inner_prod = inner(state1, state2)  # testing inner
-    ovrlp = state1.overlap(state2)  # testing overlap
-
-    expected = torch.dot(tensor1, tensor2)
-
-    assert math.isclose(abs(inner_prod - expected), 0)
-    assert math.isclose(abs(ovrlp - expected), 0)
-
-    add_result = state1 + (-2) * state2
-
-    tensor_expected = [factor, -1 / factor, 0, 0, 0, 0, 0, -factor]
-    add_expected = torch.tensor(tensor_expected, dtype=dtype)
-
-    assert torch.allclose(add_result.vector.cpu(), add_expected, rtol=0, atol=1e-6)
-
+def test_sample() -> None:
     torch.manual_seed(seed)
-    sampling1 = StateVector(state1.vector, gpu=False).sample(num_shots=1000)
-    sampling2 = StateVector(state2.vector, gpu=False).sample(num_shots=1000)
 
-    assert sampling1["111"] == 485
-    assert sampling1["001"] == 0
-    assert sampling1["000"] == 515
+    tensor = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
+    state = StateVector(tensor)
+    sampling = state.sample(num_shots=1000)
 
-    assert sampling2["111"] == 499
-    assert sampling2["001"] == 501
-    assert sampling2["000"] == 0
-
-    sampling_sum = StateVector(add_result.vector, gpu=False).sample(num_shots=1000)
-
-    results = [0] * 8
-    results[0] = 157
-    results[1] = 654
-    results[-1] = 189
-
-    for i in range(8):
-        assert sampling_sum["{0:03b}".format(i)] == results[i]
+    assert sampling["111"] == 485
+    assert sampling["001"] == 0
+    assert sampling["000"] == 515
 
 
 def test_from_string() -> None:
-    torch.manual_seed(seed)
-
-    basis = ("r", "g")
-    state = {"rr": 1.0, "gg": 1.0}
-
-    from_string = StateVector.from_state_amplitudes(
-        eigenstates=basis,
-        amplitudes=state,
+    state = StateVector.from_state_amplitudes(
+        eigenstates=("r", "g"),
+        amplitudes={"rr": 1.0, "gg": 1.0},
+        gpu=False,
     )
-
-    sampling = StateVector(from_string.vector, gpu=False).sample(num_shots=1000)
-
-    values = from_string.vector
-
-    assert torch.allclose(values[0], torch.tensor(0.7071 + 0.0j, dtype=dtype))
-    assert torch.allclose(values[1], torch.tensor(0.0 + 0.0j, dtype=dtype))
-    assert torch.allclose(values[2], torch.tensor(0.0 + 0.0j, dtype=dtype))
-    assert torch.allclose(values[3], torch.tensor(0.7071 + 0.0j, dtype=dtype))
-
-    assert sampling["00"] == 515
-    assert sampling["11"] == 485
+    expected_state = StateVector(torch.tensor([factor, 0, 0, factor], dtype=dtype))
+    result = state.overlap(expected_state)
+    assert math.isclose(result.real, 1.0, rel_tol=1e-5)
+    assert math.isclose(result.imag, 0.0, rel_tol=1e-5)

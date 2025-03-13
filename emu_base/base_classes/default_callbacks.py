@@ -48,7 +48,12 @@ class BitStrings(Callback):
             0.0 if config.noise_model is None else config.noise_model.p_false_neg
         )
 
-        return state.sample(self.num_shots, p_false_pos, p_false_neg)
+        return state.sample(
+            num_shots=self.num_shots,
+            # one_state=None,
+            p_false_pos=p_false_pos,
+            p_false_neg=p_false_neg,
+        )
 
     default_aggregation_type = AggregationType.BAG_UNION
 

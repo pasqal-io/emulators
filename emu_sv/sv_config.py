@@ -2,26 +2,27 @@ import copy
 from types import MethodType
 from typing import Any
 
-from emu_base import BackendConfig
+# from emu_base import BackendConfig
 
 # from pulser.backend.config import EmulationConfig
+from pulser.backend.config import EmulationConfig
 
-from emu_base.base_classes import (
+from pulser.backend import (
     CorrelationMatrix,
     EnergyVariance,
-    QubitDensity,
-    SecondMomentOfEnergy,
+    Occupation,
+    EnergySecondMoment,
 )
 from emu_sv import StateVector
 from emu_sv.custom_callback_implementations import (
     correlation_matrix_sv_impl,
     energy_variance_sv_impl,
-    qubit_density_sv_impl,
-    second_moment_sv_impl,
+    qubit_occupation_sv_impl,
+    energy_second_moment_sv_impl,
 )
 
 
-class SVConfig(BackendConfig):
+class SVConfig(EmulationConfig):
     """
     The configuration of the emu-sv SVBackend. The kwargs passed to this class
     are passed on to the base class.
@@ -67,9 +68,9 @@ class SVConfig(BackendConfig):
 
         for num, obs in enumerate(self.callbacks):  # monkey patch
             obs_copy = copy.deepcopy(obs)
-            if isinstance(obs, QubitDensity):
+            if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    qubit_density_sv_impl, obs
+                    qubit_occupation_sv_impl, obs
                 )
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, EnergyVariance):
@@ -77,9 +78,9 @@ class SVConfig(BackendConfig):
                     energy_variance_sv_impl, obs
                 )
                 self.callbacks[num] = obs_copy
-            elif isinstance(obs, SecondMomentOfEnergy):
+            elif isinstance(obs, EnergySecondMoment):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    second_moment_sv_impl, obs
+                    energy_second_moment_sv_impl, obs
                 )
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, CorrelationMatrix):

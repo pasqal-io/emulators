@@ -1,27 +1,25 @@
-from pytest import approx
 import math
-import pulser
 import torch
+from pytest import approx
+
+import pulser
+import pulser.noise_model
 
 import emu_base.base_classes
 import emu_base.base_classes.default_callbacks
-
 from emu_base.base_classes import (
     BitStrings,
-    Fidelity,
-    StateResult,
-    QubitDensity,
+    CorrelationMatrix,
     Energy,
     EnergyVariance,
+    Fidelity,
+    QubitDensity,
     SecondMomentOfEnergy,
-    CorrelationMatrix,
+    StateResult,
 )
 
-from emu_sv.sv_config import SVConfig, StateVector
 from emu_sv.sv_backend import SVBackend
-
-
-import pulser.noise_model
+from emu_sv.sv_config import SVConfig, StateVector
 
 from test.utils_testing import (
     pulser_afm_sequence_ring,

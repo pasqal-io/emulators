@@ -104,7 +104,7 @@ class StateVector(State):
 
     def inner(self, other: State) -> float | complex:
         """
-        Compute <self, other>. The type of other must be StateVector.
+        Compute <self|other>. The type of other must be StateVector.
 
         Args:
             other: the other state
@@ -207,6 +207,7 @@ class StateVector(State):
         *,
         eigenstates: Sequence[Eigenstate],
         amplitudes: dict[str, SupportsComplex],
+        gpu: bool = True,
     ) -> StateVector:
         """Transforms a state given by a string into a state vector.
 
@@ -240,7 +241,7 @@ class StateVector(State):
         else:
             raise ValueError("Unsupported basis provided")
 
-        accum_state = StateVector.zero(num_sites=nqubits)
+        accum_state = StateVector.zero(num_sites=nqubits, gpu=gpu)
 
         for state, amplitude in amplitudes.items():
             bin_to_int = int(
