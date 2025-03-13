@@ -220,13 +220,13 @@ class StateVector(State):
 
         Examples:
             >>> basis = ("r","g")
-            >>> n = 2
             >>> st = StateVector.from_state_amplitudes(
             ...     eigenstates=basis,
             ...     amplitudes={"rr": 1.0, "gg": 1.0}
             ... )
             >>> print(st)
-            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j], dtype=torch.complex128)
+            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
+                   dtype=torch.complex128)
         """
 
         nqubits = len(next(iter(amplitudes.keys())))
@@ -266,17 +266,16 @@ def inner(left: StateVector, right: StateVector) -> float | complex:
         the inner product
 
     Examples:
-        >>> factor = math.sqrt(2.0)
+        >>> factor = 1.0/math.sqrt(2.0)
         >>> basis = ("r","g")
-        >>> nqubits = 2
         >>> string_state1 = {"gg":1.0,"rr":1.0}
-        >>> state1 = StateVector.from_state_string(basis=basis,
-        >>>     nqubits=nqubits,strings=string_state1)
-        >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
-        >>> state2 = StateVector.from_state_string(basis=basis,
-        >>>     nqubits=nqubits,strings=string_state2)
-        >>> inner(state1,state2).item()
-        (0.4999999999999999+0j)
+        >>> state1 = StateVector.from_state_amplitudes(eigenstates=basis,
+        ...     amplitudes=string_state1)
+        >>> string_state2 = {"gr":factor,"rr":factor}
+        >>> state2 = StateVector.from_state_amplitudes(eigenstates=basis,
+        ...     amplitudes=string_state2)
+        >>> inner(state1,state2)
+        (0.49999999144286444+0j)
     """
 
     assert (left.vector.shape == right.vector.shape) and (

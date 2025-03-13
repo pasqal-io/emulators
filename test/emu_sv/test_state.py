@@ -12,9 +12,7 @@ device = "cpu"
 
 
 def test_creating_state() -> None:
-
     single_qubit_state = StateVector(torch.tensor([factor] * 2, dtype=dtype))
-
     assert single_qubit_state.n_qudits == 1
     assert math.isclose(1.0, single_qubit_state.norm(), rel_tol=1e-5)
 
@@ -23,6 +21,22 @@ def test_creating_state() -> None:
     assert state_5qubits_rnd.norm() > 1.0
     state_5qubits_rnd._normalize()
     assert math.isclose(1.0, state_5qubits_rnd.norm(), rel_tol=1e-5)
+
+
+def test_inner_and_overlap() -> None:
+    tensor1 = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
+    tensor2 = torch.tensor([0, factor, 0, 0, 0, 0, 0, factor], dtype=dtype)
+
+    state1 = StateVector(tensor1)
+    state2 = StateVector(tensor2)
+
+    inner_prod = inner(state1, state2)  # testing inner
+    ovrlp = state1.overlap(state2)  # testing overlap
+
+    expected = torch.dot(tensor1, tensor2)
+
+    assert math.isclose(abs(inner_prod - expected), 0)
+    assert math.isclose(abs(ovrlp - expected), 0)
 
 
 def test_inner_algebra_sample() -> None:
