@@ -48,7 +48,8 @@ class StateVector(State):
     @property
     def n_qudits(self) -> int:
         """The number of qudits in the state."""
-        return math.log2(len(self.vector)).is_integer()
+        nqudits = math.log2(len(self.vector))
+        return int(nqudits)
 
     def _normalize(self) -> None:
         # NOTE: use this in the callbacks
@@ -252,7 +253,7 @@ class StateVector(State):
         return self.inner(other)
 
 
-def inner(left: StateVector, right: StateVector) -> torch.Tensor:
+def inner(left: StateVector, right: StateVector) -> float | complex:
     """
     Wrapper around StateVector.inner.
 
@@ -280,7 +281,7 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
     assert (left.vector.shape == right.vector.shape) and (
         left.vector.dim() == 1
     ), "Shape of a and b should be the same and both needs to be 1D tesnor"
-    return torch.inner(left.vector, right.vector)
+    return torch.inner(left.vector, right.vector).item()
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import math
 from emu_sv.state_vector import StateVector, inner
 
 pi = torch.tensor(math.pi)
+factor = 1.0 / torch.sqrt(torch.tensor(2.0))
 
 seed = 1337
 dtype = torch.complex128
@@ -10,27 +11,39 @@ device = "cpu"
 # device= "cuda"
 
 
+def test_creating_state() -> None:
+
+    single_qubit_state = StateVector(torch.tensor([factor] * 2, dtype=dtype))
+
+    assert single_qubit_state.n_qudits == 1
+    assert math.isclose(1.0, single_qubit_state.norm(), rel_tol=1e-5)
+
+    state_5qubits_rnd = 2 * StateVector(torch.rand(2**5))  # factor 2 to have norm > 1
+    assert state_5qubits_rnd.n_qudits == 5
+    assert state_5qubits_rnd.norm() > 1.0
+    state_5qubits_rnd._normalize()
+    assert math.isclose(1.0, state_5qubits_rnd.norm(), rel_tol=1e-5)
+
+
 def test_inner_algebra_sample() -> None:
+    tensor1 = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
+    tensor2 = torch.tensor([0, factor, 0, 0, 0, 0, 0, factor], dtype=dtype)
 
-    factor = 1.0 / torch.sqrt(torch.tensor(2.0))
-    state1 = StateVector(
-        torch.tensor([factor, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, factor], dtype=dtype)
-    )
+    state1 = StateVector(tensor1)
+    state2 = StateVector(tensor2)
 
-    state2 = StateVector(
-        torch.tensor([0, factor, 0.0, 0.0, 0.0, 0.0, 0.0, factor], dtype=dtype)
-    )
+    inner_prod = inner(state1, state2)  # testing inner
+    ovrlp = state1.overlap(state2)  # testing overlap
 
-    inner_prod = inner(state1, state2)
+    expected = torch.dot(tensor1, tensor2)
 
-    expected = torch.tensor(0.5, dtype=dtype)
-    assert torch.allclose(inner_prod, expected)
+    assert math.isclose(abs(inner_prod - expected), 0)
+    assert math.isclose(abs(ovrlp - expected), 0)
 
-    add_result = state1 + 2 * torch.exp(pi * 1.0j) * state2
+    add_result = state1 + (-2) * state2
 
-    add_expected = torch.tensor(
-        [factor, -1.0 / factor, 0.0, 0.0, 0.0, 0.0, 0.0, -factor], dtype=dtype
-    )
+    tensor_expected = [factor, -1 / factor, 0, 0, 0, 0, 0, -factor]
+    add_expected = torch.tensor(tensor_expected, dtype=dtype)
 
     assert torch.allclose(add_result.vector.cpu(), add_expected, rtol=0, atol=1e-6)
 
