@@ -13,7 +13,7 @@ from pulser.backend import (
     Occupation,
     EnergySecondMoment,
 )
-from emu_sv import StateVector
+from emu_sv.state_vector import StateVector
 from emu_sv.custom_callback_implementations import (
     correlation_matrix_sv_impl,
     energy_variance_sv_impl,

@@ -9,8 +9,10 @@ from pulser.backend.operator import Type, Sequence
 from pulser.backend.operator import Operator, FullOp, QuditOp
 from pulser.backend.state import Eigenstate
 
-from emu_base import State, DEVICE_COUNT
+from pulser.backend.state import State
 from emu_sv.state_vector import StateVector
+
+from emu_base import DEVICE_COUNT
 
 dtype = torch.complex128
 

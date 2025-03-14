@@ -110,7 +110,7 @@ def test_sample() -> None:
     assert sampling["000"] == 515
 
 
-def test_from_string() -> None:
+def test_from_amplitudes() -> None:
     state = StateVector.from_state_amplitudes(
         eigenstates=("r", "g"),
         amplitudes={"rr": 1.0, "gg": 1.0},

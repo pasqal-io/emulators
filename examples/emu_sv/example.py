@@ -1,4 +1,4 @@
-from emu_sv import StateVector, inner
+from emu_sv.state_vector import StateVector, inner
 
 from emu_sv.dense_operator import DenseOperator
 
@@ -28,7 +28,7 @@ string = {"rrr": 1.0, "ggg": 1.0}
 basis = ("r", "g")
 nqubits = len(list(string.keys())[0])
 
-state = StateVector.from_state_string(basis=basis, nqubits=nqubits, strings=string)
+state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=string)
 print(state)
 
 
