@@ -37,7 +37,7 @@ class BackendConfig:
         *,
         observables: list[Callback] | None = None,
         with_modulation: bool = False,
-        noise_model: NoiseModel = None,
+        noise_model: NoiseModel | None = None,
         interaction_matrix: list[list[float]] | None = None,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
