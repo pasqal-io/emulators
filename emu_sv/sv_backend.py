@@ -1,14 +1,22 @@
-from emu_base.base_classes.backend import Backend, BackendConfig
-from emu_base.base_classes.results import Results
-from emu_sv.sv_config import SVConfig
-from pulser import Sequence
-from emu_base.pulser_adapter import PulserData
-from emu_sv.time_evolution import do_time_step
-from emu_sv import StateVector
 import torch
-from time import time
 from resource import RUSAGE_SELF, getrusage
+from time import time
+
+from pulser import Sequence
+
+from emu_base.base_classes.backend import BackendConfig
+from emu_base.base_classes.backend import Backend
+
+# from pulser.backend.config import EmulationConfig as BackendConfig
+# from pulser.backend.abc import EmulatorBackend as Backend
+
 from emu_base import DEVICE_COUNT
+from emu_base.base_classes.results import Results
+from emu_base.pulser_adapter import PulserData
+
+from emu_sv.state_vector import StateVector
+from emu_sv.sv_config import SVConfig
+from emu_sv.time_evolution import do_time_step
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
 
@@ -64,11 +72,12 @@ class SVBackend(Backend):
                 sv_config.krylov_tolerance,
             )
 
+            # TODO: remove this type ignore thing
             for callback in sv_config.callbacks:
                 callback(
                     sv_config,
-                    target_times[step + 1],
-                    state,
+                    (step + 1) * sv_config.dt,
+                    state,  # type: ignore[arg-type]
                     H,  # type: ignore[arg-type]
                     results,
                 )

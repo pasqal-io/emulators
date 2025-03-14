@@ -1,28 +1,28 @@
-from emu_base.base_classes import (
-    CorrelationMatrix,
-    QubitDensity,
-    EnergyVariance,
-    SecondMomentOfEnergy,
-)
-
 import copy
-
-
-from emu_base import BackendConfig
-from emu_sv import StateVector
+from types import MethodType
 from typing import Any
 
+# from emu_base import BackendConfig
+
+# from pulser.backend.config import EmulationConfig
+from pulser.backend.config import EmulationConfig
+
+from pulser.backend import (
+    CorrelationMatrix,
+    EnergyVariance,
+    Occupation,
+    EnergySecondMoment,
+)
+from emu_sv.state_vector import StateVector
 from emu_sv.custom_callback_implementations import (
-    qubit_density_sv_impl,
-    energy_variance_sv_impl,
-    second_moment_sv_impl,
     correlation_matrix_sv_impl,
+    energy_variance_sv_impl,
+    qubit_occupation_sv_impl,
+    energy_second_moment_sv_impl,
 )
 
-from types import MethodType
 
-
-class SVConfig(BackendConfig):
+class SVConfig(EmulationConfig):
     """
     The configuration of the emu-sv SVBackend. The kwargs passed to this class
     are passed on to the base class.
@@ -66,11 +66,11 @@ class SVConfig(BackendConfig):
         self.gpu = gpu
         self.krylov_tolerance = krylov_tolerance
 
-        for num, obs in enumerate(self.callbacks):  # monkey patch
+        for num, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
-            if isinstance(obs, QubitDensity):
+            if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    qubit_density_sv_impl, obs
+                    qubit_occupation_sv_impl, obs
                 )
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, EnergyVariance):
@@ -78,9 +78,9 @@ class SVConfig(BackendConfig):
                     energy_variance_sv_impl, obs
                 )
                 self.callbacks[num] = obs_copy
-            elif isinstance(obs, SecondMomentOfEnergy):
+            elif isinstance(obs, EnergySecondMoment):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    second_moment_sv_impl, obs
+                    energy_second_moment_sv_impl, obs
                 )
                 self.callbacks[num] = obs_copy
             elif isinstance(obs, CorrelationMatrix):

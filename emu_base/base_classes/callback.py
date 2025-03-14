@@ -6,6 +6,7 @@ from emu_base.base_classes.config import BackendConfig
 from emu_base.base_classes.operator import Operator
 from emu_base.base_classes.state import State
 
+
 if TYPE_CHECKING:
     from emu_base.base_classes.results import Results
 

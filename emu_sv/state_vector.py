@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Iterable
+from typing import Sequence, SupportsComplex, Type, TypeVar
 import math
 
-
-from emu_base import State, DEVICE_COUNT
+from emu_base import DEVICE_COUNT
+from pulser.backend.state import State, Eigenstate
 
 import torch
+
+ArgScalarType = TypeVar("ArgScalarType")
+StateVectorType = TypeVar("StateVectorType", bound="StateVector")
 
 dtype = torch.complex128
 
@@ -40,6 +43,13 @@ class StateVector(State):
 
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         self.vector = vector.to(dtype=dtype, device=device)
+        self._eigenstates = ["0", "1"]
+
+    @property
+    def n_qudits(self) -> int:
+        """The number of qudits in the state."""
+        nqudits = math.log2(self.vector.reshape(-1).shape[0])
+        return int(nqudits)
 
     def _normalize(self) -> None:
         # NOTE: use this in the callbacks
@@ -94,7 +104,7 @@ class StateVector(State):
 
     def inner(self, other: State) -> float | complex:
         """
-        Compute <self, other>. The type of other must be StateVector.
+        Compute <self|other>. The type of other must be StateVector.
 
         Args:
             other: the other state
@@ -112,7 +122,12 @@ class StateVector(State):
         return torch.vdot(self.vector, other.vector).item()
 
     def sample(
-        self, num_shots: int = 1000, p_false_pos: float = 0.0, p_false_neg: float = 0.0
+        self,
+        *,
+        num_shots: int = 1000,
+        one_state: Eigenstate | None = None,
+        p_false_pos: float = 0.0,
+        p_false_neg: float = 0.0,
     ) -> Counter[str]:
         """
         Samples bitstrings, taking into account the specified error rates.
@@ -140,7 +155,9 @@ class StateVector(State):
         """
         Convert an integer index into its corresponding bitstring representation.
         """
-        nqubits = int(math.log2(self.vector.reshape(-1).shape[0]))
+        nqubits = self.n_qudits
+        msg = f"index {index} can not exceed Hilbert space size d**{nqubits}"
+        assert index < 2**nqubits, msg
         return format(index, f"0{nqubits}b")
 
     def __add__(self, other: State) -> StateVector:
@@ -183,13 +200,13 @@ class StateVector(State):
     def __repr__(self) -> str:
         return repr(self.vector)
 
-    @staticmethod
-    def from_state_string(
+    @classmethod
+    def from_state_amplitudes(
+        cls: Type[StateVectorType],
         *,
-        basis: Iterable[str],
-        nqubits: int,
-        strings: dict[str, complex],
-        **kwargs: Any,
+        eigenstates: Sequence[Eigenstate],
+        amplitudes: dict[str, SupportsComplex],
+        gpu: bool = True,
     ) -> StateVector:
         """Transforms a state given by a string into a state vector.
 
@@ -197,22 +214,25 @@ class StateVector(State):
         https://pulser.readthedocs.io/en/stable/conventions.html
 
         Args:
-            basis: A tuple containing the basis states (e.g., ('r', 'g')).
-            nqubits: the number of qubits.
-            strings: A dictionary mapping state strings to complex or floats amplitudes.
+            eigenstates: A tuple containing the basis states (e.g., ('r', 'g')).
+            amplitudes: A dictionary mapping state strings to complex or floats amplitudes.
 
         Returns:
             The resulting state.
 
         Examples:
             >>> basis = ("r","g")
-            >>> n = 2
-            >>> st=StateVector.from_state_string(basis=basis,nqubits=n,strings={"rr":1.0,"gg":1.0})
+            >>> st = StateVector.from_state_amplitudes(
+            ...     eigenstates=basis,
+            ...     amplitudes={"rr": 1.0, "gg": 1.0}
+            ... )
             >>> print(st)
-            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j], dtype=torch.complex128)
+            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
+                   dtype=torch.complex128)
         """
 
-        basis = set(basis)
+        nqubits = len(next(iter(amplitudes.keys())))
+        basis = set(eigenstates)
         if basis == {"r", "g"}:
             one = "r"
         elif basis == {"0", "1"}:
@@ -220,9 +240,9 @@ class StateVector(State):
         else:
             raise ValueError("Unsupported basis provided")
 
-        accum_state = StateVector.zero(num_sites=nqubits, **kwargs)
+        accum_state = StateVector.zero(num_sites=nqubits, gpu=gpu)
 
-        for state, amplitude in strings.items():
+        for state, amplitude in amplitudes.items():
             bin_to_int = int(
                 state.replace(one, "1").replace("g", "0"), 2
             )  # "0" basis is already in "0"
@@ -232,8 +252,11 @@ class StateVector(State):
 
         return accum_state
 
+    def overlap(self, other: StateVector, /) -> float | complex:
+        return self.inner(other)
 
-def inner(left: StateVector, right: StateVector) -> torch.Tensor:
+
+def inner(left: StateVector, right: StateVector) -> float | complex:
     """
     Wrapper around StateVector.inner.
 
@@ -245,23 +268,22 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
         the inner product
 
     Examples:
-        >>> factor = math.sqrt(2.0)
+        >>> factor = 1.0/math.sqrt(2.0)
         >>> basis = ("r","g")
-        >>> nqubits = 2
         >>> string_state1 = {"gg":1.0,"rr":1.0}
-        >>> state1 = StateVector.from_state_string(basis=basis,
-        >>>     nqubits=nqubits,strings=string_state1)
-        >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
-        >>> state2 = StateVector.from_state_string(basis=basis,
-        >>>     nqubits=nqubits,strings=string_state2)
-        >>> inner(state1,state2).item()
-        (0.4999999999999999+0j)
+        >>> state1 = StateVector.from_state_amplitudes(eigenstates=basis,
+        ...     amplitudes=string_state1)
+        >>> string_state2 = {"gr":factor,"rr":factor}
+        >>> state2 = StateVector.from_state_amplitudes(eigenstates=basis,
+        ...     amplitudes=string_state2)
+        >>> inner(state1,state2)
+        (0.49999999144286444+0j)
     """
 
     assert (left.vector.shape == right.vector.shape) and (
         left.vector.dim() == 1
     ), "Shape of a and b should be the same and both needs to be 1D tesnor"
-    return torch.inner(left.vector, right.vector)
+    return torch.inner(left.vector, right.vector).item()
 
 
 if __name__ == "__main__":
