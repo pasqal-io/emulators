@@ -61,7 +61,7 @@ def test_bit_strings():
     output = result[callback.name][10]
     print(output)
     assert output["a"] == 4
-    state.sample.assert_called_with(1000, 0.1, 0.3)
+    state.sample.assert_called_with(num_shots=1000, p_false_pos=0.1, p_false_neg=0.3)
 
 
 @mark.parametrize(
