@@ -9,6 +9,8 @@ from emu_base import State, DEVICE_COUNT
 
 import torch
 
+from emu_sv.common_func import _index_to_bitstring
+
 dtype = torch.complex128
 
 
@@ -134,17 +136,11 @@ class StateVector(State):
         outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
 
         # Convert outcomes to bitstrings and count occurrences
-        counts = Counter([self._index_to_bitstring(outcome) for outcome in outcomes])
+        counts = Counter([_index_to_bitstring(self.vector,outcome) for outcome in outcomes])
 
         # NOTE: false positives and negatives
         return counts
 
-    def _index_to_bitstring(self, index: int) -> str:
-        """
-        Convert an integer index into its corresponding bitstring representation.
-        """
-        nqubits = int(math.log2(self.vector.reshape(-1).shape[0]))
-        return format(index, f"0{nqubits}b")
 
     def __add__(self, other: State) -> StateVector:
         """Sum of two state vectors
