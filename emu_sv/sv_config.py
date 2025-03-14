@@ -66,7 +66,7 @@ class SVConfig(EmulationConfig):
         self.gpu = gpu
         self.krylov_tolerance = krylov_tolerance
 
-        for num, obs in enumerate(self.callbacks):  # monkey patch
+        for num, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
             if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
