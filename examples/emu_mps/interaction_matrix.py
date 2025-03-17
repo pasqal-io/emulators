@@ -61,14 +61,9 @@ dt = 100  # time step for discretization, by the default: dt =10
 
 # information for the observables
 
-final_time = seq.get_duration() // dt * dt
-# Calculate the final time of the sequence. Some observables will be measured at time steps
-# that are multiples of dt.  Using integer division // ensures time steps align with dt.
-# NOTE: The sequence is discretized by dt, so the state evolves at these time steps.
+final_time = seq.get_duration()
 
 times = {final_time}  # final step for an observable to be measure
-# all the times have to be a multiple of dt
-
 
 # As an example, we are going to create an antiferromagnetic (afm) state (mps) and
 # a suporpostion of afm states in order to calculate the

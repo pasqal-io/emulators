@@ -283,6 +283,7 @@ def test_extract_omega_delta_phi_dt_2(
     Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
     TEST_DURATION = 13
     dt = 2
+    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
     sequence.get_duration.return_value = TEST_DURATION
 
     if laser_waist is not None:
@@ -298,7 +299,10 @@ def test_extract_omega_delta_phi_dt_2(
     mock_pulser_sample.return_value = mock_sample(hamiltonian_type)
 
     actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
-        sequence=sequence, dt=dt, with_modulation=False, laser_waist=laser_waist
+        sequence=sequence,
+        target_times=target_times,
+        with_modulation=False,
+        laser_waist=laser_waist,
     )
 
     expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
@@ -364,6 +368,7 @@ def test_extract_omega_delta_phi_dt_1(
     Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
     TEST_DURATION = 13
     dt = 1
+    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
     sequence.get_duration.return_value = TEST_DURATION
 
     if laser_waist is not None:
@@ -382,7 +387,10 @@ def test_extract_omega_delta_phi_dt_1(
     mock_pulser_sample.return_value = mock_sample(hamiltonian_type)
 
     actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
-        sequence=sequence, dt=dt, with_modulation=False, laser_waist=laser_waist
+        sequence=sequence,
+        target_times=target_times,
+        with_modulation=False,
+        laser_waist=laser_waist,
     )
 
     expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
@@ -523,6 +531,7 @@ def test_extract_omega_delta_phi_dt_1(
 def test_autograd(mock_pulser_sample):
     TEST_DURATION = 10
     dt = 2
+    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
     sequence.get_duration.return_value = TEST_DURATION
     amp_tensor = torch.tensor(
         [
@@ -589,7 +598,10 @@ def test_autograd(mock_pulser_sample):
 
     # first data for grad
     omega_value = _extract_omega_delta_phi(
-        sequence=sequence, dt=dt, with_modulation=False, laser_waist=None
+        sequence=sequence,
+        target_times=target_times,
+        with_modulation=False,
+        laser_waist=None,
     )[0][2, 2].real
 
     # second data to for grad
@@ -687,6 +699,7 @@ def test_get_all_lindblad_operators():
 def test_parsed_sequence(mock_pulser_sample):
     TEST_DURATION = 10
     dt = 2
+    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
     sequence.get_duration.return_value = TEST_DURATION
     amp_tensor = torch.tensor(
         [
@@ -772,7 +785,10 @@ def test_parsed_sequence(mock_pulser_sample):
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
     omega, delta, phi = _extract_omega_delta_phi(
-        sequence=sequence, dt=dt, with_modulation=False, laser_waist=None
+        sequence=sequence,
+        target_times=target_times,
+        with_modulation=False,
+        laser_waist=None,
     )
 
     cutoff_interaction_matrix = torch.tensor(
@@ -801,7 +817,10 @@ def test_parsed_sequence(mock_pulser_sample):
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
     omega, delta, phi = _extract_omega_delta_phi(
-        sequence=sequence, dt=dt, with_modulation=False, laser_waist=None
+        sequence=sequence,
+        target_times=target_times,
+        with_modulation=False,
+        laser_waist=None,
     )
 
     assert torch.allclose(parsed_sequence.omega, omega)
@@ -828,6 +847,7 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
     ]
     TEST_DURATION = 10
     dt = 2
+    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
     sequence.get_duration.return_value = TEST_DURATION
     adressed_basis = "XY"
     sequence.get_addressed_bases.return_value = [adressed_basis]
@@ -849,7 +869,10 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
     )
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
     omega, delta, phi = _extract_omega_delta_phi(
-        sequence=sequence, dt=dt, with_modulation=False, laser_waist=0.1
+        sequence=sequence,
+        target_times=target_times,
+        with_modulation=False,
+        laser_waist=0.1,
     )
     assert torch.allclose(omega, parsed_sequence.omega)
     assert torch.allclose(delta, parsed_sequence.delta)
