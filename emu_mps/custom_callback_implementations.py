@@ -1,4 +1,3 @@
-import math
 import torch
 
 from pulser.backend.default_observables import (
@@ -27,7 +26,7 @@ def qubit_occupation_mps_impl(
     Custom implementation of the qubit density ❬ψ|nᵢ|ψ❭ for the state vector solver.
     """
     op = torch.tensor(
-        [[[0.0, 1.0], [0.0, 1.0]]], dtype=torch.complex128, device=state.factors[0].device
+        [[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.complex128, device=state.factors[0].device
     )
     return state.expect_batch(op).real.reshape(-1).to("cpu")
 
@@ -58,7 +57,9 @@ def energy_variance_mps_impl(
     Custom implementation of the energy variance ❬ψ|H²|ψ❭-❬ψ|H|ψ❭² for the state vector solver.
     """
     h_squared = hamiltonian @ hamiltonian
-    return (h_squared.expect(state).real - hamiltonian.expect(state).real ** 2).to("cpu")  # type: ignore[no-any-return]
+    return (  # type: ignore[no-any-return]
+        (h_squared.expect(state).real - hamiltonian.expect(state).real ** 2).to("cpu")
+    )
 
 
 def energy_second_moment_mps_impl(

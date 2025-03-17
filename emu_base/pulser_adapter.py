@@ -244,7 +244,7 @@ class PulserData:
                 times = config.default_evaluation_times.tolist()  # type: ignore[union-attr]
             observable_times |= set([round(time * sequence_duration) for time in times])
 
-        self.target_times = list(observable_times)
+        self.target_times: list[int] = list(observable_times)
         self.target_times.sort()
 
         laser_waist = (

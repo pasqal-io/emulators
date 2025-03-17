@@ -8,7 +8,6 @@ import random
 from pytest import approx
 
 import emu_mps
-import emu_base.base_classes
 from emu_mps import (
     MPS,
     BitStrings,
@@ -78,7 +77,6 @@ def simulate(
     else:
         if noise_model is None:
             noise_model = pulser.noise_model.NoiseModel()
-    nqubits = len(seq.register.qubit_ids)
     times = [1.0]
     mps_config = MPSConfig(
         initial_state=initial_state,
@@ -115,7 +113,7 @@ def simulate_line(n, **kwargs):
         t_rise=t_rise,
         t_fall=t_fall,
     )
-    return seq.get_duration(), simulate(seq, **kwargs)
+    return simulate(seq, **kwargs)
 
 
 def get_proba(state: MPS, bitstring: str):
@@ -142,7 +140,6 @@ def test_XY_3atoms():
 
     result = simulate(seq, dt=10, given_fidelity_state=False)
 
-    final_time = seq.get_duration()
     final_state: MPS = result.state[-1]
     final_vec = torch.einsum("abc,cde,efg->abdfg", *(final_state.factors)).reshape(8)
 
@@ -230,7 +227,7 @@ def test_end_to_end_afm_ring():
 
     assert bitstrings["1010101010"] == 129  # -> fidelity as samples increase
     assert bitstrings["0101010101"] == 135
-    assert fidelity_state.inner(final_state) == approx(final_fidelity, abs=1e-10)
+    assert fidelity_state.overlap(final_state) == approx(final_fidelity, abs=1e-10)
     assert max_bond_dim == 29
 
     q_density = result.occupation[-1]
@@ -256,7 +253,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [True, True, True, False]
-        final_time, result = simulate_line(4, state_prep_error=0.1)
+        result = simulate_line(4, state_prep_error=0.1)
         final_state = result.state[-1]
         pick_well_prepared_qubits_mock.assert_called_with(0.1, 4)
 
@@ -267,7 +264,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
     with patch(
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
-        final_time, result = simulate_line(3)
+        result = simulate_line(3)
         final_state = result.state[-1]
         pick_well_prepared_qubits_mock.assert_not_called()
         assert get_proba(final_state, "111") == approx(0.56, abs=1e-2)
@@ -277,13 +274,13 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [True, False, True, True]
-        final_time, result = simulate_line(4, state_prep_error=0.1)
+        result = simulate_line(4, state_prep_error=0.1)
         final_state = result.state[-1]
 
     assert get_proba(final_state, "1011") == approx(0.95, abs=1e-2)
 
     # Results for a 2 qubit line.
-    final_time, result = simulate_line(2)
+    result = simulate_line(2)
     final_state = result.state[-1]
     assert get_proba(final_state, "11") == approx(0.95, abs=1e-2)
 
@@ -291,8 +288,8 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [False, True, True, False]
-        final_time, result = simulate_line(4, state_prep_error=0.1)
-        final_state = result.state[final_time]
+        result = simulate_line(4, state_prep_error=0.1)
+        final_state = result.state[-1]
 
     assert get_proba(final_state, "0110") == approx(0.95, abs=1e-2)
 
@@ -302,8 +299,8 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
     ) as pick_well_prepared_qubits_mock:
         with pytest.raises(ValueError) as exception_info:
             pick_well_prepared_qubits_mock.return_value = [False, False, True, False]
-            final_time, result = simulate_line(4, state_prep_error=0.1)
-            final_state = result["state"][final_time]
+            result = simulate_line(4, state_prep_error=0.1)
+            final_state = result.state[-1]
 
     assert "For 1 qubit states, do state vector" in str(exception_info.value)
 
@@ -312,11 +309,11 @@ def test_end_to_end_afm_line_with_measurement_errors():
     with patch("emu_mps.mps.apply_measurement_errors") as apply_measurement_errors_mock:
         bitstrings = MagicMock()
         apply_measurement_errors_mock.return_value = bitstrings
-        final_time, results = simulate_line(4, p_false_pos=0.0, p_false_neg=0.5)
+        results = simulate_line(4, p_false_pos=0.0, p_false_neg=0.5)
         apply_measurement_errors_mock.assert_called_with(
             ANY, p_false_pos=0.0, p_false_neg=0.5
         )
-        assert results["bitstrings"][final_time] is bitstrings
+        assert results.bitstrings[-1] is bitstrings
 
 
 def test_initial_state():
@@ -333,12 +330,12 @@ def test_initial_state():
     )
     assert state.inner(state).real == approx(1.0)  # assert unit norm
 
-    state_result = emu_mps.StateResult(evaluation_times={10})
+    state_result = emu_mps.StateResult(evaluation_times=[1.0])
     config = emu_mps.MPSConfig(observables=[state_result], initial_state=state)
-    backend = emu_mps.MPSBackend()
-    results = backend.run(seq, config)
+    backend = emu_mps.MPSBackend(seq, config=config)
+    results = backend.run()
     # assert that the initial state was used by the emulator
-    assert results[state_result.name][10].inner(state).real == approx(1.0)
+    assert results.get_result(state_result, 1.0).inner(state).real == approx(1.0)
 
 
 def test_initial_state_copy():
@@ -357,7 +354,7 @@ def test_initial_state_copy():
 
     config = emu_mps.MPSConfig(initial_state=initial_state)
 
-    emu_mps.MPSBackend().run(seq, config)
+    emu_mps.MPSBackend(seq, config=config).run()
 
     # Check the initial state's factors were not modified.
     assert all(
@@ -392,9 +389,8 @@ def test_end_to_end_afm_ring_with_noise():
 
     result = simulate(seq, noise_model=noise_model)
 
-    final_time = seq.get_duration()
-    bitstrings = result["bitstrings"][final_time]
-    final_state = result["state"][final_time]
+    bitstrings = result.bitstrings[-1]
+    final_state = result.state[-1]
     max_bond_dim = final_state.get_max_bond_dim()
 
     assert bitstrings["101010"] == 472
@@ -432,8 +428,7 @@ def test_end_to_end_spontaneous_emission():
     )
     result = simulate(seq, noise_model=noise_model, initial_state=initial_state)
 
-    final_time = seq.get_duration()
-    final_state = result["state"][final_time]
+    final_state = result.state[-1]
 
     assert get_proba(final_state, "100000110000") == approx(1, abs=1e-2)
 
@@ -474,8 +469,7 @@ def test_laser_waist():
 
     result = simulate(seq, noise_model=noise_model, dt=10, interaction_cutoff=100)
 
-    final_time = seq.get_duration()
-    final_state = result["state"][final_time]
+    final_state = result.state[-1]
 
     assert pytest.approx(final_state.norm()) == 1.0
 
@@ -532,12 +526,12 @@ def test_autosave():
         save_simulation_mock.side_effect = save_simulation_mock_side_effect
 
         with pytest.raises(Exception) as e:
-            MPSBackend(seq, MPSConfig(observables=[energy])).run()
+            MPSBackend(seq, config=MPSConfig(observables=[energy])).run()
 
         assert str(e.value) == "Process killed!"
 
     assert save_file is not None and save_file.is_file()
-    results_after_resume = MPSBackend().resume(save_file)
+    results_after_resume = MPSBackend.resume(save_file)
 
     assert not save_file.is_file()
 

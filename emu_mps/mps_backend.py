@@ -16,7 +16,8 @@ class MPSBackend(EmulatorBackend):
 
     default_config = MPSConfig()
 
-    def resume(self, autosave_file: str | pathlib.Path) -> Results:
+    @staticmethod
+    def resume(autosave_file: str | pathlib.Path) -> Results:
         """
         Resume simulation from autosave file.
         Only resume simulations from data you trust!
@@ -40,7 +41,7 @@ class MPSBackend(EmulatorBackend):
             f"Saving simulation state every {impl.config.autosave_dt} seconds"
         )
 
-        return self._run(impl)
+        return MPSBackend._run(impl)
 
     def run(self) -> Results:
         """
