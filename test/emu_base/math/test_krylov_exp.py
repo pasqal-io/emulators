@@ -35,6 +35,8 @@ def check(
         assert x.norm() == pytest.approx(1)  # Check all Lanczos vectors have norm 1.
         return torch.tensordot(m, x, dims=1)
 
+# take H = 0.5 pi X
+# v = Idenity
     result = krylov_exp_impl(
         op,
         v,

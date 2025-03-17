@@ -4,7 +4,7 @@ from emu_sv.density_matrix_state import DensityMatrix
 from emu_sv.state_vector import StateVector
 
 dtype = torch.complex128
-device = "cpu"  # "cuda" if torch.cuda.is_available() else "cpu"
+device = 'cpu' #"cuda" if torch.cuda.is_available() else "cpu"
 gpu = False if device == "cpu" else True
 seed = 1337
 
@@ -30,13 +30,11 @@ def test_inner():
     assert density_a.inner(density_b) == 0.0
 
     n_atoms = 2
-    
 
     density_c = DensityMatrix(density_bell_state, gpu=gpu)
 
     assert density_c.inner(density_c) == 1.0
 
-    n_atoms = 2
     dummy_mat = torch.zeros((2**n_atoms, 2**n_atoms), dtype=dtype)
     dummy_mat[0, 0] = 1.0
     density_d = DensityMatrix(dummy_mat, gpu=gpu)

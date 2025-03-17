@@ -65,7 +65,7 @@ class DensityMatrix(State):
         """convert a state vector to a density matrix"""
 
         return DensityMatrix(
-            torch.ger(state.vector, state.vector.conj()), gpu=state.vector.is_cuda
+            torch.outer(state.vector, state.vector.conj()), gpu=state.vector.is_cuda
         )
 
     @staticmethod
@@ -76,11 +76,10 @@ class DensityMatrix(State):
         strings: dict[str, complex],
         **kwargs: Any,
     ) -> DensityMatrix:
+        
         state_vector = StateVector.from_state_string(
             basis=basis, nqubits=nqubits, strings=strings, **kwargs
         )
-
-        # Convert the state vector to a density matrix
 
         return DensityMatrix.from_state_vector(state_vector)
 
