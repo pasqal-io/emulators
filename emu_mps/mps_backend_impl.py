@@ -11,7 +11,8 @@ import torch
 import time
 from pulser import Sequence
 
-from emu_base import Results, State, PulserData, DEVICE_COUNT
+from pulser.backend import Results, State
+from emu_base import PulserData, DEVICE_COUNT
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
@@ -383,7 +384,7 @@ class MPSBackendImpl:
         assert abs(self.current_time - current_time_int) < 1e-10
 
         if self.well_prepared_qubits_filter is None:
-            for callback in self.config.callbacks:
+            for callback in self.config.observables:
                 callback(
                     self.config,
                     current_time_int,
@@ -394,7 +395,7 @@ class MPSBackendImpl:
             return
 
         full_mpo, full_state = None, None
-        for callback in self.config.callbacks:
+        for callback in self.config.observables:
             if current_time_int not in callback.evaluation_times:
                 continue
 

@@ -9,7 +9,6 @@ from pytest import approx
 
 import emu_mps
 import emu_base.base_classes
-import emu_base.base_classes.default_callbacks
 from emu_mps import (
     MPS,
     BitStrings,
@@ -17,10 +16,10 @@ from emu_mps import (
     MPSBackend,
     MPSConfig,
     StateResult,
-    QubitDensity,
+    Occupation,
     Energy,
     EnergyVariance,
-    SecondMomentOfEnergy,
+    EnergySecondMoment,
     CorrelationMatrix,
 )
 
@@ -34,8 +33,6 @@ from test.utils_testing import (
 )
 
 seed = 1337
-
-mps_backend = MPSBackend()
 
 
 def create_antiferromagnetic_mps(num_qubits: int):
@@ -60,7 +57,6 @@ def simulate(
     given_fidelity_state=True,
     interaction_cutoff=0.0,
 ):
-    final_time = seq.get_duration()
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
     else:
@@ -79,8 +75,11 @@ def simulate(
             p_false_pos=p_false_pos,
             p_false_neg=p_false_neg,
         )
+    else:
+        if noise_model is None:
+            noise_model = pulser.noise_model.NoiseModel()
     nqubits = len(seq.register.qubit_ids)
-    times = {final_time}
+    times = [1.0]
     mps_config = MPSConfig(
         initial_state=initial_state,
         dt=dt,
@@ -89,17 +88,18 @@ def simulate(
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=1000),
             Fidelity(evaluation_times=times, state=fidelity_state),
-            QubitDensity(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
+            Occupation(evaluation_times=times),
             Energy(evaluation_times=times),
             EnergyVariance(evaluation_times=times),
-            SecondMomentOfEnergy(evaluation_times=times),
-            CorrelationMatrix(basis={"r", "g"}, evaluation_times=times, nqubits=nqubits),
+            EnergySecondMoment(evaluation_times=times),
+            CorrelationMatrix(evaluation_times=times),
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
     )
 
-    result = mps_backend.run(seq, mps_config)
+    backend = MPSBackend(seq, config=mps_config)
+    result = backend.run()
 
     return result
 
@@ -333,8 +333,8 @@ def test_initial_state():
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(pulse, "ising_global")  # do nothing in the pulse
 
-    state = emu_mps.MPS.from_state_string(
-        basis=("r", "g"), nqubits=5, strings={"rrrrr": 1.0}
+    state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rrrrr": 1.0}
     )
     assert state.inner(state).real == approx(1.0)  # assert unit norm
 
@@ -356,8 +356,8 @@ def test_initial_state_copy():
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(pulse, "ising_global")
 
-    initial_state = emu_mps.MPS.from_state_string(
-        basis=("r", "g"), nqubits=5, strings={"rrrrr": 1.0}
+    initial_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rrrrr": 1.0}
     )
 
     config = emu_mps.MPSConfig(initial_state=initial_state)
@@ -369,8 +369,8 @@ def test_initial_state_copy():
         torch.allclose(initial_state_factor, expected_initial_state_factor)
         for initial_state_factor, expected_initial_state_factor in zip(
             initial_state.factors,
-            emu_mps.MPS.from_state_string(
-                basis=("r", "g"), nqubits=5, strings={"rrrrr": 1.0}
+            emu_mps.MPS.from_state_amplitudes(
+                eigenstates=("r", "g"), amplitudes={"rrrrr": 1.0}
             ).factors,
         )
     )
@@ -432,8 +432,8 @@ def test_end_to_end_spontaneous_emission():
         relaxation_rate=0.1,
     )
 
-    initial_state = emu_mps.MPS.from_state_string(
-        basis=("r", "g"), nqubits=12, strings={"rrrrrrrrrrrr": 1.0}
+    initial_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rrrrrrrrrrrr": 1.0}
     )
     result = simulate(seq, noise_model=noise_model, initial_state=initial_state)
 
@@ -484,8 +484,8 @@ def test_laser_waist():
 
     assert pytest.approx(final_state.norm()) == 1.0
 
-    expected_state = emu_mps.MPS.from_state_string(
-        basis=("r", "g"), nqubits=2, strings={"rr": 1.0}
+    expected_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rr": 1.0}
     )
 
     assert pytest.approx(final_state.inner(expected_state)) == -1.0
@@ -508,8 +508,8 @@ def test_autosave():
         "ising_global",
     )
 
-    evaluation_times = {10, 100, 150}
-    energy = emu_base.Energy(evaluation_times=evaluation_times)
+    evaluation_times = [1.0 / 30.0, 1.0 / 3.0, 0.5]
+    energy = Energy(evaluation_times=evaluation_times)
 
     save_simulation_original = MPSBackendImpl.save_simulation
     save_file = None

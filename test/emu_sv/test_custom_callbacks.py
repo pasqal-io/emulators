@@ -30,7 +30,7 @@ def test_custom_qubit_density() -> None:
     # set up for state
     basis = ("r", "g")
     num_qubits = 4
-    strings = {"rrrr": 1.0, "ggggg": 1.0}
+    strings = {"rrrr": 1.0, "gggg": 1.0}
     state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
 
     operator_mock = MagicMock(spec=DenseOperator)
@@ -82,7 +82,7 @@ def test_custom_correlation() -> None:
 def test_custom_energy_and_variance_and_second() -> None:
 
     torch.manual_seed(1337)
-    dtype = torch.float64
+    dtype = torch.complex128
 
     basis = ("r", "g")
     num_qubits = 4

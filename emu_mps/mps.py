@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Any, List, Optional, Sequence
+from typing import Any, List, Optional, Sequence, TypeVar
 
 import torch
 
-from pulser.backend import State
+from pulser.backend.state import State, Eigenstate
 from emu_base import DEVICE_COUNT
 from emu_mps import MPSConfig
 from emu_mps.algebra import add_factors, scale_factors
@@ -17,6 +17,8 @@ from emu_mps.utils import (
     tensor_trace,
     n_operator,
 )
+
+ArgScalarType = TypeVar("ArgScalarType")
 
 
 class MPS(State[complex, torch.Tensor]):
@@ -54,6 +56,7 @@ class MPS(State[complex, torch.Tensor]):
             num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu, None=keep the existing device assignment.
         """
+        self._eigenstates = ["0", "1"]
         self.config = config if config is not None else MPSConfig()
         assert all(
             factors[i - 1].shape[2] == factors[i].shape[0] for i in range(1, len(factors))
@@ -180,7 +183,12 @@ class MPS(State[complex, torch.Tensor]):
         return max((x.shape[2] for x in self.factors), default=0)
 
     def sample(
-        self, num_shots: int, p_false_pos: float = 0.0, p_false_neg: float = 0.0
+        self,
+        *,
+        num_shots: int,
+        one_state: Eigenstate | None = None,
+        p_false_pos: float = 0.0,
+        p_false_neg: float = 0.0,
     ) -> Counter[str]:
         """
         Samples bitstrings, taking into account the specified error rates.
@@ -193,6 +201,7 @@ class MPS(State[complex, torch.Tensor]):
         Returns:
             the measured bitstrings, by count
         """
+        assert one_state is None or one_state == "r" or one_state == "1"
         self.orthogonalize(0)
 
         rnd_matrix = torch.rand(num_shots, self.num_sites).to(self.factors[0].device)
@@ -255,19 +264,17 @@ class MPS(State[complex, torch.Tensor]):
             )
         return bitstrings
 
-    def norm(self) -> float:
+    def norm(self) -> torch.Tensor:
         """Computes the norm of the MPS."""
         orthogonality_center = (
             self.orthogonality_center
             if self.orthogonality_center is not None
             else self.orthogonalize(0)
         )
+        # the torch.norm function is not properly typed.
+        return self.factors[orthogonality_center].norm().to("cpu")  # type: ignore[no-any-return]
 
-        return float(
-            torch.linalg.norm(self.factors[orthogonality_center].to("cpu")).item()
-        )
-
-    def inner(self, other: State) -> float | complex:
+    def inner(self, other: State) -> torch.Tensor:
         """
         Compute the inner product between this state and other.
         Note that self is the left state in the inner product,
@@ -291,7 +298,10 @@ class MPS(State[complex, torch.Tensor]):
             acc = torch.tensordot(acc, other.factors[i].to(acc.device), dims=1)
             acc = torch.tensordot(self.factors[i].conj(), acc, dims=([0, 1], [0, 1]))
 
-        return acc.item()  # type: ignore[no-any-return]
+        return acc.reshape(1).to("cpu")
+
+    def overlap(self, other: State, /) -> torch.Tensor:
+        return torch.abs(self.inner(other)) ** 2  # type: ignore[no-any-return]
 
     def overlap(self, other: State, /) -> torch.Tensor:
         return torch.abs(self.inner(other))
@@ -378,7 +388,6 @@ class MPS(State[complex, torch.Tensor]):
 
         nqubits = len(next(iter(amplitudes.keys())))
         basis = set(eigenstates)
-
         if basis == {"r", "g"}:
             one = "r"
         elif basis == {"0", "1"}:
@@ -471,7 +480,7 @@ class MPS(State[complex, torch.Tensor]):
 
     def get_correlation_matrix(
         self, *, operator: torch.Tensor = n_operator
-    ) -> list[list[float]]:
+    ) -> torch.Tensor:
         """
         Efficiently compute the symmetric correlation matrix
             C_ij = <self|operator_i operator_j|self>
@@ -522,7 +531,7 @@ class MPS(State[complex, torch.Tensor]):
         return result
 
 
-def inner(left: MPS, right: MPS) -> float | complex:
+def inner(left: MPS, right: MPS) -> torch.Tensor:
     """
     Wrapper around MPS.inner.
 

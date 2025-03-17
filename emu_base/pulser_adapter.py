@@ -6,7 +6,6 @@ from pulser.noise_model import NoiseModel
 from pulser.register.base_register import BaseRegister
 from enum import Enum
 
-
 from pulser.backend.config import EmulationConfig
 from pulser.register.base_register import BaseRegister
 
