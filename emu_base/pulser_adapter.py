@@ -239,7 +239,9 @@ class PulserData:
         observable_times = set(torch.arange(0, sequence.get_duration() + 1, dt).tolist())
         observable_times.add(sequence.get_duration())
         for obs in config.callbacks:
-            observable_times |= set([round(time*sequence_duration) for time in obs.evaluation_times])
+            observable_times |= set(
+                [round(time * sequence_duration) for time in obs.evaluation_times]
+            )
         self.target_times = list(observable_times)
         self.target_times.sort()
 

@@ -96,9 +96,7 @@ class MPSBackendImpl:
 
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
-        if (
-            self.config.noise_model.state_prep_error > 0.0
-        ):
+        if self.config.noise_model.state_prep_error > 0.0:
             self.well_prepared_qubits_filter = pick_well_prepared_qubits(
                 self.config.noise_model.state_prep_error, self.qubit_count
             )
