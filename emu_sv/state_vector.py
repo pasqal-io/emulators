@@ -9,7 +9,7 @@ from emu_base import State, DEVICE_COUNT
 
 import torch
 
-from emu_sv.common_func import _index_to_bitstring
+from emu_sv.utils import _index_to_bitstring
 
 dtype = torch.complex128
 
@@ -88,8 +88,8 @@ class StateVector(State):
         Examples:
             >>> StateVector.make(2,gpu=False)
             tensor([1.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
-                   
-                           
+
+
         """
 
         result = cls.zero(num_sites=num_sites, gpu=gpu)
@@ -136,11 +136,12 @@ class StateVector(State):
         outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
 
         # Convert outcomes to bitstrings and count occurrences
-        counts = Counter([_index_to_bitstring(self.vector,outcome) for outcome in outcomes])
+        counts = Counter(
+            [_index_to_bitstring(self.vector, outcome) for outcome in outcomes]
+        )
 
         # NOTE: false positives and negatives
         return counts
-
 
     def __add__(self, other: State) -> StateVector:
         """Sum of two state vectors
