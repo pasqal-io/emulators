@@ -207,7 +207,8 @@ class StateVector(State):
         Examples:
             >>> basis = ("r","g")
             >>> n = 2
-            >>> st=StateVector.from_state_string(basis=basis,nqubits=n,strings={"rr":1.0,"gg":1.0},gpu=False)
+            >>> st=StateVector.from_state_string(basis=basis,
+                ... nqubits=n,strings={"rr":1.0,"gg":1.0},gpu=False)
             >>> print(st)
             tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
                    dtype=torch.complex128)
@@ -250,9 +251,11 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
         >>> basis = ("r","g")
         >>> nqubits = 2
         >>> string_state1 = {"gg":1.0,"rr":1.0}
-        >>> state1 = StateVector.from_state_string(basis=basis, nqubits=nqubits,strings=string_state1)
+        >>> state1 = StateVector.from_state_string(basis=basis,
+            ... nqubits=nqubits,strings=string_state1)
         >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
-        >>> state2 = StateVector.from_state_string(basis=basis,nqubits=nqubits,strings=string_state2)
+        >>> state2 = StateVector.from_state_string(basis=basis,
+            ... nqubits=nqubits,strings=string_state2)
         >>> inner(state1,state2).item()
         (0.49999999144286444+0j)
     """

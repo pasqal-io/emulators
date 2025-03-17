@@ -4,11 +4,9 @@ from typing import Any, Iterable
 import torch
 from emu_base import State, DEVICE_COUNT
 from emu_sv.state_vector import StateVector
+from emu_sv.utils import _index_to_bitstring
 
 dtype = torch.complex128
-
-from emu_sv.utils import _index_to_bitstring
-from emu_sv.state_vector import StateVector
 
 
 class DensityMatrix(State):
@@ -26,12 +24,13 @@ class DensityMatrix(State):
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         self.matrix = matrix.to(dtype=dtype, device=device)
 
-    def __add__(self, other):
+    def __add__(self, other: State) -> DensityMatrix:
+        # NOTE: this is not implemented
+        raise NotImplementedError("Not implemented")
 
-        NotImplementedError("Not implemented")
-
-    def __rmul__(self, scalar):
-        NotImplementedError("Not implemented")
+    def __rmul__(self, scalar: complex) -> DensityMatrix:
+        # NOTE: this is not implemented
+        raise NotImplementedError("Not implemented")
 
     def _normalize(self) -> None:
         # NOTE: use this in the callbacks
@@ -76,7 +75,7 @@ class DensityMatrix(State):
         strings: dict[str, complex],
         **kwargs: Any,
     ) -> DensityMatrix:
-        
+
         state_vector = StateVector.from_state_string(
             basis=basis, nqubits=nqubits, strings=strings, **kwargs
         )
