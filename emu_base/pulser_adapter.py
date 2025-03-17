@@ -1,5 +1,5 @@
 import pulser
-from typing import Tuple
+from typing import Tuple, Sequence
 import torch
 import math
 from pulser.noise_model import NoiseModel
@@ -7,7 +7,6 @@ from pulser.register.base_register import BaseRegister
 from enum import Enum
 
 from pulser.backend.config import EmulationConfig
-from pulser.register.base_register import BaseRegister
 
 from emu_base.lindblad_operators import get_lindblad_operators
 from emu_base.utils import dist2, dist3
@@ -238,9 +237,13 @@ class PulserData:
         observable_times = set(torch.arange(0, sequence.get_duration() + 1, dt).tolist())
         observable_times.add(sequence.get_duration())
         for obs in config.observables:
-            observable_times |= set(
-                [round(time * sequence_duration) for time in obs.evaluation_times]
-            )
+            times: Sequence[float]
+            if obs.evaluation_times is not None:
+                times = obs.evaluation_times
+            elif config.default_evaluation_times != "Full":
+                times = config.default_evaluation_times.tolist()  # type: ignore[union-attr]
+            observable_times |= set([round(time * sequence_duration) for time in times])
+
         self.target_times = list(observable_times)
         self.target_times.sort()
 
@@ -270,9 +273,7 @@ class PulserData:
                 "the interaction matrix"
             )
 
-            self.full_interaction_matrix = torch.tensor(
-                config.interaction_matrix, dtype=torch.float64
-            )
+            self.full_interaction_matrix = config.interaction_matrix.as_tensor()
         elif self.hamiltonian_type == HamiltonianType.Rydberg:
             self.full_interaction_matrix = _rydberg_interaction(sequence)
         elif self.hamiltonian_type == HamiltonianType.XY:

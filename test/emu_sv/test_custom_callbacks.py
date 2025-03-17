@@ -8,13 +8,8 @@ from emu_base import DEVICE_COUNT
 from emu_sv.custom_callback_implementations import (
     correlation_matrix_sv_impl,
     energy_variance_sv_impl,
-<<<<<<< HEAD
-    qubit_density_sv_impl,
-    second_moment_sv_impl,
-=======
     qubit_occupation_sv_impl,
     energy_second_moment_sv_impl,
->>>>>>> kb/emu-sv-API
 )
 from emu_sv.dense_operator import DenseOperator
 from emu_sv.hamiltonian import RydbergHamiltonian
@@ -31,19 +26,11 @@ from pulser.backend.default_observables import (
 device = "cuda" if DEVICE_COUNT > 0 else "cpu"
 
 
-<<<<<<< HEAD
-def test_custom_qubit_density() -> None:
-    # set up for state
-    basis = ("r", "g")
-    num_qubits = 4
-    strings = {"rrrr": 1.0, "gggg": 1.0}
-=======
 def test_custom_occupation() -> None:
     # set up for state
     basis = ("r", "g")
     num_qubits = 4
     strings = {"rrrr": 1.0, "ggggg": 1.0}
->>>>>>> kb/emu-sv-API
     state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
 
     operator_mock = MagicMock(spec=DenseOperator)
@@ -52,21 +39,13 @@ def test_custom_occupation() -> None:
 
     MockOccupation = MagicMock(spec=Occupation)
 
-<<<<<<< HEAD
-    qubit_density_mock = MockOccupation.return_value
-=======
     occupation_mock = MockOccupation.return_value
->>>>>>> kb/emu-sv-API
 
     t = 1
 
     config = SVConfig()
 
-<<<<<<< HEAD
-    qubit_density = qubit_density_sv_impl(qubit_density_mock, config, t, state, H_mock)
-=======
     occupation = qubit_occupation_sv_impl(occupation_mock, config, t, state, H_mock)
->>>>>>> kb/emu-sv-API
     expected = [0.5] * num_qubits
     assert occupation.cpu() == approx(expected, abs=1e-8)
 
@@ -103,7 +82,6 @@ def test_custom_correlation() -> None:
 def test_custom_energy_and_variance_and_second() -> None:
 
     torch.manual_seed(1337)
-    dtype = torch.complex128
 
     basis = ("r", "g")
     num_qubits = 4
@@ -113,8 +91,12 @@ def test_custom_energy_and_variance_and_second() -> None:
     )
     config = SVConfig()
 
-    omegas = torch.randn(num_qubits, dtype=dtype).to(device)
-    deltas = torch.randn(num_qubits, dtype=dtype).to(device)
+    omegas = torch.randn(num_qubits, dtype=torch.float64).to(
+        device=device, dtype=torch.complex128
+    )
+    deltas = torch.randn(num_qubits, dtype=torch.float64).to(
+        device=device, dtype=torch.complex128
+    )
     phis = torch.zeros_like(omegas)
     interaction_matrix = torch.randn((num_qubits, num_qubits))
     h_rydberg = RydbergHamiltonian(

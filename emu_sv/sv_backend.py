@@ -14,11 +14,7 @@ from emu_base import DEVICE_COUNT
 from emu_base.base_classes.results import Results
 from emu_base.pulser_adapter import PulserData
 
-<<<<<<< HEAD
-from emu_sv import StateVector
-=======
 from emu_sv.state_vector import StateVector
->>>>>>> kb/emu-sv-API
 from emu_sv.sv_config import SVConfig
 from emu_sv.time_evolution import do_time_step
 

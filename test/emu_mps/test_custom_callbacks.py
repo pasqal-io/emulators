@@ -42,10 +42,8 @@ def test_custom_qubit_density() -> None:
 
     qubit_density_mock = MockOccupation.return_value
 
-    t = 1
-
     qubit_density = qubit_occupation_mps_impl(
-        qubit_density_mock, config=config, state=state, H=H_mock
+        qubit_density_mock, config=config, state=state, hamiltonian=H_mock
     )
     expected = [0.5] * num_qubits
     assert qubit_density.cpu() == approx(expected, abs=1e-8)
@@ -62,9 +60,8 @@ def test_custom_correlation() -> None:
     H_mock = operator_mock.return_value
     correlation_matrix_mock = MagicMock(spec=CorrelationMatrix)
     correlation_mock = correlation_matrix_mock.return_value
-    t = 1
     correlation = correlation_matrix_mps_impl(
-        correlation_mock, config=config, state=state, H=H_mock
+        correlation_mock, config=config, state=state, hamiltonian=H_mock
     )
 
     expected = []
@@ -106,23 +103,23 @@ def test_custom_energy_and_variance_and_second() -> None:
     )
     update_H(hamiltonian=h_rydberg, omega=omegas, delta=deltas, phi=phis)
 
-    t = 1
-
     energy_obj = Energy()
     base_energy = energy_obj.apply(state=state, hamiltonian=h_rydberg).real.to("cpu")
-    energy = energy_mps_impl(energy_obj, config=config, state=state, H=h_rydberg)
+    energy = energy_mps_impl(
+        energy_obj, config=config, state=state, hamiltonian=h_rydberg
+    )
     assert torch.allclose(base_energy, energy)
 
     variance_obj = EnergyVariance()
     base_variance = variance_obj.apply(state=state, hamiltonian=h_rydberg).real
     variance = energy_variance_mps_impl(
-        variance_obj, config=config, state=state, H=h_rydberg
+        variance_obj, config=config, state=state, hamiltonian=h_rydberg
     )
     assert variance.item() == approx(base_variance)
 
     square_obj = EnergySecondMoment()
     base_square = square_obj.apply(state=state, hamiltonian=h_rydberg).real
     square = energy_second_moment_mps_impl(
-        square_obj, config=config, state=state, H=h_rydberg
+        square_obj, config=config, state=state, hamiltonian=h_rydberg
     )
     assert square.item() == approx(base_square)

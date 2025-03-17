@@ -1,10 +1,7 @@
 import math
 import torch
 from pytest import approx
-<<<<<<< HEAD
-=======
 from typing import Any
->>>>>>> kb/emu-sv-API
 
 import pulser
 import pulser.noise_model

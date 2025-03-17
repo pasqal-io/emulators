@@ -110,11 +110,7 @@ def test_sample() -> None:
     assert sampling["000"] == 515
 
 
-<<<<<<< HEAD
-def test_from_string() -> None:
-=======
 def test_from_amplitudes() -> None:
->>>>>>> kb/emu-sv-API
     state = StateVector.from_state_amplitudes(
         eigenstates=("r", "g"),
         amplitudes={"rr": 1.0, "gg": 1.0},
