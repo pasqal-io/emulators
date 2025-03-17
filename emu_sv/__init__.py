@@ -1,5 +1,8 @@
-from emu_base.base_classes import Results
+# from emu_base.base_classes import Results
+from pulser.backend.results import Results
+
 from emu_base.base_classes.callback import AggregationType
+
 from pulser.backend import (
     BitStrings,
     Callback,

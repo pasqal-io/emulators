@@ -4,14 +4,14 @@ from time import time
 
 from pulser import Sequence
 
-from emu_base.base_classes.backend import BackendConfig
-from emu_base.base_classes.backend import Backend
+# from emu_base.base_classes.backend import BackendConfig
+# from emu_base.base_classes.backend import Backend
 
-# from pulser.backend.config import EmulationConfig as BackendConfig
-# from pulser.backend.abc import EmulatorBackend as Backend
+from pulser.backend import Backend, EmulationConfig, Results
+
+# from emu_base.base_classes.results import Results
 
 from emu_base import DEVICE_COUNT
-from emu_base.base_classes.results import Results
 from emu_base.pulser_adapter import PulserData
 
 from emu_sv.state_vector import StateVector
@@ -26,7 +26,12 @@ class SVBackend(Backend):
     A backend for emulating Pulser sequences using state vectors and sparse matrices.
     """
 
-    def run(self, sequence: Sequence, sv_config: BackendConfig) -> Results:
+    def __init__(self, sequence: Sequence, sv_config: EmulationConfig):
+        super().__init__(sequence=sequence, mimic_qpu=False)
+        assert isinstance(sv_config, EmulationConfig)
+        self.config = sv_config
+
+    def run(self) -> Results:
         """
         Emulates the given sequence.
 
@@ -37,26 +42,25 @@ class SVBackend(Backend):
         Returns:
             the simulation results
         """
-        assert isinstance(sv_config, SVConfig)
-
-        self.validate_sequence(sequence)
+        # TODO: do I have SVconfig
+        assert isinstance(self.config, SVConfig)
 
         results = Results()
 
-        data = PulserData(sequence=sequence, config=sv_config, dt=sv_config.dt)
+        data = PulserData(sequence=self.sequence, config=self.config, dt=self.config.dt)
         omega, delta, phi = data.omega, data.delta, data.phi
 
         target_times = data.target_times
 
         nsteps = omega.shape[0]
         nqubits = omega.shape[1]
-        device = "cuda" if sv_config.gpu and DEVICE_COUNT > 0 else "cpu"
+        device = "cuda" if self.config.gpu and DEVICE_COUNT > 0 else "cpu"
 
-        if sv_config.initial_state is not None:
-            state = sv_config.initial_state
+        if self.config.initial_state is not None:
+            state = self.config.initial_state
             state.vector = state.vector.to(device)
         else:
-            state = StateVector.make(nqubits, gpu=sv_config.gpu)
+            state = StateVector.make(nqubits, gpu=self.config.gpu)
 
         for step in range(nsteps):
             start = time()
@@ -69,14 +73,14 @@ class SVBackend(Backend):
                 phi[step],
                 data.full_interaction_matrix,
                 state.vector,
-                sv_config.krylov_tolerance,
+                self.config.krylov_tolerance,
             )
 
             # TODO: remove this type ignore thing
-            for callback in sv_config.callbacks:
+            for callback in self.config.callbacks:
                 callback(
-                    sv_config,
-                    (step + 1) * sv_config.dt,
+                    self.config,
+                    (step + 1) * self.config.dt,
                     state,  # type: ignore[arg-type]
                     H,  # type: ignore[arg-type]
                     results,
@@ -89,7 +93,7 @@ class SVBackend(Backend):
                 duration=end - start,
                 timestep_count=nsteps,
                 state=state,
-                sv_config=sv_config,
+                sv_config=self.config,
             )
 
         return results

@@ -6,16 +6,17 @@ from typing import Any
 import pulser
 import pulser.noise_model
 
-import emu_base.base_classes
-import emu_base.base_classes.default_callbacks
-from emu_base.base_classes import (
-    BitStrings,
+# import emu_base.base_classes
+import emu_base.base_classes.default_callbacks  # this gives only fidelity counter = -1
+
+from pulser.backend.default_observables import (
     CorrelationMatrix,
-    Energy,
+    EnergySecondMoment,
     EnergyVariance,
+    Occupation,
+    BitStrings,
+    Energy,
     Fidelity,
-    QubitDensity,
-    SecondMomentOfEnergy,
     StateResult,
 )
 
@@ -29,8 +30,6 @@ from test.utils_testing import (
 
 
 seed = 1337
-
-sv_backend = SVBackend()
 
 
 Omega_max = 4 * 2 * torch.pi
@@ -71,14 +70,13 @@ def simulate(
     interaction_cutoff: float = 0,
     gpu: bool = True,
 ) -> None:
-    final_time = seq.get_duration()
+    final_time: float = seq.get_duration()
+    n_qubits = len(seq.register.qubit_ids)
 
     if given_fidelity_state:
-        fidelity_state = create_antiferromagnetic_state_vector(
-            len(seq.register.qubit_ids), gpu=gpu
-        )
+        fidelity_state = create_antiferromagnetic_state_vector(n_qubits, gpu=gpu)
     else:
-        fidelity_state = StateVector.make(len(seq.register.qubit_ids))
+        fidelity_state = StateVector.make(n_qubits)  # make |00.0>
 
     if state_prep_error > 0.0 or p_false_pos > 0.0 or p_false_neg > 0.0:
         assert noise_model is None, "Provide either noise_model or SPAM values"
@@ -94,8 +92,8 @@ def simulate(
             p_false_neg=p_false_neg,
         )
 
-    nqubits = len(seq.register.qubit_ids)
-    times = {final_time}
+    # nqubits = len(seq.register.qubit_ids)
+    times = [final_time]
 
     sv_config = SVConfig(
         initial_state=initial_state,
@@ -105,18 +103,18 @@ def simulate(
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=1000),
             Fidelity(evaluation_times=times, state=fidelity_state),
-            QubitDensity(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
+            Occupation(evaluation_times=times, one_state={"r", "g"}),
             Energy(evaluation_times=times),
             EnergyVariance(evaluation_times=times),
-            SecondMomentOfEnergy(evaluation_times=times),
-            CorrelationMatrix(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
+            EnergySecondMoment(evaluation_times=times),
+            CorrelationMatrix(evaluation_times=times, one_state={"r", "g"}),
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
         gpu=gpu,
     )
 
-    result = sv_backend.run(seq, sv_config)
+    result = SVBackend(seq, sv_config).run()
 
     return result
 

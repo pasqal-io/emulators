@@ -2,9 +2,6 @@ import copy
 from types import MethodType
 from typing import Any
 
-# from emu_base import BackendConfig
-
-# from pulser.backend.config import EmulationConfig
 from pulser.backend.config import EmulationConfig
 
 from pulser.backend import (
