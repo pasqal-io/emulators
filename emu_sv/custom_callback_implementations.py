@@ -9,7 +9,12 @@ from pulser.backend.default_observables import (
     Occupation,
 )
 
+<<<<<<< HEAD
 from emu_sv import StateVector, DenseOperator
+=======
+from emu_sv.state_vector import StateVector
+from emu_sv.dense_operator import DenseOperator
+>>>>>>> kb/emu-sv-API
 from emu_sv.hamiltonian import RydbergHamiltonian
 
 

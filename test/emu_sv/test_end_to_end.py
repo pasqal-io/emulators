@@ -1,6 +1,10 @@
 import math
 import torch
 from pytest import approx
+<<<<<<< HEAD
+=======
+from typing import Any
+>>>>>>> kb/emu-sv-API
 
 import pulser
 import pulser.noise_model
@@ -60,16 +64,16 @@ def create_antiferromagnetic_state_vector(
 def simulate(
     seq: pulser.Sequence,
     *,
-    dt=100,
-    noise_model=None,
-    state_prep_error=0.0,
-    p_false_pos=0.0,
-    p_false_neg=0.0,
-    initial_state=None,
-    given_fidelity_state=True,
-    interaction_cutoff=0.0,
-    gpu=True,
-):
+    dt: int = 100,
+    noise_model: Any | None = None,
+    state_prep_error: float = 0,
+    p_false_pos: float = 0,
+    p_false_neg: float = 0,
+    initial_state: Any | None = None,
+    given_fidelity_state: bool = True,
+    interaction_cutoff: float = 0,
+    gpu: bool = True,
+) -> None:
     final_time = seq.get_duration()
 
     if given_fidelity_state:
@@ -120,7 +124,7 @@ def simulate(
     return result
 
 
-def test_end_to_end_afm_ring():
+def test_end_to_end_afm_ring() -> None:
     torch.manual_seed(seed)
 
     num_qubits = 10
@@ -169,7 +173,7 @@ def test_end_to_end_afm_ring():
     assert approx(second_moment_energy, 1e-6) == 13350.5053421
 
 
-def test_end_to_end_pi_half_pulse():
+def test_end_to_end_pi_half_pulse() -> None:
     # π/2 pulse Blackman creates |ψ❭=(|0❭-1j|1❭)/sqrt(2)
     duration = 1000  # ns, so 1 μs
     area = math.pi / 2
@@ -183,7 +187,7 @@ def test_end_to_end_pi_half_pulse():
     assert torch.allclose(final_state.vector.cpu(), expected, atol=1e-8)
 
 
-def test_end_to_end_pi_half_pulse_with_phase():
+def test_end_to_end_pi_half_pulse_with_phase() -> None:
     # π/2 pulse Blackman creates |ψ❭=(|0❭-1j|1❭)/sqrt(2)
     # with a phase factor exp(-1j*duration*φ) = 1j
     duration = 1000  # ns, so 1 μs

@@ -13,7 +13,11 @@ from pulser.backend import (
     Occupation,
     EnergySecondMoment,
 )
+<<<<<<< HEAD
 from emu_sv import StateVector
+=======
+from emu_sv.state_vector import StateVector
+>>>>>>> kb/emu-sv-API
 from emu_sv.custom_callback_implementations import (
     correlation_matrix_sv_impl,
     energy_variance_sv_impl,
@@ -66,7 +70,7 @@ class SVConfig(EmulationConfig):
         self.gpu = gpu
         self.krylov_tolerance = krylov_tolerance
 
-        for num, obs in enumerate(self.callbacks):  # monkey patch
+        for num, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
             if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
