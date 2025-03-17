@@ -87,7 +87,7 @@ def simulate(
         observables=[
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=1000),
-            Fidelity(evaluation_times=times, state=fidelity_state),
+            Fidelity(evaluation_times=times, state=fidelity_state, tag_suffix="1"),
             Occupation(evaluation_times=times),
             Energy(evaluation_times=times),
             EnergyVariance(evaluation_times=times),
@@ -143,7 +143,7 @@ def test_XY_3atoms():
     result = simulate(seq, dt=10, given_fidelity_state=False)
 
     final_time = seq.get_duration()
-    final_state: MPS = result["state"][final_time]
+    final_state: MPS = result.state[-1]
     final_vec = torch.einsum("abc,cde,efg->abdfg", *(final_state.factors)).reshape(8)
 
     expected_res = torch.tensor(
@@ -162,12 +162,11 @@ def test_XY_3atoms():
     )
 
     # pulser magnetization: [0.46024234949993825,0.4776498885102908,0.4602423494999386#
-    q_density = result["qubit_density"][final_time]
+    q_density = result.occupation[-1]
 
     max_bond_dim = final_state.get_max_bond_dim()
     assert max_bond_dim == 2
-    assert approx(q_density, 1e-3) == [0.4610, 0.4786, 0.4610]
-    print(torch.max(torch.abs(final_vec - expected_res)))
+    assert approx(q_density.tolist(), 1e-3) == [0.4610, 0.4786, 0.4610]
     assert torch.allclose(final_vec, expected_res, rtol=0, atol=1e-4)
 
 
@@ -177,8 +176,7 @@ def test_XY_3atomswith_slm():
 
     result = simulate(seq, dt=10, given_fidelity_state=False)
 
-    final_time = seq.get_duration()
-    final_state: MPS = result["state"][final_time]
+    final_state: MPS = result.state[-1]
     final_vec = torch.einsum("abc,cde,efg->abdfg", *(final_state.factors)).reshape(8)
     # pulser vector: 0.707,(−0.171+0.182j),(0.449−0.103j),0.0,(0.138−0.455j),1.761×10 −12,
     # −1.873×10−12j,0.0
@@ -198,7 +196,7 @@ def test_XY_3atomswith_slm():
         dtype=torch.complex128,
     )
     # pulser magnetization: [0.22572457283642877,0.21208108307887844,0.06213666344288577
-    q_density = result["qubit_density"][final_time]
+    q_density = result.occupation[-1]
 
     max_bond_dim = final_state.get_max_bond_dim()
     assert max_bond_dim == 2
@@ -224,12 +222,9 @@ def test_end_to_end_afm_ring():
 
     result = simulate(seq)
 
-    final_time = seq.get_duration()
-    bitstrings = result["bitstrings"][final_time]
-    final_state = result["state"][final_time]
-    final_fidelity = result[
-        f"fidelity_{emu_base.base_classes.default_callbacks._fidelity_counter}"
-    ][final_time]
+    bitstrings = result.bitstrings[-1]
+    final_state = result.state[-1]
+    final_fidelity = result.fidelity_1[-1]
     max_bond_dim = final_state.get_max_bond_dim()
     fidelity_state = create_antiferromagnetic_mps(num_qubits)
 
@@ -238,19 +233,19 @@ def test_end_to_end_afm_ring():
     assert fidelity_state.inner(final_state) == approx(final_fidelity, abs=1e-10)
     assert max_bond_dim == 29
 
-    q_density = result["qubit_density"][final_time]
+    q_density = result.occupation[-1]
     assert approx(q_density, 1e-3) == [0.578] * 10
 
-    energy = result["energy"][final_time]
+    energy = result.energy[-1]
     assert approx(energy, 1e-8) == -115.34370829396005
 
-    energy_variance = result["energy_variance"][final_time]
+    energy_variance = result.energy_variance[-1]
     assert approx(energy_variance, 1e-6) == 45.905980469959104
 
-    second_moment_energy = result["second_moment_of_energy"][final_time]
+    second_moment_energy = result.energy_second_moment[-1]
     assert approx(second_moment_energy, 1e-6) == 13350.07680148
 
-    correlation_matrix = result["correlation_matrix"][final_time]
+    correlation_matrix = result.correlation_matrix[-1]
     print(correlation_matrix)
 
 
@@ -262,7 +257,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [True, True, True, False]
         final_time, result = simulate_line(4, state_prep_error=0.1)
-        final_state = result["state"][final_time]
+        final_state = result.state[-1]
         pick_well_prepared_qubits_mock.assert_called_with(0.1, 4)
 
     assert get_proba(final_state, "1110") == approx(0.56, abs=1e-2)
@@ -273,7 +268,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         final_time, result = simulate_line(3)
-        final_state = result["state"][final_time]
+        final_state = result.state[-1]
         pick_well_prepared_qubits_mock.assert_not_called()
         assert get_proba(final_state, "111") == approx(0.56, abs=1e-2)
         assert get_proba(final_state, "101") == approx(0.43, abs=1e-2)
@@ -283,13 +278,13 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [True, False, True, True]
         final_time, result = simulate_line(4, state_prep_error=0.1)
-        final_state = result["state"][final_time]
+        final_state = result.state[-1]
 
     assert get_proba(final_state, "1011") == approx(0.95, abs=1e-2)
 
     # Results for a 2 qubit line.
     final_time, result = simulate_line(2)
-    final_state = result["state"][final_time]
+    final_state = result.state[-1]
     assert get_proba(final_state, "11") == approx(0.95, abs=1e-2)
 
     with patch(
@@ -297,7 +292,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [False, True, True, False]
         final_time, result = simulate_line(4, state_prep_error=0.1)
-        final_state = result["state"][final_time]
+        final_state = result.state[final_time]
 
     assert get_proba(final_state, "0110") == approx(0.95, abs=1e-2)
 
@@ -537,7 +532,7 @@ def test_autosave():
         save_simulation_mock.side_effect = save_simulation_mock_side_effect
 
         with pytest.raises(Exception) as e:
-            MPSBackend().run(seq, MPSConfig(observables=[energy]))
+            MPSBackend(seq, MPSConfig(observables=[energy])).run()
 
         assert str(e.value) == "Process killed!"
 
@@ -546,7 +541,7 @@ def test_autosave():
 
     assert not save_file.is_file()
 
-    results_expected = MPSBackend().run(seq, MPSConfig(observables=[energy]))
+    results_expected = MPSBackend(seq, MPSConfig(observables=[energy])).run()
 
     for t in evaluation_times:
         assert results_after_resume["energy", t] == results_expected["energy", t]

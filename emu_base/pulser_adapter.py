@@ -237,7 +237,7 @@ class PulserData:
         # the end value is exclusive, so add +1
         observable_times = set(torch.arange(0, sequence.get_duration() + 1, dt).tolist())
         observable_times.add(sequence.get_duration())
-        for obs in config.callbacks:
+        for obs in config.observables:
             observable_times |= set(
                 [round(time * sequence_duration) for time in obs.evaluation_times]
             )

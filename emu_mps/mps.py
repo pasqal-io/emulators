@@ -303,9 +303,6 @@ class MPS(State[complex, torch.Tensor]):
     def overlap(self, other: State, /) -> torch.Tensor:
         return torch.abs(self.inner(other)) ** 2  # type: ignore[no-any-return]
 
-    def overlap(self, other: State, /) -> torch.Tensor:
-        return torch.abs(self.inner(other))
-
     def get_memory_footprint(self) -> float:
         """
         Returns the number of MBs of memory occupied to store the state

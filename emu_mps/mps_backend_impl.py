@@ -76,7 +76,8 @@ class MPSBackendImpl:
         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
         self.tdvp_index = 0
         self.timestep_index = 0
-        self.results = Results()
+        self.results = Results(atom_order=None, total_duration=self.target_times[-1])
+        self.results.statistics = None
         self.autosave_file = self._get_autosave_filepath(self.config.autosave_prefix)
         self.config.logger.warning(
             f"""Will save simulation state to file "{self.autosave_file.name}"
@@ -381,13 +382,14 @@ class MPSBackendImpl:
         normalized_state = 1 / self.state.norm() * self.state
 
         current_time_int: int = round(self.current_time)
+        fractional_time = self.current_time / self.target_times[-1]
         assert abs(self.current_time - current_time_int) < 1e-10
 
         if self.well_prepared_qubits_filter is None:
             for callback in self.config.observables:
                 callback(
                     self.config,
-                    current_time_int,
+                    fractional_time,
                     normalized_state,
                     self.hamiltonian,
                     self.results,
@@ -396,7 +398,7 @@ class MPSBackendImpl:
 
         full_mpo, full_state = None, None
         for callback in self.config.observables:
-            if current_time_int not in callback.evaluation_times:
+            if fractional_time not in callback.evaluation_times:
                 continue
 
             if full_mpo is None or full_state is None:
@@ -417,7 +419,7 @@ class MPSBackendImpl:
                     ),
                 )
 
-            callback(self.config, current_time_int, full_state, full_mpo, self.results)
+            callback(self.config, fractional_time, full_state, full_mpo, self.results)
 
     def log_step_statistics(self, *, duration: float) -> None:
         if self.state.factors[0].is_cuda:

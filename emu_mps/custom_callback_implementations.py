@@ -21,7 +21,7 @@ def qubit_occupation_mps_impl(
     *,
     config: "MPSConfig",
     state: "MPS",
-    H: "MPO",
+    hamiltonian: "MPO",
 ) -> torch.Tensor:
     """
     Custom implementation of the qubit density ❬ψ|nᵢ|ψ❭ for the state vector solver.
@@ -37,7 +37,7 @@ def correlation_matrix_mps_impl(
     *,
     config: "MPSConfig",
     state: "MPS",
-    H: "MPO",
+    hamiltonian: "MPO",
 ) -> torch.Tensor:
     """
     Custom implementation of the density-density correlation ❬ψ|nᵢnⱼ|ψ❭ for the state vector solver.
@@ -52,13 +52,13 @@ def energy_variance_mps_impl(
     *,
     config: "MPSConfig",
     state: "MPS",
-    H: "MPO",
+    hamiltonian: "MPO",
 ) -> torch.Tensor:
     """
     Custom implementation of the energy variance ❬ψ|H²|ψ❭-❬ψ|H|ψ❭² for the state vector solver.
     """
-    h_squared = H @ H
-    return (h_squared.expect(state).real - H.expect(state).real ** 2).to("cpu")  # type: ignore[no-any-return]
+    h_squared = hamiltonian @ hamiltonian
+    return (h_squared.expect(state).real - hamiltonian.expect(state).real ** 2).to("cpu")  # type: ignore[no-any-return]
 
 
 def energy_second_moment_mps_impl(
@@ -66,13 +66,13 @@ def energy_second_moment_mps_impl(
     *,
     config: "MPSConfig",
     state: "MPS",
-    H: "MPO",
+    hamiltonian: "MPO",
 ) -> torch.Tensor:
     """
     Custom implementation of the second moment of energy ❬ψ|H²|ψ❭
     for the state vector solver.
     """
-    H_square = H @ H
+    H_square = hamiltonian @ hamiltonian
     return H_square.expect(state).real.to("cpu")
 
 
@@ -81,10 +81,10 @@ def energy_mps_impl(
     *,
     config: "MPSConfig",
     state: "MPS",
-    H: "MPO",
+    hamiltonian: "MPO",
 ) -> torch.Tensor:
     """
     Custom implementation of the second moment of energy ❬ψ|H²|ψ❭
     for the state vector solver.
     """
-    return H.expect(state).real.to("cpu")
+    return hamiltonian.expect(state).real.to("cpu")
