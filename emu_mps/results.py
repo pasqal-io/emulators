@@ -66,6 +66,6 @@ class MPSResults(Results):
         return json.dumps(self._to_abstract_repr(), cls=AbstractReprEncoder)
 
     @classmethod
-    def from_abstract_repr(cls, repr: str) -> None:
+    def from_abstract_repr(cls, repr: str) -> MPSResults:
         d = json.loads(repr)
         return cls._from_abstract_repr(d)
