@@ -537,7 +537,7 @@ def test_autosave() -> None:
 
     assert not save_file.is_file()
 
-    results_expected = MPSBackend(seq, MPSConfig(observables=[energy])).run()
+    results_expected = MPSBackend(seq, config = MPSConfig(observables=[energy])).run()
 
     for t in evaluation_times:
-        assert results_after_resume["energy", t] == results_expected["energy", t]
+        assert torch.allclose(results_after_resume.get_result("energy", t), results_expected.get_result("energy", t))

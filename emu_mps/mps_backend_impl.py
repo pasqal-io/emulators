@@ -2,7 +2,7 @@ import math
 import pathlib
 import random
 import uuid
-from resource import RUSAGE_SELF, getrusage
+#from resource import RUSAGE_SELF, getrusage
 from typing import Optional, Any
 import typing
 import pickle
@@ -10,8 +10,10 @@ import os
 import torch
 import time
 from pulser import Sequence
+from types import MethodType
 
-from pulser.backend import Results, State, Observable, EmulationConfig
+from emu_mps.results import MPSResults
+from pulser.backend import State, Observable, EmulationConfig
 from emu_base import PulserData, DEVICE_COUNT
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_mps.hamiltonian import make_H, update_H
@@ -66,7 +68,7 @@ class Statistics(Observable):
             )
             max_mem = max(max_mem_per_device)
         else:
-            max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+            max_mem = 0#getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
 
         config.logger.info(
             f"step = {len(self.data)}/{self.timestep_count}, "
@@ -101,7 +103,7 @@ class MPSBackendImpl:
     swipe_direction: SwipeDirection
     timestep_index: int
     target_time: float
-    results: Results
+    results: MPSResults
 
     def __init__(self, mps_config: MPSConfig, pulser_data: PulserData):
         self.config = mps_config
@@ -126,7 +128,7 @@ class MPSBackendImpl:
         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
         self.tdvp_index = 0
         self.timestep_index = 0
-        self.results = Results(atom_order=(), total_duration=self.target_times[-1])
+        self.results = MPSResults(atom_order=(), total_duration=self.target_times[-1])
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
             data=[],
@@ -145,6 +147,20 @@ class MPSBackendImpl:
                 f"Requested to use {self.config.num_gpus_to_use} GPU(s) "
                 f"but only {DEVICE_COUNT if DEVICE_COUNT > 0 else 'cpu'} available"
             )
+
+    def __getstate__(self):
+        for obs in self.config.observables:
+            obs.apply = MethodType(  # type: ignore[method-assign]
+                    type(obs).apply, obs
+                )
+        self.results = self.results._to_abstract_repr()
+        return self.__dict__
+    
+    def __setstate__(self, d):
+        d["results"] = MPSResults._from_abstract_repr(d["results"])
+        self.__dict__ = d
+        self.config.monkeypatch_observables()
+        
 
     @staticmethod
     def _get_autosave_filepath(autosave_prefix: str) -> pathlib.Path:
