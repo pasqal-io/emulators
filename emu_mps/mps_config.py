@@ -96,6 +96,33 @@ class MPSConfig(EmulationConfig):
         assert (
             self.autosave_dt > MIN_AUTOSAVE_DT
         ), f"autosave_dt must be larger than {MIN_AUTOSAVE_DT} seconds"
+        
+        self.monkeypatch_observables()
+
+        self.logger = logging.getLogger("global_logger")
+        if log_file is None:
+            logging.basicConfig(
+                level=log_level, format="%(message)s", stream=sys.stdout, force=True
+            )  # default to stream = sys.stderr
+        else:
+            logging.basicConfig(
+                level=log_level,
+                format="%(message)s",
+                filename=str(log_file),
+                filemode="w",
+                force=True,
+            )
+        if (
+            self.noise_model.runs != 1
+            or self.noise_model.samples_per_run != 1
+            or self.noise_model.runs is not None
+            or self.noise_model.samples_per_run is not None
+        ):
+            self.logger.warning(
+                "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
+            )
+
+    def monkeypatch_observables(self):
         obs_list = []
         for num, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
@@ -122,25 +149,16 @@ class MPSConfig(EmulationConfig):
             obs_list.append(obs_copy)
         self.observables = tuple(obs_list)
 
-        self.logger = logging.getLogger("global_logger")
-        if log_file is None:
+    def init_logging(self) -> None:
+        if self.log_file is None:
             logging.basicConfig(
-                level=log_level, format="%(message)s", stream=sys.stdout, force=True
+                level=self.log_level, format="%(message)s", stream=sys.stdout, force=True
             )  # default to stream = sys.stderr
         else:
             logging.basicConfig(
-                level=log_level,
+                level=self.log_level,
                 format="%(message)s",
-                filename=str(log_file),
+                filename=str(self.log_file),
                 filemode="w",
                 force=True,
-            )
-        if (
-            self.noise_model.runs != 1
-            or self.noise_model.samples_per_run != 1
-            or self.noise_model.runs is not None
-            or self.noise_model.samples_per_run is not None
-        ):
-            self.logger.warning(
-                "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
             )
