@@ -82,7 +82,7 @@ afm_mps_state = MPS.from_state_amplitudes(eigenstates=basis, amplitudes=afm_stri
 another_afm_mps = MPS.from_state_amplitudes(eigenstates=basis, amplitudes=another_afm)
 
 
-#state_result = StateResult(evaluation_times=times)
+state_result = StateResult(evaluation_times=times)
 bitstrings = BitStrings(evaluation_times=times, num_shots=1000)
 fidelity = Fidelity(
     evaluation_times=times, state=afm_mps_state, tag_suffix="afm"
@@ -103,10 +103,6 @@ mpsconfig = MPSConfig(
 sim = MPSBackend(seq, config=mpsconfig)
 
 results = sim.run()
-
-repr = results.to_abstract_repr()
-from emu_mps.results import MPSResults
-results2 = MPSResults.from_abstract_repr(repr)
 
 # all the observables computed
 results.get_result_tags()

@@ -96,7 +96,7 @@ class MPSConfig(EmulationConfig):
         assert (
             self.autosave_dt > MIN_AUTOSAVE_DT
         ), f"autosave_dt must be larger than {MIN_AUTOSAVE_DT} seconds"
-        
+
         self.monkeypatch_observables()
 
         self.logger = logging.getLogger("global_logger")
@@ -122,7 +122,7 @@ class MPSConfig(EmulationConfig):
                 "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
             )
 
-    def monkeypatch_observables(self):
+    def monkeypatch_observables(self) -> None:
         obs_list = []
         for num, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
