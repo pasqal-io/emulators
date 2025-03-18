@@ -2,7 +2,8 @@ import math
 import pathlib
 import random
 import uuid
-#from resource import RUSAGE_SELF, getrusage
+
+from resource import RUSAGE_SELF, getrusage
 from typing import Optional, Any
 import typing
 import pickle
@@ -68,7 +69,7 @@ class Statistics(Observable):
             )
             max_mem = max(max_mem_per_device)
         else:
-            max_mem = 0#getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+            max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
 
         config.logger.info(
             f"step = {len(self.data)}/{self.timestep_count}, "
@@ -148,19 +149,17 @@ class MPSBackendImpl:
                 f"but only {DEVICE_COUNT if DEVICE_COUNT > 0 else 'cpu'} available"
             )
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict:
         for obs in self.config.observables:
-            obs.apply = MethodType(  # type: ignore[method-assign]
-                    type(obs).apply, obs
-                )
-        self.results = self.results._to_abstract_repr()
-        return self.__dict__
-    
-    def __setstate__(self, d):
+            obs.apply = MethodType(type(obs).apply, obs)  # type: ignore[method-assign]
+        d = self.__dict__
+        d["results"] = self.results._to_abstract_repr()
+        return d
+
+    def __setstate__(self, d: dict) -> None:
         d["results"] = MPSResults._from_abstract_repr(d["results"])
         self.__dict__ = d
         self.config.monkeypatch_observables()
-        
 
     @staticmethod
     def _get_autosave_filepath(autosave_prefix: str) -> pathlib.Path:
