@@ -1,4 +1,4 @@
-from emu_base import (
+from pulser.backend import (
     Callback,
     BitStrings,
     CorrelationMatrix,
@@ -6,9 +6,9 @@ from emu_base import (
     EnergyVariance,
     Expectation,
     Fidelity,
-    QubitDensity,
+    Occupation,
     StateResult,
-    SecondMomentOfEnergy,
+    EnergySecondMoment,
 )
 from .mps_config import MPSConfig
 from .mpo import MPO
@@ -26,13 +26,13 @@ __all__ = [
     "Callback",
     "StateResult",
     "BitStrings",
-    "QubitDensity",
+    "Occupation",
     "CorrelationMatrix",
     "Expectation",
     "Fidelity",
     "Energy",
     "EnergyVariance",
-    "SecondMomentOfEnergy",
+    "EnergySecondMoment",
 ]
 
-__version__ = "1.2.6"
+__version__ = "2.0.0"

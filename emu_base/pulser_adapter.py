@@ -1,13 +1,13 @@
 import pulser
-from typing import Tuple
+from typing import Tuple, Sequence
 import torch
 import math
 from pulser.noise_model import NoiseModel
+from pulser.register.base_register import BaseRegister
 from enum import Enum
 
-from pulser.register.base_register import BaseRegister
+from pulser.backend.config import EmulationConfig
 
-from emu_base.base_classes.config import BackendConfig
 from emu_base.lindblad_operators import get_lindblad_operators
 from emu_base.utils import dist2, dist3
 
@@ -229,15 +229,21 @@ class PulserData:
     hamiltonian_type: HamiltonianType
     lindblad_ops: list[torch.Tensor]
 
-    def __init__(self, *, sequence: pulser.Sequence, config: BackendConfig, dt: int):
+    def __init__(self, *, sequence: pulser.Sequence, config: EmulationConfig, dt: int):
         self.qubit_count = len(sequence.register.qubit_ids)
-
+        sequence_duration = sequence.get_duration()
         # the end value is exclusive, so add +1
         observable_times = set(torch.arange(0, sequence.get_duration() + 1, dt).tolist())
         observable_times.add(sequence.get_duration())
-        for obs in config.callbacks:
-            observable_times |= set(obs.evaluation_times)
-        self.target_times = list(observable_times)
+        for obs in config.observables:
+            times: Sequence[float]
+            if obs.evaluation_times is not None:
+                times = obs.evaluation_times
+            elif config.default_evaluation_times != "Full":
+                times = config.default_evaluation_times.tolist()  # type: ignore[union-attr]
+            observable_times |= set([round(time * sequence_duration) for time in times])
+
+        self.target_times: list[int] = list(observable_times)
         self.target_times.sort()
 
         laser_waist = (
@@ -266,9 +272,7 @@ class PulserData:
                 "the interaction matrix"
             )
 
-            self.full_interaction_matrix = torch.tensor(
-                config.interaction_matrix, dtype=torch.float64
-            )
+            self.full_interaction_matrix = config.interaction_matrix.as_tensor()
         elif self.hamiltonian_type == HamiltonianType.Rydberg:
             self.full_interaction_matrix = _rydberg_interaction(sequence)
         elif self.hamiltonian_type == HamiltonianType.XY:

@@ -1,28 +1,28 @@
-from emu_base.base_classes import (
-    CorrelationMatrix,
-    QubitDensity,
-    EnergyVariance,
-    SecondMomentOfEnergy,
-)
-
 import copy
-
-
-from emu_base import BackendConfig
-from emu_sv import StateVector
+from types import MethodType
 from typing import Any
 
-from emu_sv.custom_callback_implementations import (
-    qubit_density_sv_impl,
-    energy_variance_sv_impl,
-    second_moment_sv_impl,
-    correlation_matrix_sv_impl,
+from pulser.backend.config import EmulationConfig
+
+from pulser.backend import (
+    CorrelationMatrix,
+    EnergyVariance,
+    Occupation,
+    EnergySecondMoment,
 )
+from emu_sv.state_vector import StateVector
+from emu_sv.custom_callback_implementations import (
+    correlation_matrix_sv_impl,
+    energy_variance_sv_impl,
+    qubit_occupation_sv_impl,
+    energy_second_moment_sv_impl,
+)
+import logging
+import pathlib
+import sys
 
-from types import MethodType
 
-
-class SVConfig(BackendConfig):
+class SVConfig(EmulationConfig):
     """
     The configuration of the emu-sv SVBackend. The kwargs passed to this class
     are passed on to the base class.
@@ -56,35 +56,87 @@ class SVConfig(BackendConfig):
         max_krylov_dim: int = 100,
         krylov_tolerance: float = 1e-10,
         gpu: bool = True,
+        interaction_cutoff: float = 0.0,
+        log_level: int = logging.INFO,
+        log_file: pathlib.Path | None = None,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
+        self._backend_options["initial_state"] = initial_state  # TODO REMOVE IT
+        self._backend_options["dt"] = dt
+        self._backend_options["max_krylov_dim"] = max_krylov_dim
+        self._backend_options["gpu"] = gpu
+        self._backend_options["krylov_tolerance"] = krylov_tolerance
+        self._backend_options["interaction_cutoff"] = interaction_cutoff
+        self._backend_options["log_level"] = log_level
+        self._backend_options["log_file"] = log_file
 
-        self.initial_state = initial_state
-        self.dt = dt
-        self.max_krylov_dim = max_krylov_dim
-        self.gpu = gpu
-        self.krylov_tolerance = krylov_tolerance
+        self.monkeypatch_observables()
 
-        for num, obs in enumerate(self.callbacks):  # monkey patch
+        self.logger = logging.getLogger("global_logger")
+        if log_file is None:
+            logging.basicConfig(
+                level=log_level, format="%(message)s", stream=sys.stdout, force=True
+            )  # default to stream = sys.stderr
+        else:
+            logging.basicConfig(
+                level=log_level,
+                format="%(message)s",
+                filename=str(log_file),
+                filemode="w",
+                force=True,
+            )
+        if (
+            self.noise_model.runs != 1
+            or self.noise_model.samples_per_run != 1
+            or self.noise_model.runs is not None
+            or self.noise_model.samples_per_run is not None
+        ):
+            self.logger.warning(
+                "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
+            )
+
+    def _expected_kwargs(self) -> set[str]:
+        return super()._expected_kwargs() | {
+            "dt",
+            "max_krylov_dim",
+            "krylov_tolerance",
+            "gpu",
+        }
+
+    def monkeypatch_observables(self) -> None:
+        obs_list = []
+        for _, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
-            if isinstance(obs, QubitDensity):
+            if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    qubit_density_sv_impl, obs
+                    qubit_occupation_sv_impl, obs
                 )
-                self.callbacks[num] = obs_copy
             elif isinstance(obs, EnergyVariance):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     energy_variance_sv_impl, obs
                 )
-                self.callbacks[num] = obs_copy
-            elif isinstance(obs, SecondMomentOfEnergy):
+            elif isinstance(obs, EnergySecondMoment):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    second_moment_sv_impl, obs
+                    energy_second_moment_sv_impl, obs
                 )
-                self.callbacks[num] = obs_copy
             elif isinstance(obs, CorrelationMatrix):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     correlation_matrix_sv_impl, obs
                 )
-                self.callbacks[num] = obs_copy
+            obs_list.append(obs_copy)
+        self.observables = tuple(obs_list)
+
+    def init_logging(self) -> None:
+        if self.log_file is None:
+            logging.basicConfig(
+                level=self.log_level, format="%(message)s", stream=sys.stdout, force=True
+            )  # default to stream = sys.stderr
+        else:
+            logging.basicConfig(
+                level=self.log_level,
+                format="%(message)s",
+                filename=str(self.log_file),
+                filemode="w",
+                force=True,
+            )

@@ -1,12 +1,13 @@
 from __future__ import annotations
 import itertools
-from typing import Any, List, Iterable, Optional
+from typing import Any, List, Sequence, Optional
 
 import torch
 
+from pulser.backend import State, Operator
+from emu_base import DEVICE_COUNT
 from emu_mps.algebra import add_factors, scale_factors, zip_right
-from emu_base.base_classes.operator import FullOp, QuditOp
-from emu_base import Operator, State, DEVICE_COUNT
+from pulser.backend.operator import FullOp, QuditOp
 from emu_mps.mps import MPS
 from emu_mps.utils import new_left_bath, assign_devices
 
@@ -29,7 +30,7 @@ def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:
             )
 
 
-class MPO(Operator):
+class MPO(Operator[complex, torch.Tensor, MPS]):
     """
     Matrix Product Operator.
 
@@ -61,7 +62,7 @@ class MPO(Operator):
     def __repr__(self) -> str:
         return "[" + ", ".join(map(repr, self.factors)) + "]"
 
-    def __mul__(self, other: State) -> MPS:
+    def apply_to(self, other: MPS) -> MPS:
         """
         Applies this MPO to the given MPS.
         The returned MPS is:
@@ -84,7 +85,7 @@ class MPO(Operator):
         )
         return MPS(factors, orthogonality_center=0)
 
-    def __add__(self, other: Operator) -> MPO:
+    def __add__(self, other: MPO) -> MPO:
         """
         Returns the sum of two MPOs, computed with a direct algorithm.
         The result is currently not truncated
@@ -113,7 +114,7 @@ class MPO(Operator):
         factors = scale_factors(self.factors, scalar, which=0)
         return MPO(factors)
 
-    def __matmul__(self, other: Operator) -> MPO:
+    def __matmul__(self, other: MPO) -> MPO:
         """
         Compose two operators. The ordering is that
         self is applied after other.
@@ -128,7 +129,7 @@ class MPO(Operator):
         factors = zip_right(self.factors, other.factors)
         return MPO(factors)
 
-    def expect(self, state: State) -> float | complex:
+    def expect(self, state: State) -> torch.Tensor:
         """
         Compute the expectation value of self on the given state.
 
@@ -151,15 +152,15 @@ class MPO(Operator):
                 state.factors[i + 1].device
             )
         acc = new_left_bath(acc, state.factors[n], self.factors[n])
-        return acc.item()  # type: ignore [no-any-return]
+        return acc.reshape(1).to("cpu")
 
-    @staticmethod
-    def from_operator_string(
-        basis: Iterable[str],
-        nqubits: int,
+    @classmethod
+    def from_operator_repr(
+        cls,
+        *,
+        eigenstates: Sequence[str],
+        n_qudits: int,
         operations: FullOp,
-        operators: dict[str, QuditOp] = {},
-        /,
         **kwargs: Any,
     ) -> MPO:
         """
@@ -174,15 +175,16 @@ class MPO(Operator):
         Returns:
             the operator in MPO form.
         """
-        operators_with_tensors: dict[str, torch.Tensor | QuditOp] = dict(operators)
 
-        _validate_operator_targets(operations, nqubits)
+        _validate_operator_targets(operations, n_qudits)
 
-        basis = set(basis)
+        basis = set(eigenstates)
+
+        operators_with_tensors: dict[str, torch.Tensor | QuditOp]
         if basis == {"r", "g"}:
             # operators_with_tensors will now contain the basis for single qubit ops,
             # and potentially user defined strings in terms of these
-            operators_with_tensors |= {
+            operators_with_tensors = {
                 "gg": torch.tensor(
                     [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
                 ).reshape(1, 2, 2, 1),
@@ -199,7 +201,7 @@ class MPO(Operator):
         elif basis == {"0", "1"}:
             # operators_with_tensors will now contain the basis for single qubit ops,
             # and potentially user defined strings in terms of these
-            operators_with_tensors |= {
+            operators_with_tensors = {
                 "00": torch.tensor(
                     [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
                 ).reshape(1, 2, 2, 1),
@@ -234,12 +236,12 @@ class MPO(Operator):
 
             factors = [
                 torch.eye(2, 2, dtype=torch.complex128).reshape(1, 2, 2, 1)
-            ] * nqubits
+            ] * n_qudits
 
             for op in tensorop:
                 factor = replace_operator_string(op[0])
                 for target_qubit in op[1]:
                     factors[target_qubit] = factor
 
-            mpos.append(coeff * MPO(factors, **kwargs))
-        return sum(mpos[1:], start=mpos[0])
+            mpos.append(coeff * cls(factors, **kwargs))
+        return sum(mpos[1:], start=mpos[0])  # type: ignore[no-any-return]
