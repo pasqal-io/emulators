@@ -7,6 +7,7 @@ from pulser.backend.default_observables import (
     EnergySecondMoment,
     EnergyVariance,
     Occupation,
+    Energy,
 )
 
 from emu_sv.state_vector import StateVector
@@ -16,10 +17,10 @@ from emu_sv.hamiltonian import RydbergHamiltonian
 
 def qubit_occupation_sv_impl(
     self: Occupation,
+    *,
     config: EmulationConfig,
-    t: int,
     state: StateVector,
-    H: DenseOperator,
+    hamiltonian: DenseOperator,
 ) -> torch.Tensor:
     """
     Custom implementation of the qubit density ❬ψ|nᵢ|ψ❭ for the state vector solver.
@@ -35,10 +36,10 @@ def qubit_occupation_sv_impl(
 
 def correlation_matrix_sv_impl(
     self: CorrelationMatrix,
+    *,
     config: EmulationConfig,
-    t: int,
     state: StateVector,
-    H: DenseOperator,
+    hamiltonian: DenseOperator,
 ) -> torch.Tensor:
     """
     Custom implementation of the density-density correlation ❬ψ|nᵢnⱼ|ψ❭ for the state vector solver.
@@ -67,15 +68,15 @@ def correlation_matrix_sv_impl(
 
 def energy_variance_sv_impl(
     self: EnergyVariance,
+    *,
     config: EmulationConfig,
-    t: int,
     state: StateVector,
-    H: RydbergHamiltonian,
+    hamiltonian: RydbergHamiltonian,
 ) -> torch.Tensor:
     """
     Custom implementation of the energy variance ❬ψ|H²|ψ❭-❬ψ|H|ψ❭² for the state vector solver.
     """
-    hstate = H * state.vector
+    hstate = hamiltonian * state.vector
     h_squared = torch.vdot(hstate, hstate).real
     energy = torch.vdot(state.vector, hstate).real
     energy_variance: torch.Tensor = h_squared - energy**2
@@ -84,14 +85,27 @@ def energy_variance_sv_impl(
 
 def energy_second_moment_sv_impl(
     self: EnergySecondMoment,
+    *,
     config: EmulationConfig,
-    t: int,
     state: StateVector,
-    H: RydbergHamiltonian,
+    hamiltonian: RydbergHamiltonian,
 ) -> torch.Tensor:
     """
     Custom implementation of the second moment of energy ❬ψ|H²|ψ❭
     for the state vector solver.
     """
-    hstate = H * state.vector
+    hstate = hamiltonian * state.vector
     return torch.vdot(hstate, hstate).real
+
+
+def energy_sv_impl(
+    self: Energy,
+    *,
+    config: EmulationConfig,
+    state: StateVector,
+    hamiltonian: RydbergHamiltonian,
+) -> torch.Tensor:
+    """
+    Custom implementation of the energy ❬ψ|H|ψ❭ for the state vector solver.
+    """
+    return hamiltonian.expect(state)

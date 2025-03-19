@@ -1,18 +1,11 @@
 import torch
 from resource import RUSAGE_SELF, getrusage
-from time import time
+import time
+import typing
 
-from pulser import Sequence
+from pulser.backend import EmulatorBackend, Results, Observable, State, EmulationConfig
 
-# from emu_base.base_classes.backend import BackendConfig
-# from emu_base.base_classes.backend import Backend
-
-from pulser.backend import Backend, EmulationConfig, Results
-
-# from emu_base.base_classes.results import Results
-
-from emu_base import DEVICE_COUNT
-from emu_base.pulser_adapter import PulserData
+from emu_base import PulserData, DEVICE_COUNT
 
 from emu_sv.state_vector import StateVector
 from emu_sv.sv_config import SVConfig
@@ -21,15 +14,12 @@ from emu_sv.time_evolution import do_time_step
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
 
 
-class SVBackend(Backend):
+class SVBackend(EmulatorBackend):
     """
     A backend for emulating Pulser sequences using state vectors and sparse matrices.
     """
 
-    def __init__(self, sequence: Sequence, sv_config: EmulationConfig):
-        super().__init__(sequence=sequence, mimic_qpu=False)
-        assert isinstance(sv_config, EmulationConfig)
-        self.config = sv_config
+    default_config = SVConfig()
 
     def run(self) -> Results:
         """
@@ -42,72 +32,96 @@ class SVBackend(Backend):
         Returns:
             the simulation results
         """
-        # TODO: do I have SVconfig
-        assert isinstance(self.config, SVConfig)
+        assert isinstance(self._config, SVConfig)
 
-        results = Results()
-
-        data = PulserData(sequence=self.sequence, config=self.config, dt=self.config.dt)
-        omega, delta, phi = data.omega, data.delta, data.phi
-
-        target_times = data.target_times
+        pulser_data = PulserData(
+            sequence=self._sequence, config=self._config, dt=self._config.dt
+        )
+        self.target_times = pulser_data.target_times
+        self.time = time.time()
+        omega, delta, phi = pulser_data.omega, pulser_data.delta, pulser_data.phi
 
         nsteps = omega.shape[0]
         nqubits = omega.shape[1]
-        device = "cuda" if self.config.gpu and DEVICE_COUNT > 0 else "cpu"
 
-        if self.config.initial_state is not None:
-            state = self.config.initial_state
+        self.results = Results(atom_order=(), total_duration=self.target_times[-1])
+        # results.statistics = None
+        self.statistics = Statistics(
+            evaluation_times=[t / self.target_times[-1] for t in self.target_times],
+            data=[],
+            timestep_count=nsteps,
+        )
+
+        device = "cuda" if self._config.gpu and DEVICE_COUNT > 0 else "cpu"
+
+        if self._config.initial_state is not None:
+            state = self._config.initial_state
             state.vector = state.vector.to(device)
         else:
-            state = StateVector.make(nqubits, gpu=self.config.gpu)
+            state = StateVector.make(nqubits, gpu=self._config.gpu)
 
         for step in range(nsteps):
-            start = time()
-            dt = target_times[step + 1] - target_times[step]
+            dt = self.target_times[step + 1] - self.target_times[step]
 
             state.vector, H = do_time_step(
                 dt * _TIME_CONVERSION_COEFF,
                 omega[step],
                 delta[step],
                 phi[step],
-                data.full_interaction_matrix,
+                pulser_data.full_interaction_matrix,
                 state.vector,
-                self.config.krylov_tolerance,
+                self._config.krylov_tolerance,
             )
 
             # TODO: remove this type ignore thing
-            for callback in self.config.callbacks:
+            for callback in self._config.observables:
                 callback(
-                    self.config,
-                    (step + 1) * self.config.dt,
+                    self._config,
+                    self.target_times[step + 1] / self.target_times[-1],
                     state,  # type: ignore[arg-type]
                     H,  # type: ignore[arg-type]
-                    results,
+                    self.results,
                 )
 
-            end = time()
-            self.log_step_statistics(
-                results,
-                step=step,
-                duration=end - start,
-                timestep_count=nsteps,
-                state=state,
-                sv_config=self.config,
+            self.statistics.data.append(time.time() - self.time)
+            self.statistics(
+                self._config,
+                self.target_times[step + 1] / self.target_times[-1],
+                state,  # type: ignore[arg-type]
+                H,  # type: ignore[arg-type]
+                self.results,
             )
+            self.time = time.time()
 
-        return results
+        return self.results
 
-    @staticmethod
-    def log_step_statistics(
-        results: Results,
-        *,
-        step: int,
-        duration: float,
+
+class Statistics(Observable):
+    def __init__(
+        self,
+        evaluation_times: typing.Sequence[float] | None,
+        data: list[float],
         timestep_count: int,
-        state: StateVector,
-        sv_config: SVConfig,
-    ) -> None:
+    ):
+        super().__init__(evaluation_times=evaluation_times)
+        self.data = data
+        self.timestep_count = timestep_count
+
+    @property
+    def _base_tag(self) -> str:
+        return "statistics"
+
+    def apply(
+        self,
+        *,
+        config: EmulationConfig,
+        state: State,
+        **kwargs: typing.Any,
+    ) -> dict:
+        """Calculates the observable to store in the Results."""
+        assert isinstance(state, StateVector)
+        assert isinstance(config, SVConfig)
+        duration = self.data[-1]
         if state.vector.is_cuda:
             max_mem_per_device = (
                 torch.cuda.max_memory_allocated(device) * 1e-6
@@ -117,22 +131,13 @@ class SVBackend(Backend):
         else:
             max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
 
-        sv_config.logger.info(
-            f"step = {step + 1}/{timestep_count}, "
+        config.logger.info(
+            f"step = {len(self.data)}/{self.timestep_count}, "
             + f"RSS = {max_mem:.3f} MB, "
             + f"Δt = {duration:.3f} s"
         )
 
-        if results.statistics is None:
-            assert step == 0
-            results.statistics = {"steps": []}
-
-        assert "steps" in results.statistics
-        assert len(results.statistics["steps"]) == step
-
-        results.statistics["steps"].append(
-            {
-                "RSS": max_mem,
-                "duration": duration,
-            }
-        )
+        return {
+            "RSS": max_mem,
+            "duration": duration,
+        }

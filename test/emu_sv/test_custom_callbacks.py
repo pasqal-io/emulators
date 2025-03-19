@@ -45,7 +45,9 @@ def test_custom_occupation() -> None:
 
     config = SVConfig()
 
-    occupation = qubit_occupation_sv_impl(occupation_mock, config, t, state, H_mock)
+    occupation = qubit_occupation_sv_impl(
+        occupation_mock, config=config, t=t, state=state, H=H_mock
+    )
     expected = [0.5] * num_qubits
     assert occupation.cpu() == approx(expected, abs=1e-8)
 
@@ -62,7 +64,9 @@ def test_custom_correlation() -> None:
     correlation_matrix_mock = MagicMock(spec=CorrelationMatrix)
     correlation_mock = correlation_matrix_mock.return_value
     t = 1
-    correlation = correlation_matrix_sv_impl(correlation_mock, config, t, state, H_mock)
+    correlation = correlation_matrix_sv_impl(
+        correlation_mock, config=config, t=t, state=state, H=H_mock
+    )
 
     expected = []
     for qubiti in range(num_qubits):
@@ -82,7 +86,6 @@ def test_custom_correlation() -> None:
 def test_custom_energy_and_variance_and_second() -> None:
 
     torch.manual_seed(1337)
-    dtype = torch.float64
 
     basis = ("r", "g")
     num_qubits = 4
@@ -92,8 +95,12 @@ def test_custom_energy_and_variance_and_second() -> None:
     )
     config = SVConfig()
 
-    omegas = torch.randn(num_qubits, dtype=dtype).to(device)
-    deltas = torch.randn(num_qubits, dtype=dtype).to(device)
+    omegas = torch.randn(num_qubits, dtype=torch.float64).to(
+        device=device, dtype=torch.complex128
+    )
+    deltas = torch.randn(num_qubits, dtype=torch.float64).to(
+        device=device, dtype=torch.complex128
+    )
     phis = torch.zeros_like(omegas)
     interaction_matrix = torch.randn((num_qubits, num_qubits))
     h_rydberg = RydbergHamiltonian(
@@ -110,7 +117,7 @@ def test_custom_energy_and_variance_and_second() -> None:
     energy_variance_mock = energy_mock.return_value
 
     energy_variance = energy_variance_sv_impl(
-        energy_variance_mock, config, t, state, h_rydberg
+        energy_variance_mock, config=config, t=t, state=state, H=h_rydberg
     )
     expected_varaince = 3.67378968943955
 
@@ -120,7 +127,7 @@ def test_custom_energy_and_variance_and_second() -> None:
     second_moment_mock = second_moment_energy_mock.return_value
 
     second_moment = energy_second_moment_sv_impl(
-        second_moment_mock, config, t, state, h_rydberg
+        second_moment_mock, config=config, t=t, state=state, H=h_rydberg
     )
     expected_second = 4.2188228611101
 

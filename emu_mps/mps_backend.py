@@ -1,7 +1,6 @@
-from emu_base import Backend, BackendConfig, Results
+from pulser.backend import EmulatorBackend, Results
 from emu_mps.mps_config import MPSConfig
 from emu_mps.mps_backend_impl import create_impl, MPSBackendImpl
-from pulser import Sequence
 import pickle
 import os
 import time
@@ -9,13 +8,16 @@ import logging
 import pathlib
 
 
-class MPSBackend(Backend):
+class MPSBackend(EmulatorBackend):
     """
     A backend for emulating Pulser sequences using Matrix Product States (MPS),
     aka tensor trains.
     """
 
-    def resume(self, autosave_file: str | pathlib.Path) -> Results:
+    default_config = MPSConfig()
+
+    @staticmethod
+    def resume(autosave_file: str | pathlib.Path) -> Results:
         """
         Resume simulation from autosave file.
         Only resume simulations from data you trust!
@@ -39,9 +41,9 @@ class MPSBackend(Backend):
             f"Saving simulation state every {impl.config.autosave_dt} seconds"
         )
 
-        return self._run(impl)
+        return MPSBackend._run(impl)
 
-    def run(self, sequence: Sequence, mps_config: BackendConfig) -> Results:
+    def run(self) -> Results:
         """
         Emulates the given sequence.
 
@@ -52,11 +54,9 @@ class MPSBackend(Backend):
         Returns:
             the simulation results
         """
-        assert isinstance(mps_config, MPSConfig)
+        assert isinstance(self._config, MPSConfig)
 
-        self.validate_sequence(sequence)
-
-        impl = create_impl(sequence, mps_config)
+        impl = create_impl(self._sequence, self._config)
         impl.init()  # This is separate from the constructor for testing purposes.
 
         return self._run(impl)

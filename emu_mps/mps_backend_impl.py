@@ -3,15 +3,16 @@ import pathlib
 import random
 import uuid
 from resource import RUSAGE_SELF, getrusage
-from typing import Optional
+from typing import Optional, Any
+import typing
 import pickle
 import os
-
 import torch
 import time
 from pulser import Sequence
 
-from emu_base import Results, State, PulserData, DEVICE_COUNT
+from pulser.backend import Results, State, Observable, EmulationConfig
+from emu_base import PulserData, DEVICE_COUNT
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
@@ -31,6 +32,56 @@ from emu_mps.utils import (
     new_left_bath,
 )
 from enum import Enum, auto
+
+
+class Statistics(Observable):
+    def __init__(
+        self,
+        evaluation_times: typing.Sequence[float] | None,
+        data: list[float],
+        timestep_count: int,
+    ):
+        super().__init__(evaluation_times=evaluation_times)
+        self.data = data
+        self.timestep_count = timestep_count
+
+    @property
+    def _base_tag(self) -> str:
+        return "statistics"
+
+    def apply(
+        self,
+        *,
+        config: EmulationConfig,
+        state: State,
+        **kwargs: Any,
+    ) -> dict:
+        """Calculates the observable to store in the Results."""
+        assert isinstance(state, MPS)
+        duration = self.data[-1]
+        if state.factors[0].is_cuda:
+            max_mem_per_device = (
+                torch.cuda.max_memory_allocated(device) * 1e-6
+                for device in range(torch.cuda.device_count())
+            )
+            max_mem = max(max_mem_per_device)
+        else:
+            max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+
+        config.logger.info(
+            f"step = {len(self.data)}/{self.timestep_count}, "
+            + f"χ = {state.get_max_bond_dim()}, "
+            + f"|ψ| = {state.get_memory_footprint():.3f} MB, "
+            + f"RSS = {max_mem:.3f} MB, "
+            + f"Δt = {duration:.3f} s"
+        )
+
+        return {
+            "max_bond_dimension": state.get_max_bond_dim(),
+            "memory_footprint": state.get_memory_footprint(),
+            "RSS": max_mem,
+            "duration": duration,
+        }
 
 
 class SwipeDirection(Enum):
@@ -75,7 +126,12 @@ class MPSBackendImpl:
         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
         self.tdvp_index = 0
         self.timestep_index = 0
-        self.results = Results()
+        self.results = Results(atom_order=(), total_duration=self.target_times[-1])
+        self.statistics = Statistics(
+            evaluation_times=[t / self.target_times[-1] for t in self.target_times],
+            data=[],
+            timestep_count=self.timestep_count,
+        )
         self.autosave_file = self._get_autosave_filepath(self.config.autosave_prefix)
         self.config.logger.warning(
             f"""Will save simulation state to file "{self.autosave_file.name}"
@@ -96,10 +152,7 @@ class MPSBackendImpl:
 
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
-        if (
-            self.config.noise_model is not None
-            and self.config.noise_model.state_prep_error > 0.0
-        ):
+        if self.config.noise_model.state_prep_error > 0.0:
             self.well_prepared_qubits_filter = pick_well_prepared_qubits(
                 self.config.noise_model.state_prep_error, self.qubit_count
             )
@@ -353,7 +406,14 @@ class MPSBackendImpl:
             )
             self.init_baths()
 
-        self.log_step_statistics(duration=time.time() - self.time)
+        self.statistics.data.append(time.time() - self.time)
+        self.statistics(
+            self.config,
+            self.current_time / self.target_times[-1],
+            self.state,
+            self.hamiltonian,
+            self.results,
+        )
         self.time = time.time()
 
     def save_simulation(self) -> None:
@@ -383,13 +443,14 @@ class MPSBackendImpl:
         normalized_state = 1 / self.state.norm() * self.state
 
         current_time_int: int = round(self.current_time)
+        fractional_time = self.current_time / self.target_times[-1]
         assert abs(self.current_time - current_time_int) < 1e-10
 
         if self.well_prepared_qubits_filter is None:
-            for callback in self.config.callbacks:
+            for callback in self.config.observables:
                 callback(
                     self.config,
-                    current_time_int,
+                    fractional_time,
                     normalized_state,
                     self.hamiltonian,
                     self.results,
@@ -397,63 +458,34 @@ class MPSBackendImpl:
             return
 
         full_mpo, full_state = None, None
-        for callback in self.config.callbacks:
-            if current_time_int not in callback.evaluation_times:
-                continue
+        for callback in self.config.observables:
+            time_tol = 0.5 / self.target_times[-1] + 1e-10
+            if (
+                callback.evaluation_times is not None
+                and self.config.is_time_in_evaluation_times(
+                    fractional_time, callback.evaluation_times, tol=time_tol
+                )
+            ) or self.config.is_evaluation_time(fractional_time, tol=time_tol):
 
-            if full_mpo is None or full_state is None:
-                # Only do this potentially expensive step once and when needed.
-                full_mpo = MPO(
-                    extended_mpo_factors(
-                        self.hamiltonian.factors, self.well_prepared_qubits_filter
+                if full_mpo is None or full_state is None:
+                    # Only do this potentially expensive step once and when needed.
+                    full_mpo = MPO(
+                        extended_mpo_factors(
+                            self.hamiltonian.factors, self.well_prepared_qubits_filter
+                        )
                     )
-                )
-                full_state = MPS(
-                    extended_mps_factors(
-                        normalized_state.factors, self.well_prepared_qubits_filter
-                    ),
-                    num_gpus_to_use=None,  # Keep the already assigned devices.
-                    orthogonality_center=get_extended_site_index(
-                        self.well_prepared_qubits_filter,
-                        normalized_state.orthogonality_center,
-                    ),
-                )
+                    full_state = MPS(
+                        extended_mps_factors(
+                            normalized_state.factors, self.well_prepared_qubits_filter
+                        ),
+                        num_gpus_to_use=None,  # Keep the already assigned devices.
+                        orthogonality_center=get_extended_site_index(
+                            self.well_prepared_qubits_filter,
+                            normalized_state.orthogonality_center,
+                        ),
+                    )
 
-            callback(self.config, current_time_int, full_state, full_mpo, self.results)
-
-    def log_step_statistics(self, *, duration: float) -> None:
-        if self.state.factors[0].is_cuda:
-            max_mem_per_device = (
-                torch.cuda.max_memory_allocated(device) * 1e-6
-                for device in range(torch.cuda.device_count())
-            )
-            max_mem = max(max_mem_per_device)
-        else:
-            max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
-
-        self.config.logger.info(
-            f"step = {self.timestep_index}/{self.timestep_count}, "
-            + f"χ = {self.state.get_max_bond_dim()}, "
-            + f"|ψ| = {self.state.get_memory_footprint():.3f} MB, "
-            + f"RSS = {max_mem:.3f} MB, "
-            + f"Δt = {duration:.3f} s"
-        )
-
-        if self.results.statistics is None:
-            assert self.timestep_index == 1
-            self.results.statistics = {"steps": []}
-
-        assert "steps" in self.results.statistics
-        assert len(self.results.statistics["steps"]) == self.timestep_index - 1
-
-        self.results.statistics["steps"].append(
-            {
-                "max_bond_dimension": self.state.get_max_bond_dim(),
-                "memory_footprint": self.state.get_memory_footprint(),
-                "RSS": max_mem,
-                "duration": duration,
-            }
-        )
+                callback(self.config, fractional_time, full_state, full_mpo, self.results)
 
 
 class NoisyMPSBackendImpl(MPSBackendImpl):

@@ -3,9 +3,9 @@ from typing import Tuple, Sequence
 import torch
 import math
 from pulser.noise_model import NoiseModel
+from pulser.register.base_register import BaseRegister
 from enum import Enum
 
-from pulser.register.base_register import BaseRegister
 from pulser.backend.config import EmulationConfig
 
 from emu_base.lindblad_operators import get_lindblad_operators
@@ -235,8 +235,7 @@ class PulserData:
         # the end value is exclusive, so add +1
         observable_times = set(torch.arange(0, sequence.get_duration() + 1, dt).tolist())
         observable_times.add(sequence.get_duration())
-        for obs in config.callbacks:
-            # observable_times |= set(obs.evaluation_times)
+        for obs in config.observables:
             times: Sequence[float]
             if obs.evaluation_times is not None:
                 times = obs.evaluation_times
@@ -244,7 +243,7 @@ class PulserData:
                 times = config.default_evaluation_times.tolist()  # type: ignore[union-attr]
             observable_times |= set([round(time * sequence_duration) for time in times])
 
-        self.target_times = list(observable_times)
+        self.target_times: list[int] = list(observable_times)
         self.target_times.sort()
 
         laser_waist = (

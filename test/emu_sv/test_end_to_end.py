@@ -5,9 +5,7 @@ from typing import Any
 
 import pulser
 import pulser.noise_model
-
-# import emu_base.base_classes
-import emu_base.base_classes.default_callbacks  # this gives only fidelity counter = -1
+from pulser.backend import Results
 
 from pulser.backend.default_observables import (
     CorrelationMatrix,
@@ -69,9 +67,10 @@ def simulate(
     given_fidelity_state: bool = True,
     interaction_cutoff: float = 0,
     gpu: bool = True,
-) -> None:
-    final_time: float = seq.get_duration()
+) -> Results:
     n_qubits = len(seq.register.qubit_ids)
+    if noise_model is None:
+        noise_model = pulser.noise_model.NoiseModel()
 
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_state_vector(n_qubits, gpu=gpu)
@@ -92,9 +91,7 @@ def simulate(
             p_false_neg=p_false_neg,
         )
 
-    # nqubits = len(seq.register.qubit_ids)
-    times = [final_time]
-
+    times = [1.0]
     sv_config = SVConfig(
         initial_state=initial_state,
         dt=dt,
@@ -102,20 +99,20 @@ def simulate(
         observables=[
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=1000),
-            Fidelity(evaluation_times=times, state=fidelity_state),
-            Occupation(evaluation_times=times, one_state={"r", "g"}),
+            Fidelity(evaluation_times=times, state=fidelity_state, tag_suffix="1"),
+            Occupation(evaluation_times=times),
             Energy(evaluation_times=times),
             EnergyVariance(evaluation_times=times),
             EnergySecondMoment(evaluation_times=times),
-            CorrelationMatrix(evaluation_times=times, one_state={"r", "g"}),
+            CorrelationMatrix(evaluation_times=times),
         ],
         noise_model=noise_model,
-        interaction_cutoff=interaction_cutoff,
         gpu=gpu,
+        interaction_cutoff=interaction_cutoff,
     )
 
-    result = SVBackend(seq, sv_config).run()
-
+    backend = SVBackend(seq, config=sv_config)
+    result = backend.run()
     return result
 
 
@@ -137,35 +134,31 @@ def test_end_to_end_afm_ring() -> None:
         seq, gpu=False
     )  # only run on cpu, bitstring sampling is device dependent
 
-    final_time = seq.get_duration()
-    bitstrings = result["bitstrings"][final_time]
-    final_state = result["state"][final_time]
-    final_fidelity = result[
-        f"fidelity_{emu_base.base_classes.default_callbacks._fidelity_counter}"
-    ][final_time]
+    final_time = -1  # seq.get_duration()
+    bitstrings = result.bitstrings[final_time]
+    final_state = result.state[final_time]
+    final_fidelity = result.fidelity_1[final_time]
 
     fidelity_state = create_antiferromagnetic_state_vector(num_qubits, gpu=False)
 
     assert bitstrings["1010101010"] == 136
     assert bitstrings["0101010101"] == 159
-    assert fidelity_state.inner(final_state) == approx(final_fidelity, abs=1e-10)
+    assert fidelity_state.overlap(final_state) == approx(final_fidelity, abs=1e-10)
 
-    q_density = result["qubit_density"][final_time]
+    occupation = result.occupation[final_time]
 
     assert torch.allclose(
-        torch.tensor([0.578] * 10, dtype=torch.float64), q_density, atol=1e-3
+        torch.tensor([0.578] * 10, dtype=torch.float64), occupation, atol=1e-3
     )
 
-    energy = result["energy"][final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
+    energy = result.energy[final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
     assert approx(energy, 1e-7) == -115.34554479213088
 
-    energy_variance = result["energy_variance"][final_time]  # 45.911110563993134
+    energy_variance = result.energy_variance[final_time]  # 45.911110563993134
     assert approx(energy_variance, 1e-3) == 45.91111056399
 
-    second_moment_energy = result["second_moment_of_energy"][
-        final_time
-    ]  # 13350.505342183847
-    assert approx(second_moment_energy, 1e-6) == 13350.5053421
+    energy_second_moment = result.energy_second_moment[final_time]  # 13350.505342183847
+    assert approx(energy_second_moment, 1e-6) == 13350.5053421
 
 
 def test_end_to_end_pi_half_pulse() -> None:
@@ -175,8 +168,8 @@ def test_end_to_end_pi_half_pulse() -> None:
     seq = pulser_blackman(duration, area)
     result = simulate(seq, dt=50)
 
-    final_time = seq.get_duration()
-    final_state = result["state"][final_time]
+    final_time = -1
+    final_state = result.state[final_time]
 
     expected = torch.tensor([1, -1j], dtype=torch.complex128) / math.sqrt(2)
     assert torch.allclose(final_state.vector.cpu(), expected, atol=1e-8)
@@ -190,9 +183,9 @@ def test_end_to_end_pi_half_pulse_with_phase() -> None:
     phase = math.pi / 2
     seq = pulser_blackman(duration, area, phase=phase)
     result = simulate(seq, dt=50)
-    final_time = seq.get_duration()
+    final_time = -1
 
-    final_state = result["state"][final_time]
+    final_state = result.state[final_time]
     # with the phase we expect |ψ❭=(|0❭+|1❭)/sqrt(2)
     expected = torch.tensor([1, 1], dtype=torch.complex128) / math.sqrt(2)
 
