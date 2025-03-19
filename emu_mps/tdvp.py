@@ -117,6 +117,7 @@ def evolve_pair(
 
     left_ham_factor = left_ham_factor.to(left_device)
     right_ham_factor = right_ham_factor.to(left_device)
+    right_bath = right_bath.to(left_bath.device)
 
     combined_hamiltonian_factors = (
         torch.tensordot(left_ham_factor, right_ham_factor, dims=1)
