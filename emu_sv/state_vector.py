@@ -137,7 +137,10 @@ class StateVector(State):
 
         # Convert outcomes to bitstrings and count occurrences
         counts = Counter(
-            [index_to_bitstring(self.vector.reshape(-1).shape[0], outcome) for outcome in outcomes]
+            [
+                index_to_bitstring(self.vector.reshape(-1).shape[0], outcome)
+                for outcome in outcomes
+            ]
         )
 
         # NOTE: false positives and negatives

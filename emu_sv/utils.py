@@ -1,5 +1,4 @@
 import math
-import torch
 
 
 def index_to_bitstring(shape_vector: int, index: int) -> str:

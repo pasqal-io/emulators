@@ -6,7 +6,7 @@ from test.utils_testing.utils_testing import random_density_matrix
 from pytest import approx
 
 dtype = torch.complex128
-device = 'cpu'#"cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu"  # "cuda" if torch.cuda.is_available() else "cpu"
 gpu = False if device == "cpu" else True
 seed = 1337
 
@@ -29,6 +29,7 @@ density_bell_state_complex = (
         device=device,
     )
 )
+
 
 def test_inner():
     torch.manual_seed(seed)
@@ -65,6 +66,7 @@ def test_inner():
     base_state = DensityMatrix(base_mat, gpu=gpu)
     # getting the [24,24] element of the density matrix
     assert dense_matrix.inner(base_state) == approx(0.035517495)
+
 
 def test_make():
     n_atoms = 2
@@ -140,14 +142,14 @@ def test_probabilities():
     assert sampling2["110"] == 150
     assert sampling2["111"] == 118
 
-    #testing a random matrix 
+    # testing a random matrix
     n_atoms = 8
     dummy_mat = random_density_matrix(n_atoms)
-    density_mat = DensityMatrix(dummy_mat,gpu=gpu)
+    density_mat = DensityMatrix(dummy_mat, gpu=gpu)
 
     sampling3 = density_mat.sample(3000)
 
-    assert sampling3['0'*n_atoms] == 11
-    assert sampling3['1'*n_atoms] == 13
-    assert sampling3['01010101'] == 14
-    assert sampling3['10101001'] == 11
+    assert sampling3["0" * n_atoms] == 11
+    assert sampling3["1" * n_atoms] == 13
+    assert sampling3["01010101"] == 14
+    assert sampling3["10101001"] == 11

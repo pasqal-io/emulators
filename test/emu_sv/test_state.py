@@ -7,10 +7,11 @@ pi = torch.tensor(math.pi)
 seed = 1337
 dtype = torch.complex128
 device = "cpu"
-#device= "cuda"
+# device= "cuda"
 
-device = 'cpu'#"cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu"  # "cuda" if torch.cuda.is_available() else "cpu"
 gpu = False if device == "cpu" else True
+
 
 def test_inner_algebra_sample():
 

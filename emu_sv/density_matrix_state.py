@@ -25,7 +25,7 @@ class DensityMatrix(State):
         self.matrix = matrix.to(dtype=dtype, device=device)
 
     @classmethod
-    def make(cls, n_atoms: int, gpu: bool = True):
+    def make(cls, n_atoms: int, gpu: bool = True) -> DensityMatrix:
         result = torch.zeros(2**n_atoms, 2**n_atoms, dtype=dtype)
         result[0, 0] = 1.0
         return cls(result, gpu=gpu)
@@ -134,11 +134,15 @@ class DensityMatrix(State):
 
         # Convert outcomes to bitstrings and count occurrences
         counts = Counter(
-            [index_to_bitstring(self.matrix.diagonal().shape[0], outcome) for outcome in outcomes]
+            [
+                index_to_bitstring(self.matrix.diagonal().shape[0], outcome)
+                for outcome in outcomes
+            ]
         )
 
         # NOTE: false positives and negatives
         return counts
+
 
 if __name__ == "__main__":
     import doctest
