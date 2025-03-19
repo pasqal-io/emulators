@@ -41,12 +41,10 @@ def test_custom_occupation() -> None:
 
     occupation_mock = MockOccupation.return_value
 
-    t = 1
-
     config = SVConfig()
 
     occupation = qubit_occupation_sv_impl(
-        occupation_mock, config=config, t=t, state=state, H=H_mock
+        occupation_mock, config=config, state=state, hamiltonian=H_mock
     )
     expected = [0.5] * num_qubits
     assert occupation.cpu() == approx(expected, abs=1e-8)
@@ -63,9 +61,8 @@ def test_custom_correlation() -> None:
     H_mock = operator_mock.return_value
     correlation_matrix_mock = MagicMock(spec=CorrelationMatrix)
     correlation_mock = correlation_matrix_mock.return_value
-    t = 1
     correlation = correlation_matrix_sv_impl(
-        correlation_mock, config=config, t=t, state=state, H=H_mock
+        correlation_mock, config=config, state=state, hamiltonian=H_mock
     )
 
     expected = []
@@ -111,13 +108,11 @@ def test_custom_energy_and_variance_and_second() -> None:
         device=device,
     )
 
-    t = 1
-
     energy_mock = MagicMock(spec=EnergyVariance)
     energy_variance_mock = energy_mock.return_value
 
     energy_variance = energy_variance_sv_impl(
-        energy_variance_mock, config=config, t=t, state=state, H=h_rydberg
+        energy_variance_mock, config=config, state=state, hamiltonian=h_rydberg
     )
     expected_varaince = 3.67378968943955
 
@@ -127,7 +122,7 @@ def test_custom_energy_and_variance_and_second() -> None:
     second_moment_mock = second_moment_energy_mock.return_value
 
     second_moment = energy_second_moment_sv_impl(
-        second_moment_mock, config=config, t=t, state=state, H=h_rydberg
+        second_moment_mock, config=config, state=state, hamiltonian=h_rydberg
     )
     expected_second = 4.2188228611101
 
