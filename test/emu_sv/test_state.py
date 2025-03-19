@@ -7,8 +7,10 @@ pi = torch.tensor(math.pi)
 seed = 1337
 dtype = torch.complex128
 device = "cpu"
-# device= "cuda"
+#device= "cuda"
 
+device = 'cpu'#"cuda" if torch.cuda.is_available() else "cpu"
+gpu = False if device == "cpu" else True
 
 def test_inner_algebra_sample():
 
@@ -39,8 +41,8 @@ def test_inner_algebra_sample():
     assert torch.allclose(add_result.vector.cpu(), add_expected, rtol=0, atol=1e-6)
 
     torch.manual_seed(seed)
-    sampling1 = StateVector(state1.vector, gpu=False).sample(1000)
-    sampling2 = StateVector(state2.vector, gpu=False).sample(1000)
+    sampling1 = StateVector(state1.vector, gpu=gpu).sample(1000)
+    sampling2 = StateVector(state2.vector, gpu=gpu).sample(1000)
 
     assert sampling1["111"] == 485
     assert sampling1["001"] == 0
@@ -50,7 +52,7 @@ def test_inner_algebra_sample():
     assert sampling2["001"] == 501
     assert sampling2["000"] == 0
 
-    sampling_sum = StateVector(add_result.vector, gpu=False).sample(1000)
+    sampling_sum = StateVector(add_result.vector, gpu=gpu).sample(1000)
 
     results = [0] * 8
     results[0] = 157
@@ -72,7 +74,7 @@ def test_from_string():
         basis=basis, nqubits=nqubits, strings=state
     )
 
-    sampling = StateVector(from_string.vector, gpu=False).sample(1000)
+    sampling = StateVector(from_string.vector, gpu=gpu).sample(1000)
 
     values = from_string.vector
 

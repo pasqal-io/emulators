@@ -4,7 +4,7 @@ from typing import Any, Iterable
 import torch
 from emu_base import State, DEVICE_COUNT
 from emu_sv.state_vector import StateVector
-from emu_sv.utils import _index_to_bitstring
+from emu_sv.utils import index_to_bitstring
 
 dtype = torch.complex128
 
@@ -24,6 +24,12 @@ class DensityMatrix(State):
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         self.matrix = matrix.to(dtype=dtype, device=device)
 
+    @classmethod
+    def make(cls, n_atoms: int, gpu: bool = True):
+        result = torch.zeros(2**n_atoms, 2**n_atoms, dtype=dtype)
+        result[0, 0] = 1.0
+        return cls(result, gpu=gpu)
+
     def __add__(self, other: State) -> DensityMatrix:
         # NOTE: this is not implemented
         raise NotImplementedError("Not implemented")
@@ -34,7 +40,7 @@ class DensityMatrix(State):
 
     def _normalize(self) -> None:
         # NOTE: use this in the callbacks
-        """Checks if the input matrix has trace equals to 1.0 or not"""
+        """Normalize the density matrix state"""
         matrix_trace = torch.trace(self.matrix)
         if not torch.allclose(matrix_trace, torch.tensor(1.0, dtype=torch.float64)):
             self.matrix = self.matrix / matrix_trace
@@ -63,7 +69,7 @@ class DensityMatrix(State):
     def from_state_vector(cls, state: StateVector) -> DensityMatrix:
         """convert a state vector to a density matrix"""
 
-        return DensityMatrix(
+        return cls(
             torch.outer(state.vector, state.vector.conj()), gpu=state.vector.is_cuda
         )
 
@@ -75,6 +81,31 @@ class DensityMatrix(State):
         strings: dict[str, complex],
         **kwargs: Any,
     ) -> DensityMatrix:
+        """Transforms a state given by a string into a density matrix.
+
+        Construct a state from the pulser abstract representation
+        https://pulser.readthedocs.io/en/stable/conventions.html
+
+        Args:
+            basis: A tuple containing the basis states (e.g., ('r', 'g')).
+            nqubits: the number of qubits.
+            strings: A dictionary mapping state strings to complex or floats amplitudes.
+
+        Returns:
+            The resulting state.
+
+        Examples:
+            >>> basis = ("r","g")
+            >>> n = 2
+            >>> dense_mat=DensityMatrix.from_state_string(basis=basis,
+            ... nqubits=n,strings={"rr":1.0,"gg":1.0},gpu=False)
+            >>> print(dense_mat.matrix)
+            tensor([[0.5000+0.j, 0.0000+0.j, 0.0000+0.j, 0.5000+0.j],
+                    [0.0000+0.j, 0.0000+0.j, 0.0000+0.j, 0.0000+0.j],
+                    [0.0000+0.j, 0.0000+0.j, 0.0000+0.j, 0.0000+0.j],
+                    [0.5000+0.j, 0.0000+0.j, 0.0000+0.j, 0.5000+0.j]],
+                   dtype=torch.complex128)
+        """
 
         state_vector = StateVector.from_state_string(
             basis=basis, nqubits=nqubits, strings=strings, **kwargs
@@ -98,14 +129,18 @@ class DensityMatrix(State):
         """
 
         probabilities = torch.abs(self.matrix.diagonal())
-        probabilities /= probabilities.sum()  # multinomial does not normalize the input
 
         outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
 
         # Convert outcomes to bitstrings and count occurrences
         counts = Counter(
-            [_index_to_bitstring(self.matrix.diagonal(), outcome) for outcome in outcomes]
+            [index_to_bitstring(self.matrix.diagonal().shape[0], outcome) for outcome in outcomes]
         )
 
         # NOTE: false positives and negatives
         return counts
+
+if __name__ == "__main__":
+    import doctest
+
+    doctest.testmod()

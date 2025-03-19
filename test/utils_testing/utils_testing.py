@@ -222,7 +222,7 @@ def pulser_blackman(duration: float, area: float, phase: float = 0.0):
     return seq
 
 
-def random_density_matrix(num_qubits):
+def random_density_matrix(num_qubits:int):
     """Generates a random density matrix for a given number of qubits."""
     dim = 2**num_qubits
 
