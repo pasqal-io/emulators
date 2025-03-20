@@ -1,4 +1,3 @@
-import math
 import torch
 
 from pulser.backend.config import EmulationConfig
@@ -23,15 +22,16 @@ def qubit_occupation_sv_impl(
     hamiltonian: DenseOperator,
 ) -> torch.Tensor:
     """
-    Custom implementation of the qubit density ❬ψ|nᵢ|ψ❭ for the state vector solver.
+    Custom implementation of the occupation ❬ψ|nᵢ|ψ❭ for the state vector solver.
     """
-    nqubits = int(math.log2(len(state.vector)))
-    state_tensor = state.vector.reshape((2,) * nqubits)
-
-    qubit_density = torch.zeros(nqubits, dtype=torch.float64, device=state_tensor.device)
+    nqubits = state.n_qudits
+    occupation = torch.zeros(nqubits, dtype=torch.float64, device=state.vector.device)
     for i in range(nqubits):
-        qubit_density[i] = state_tensor.select(i, 1).norm() ** 2
-    return qubit_density
+        state_tensor = state.vector.view(2**i, 2, -1)
+        # nᵢ is a projector and therefore nᵢ == nᵢnᵢ
+        # ❬ψ|nᵢ|ψ❭ == ❬ψ|nᵢnᵢ|ψ❭ == ❬ψ|nᵢ * nᵢ|ψ❭ == ❬ϕ|ϕ❭ == |ϕ|**2
+        occupation[i] = torch.linalg.vector_norm(state_tensor[:, 1]) ** 2
+    return occupation
 
 
 def correlation_matrix_sv_impl(
@@ -42,27 +42,29 @@ def correlation_matrix_sv_impl(
     hamiltonian: DenseOperator,
 ) -> torch.Tensor:
     """
-    Custom implementation of the density-density correlation ❬ψ|nᵢnⱼ|ψ❭ for the state vector solver.
-
+    Custom implementation of the density-density correlation ❬ψ|nᵢnⱼ|ψ❭
+      for the state vector solver.
     TODO: extend to arbitrary two-point correlation ❬ψ|AᵢBⱼ|ψ❭
     """
-    nqubits = int(math.log2(len(state.vector)))
-    state_tensor = state.vector.reshape((2,) * nqubits)
-
+    nqubits = state.n_qudits
     correlation = torch.zeros(
-        nqubits, nqubits, dtype=torch.float64, device=state_tensor.device
+        nqubits, nqubits, dtype=torch.float64, device=state.vector.device
     )
 
     for i in range(nqubits):
-        select_i = state_tensor.select(i, 1)
+        select_i = state.vector.view(2**i, 2, -1)
+        select_i = select_i[:, 1]
         for j in range(i, nqubits):  # select the upper triangle
             if i == j:
-                value = select_i.norm() ** 2
+                value = torch.linalg.vector_norm(select_i) ** 2
+                correlation[j, j] = value
             else:
-                value = select_i.select(j - 1, 1).norm() ** 2
+                select_i = select_i.view(2**i, 2 ** (j - i - 1), 2, -1)
+                select_ij = select_i[:, :, 1, :]
+                value = torch.linalg.vector_norm(select_ij) ** 2
+                correlation[i, j] = value
+                correlation[j, i] = value
 
-            correlation[i, j] = value
-            correlation[j, i] = value
     return correlation
 
 
@@ -77,10 +79,13 @@ def energy_variance_sv_impl(
     Custom implementation of the energy variance ❬ψ|H²|ψ❭-❬ψ|H|ψ❭² for the state vector solver.
     """
     hstate = hamiltonian * state.vector
-    h_squared = torch.vdot(hstate, hstate).real
-    energy = torch.vdot(state.vector, hstate).real
-    energy_variance: torch.Tensor = h_squared - energy**2
-    return energy_variance
+    h_squared = torch.vdot(hstate, hstate)
+    energy = torch.vdot(state.vector, hstate)
+    en_var: torch.Tensor = h_squared - energy**2
+
+    assert torch.allclose(en_var.imag, torch.zeros_like(en_var.imag), atol=1e-8)
+
+    return en_var.real
 
 
 def energy_second_moment_sv_impl(
@@ -95,7 +100,11 @@ def energy_second_moment_sv_impl(
     for the state vector solver.
     """
     hstate = hamiltonian * state.vector
-    return torch.vdot(hstate, hstate).real
+    en_2_mom = torch.vdot(hstate, hstate)
+
+    assert torch.allclose(en_2_mom.imag, torch.zeros_like(en_2_mom.imag), atol=1e-8)
+
+    return en_2_mom.real
 
 
 def energy_sv_impl(
@@ -108,4 +117,6 @@ def energy_sv_impl(
     """
     Custom implementation of the energy ❬ψ|H|ψ❭ for the state vector solver.
     """
-    return hamiltonian.expect(state)
+    en = hamiltonian.expect(state)
+    assert torch.allclose(en.imag, torch.zeros_like(en.imag), atol=1e-8)
+    return en.real
