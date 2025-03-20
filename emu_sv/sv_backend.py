@@ -9,6 +9,7 @@ import torch
 from time import time
 from resource import RUSAGE_SELF, getrusage
 from emu_base import DEVICE_COUNT
+from copy import deepcopy
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
 
@@ -45,7 +46,7 @@ class SVBackend(Backend):
         device = "cuda" if sv_config.gpu and DEVICE_COUNT > 0 else "cpu"
 
         if sv_config.initial_state is not None:
-            state = sv_config.initial_state
+            state = deepcopy(sv_config.initial_state)
             state.vector = state.vector.to(device)
         else:
             state = StateVector.make(nqubits, gpu=sv_config.gpu)

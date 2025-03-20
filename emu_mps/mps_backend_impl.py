@@ -272,7 +272,7 @@ class MPSBackendImpl:
                     self.left_baths[-1],
                     self.state.factors[self.tdvp_index],
                     self.hamiltonian.factors[self.tdvp_index],
-                )
+                ).to(self.state.factors[self.tdvp_index + 1].device)
             )
             self._evolve(self.tdvp_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
@@ -301,7 +301,7 @@ class MPSBackendImpl:
                     self.right_baths[-1],
                     self.state.factors[self.tdvp_index + 1],
                     self.hamiltonian.factors[self.tdvp_index + 1],
-                )
+                ).to(self.state.factors[self.tdvp_index].device)
             )
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
