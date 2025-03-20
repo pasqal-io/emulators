@@ -27,6 +27,7 @@ from emu_mps import (
 import pulser.noise_model
 
 from emu_mps.mps_backend_impl import MPSBackendImpl
+from emu_mps.tdvp import right_baths
 from test.utils_testing import (
     pulser_afm_sequence_grid,
     pulser_afm_sequence_ring,
@@ -435,7 +436,34 @@ def test_end_to_end_spontaneous_emission():
     initial_state = emu_mps.MPS.from_state_string(
         basis=("r", "g"), nqubits=12, strings={"rrrrrrrrrrrr": 1.0}
     )
-    result = simulate(seq, noise_model=noise_model, initial_state=initial_state)
+
+    def check_baths(impl: MPSBackendImpl):
+        # Mocking MPSBackendImpl.get_current_right_bath() to check that
+        # the right baths administration happens properly when a quantum jump occurs.
+
+        assert len(impl.right_baths) in [
+            impl.state.num_sites - impl.tdvp_index,
+            impl.state.num_sites - impl.tdvp_index - 1,
+        ]
+
+        expected_right_baths = right_baths(
+            impl.state,
+            impl.hamiltonian,
+            final_qubit=impl.state.num_sites - len(impl.right_baths) + 1,
+        )
+        assert all(
+            torch.allclose(actual, expected)
+            for actual, expected in zip(impl.right_baths, expected_right_baths)
+        )
+
+        return impl.right_baths[-1]
+
+    with patch(
+        "emu_mps.mps_backend_impl.MPSBackendImpl.get_current_right_bath", autospec=True
+    ) as get_current_right_bath_mock:
+        get_current_right_bath_mock.side_effect = check_baths
+
+        result = simulate(seq, noise_model=noise_model, initial_state=initial_state)
 
     final_time = seq.get_duration()
     final_state = result["state"][final_time]
