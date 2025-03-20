@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import math
 from collections import Counter
 from typing import Sequence, SupportsComplex, Type, TypeVar
-import math
-
-from emu_base import DEVICE_COUNT
-from pulser.backend.state import State, Eigenstate
 
 import torch
 
+from emu_base import DEVICE_COUNT
+from pulser.backend.state import Eigenstate, State
+
+# Type variables
 ArgScalarType = TypeVar("ArgScalarType")
 StateVectorType = TypeVar("StateVectorType", bound="StateVector")
 
+# Default tensor data type
 dtype = torch.complex128
 
 
@@ -43,7 +45,6 @@ class StateVector(State):
 
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         self.vector = vector.to(dtype=dtype, device=device)
-        self._eigenstates = ["0", "1"]
 
     @property
     def n_qudits(self) -> int:
@@ -52,12 +53,19 @@ class StateVector(State):
         return int(nqudits)
 
     def _normalize(self) -> None:
-        # NOTE: use this in the callbacks
-        """Checks if the input is normalized or not"""
-        norm_state = torch.linalg.vector_norm(self.vector)
+        """Normalizes the state vector to ensure it has unit norm.
 
-        if not torch.allclose(norm_state, torch.tensor(1.0, dtype=torch.float64)):
-            self.vector = self.vector / norm_state
+        If the vector norm is not 1, the method scales the vector
+        to enforce normalization.
+
+        Note:
+            This method is intended to be used in callbacks.
+        """
+
+        norm = self.norm()
+
+        if not torch.allclose(norm, torch.tensor(1.0, dtype=torch.float64)):
+            self.vector = self.vector / norm
 
     @classmethod
     def zero(cls, num_sites: int, gpu: bool = True) -> StateVector:
@@ -83,8 +91,7 @@ class StateVector(State):
     @classmethod
     def make(cls, num_sites: int, gpu: bool = True) -> StateVector:
         """
-        Returns a State vector in ground state |000..0>.
-        The vector in the output of StateVector has the shape (2,)*number of qubits
+        Returns a State vector in the ground state |00..0>.
 
         Args:
             num_sites: the number of qubits
@@ -102,7 +109,7 @@ class StateVector(State):
         result.vector[0] = 1.0
         return result
 
-    def inner(self, other: State) -> float | complex:
+    def inner(self, other: State) -> torch.Tensor:
         """
         Compute <self|other>. The type of other must be StateVector.
 
@@ -112,14 +119,12 @@ class StateVector(State):
         Returns:
             the inner product
         """
-        assert isinstance(
-            other, StateVector
-        ), "Other state also needs to be a StateVector"
+        assert isinstance(other, StateVector), "Other state must be a StateVector"
         assert (
             self.vector.shape == other.vector.shape
-        ), "States do not have the same number of sites"
+        ), "States do not have the same shape"
 
-        return torch.vdot(self.vector, other.vector).item()
+        return torch.vdot(self.vector, other.vector)
 
     def sample(
         self,
@@ -169,11 +174,8 @@ class StateVector(State):
         Returns:
             The summed state
         """
-        assert isinstance(
-            other, StateVector
-        ), "Other state also needs to be a StateVector"
-        result = self.vector + other.vector
-        return StateVector(result)
+        assert isinstance(other, StateVector), "`Other` state can only be a StateVector"
+        return StateVector(self.vector + other.vector)
 
     def __rmul__(self, scalar: complex) -> StateVector:
         """Scalar multiplication
@@ -184,18 +186,16 @@ class StateVector(State):
         Returns:
             The scaled state
         """
-        result = scalar * self.vector
+        return StateVector(scalar * self.vector)
 
-        return StateVector(result)
-
-    def norm(self) -> float | complex:
+    def norm(self) -> torch.Tensor:
         """Returns the norm of the state
 
         Returns:
             the norm of the state
         """
-        norm: float | complex = torch.linalg.vector_norm(self.vector).item()
-        return norm
+        nrm: torch.Tensor = torch.linalg.vector_norm(self.vector)
+        return nrm
 
     def __repr__(self) -> str:
         return repr(self.vector)
@@ -218,7 +218,7 @@ class StateVector(State):
             amplitudes: A dictionary mapping state strings to complex or floats amplitudes.
 
         Returns:
-            The resulting state.
+            The normalised resulting state.
 
         Examples:
             >>> basis = ("r","g")
@@ -252,11 +252,11 @@ class StateVector(State):
 
         return accum_state
 
-    def overlap(self, other: StateVector, /) -> float | complex:
+    def overlap(self, other: StateVector, /) -> torch.Tensor:
         return self.inner(other)
 
 
-def inner(left: StateVector, right: StateVector) -> float | complex:
+def inner(left: StateVector, right: StateVector) -> torch.Tensor:
     """
     Wrapper around StateVector.inner.
 
@@ -268,22 +268,23 @@ def inner(left: StateVector, right: StateVector) -> float | complex:
         the inner product
 
     Examples:
-        >>> factor = 1.0/math.sqrt(2.0)
+        >>> factor = math.sqrt(2.0)
         >>> basis = ("r","g")
         >>> string_state1 = {"gg":1.0,"rr":1.0}
         >>> state1 = StateVector.from_state_amplitudes(eigenstates=basis,
         ...     amplitudes=string_state1)
-        >>> string_state2 = {"gr":factor,"rr":factor}
+        >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
         >>> state2 = StateVector.from_state_amplitudes(eigenstates=basis,
         ...     amplitudes=string_state2)
-        >>> inner(state1,state2)
+        >>> inner(state1,state2).item()
         (0.49999999144286444+0j)
     """
 
-    assert (left.vector.shape == right.vector.shape) and (
-        left.vector.dim() == 1
-    ), "Shape of a and b should be the same and both needs to be 1D tesnor"
-    return torch.inner(left.vector, right.vector).item()
+    assert (left.vector.shape == right.vector.shape) and (left.vector.dim() == 1), (
+        "Shape of left.vector and right.vector should be",
+        " the same and both need to be 1D tesnor",
+    )
+    return left.inner(right)
 
 
 if __name__ == "__main__":

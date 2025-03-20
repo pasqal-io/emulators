@@ -53,13 +53,13 @@ def test_inner_and_overlap() -> None:
 
     expected = torch.dot(tensor1, tensor2)
 
-    assert math.isclose(abs(inner_prod - expected), 0)
-    assert math.isclose(abs(ovrlp - expected), 0)
+    assert torch.allclose(inner_prod, expected)
+    assert torch.allclose(ovrlp, expected)
 
 
 def test_norm() -> None:
     nqubits = 5
-    rnd_tensor = torch.rand(2**nqubits)
+    rnd_tensor = torch.rand((2**nqubits), dtype=dtype)
     state = StateVector(rnd_tensor)
 
     nrm_expected = torch.linalg.norm(rnd_tensor).item()
