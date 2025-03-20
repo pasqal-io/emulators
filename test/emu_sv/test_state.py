@@ -1,7 +1,7 @@
 import pytest
 import torch
 import math
-from emu_sv.state_vector import StateVector, inner
+from emu_sv import StateVector, inner
 
 pi = torch.tensor(math.pi)
 factor = 1.0 / torch.sqrt(torch.tensor(2.0))

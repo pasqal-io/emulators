@@ -11,12 +11,14 @@ from emu_sv.custom_callback_implementations import (
     qubit_occupation_sv_impl,
     energy_second_moment_sv_impl,
 )
-from emu_sv.dense_operator import DenseOperator
+from emu_sv import (
+    DenseOperator,
+    SVConfig,
+    StateVector,
+)
 from emu_sv.hamiltonian import RydbergHamiltonian
-from emu_sv.sv_config import SVConfig
-from emu_sv.state_vector import StateVector
 
-from pulser.backend.default_observables import (
+from pulser.backend import (
     CorrelationMatrix,
     EnergySecondMoment,
     EnergyVariance,

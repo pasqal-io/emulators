@@ -5,9 +5,8 @@ from typing import Any
 
 import pulser
 import pulser.noise_model
-from pulser.backend import Results
 
-from pulser.backend.default_observables import (
+from pulser.backend import (
     CorrelationMatrix,
     EnergySecondMoment,
     EnergyVariance,
@@ -15,11 +14,11 @@ from pulser.backend.default_observables import (
     BitStrings,
     Energy,
     Fidelity,
+    Results,
     StateResult,
 )
 
-from emu_sv.sv_backend import SVBackend
-from emu_sv.sv_config import SVConfig, StateVector
+from emu_sv import SVBackend, SVConfig, StateVector
 
 from test.utils_testing import (
     pulser_afm_sequence_ring,

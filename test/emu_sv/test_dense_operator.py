@@ -2,9 +2,7 @@ import torch
 import pytest
 from functools import reduce
 
-from emu_sv.dense_operator import DenseOperator
-from emu_sv.state_vector import StateVector
-
+from emu_sv import StateVector, DenseOperator
 
 dtype = torch.complex128
 X = torch.tensor([[0, 1], [1, 0]], dtype=dtype)
