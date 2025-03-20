@@ -6,6 +6,7 @@ from emu_base import State, DEVICE_COUNT
 from emu_sv.state_vector import StateVector
 from emu_sv.utils import index_to_bitstring
 
+
 dtype = torch.complex128
 
 
@@ -26,16 +27,15 @@ class DensityMatrix(State):
 
     @classmethod
     def make(cls, n_atoms: int, gpu: bool = True) -> DensityMatrix:
+        """Creates the density matrix of the ground state |000...0>"""
         result = torch.zeros(2**n_atoms, 2**n_atoms, dtype=dtype)
         result[0, 0] = 1.0
         return cls(result, gpu=gpu)
 
     def __add__(self, other: State) -> DensityMatrix:
-        # NOTE: this is not implemented
         raise NotImplementedError("Not implemented")
 
     def __rmul__(self, scalar: complex) -> DensityMatrix:
-        # NOTE: this is not implemented
         raise NotImplementedError("Not implemented")
 
     def _normalize(self) -> None:
@@ -54,6 +54,13 @@ class DensityMatrix(State):
 
         Returns:
             the inner product
+
+        Example:
+        >>> density_bell_state = (1/2* torch.tensor([[1, 0, 0, 1], [0, 0, 0, 0],
+        ... [0, 0, 0, 0], [1, 0, 0, 1]],dtype=torch.complex128))
+        >>> density_c = DensityMatrix(density_bell_state, gpu=False)
+        >>> density_c.inner(density_c)
+        (1+0j)
         """
 
         assert isinstance(
@@ -67,7 +74,23 @@ class DensityMatrix(State):
 
     @classmethod
     def from_state_vector(cls, state: StateVector) -> DensityMatrix:
-        """convert a state vector to a density matrix"""
+        """Convert a state vector to a density matrix.
+        This function takes a state vector |ψ❭ and returns the corresponding
+        density matrix ρ = |ψ❭❬ψ| representing the pure state |ψ❭.
+        Example:
+           >>> from emu_sv import StateVector
+           >>> import math
+           >>> bell_state_vec = 1 / math.sqrt(2) * torch.tensor(
+           ... [1.0, 0.0, 0.0, 1.0j],dtype=torch.complex128)
+           >>> bell_state = StateVector(bell_state_vec, gpu=False)
+           >>> density = DensityMatrix.from_state_vector(bell_state)
+           >>> print(density.matrix)
+           tensor([[0.5000+0.0000j, 0.0000+0.0000j, 0.0000+0.0000j, 0.0000-0.5000j],
+                   [0.0000+0.0000j, 0.0000+0.0000j, 0.0000+0.0000j, 0.0000+0.0000j],
+                   [0.0000+0.0000j, 0.0000+0.0000j, 0.0000+0.0000j, 0.0000+0.0000j],
+                   [0.0000+0.5000j, 0.0000+0.0000j, 0.0000+0.0000j, 0.5000+0.0000j]],
+                  dtype=torch.complex128)
+        """
 
         return cls(
             torch.outer(state.vector, state.vector.conj()), gpu=state.vector.is_cuda
@@ -126,6 +149,17 @@ class DensityMatrix(State):
 
         Returns:
             the measured bitstrings, by count
+
+        Example:
+        >>> import math
+        >>> from emu_sv import StateVector
+        >>> bell_vec = 1 / math.sqrt(2) * torch.tensor(
+        ... [1.0, 0.0, 0.0, 1.0j],dtype=torch.complex128)
+        >>> bell_state_vec = StateVector(bell_vec)
+        >>> bell_density = DensityMatrix.from_state_vector(bell_state_vec)
+        >>> torch.manual_seed(1234)
+        >>> bell_density.sample(1000)
+         Counter({'00': 517, '11': 483})
         """
 
         probabilities = torch.abs(self.matrix.diagonal())
