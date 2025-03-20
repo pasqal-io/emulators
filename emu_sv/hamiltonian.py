@@ -71,15 +71,14 @@ class RydbergHamiltonian:
             the resulting state vector.
         """
         # (-∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ)|ψ❭
-        diag_result = self.diag * vec
+        result = self.diag * vec
         # ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ]|ψ❭
-        sigma_result = self._apply_sigma_operators(vec)
-        result: torch.Tensor
-        result = diag_result + sigma_result
-
+        self._apply_sigma_operators(result, vec)
         return result
 
-    def _apply_sigma_operators_real(self, vec: torch.Tensor) -> torch.Tensor:
+    def _apply_sigma_operators_real(
+        self, result: torch.Tensor, vec: torch.Tensor
+    ) -> None:
         """
         Apply the ∑ⱼ(Ωⱼ/2)σˣⱼ operator to the input vector |ψ❭.
 
@@ -89,8 +88,6 @@ class RydbergHamiltonian:
         Returns:
             the resulting state vector.
         """
-        result = torch.zeros_like(vec)
-
         dim_to_act = 1
         for n, omega_n in enumerate(self.omegas):
             shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
@@ -98,9 +95,9 @@ class RydbergHamiltonian:
             result = result.reshape(shape_n)
             result.index_add_(dim_to_act, self.inds, vec, alpha=omega_n)
 
-        return result.reshape(-1)
-
-    def _apply_sigma_operators_complex(self, vec: torch.Tensor) -> torch.Tensor:
+    def _apply_sigma_operators_complex(
+        self, result: torch.Tensor, vec: torch.Tensor
+    ) -> None:
         """
         Apply the ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] operator to the input vector |ψ❭.
 
@@ -111,7 +108,6 @@ class RydbergHamiltonian:
             the resulting state vector.
         """
         c_omegas = self.omegas * torch.exp(1j * self.phis)
-        result = torch.zeros_like(vec)
 
         dim_to_act = 1
         for n, c_omega_n in enumerate(c_omegas):
@@ -127,8 +123,6 @@ class RydbergHamiltonian:
                 vec[:, 1, :].unsqueeze(1),
                 alpha=c_omega_n.conj(),
             )
-
-        return result.reshape(-1)
 
     def _create_diagonal(self) -> torch.Tensor:
         """

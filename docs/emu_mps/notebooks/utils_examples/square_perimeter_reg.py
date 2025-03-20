@@ -3,7 +3,6 @@ import math
 
 
 def square_perimeter_points(L: int) -> np.ndarray:
-
     """
     Calculate the coordinates of the points located on the perimeter of a square of size L.
     The square is centered at the origin (0, 0) with sides parallel to the axes.

@@ -131,7 +131,6 @@ class StateVector(State):
         """
 
         probabilities = torch.abs(self.vector) ** 2
-        probabilities /= probabilities.sum()  # multinomial does not normalize the input
 
         outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
 
