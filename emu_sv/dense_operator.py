@@ -149,7 +149,7 @@ class DenseOperator(Operator):
 
         if set(eigenstates) == {"r", "g"}:
             # operators_with_tensors will now contain the basis for single qubit ops,
-            # and potentially user defined strings in terms of these
+            # and potentially user defined strings in terms of {r, g} or {0, 1}
             operators_with_tensors |= {
                 "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype),
                 "gr": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype),
@@ -157,8 +157,6 @@ class DenseOperator(Operator):
                 "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype),
             }
         elif set(eigenstates) == {"0", "1"}:
-            # operators_with_tensors will now contain the basis for single qubit ops,
-            # and potentially user defined strings in terms of these
             operators_with_tensors |= {
                 "00": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype),
                 "01": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype),
@@ -166,7 +164,7 @@ class DenseOperator(Operator):
                 "11": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype),
             }
         else:
-            raise ValueError("Unsupported basis provided")
+            raise ValueError("An unsupported basis of eigenstates has been provided.")
 
         accum_res = torch.zeros(2**n_qudits, 2**n_qudits, dtype=dtype)
         for coeff, oper_torch_with_target_qubits in operations:

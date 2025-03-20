@@ -45,7 +45,6 @@ class SVBackend(EmulatorBackend):
         nqubits = omega.shape[1]
 
         self.results = Results(atom_order=(), total_duration=self.target_times[-1])
-        # results.statistics = None
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
             data=[],
@@ -73,12 +72,16 @@ class SVBackend(EmulatorBackend):
                 self._config.krylov_tolerance,
             )
 
-            # TODO: remove this type ignore thing
+            # callbacks in observables and self.statistics in H
+            # have "# type: ignore[arg-type]" because H has it's own type
+            # meaning H is not inherited from Operator class.
+            # We decided that ignore[arg-type] is better compare to
+            # having many unused NotImplemented methods
             for callback in self._config.observables:
                 callback(
                     self._config,
                     self.target_times[step + 1] / self.target_times[-1],
-                    state,  # type: ignore[arg-type]
+                    state,
                     H,  # type: ignore[arg-type]
                     self.results,
                 )
@@ -87,7 +90,7 @@ class SVBackend(EmulatorBackend):
             self.statistics(
                 self._config,
                 self.target_times[step + 1] / self.target_times[-1],
-                state,  # type: ignore[arg-type]
+                state,
                 H,  # type: ignore[arg-type]
                 self.results,
             )
