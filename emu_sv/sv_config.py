@@ -64,7 +64,7 @@ class SVConfig(EmulationConfig):
     ):
         kwargs.setdefault("observables", [StateResult(evaluation_times=[1.0])])
         super().__init__(**kwargs)
-        self._backend_options["initial_state"] = initial_state  # TODO REMOVE IT
+        self._backend_options["initial_state"] = initial_state
         self._backend_options["dt"] = dt
         self._backend_options["max_krylov_dim"] = max_krylov_dim
         self._backend_options["gpu"] = gpu

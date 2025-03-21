@@ -23,7 +23,7 @@ def qubit_occupation_mps_impl(
     hamiltonian: "MPO",
 ) -> torch.Tensor:
     """
-    Custom implementation of the qubit density ❬ψ|nᵢ|ψ❭ for the state vector solver.
+    Custom implementation of the occupation ❬ψ|nᵢ|ψ❭ for the EMU-MPS.
     """
     op = torch.tensor(
         [[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.complex128, device=state.factors[0].device
@@ -39,7 +39,7 @@ def correlation_matrix_mps_impl(
     hamiltonian: "MPO",
 ) -> torch.Tensor:
     """
-    Custom implementation of the density-density correlation ❬ψ|nᵢnⱼ|ψ❭ for the state vector solver.
+    Custom implementation of the density-density correlation ❬ψ|nᵢnⱼ|ψ❭ for the EMU-MPS.
 
     TODO: extend to arbitrary two-point correlation ❬ψ|AᵢBⱼ|ψ❭
     """
@@ -54,12 +54,14 @@ def energy_variance_mps_impl(
     hamiltonian: "MPO",
 ) -> torch.Tensor:
     """
-    Custom implementation of the energy variance ❬ψ|H²|ψ❭-❬ψ|H|ψ❭² for the state vector solver.
+    Custom implementation of the energy variance ❬ψ|H²|ψ❭-❬ψ|H|ψ❭² for the EMU-MPS.
     """
     h_squared = hamiltonian @ hamiltonian
-    return (  # type: ignore[no-any-return]
-        (h_squared.expect(state).real - hamiltonian.expect(state).real ** 2).to("cpu")
-    )
+    h_2 = h_squared.expect(state).to("cpu")
+    h = hamiltonian.expect(state).to("cpu")
+    en_var = h_2 - h**2
+    assert torch.allclose(en_var.imag, torch.zeros_like(en_var.imag), atol=1e-4)
+    return en_var.real  # type: ignore[no-any-return]
 
 
 def energy_second_moment_mps_impl(
@@ -71,10 +73,12 @@ def energy_second_moment_mps_impl(
 ) -> torch.Tensor:
     """
     Custom implementation of the second moment of energy ❬ψ|H²|ψ❭
-    for the state vector solver.
+    for the EMU-MPS.
     """
-    H_square = hamiltonian @ hamiltonian
-    return H_square.expect(state).real.to("cpu")
+    h_square = hamiltonian @ hamiltonian
+    h_2 = h_square.expect(state).to("cpu")
+    assert torch.allclose(h_2.imag, torch.zeros_like(h_2.imag), atol=1e-4)
+    return h_2.real
 
 
 def energy_mps_impl(
@@ -86,6 +90,8 @@ def energy_mps_impl(
 ) -> torch.Tensor:
     """
     Custom implementation of the second moment of energy ❬ψ|H²|ψ❭
-    for the state vector solver.
+    for the EMU-MPS.
     """
-    return hamiltonian.expect(state).real.to("cpu")
+    h = hamiltonian.expect(state).to("cpu")
+    assert torch.allclose(h.imag, torch.zeros_like(h.imag), atol=1e-4)
+    return h.real
