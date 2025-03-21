@@ -1,25 +1,25 @@
 import copy
-from types import MethodType
-from typing import Any
-
-from pulser.backend.config import EmulationConfig
-
-from pulser.backend import (
-    CorrelationMatrix,
-    EnergyVariance,
-    Occupation,
-    EnergySecondMoment,
-)
-from emu_sv.state_vector import StateVector
-from emu_sv.custom_callback_implementations import (
-    correlation_matrix_sv_impl,
-    energy_variance_sv_impl,
-    qubit_occupation_sv_impl,
-    energy_second_moment_sv_impl,
-)
 import logging
 import pathlib
 import sys
+from types import MethodType
+from typing import Any
+
+from emu_sv.custom_callback_implementations import (
+    correlation_matrix_sv_impl,
+    energy_second_moment_sv_impl,
+    energy_variance_sv_impl,
+    qubit_occupation_sv_impl,
+)
+from emu_sv.state_vector import StateVector
+
+from pulser.backend import (
+    CorrelationMatrix,
+    EmulationConfig,
+    EnergySecondMoment,
+    EnergyVariance,
+    Occupation,
+)
 
 
 class SVConfig(EmulationConfig):

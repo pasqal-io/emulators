@@ -1,7 +1,8 @@
 # from emu_base.base_classes import Results
 from pulser.backend.results import Results
 
-from emu_base.base_classes.callback import AggregationType
+from emu_base.base_classes.aggregators import AggregationType
+
 
 from pulser.backend import (
     BitStrings,
@@ -19,6 +20,7 @@ from pulser.backend import (
 from emu_sv.dense_operator import DenseOperator
 from emu_sv.sv_backend import SVBackend, SVConfig
 from emu_sv.state_vector import StateVector, inner
+from emu_sv.hamiltonian import RydbergHamiltonian
 
 __all__ = [
     "__version__",
@@ -28,12 +30,13 @@ __all__ = [
     "CorrelationMatrix",
     "DenseOperator",
     "Energy",
-    "EnergyVariance",
     "EnergySecondMoment",
+    "EnergyVariance",
     "Expectation",
     "Fidelity",
     "Occupation",
     "Results",
+    "RydbergHamiltonian",
     "SVBackend",
     "SVConfig",
     "StateResult",

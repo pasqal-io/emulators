@@ -1,8 +1,8 @@
 import torch
 
-from pulser.backend.config import EmulationConfig
-from pulser.backend.default_observables import (
+from pulser.backend import (
     CorrelationMatrix,
+    EmulationConfig,
     EnergySecondMoment,
     EnergyVariance,
     Occupation,

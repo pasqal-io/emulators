@@ -7,7 +7,8 @@ from typing import Sequence, SupportsComplex, Type, TypeVar
 import torch
 
 from emu_base import DEVICE_COUNT
-from pulser.backend.state import Eigenstate, State
+from pulser.backend import State
+from pulser.backend.state import Eigenstate
 
 # Type variables
 ArgScalarType = TypeVar("ArgScalarType")

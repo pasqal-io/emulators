@@ -5,24 +5,22 @@ from unittest.mock import MagicMock
 
 from emu_base import DEVICE_COUNT
 
-from emu_sv.custom_callback_implementations import (
-    correlation_matrix_sv_impl,
-    energy_variance_sv_impl,
-    qubit_occupation_sv_impl,
-    energy_second_moment_sv_impl,
-)
 from emu_sv import (
     DenseOperator,
+    RydbergHamiltonian,
     SVConfig,
     StateVector,
-)
-from emu_sv.hamiltonian import RydbergHamiltonian
-
-from pulser.backend import (
     CorrelationMatrix,
     EnergySecondMoment,
     EnergyVariance,
     Occupation,
+)
+
+from emu_sv.custom_callback_implementations import (
+    correlation_matrix_sv_impl,
+    energy_second_moment_sv_impl,
+    energy_variance_sv_impl,
+    qubit_occupation_sv_impl,
 )
 
 device = "cuda" if DEVICE_COUNT > 0 else "cpu"

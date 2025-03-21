@@ -1,14 +1,21 @@
 from __future__ import annotations
+
 import itertools
 from functools import reduce
 
 import torch
 
+from typing import Sequence, Type
+
 from emu_base import DEVICE_COUNT
 from emu_sv.state_vector import StateVector
 
-from pulser.backend.operator import FullOp, Operator, QuditOp, Sequence, Type
-from pulser.backend.state import Eigenstate, State
+from pulser.backend import (
+    Operator,
+    State,
+)
+from pulser.backend.operator import FullOp, QuditOp
+from pulser.backend.state import Eigenstate
 
 dtype = torch.complex128
 

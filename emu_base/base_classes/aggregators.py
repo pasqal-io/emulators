@@ -1,10 +1,19 @@
 import statistics
 from typing import Any, Callable
 import collections
-from emu_base.base_classes.callback import AggregationType
+from enum import Enum, auto
 
 
 _NUMERIC_TYPES = {int, float, complex}
+
+
+class AggregationType(Enum):
+    """
+    Defines how to combine multiple values from different simulation results.
+    """
+
+    MEAN = auto()  # statistics.fmean or list/matrix-wise equivalent
+    BAG_UNION = auto()  # Counter.__add__
 
 
 def mean_aggregator(
