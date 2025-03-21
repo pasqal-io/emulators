@@ -486,12 +486,15 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
 
         self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
+
+    def init_jump_threshold(self) -> None:
         self.jump_threshold = random.random()
         self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
 
     def init(self) -> None:
-        super().init()
         self.init_lindblad_noise()
+        super().init()
+        self.init_jump_threshold()
 
     def tdvp_complete(self) -> None:
         previous_time = self.current_time

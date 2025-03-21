@@ -1,5 +1,6 @@
 import time
 from unittest.mock import ANY, MagicMock, patch
+from collections import Counter
 
 import pulser
 import pytest
@@ -468,10 +469,63 @@ def test_end_to_end_spontaneous_emission():
     final_time = seq.get_duration()
     final_state = result["state"][final_time]
 
+    print(final_state)
     assert get_proba(final_state, "100000110000") == approx(1, abs=1e-2)
 
     # Aggregating results of many runs to check the exponential decrease of qubit density
     # would be too much for this unit test.
+
+
+def test_end_to_end_spontaneous_emission_rate():
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+
+    # Sequence with no driving.
+    duration = 10000
+    rows, cols = 1, 2
+    reg = pulser.Register.rectangle(rows, cols, 1e10, prefix="q")
+    seq = pulser.Sequence(reg, pulser.devices.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(
+        pulser.Pulse.ConstantAmplitude(
+            amplitude=0.0,
+            detuning=pulser.waveforms.ConstantWaveform(duration=duration, value=0.0),
+            phase=0.0,
+        ),
+        "ising_global",
+    )
+
+    noise_model = pulser.noise_model.NoiseModel(
+        relaxation_rate=0.1,
+    )
+
+    initial_state = emu_mps.MPS.from_state_string(
+        basis=("r", "g"), nqubits=2, strings={"rr": 1.0}
+    )
+    results = []
+    for _ in range(100):
+        results.append(
+            simulate(seq, noise_model=noise_model, initial_state=initial_state, dt=10000)
+        )
+
+    final_time = seq.get_duration()
+    # round probabilities to merge 1.0 and 0.9999999999999998 etc.
+    c = Counter(
+        [round(get_proba(result["state"][final_time], "11")) for result in results]
+    )
+    assert c[1] == 16  # true rate 0.135
+    c = Counter(
+        [round(get_proba(result["state"][final_time], "01")) for result in results]
+    )
+    assert c[1] == 17  # true rate 0.233
+    c = Counter(
+        [round(get_proba(result["state"][final_time], "10")) for result in results]
+    )
+    assert c[1] == 23  # true rate 0.233
+    c = Counter(
+        [round(get_proba(result["state"][final_time], "00")) for result in results]
+    )
+    assert c[1] == 44  # true rate 0.400
 
 
 def test_laser_waist():
