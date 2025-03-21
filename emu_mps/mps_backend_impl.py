@@ -177,6 +177,12 @@ class MPSBackendImpl:
         self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
         assert len(self.right_baths) == self.qubit_count - 1
 
+    def get_current_right_bath(self) -> torch.Tensor:
+        return self.right_baths[-1]
+
+    def get_current_left_bath(self) -> torch.Tensor:
+        return self.left_baths[-1]
+
     def init(self) -> None:
         self.init_dark_qubits()
         self.init_initial_state(self.config.initial_state)
@@ -197,7 +203,7 @@ class MPSBackendImpl:
         """
         assert 1 <= len(indices) <= 2
 
-        baths = (self.left_baths[-1], self.right_baths[-1])
+        baths = (self.get_current_left_bath(), self.get_current_right_bath())
 
         if len(indices) == 1:
             assert orth_center_right is None
@@ -269,7 +275,7 @@ class MPSBackendImpl:
             )
             self.left_baths.append(
                 new_left_bath(
-                    self.left_baths[-1],
+                    self.get_current_left_bath(),
                     self.state.factors[self.tdvp_index],
                     self.hamiltonian.factors[self.tdvp_index],
                 ).to(self.state.factors[self.tdvp_index + 1].device)
@@ -298,7 +304,7 @@ class MPSBackendImpl:
             assert self.tdvp_index <= self.qubit_count - 2
             self.right_baths.append(
                 new_right_bath(
-                    self.right_baths[-1],
+                    self.get_current_right_bath(),
                     self.state.factors[self.tdvp_index + 1],
                     self.hamiltonian.factors[self.tdvp_index + 1],
                 ).to(self.state.factors[self.tdvp_index].device)
@@ -480,12 +486,15 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
 
         self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
-        self.jump_threshold = random.random()
+
+    def set_jump_threshold(self, bound: float) -> None:
+        self.jump_threshold = random.uniform(0.0, bound)
         self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
 
     def init(self) -> None:
-        super().init()
         self.init_lindblad_noise()
+        super().init()
+        self.set_jump_threshold(1.0)
 
     def tdvp_complete(self) -> None:
         previous_time = self.current_time
@@ -535,11 +544,11 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         self.state.apply(jumped_qubit_index, jump_operator)
         self.state.orthogonalize(0)
         self.state *= 1 / self.state.norm()
+        self.init_baths()
 
         norm_after_normalizing = self.state.norm()
         assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
-        self.jump_threshold = random.uniform(0.0, norm_after_normalizing**2)
-        self.norm_gap_before_jump = norm_after_normalizing**2 - self.jump_threshold
+        self.set_jump_threshold(norm_after_normalizing**2)
 
     def fill_results(self) -> None:
         # Remove the noise from self.hamiltonian for the callbacks.

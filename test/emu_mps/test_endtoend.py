@@ -1,5 +1,6 @@
 import time
 from unittest.mock import ANY, MagicMock, patch
+from collections import Counter
 
 import pulser
 import pytest
@@ -27,6 +28,7 @@ from emu_mps import (
 import pulser.noise_model
 
 from emu_mps.mps_backend_impl import MPSBackendImpl
+from emu_mps.tdvp import right_baths
 from test.utils_testing import (
     pulser_afm_sequence_grid,
     pulser_afm_sequence_ring,
@@ -435,7 +437,34 @@ def test_end_to_end_spontaneous_emission():
     initial_state = emu_mps.MPS.from_state_string(
         basis=("r", "g"), nqubits=12, strings={"rrrrrrrrrrrr": 1.0}
     )
-    result = simulate(seq, noise_model=noise_model, initial_state=initial_state)
+
+    def check_baths(impl: MPSBackendImpl):
+        # Mocking MPSBackendImpl.get_current_right_bath() to check that
+        # the right baths administration happens properly when a quantum jump occurs.
+
+        assert len(impl.right_baths) in [
+            impl.state.num_sites - impl.tdvp_index,
+            impl.state.num_sites - impl.tdvp_index - 1,
+        ]
+
+        expected_right_baths = right_baths(
+            impl.state,
+            impl.hamiltonian,
+            final_qubit=impl.state.num_sites - len(impl.right_baths) + 1,
+        )
+        assert all(
+            torch.allclose(actual, expected)
+            for actual, expected in zip(impl.right_baths, expected_right_baths)
+        )
+
+        return impl.right_baths[-1]
+
+    with patch(
+        "emu_mps.mps_backend_impl.MPSBackendImpl.get_current_right_bath", autospec=True
+    ) as get_current_right_bath_mock:
+        get_current_right_bath_mock.side_effect = check_baths
+
+        result = simulate(seq, noise_model=noise_model, initial_state=initial_state)
 
     final_time = seq.get_duration()
     final_state = result["state"][final_time]
@@ -444,6 +473,52 @@ def test_end_to_end_spontaneous_emission():
 
     # Aggregating results of many runs to check the exponential decrease of qubit density
     # would be too much for this unit test.
+
+
+def test_end_to_end_spontaneous_emission_rate():
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+
+    # Sequence with no driving.
+    duration = 10000
+    rows, cols = 1, 2
+    reg = pulser.Register.rectangle(rows, cols, 1e10, prefix="q")
+    seq = pulser.Sequence(reg, pulser.devices.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(
+        pulser.Pulse.ConstantAmplitude(
+            amplitude=0.0,
+            detuning=pulser.waveforms.ConstantWaveform(duration=duration, value=0.0),
+            phase=0.0,
+        ),
+        "ising_global",
+    )
+
+    noise_model = pulser.noise_model.NoiseModel(
+        relaxation_rate=0.1,
+    )
+
+    initial_state = emu_mps.MPS.from_state_string(
+        basis=("r", "g"), nqubits=2, strings={"rr": 1.0}
+    )
+    results = []
+    for _ in range(100):
+        results.append(
+            simulate(seq, noise_model=noise_model, initial_state=initial_state, dt=10000)
+        )
+
+    final_time = seq.get_duration()
+    counts = {}
+    # round probabilities to merge 1.0 and 0.9999999999999998 etc.
+    for string in ["00", "01", "10", "11"]:
+        counts[string] = Counter(
+            [round(get_proba(result["state"][final_time], string)) for result in results]
+        )[1]
+
+    # the exact rates are {"11":0.135, "01":0.233, "10":0.233, "00":0.400}
+    expected_counts = {"11": 16, "01": 17, "10": 23, "00": 44}
+
+    assert counts == expected_counts
 
 
 def test_laser_waist():
