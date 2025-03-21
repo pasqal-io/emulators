@@ -19,6 +19,7 @@ from pulser.backend import (
     EnergySecondMoment,
     EnergyVariance,
     Occupation,
+    StateResult,
 )
 
 
@@ -61,6 +62,7 @@ class SVConfig(EmulationConfig):
         log_file: pathlib.Path | None = None,
         **kwargs: Any,
     ):
+        kwargs.setdefault("observables", [StateResult(evaluation_times=[1.0])])
         super().__init__(**kwargs)
         self._backend_options["initial_state"] = initial_state  # TODO REMOVE IT
         self._backend_options["dt"] = dt

@@ -2,7 +2,6 @@ from typing import Any
 from types import MethodType
 import copy
 
-from pulser.backend import EmulationConfig
 from emu_base import DEVICE_COUNT
 from emu_mps.custom_callback_implementations import (
     energy_mps_impl,
@@ -11,12 +10,14 @@ from emu_mps.custom_callback_implementations import (
     correlation_matrix_mps_impl,
     qubit_occupation_mps_impl,
 )
-from pulser.backend.default_observables import (
+from pulser.backend import (
     Occupation,
     CorrelationMatrix,
     Energy,
     EnergySecondMoment,
     EnergyVariance,
+    # StateResult,
+    EmulationConfig,
 )
 import logging
 import pathlib
@@ -71,6 +72,7 @@ class MPSConfig(EmulationConfig):
         autosave_dt: int = 600,  # 10 minutes
         **kwargs: Any,
     ):
+        # kwargs.setdefault("observables", [StateResult(evaluation_times=[1.0])])
         super().__init__(**kwargs)
         self._backend_options["dt"] = dt
         self._backend_options["precision"] = precision
