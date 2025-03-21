@@ -469,7 +469,6 @@ def test_end_to_end_spontaneous_emission():
     final_time = seq.get_duration()
     final_state = result["state"][final_time]
 
-    print(final_state)
     assert get_proba(final_state, "100000110000") == approx(1, abs=1e-2)
 
     # Aggregating results of many runs to check the exponential decrease of qubit density
@@ -509,23 +508,17 @@ def test_end_to_end_spontaneous_emission_rate():
         )
 
     final_time = seq.get_duration()
+    counts = {}
     # round probabilities to merge 1.0 and 0.9999999999999998 etc.
-    c = Counter(
-        [round(get_proba(result["state"][final_time], "11")) for result in results]
-    )
-    assert c[1] == 16  # true rate 0.135
-    c = Counter(
-        [round(get_proba(result["state"][final_time], "01")) for result in results]
-    )
-    assert c[1] == 17  # true rate 0.233
-    c = Counter(
-        [round(get_proba(result["state"][final_time], "10")) for result in results]
-    )
-    assert c[1] == 23  # true rate 0.233
-    c = Counter(
-        [round(get_proba(result["state"][final_time], "00")) for result in results]
-    )
-    assert c[1] == 44  # true rate 0.400
+    for string in ["00", "01", "10", "11"]:
+        counts[string] = Counter(
+            [round(get_proba(result["state"][final_time], string)) for result in results]
+        )[1]
+
+    # the exact rates are {"11":0.135, "01":0.233, "10":0.233, "00":0.400}
+    expected_counts = {"11": 16, "01": 17, "10": 23, "00": 44}
+
+    assert counts == expected_counts
 
 
 def test_laser_waist():

@@ -487,14 +487,14 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
 
         self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
 
-    def init_jump_threshold(self) -> None:
-        self.jump_threshold = random.random()
+    def set_jump_threshold(self, bound: float) -> None:
+        self.jump_threshold = random.uniform(0.0, bound)
         self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
 
     def init(self) -> None:
         self.init_lindblad_noise()
         super().init()
-        self.init_jump_threshold()
+        self.set_jump_threshold(1.0)
 
     def tdvp_complete(self) -> None:
         previous_time = self.current_time
@@ -548,8 +548,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
 
         norm_after_normalizing = self.state.norm()
         assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
-        self.jump_threshold = random.uniform(0.0, norm_after_normalizing**2)
-        self.norm_gap_before_jump = norm_after_normalizing**2 - self.jump_threshold
+        self.set_jump_threshold(norm_after_normalizing**2)
 
     def fill_results(self) -> None:
         # Remove the noise from self.hamiltonian for the callbacks.

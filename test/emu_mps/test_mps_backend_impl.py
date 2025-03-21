@@ -210,12 +210,12 @@ def test_init_lindblad_noise_with_lindbladians(compute_noise_from_lindbladians_m
     assert victim.lindblad_noise is noise_mock
 
 
-@patch("emu_mps.mps_backend_impl.random.random")
-def test_init_jump_threshold(random_mock):
+@patch("emu_mps.mps_backend_impl.random.uniform")
+def test_set_jump_threshold(random_mock):
     victim = create_noisy_victim()
     victim.state = MPS.make(QUBIT_COUNT)
     random_mock.return_value = 0.123
-    victim.init_jump_threshold()
+    victim.set_jump_threshold(1.0)
     random_mock.assert_called_once()
     assert victim.jump_threshold == 0.123
     assert math.isclose(victim.norm_gap_before_jump, 0.877)
