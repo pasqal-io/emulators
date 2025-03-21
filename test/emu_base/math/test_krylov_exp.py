@@ -1,7 +1,9 @@
 import torch
 import pytest
 
-from emu_base.math.krylov_exp import krylov_exp, krylov_exp_impl
+from emu_base.math.krylov_exp import krylov_exp, krylov_exp_impl, krylov_exp_to_matrix
+
+dtype = torch.complex128
 
 
 def make_hermitian(m: torch.Tensor) -> torch.Tensor:
@@ -10,8 +12,8 @@ def make_hermitian(m: torch.Tensor) -> torch.Tensor:
 
 def uniform_random_tensor(*dims):
     return (
-        torch.rand(*dims, dtype=torch.complex128)
-        + 1j * torch.rand(*dims, dtype=torch.complex128)
+        torch.rand(*dims, dtype=dtype)
+        + 1j * torch.rand(*dims, dtype=dtype)
         - (0.5 + 0.5j) * torch.ones(*dims)
     )
 
@@ -69,8 +71,8 @@ def check(
 
 
 def test_id():
-    m = torch.eye(3, dtype=torch.complex128)
-    v = torch.arange(3).to(torch.complex128)
+    m = torch.eye(3, dtype=dtype)
+    v = torch.arange(3).to(dtype)
 
     check(
         m,
@@ -85,8 +87,9 @@ def test_id():
 
 
 def test_id_large():
-    m = torch.eye(300, dtype=torch.complex128)
-    v = torch.arange(300).to(torch.complex128)
+    dim = 300
+    m = torch.eye(dim, dtype=dtype)
+    v = torch.arange(dim).to(dtype)
 
     check(
         m,
@@ -101,8 +104,8 @@ def test_id_large():
 
 
 def test_happy_breakdown():
-    m = torch.diag(torch.tensor([1.0, 2.0, 3.0, 3.0, 3.0], dtype=torch.complex128))
-    v = torch.ones(5, 1).to(torch.complex128)
+    m = torch.diag(torch.tensor([1.0, 2.0, 3.0, 3.0, 3.0], dtype=dtype))
+    v = torch.ones(5, 1).to(dtype)
 
     ###
     # Minimal polynomial of m is P = (X-1).(X-2).(X-3) = X^3 - 6X^2 + 11X - 6
@@ -185,23 +188,47 @@ def test_converged_non_hermitian_non_normalized():
     )
 
 
+def test_krylov_with_matrix():
+
+    def op(x):
+        # pi/2 sigma_x
+        A = 3.14159 / 2 * torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
+        return A @ x
+
+    M = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=dtype)
+
+    result = krylov_exp_to_matrix(
+        op,
+        M,
+        exp_tolerance=1e-6,
+        norm_tolerance=1e-6,
+        is_hermitian=False,
+        max_krylov_dim=100,
+    )
+
+    A = 3.14159 / 2 * torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
+    expected = torch.linalg.matrix_exp(A) @ M
+
+    assert torch.allclose(result, expected)
+
+
 def make_random_hermitian_mat_from_params(
     dim: int, params: tuple[torch.Tensor] = ()
 ) -> torch.Tensor:
     """Returns a random Hermitian matrix with non-trivial dependency on input parameters"""
-    A = torch.randn(dim, dim, dtype=torch.complex128)
+    A = torch.randn(dim, dim, dtype=dtype)
     for p in params:
-        A = A + p * torch.randn(dim, dim, dtype=torch.complex128)
+        A = A + p * torch.randn(dim, dim, dtype=dtype)
     return A @ A.mH
 
 
 def make_random_sv_from_params(
     dim: int, params: tuple[torch.Tensor] = ()
 ) -> torch.Tensor:
-    x = torch.randn(dim, dtype=torch.complex128)
+    x = torch.randn(dim, dtype=dtype)
     """Returns a random normalized state vector with non-trivial dependency on input parameters"""
     for p in params:
-        x = x + p * torch.randn(dim, dtype=torch.complex128)
+        x = x + p * torch.randn(dim, dtype=dtype)
     return x / x.norm()
 
 
