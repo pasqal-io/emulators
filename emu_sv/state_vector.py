@@ -9,6 +9,8 @@ from emu_base import State, DEVICE_COUNT
 
 import torch
 
+from emu_sv.utils import index_to_bitstring
+
 dtype = torch.complex128
 
 
@@ -62,7 +64,7 @@ class StateVector(State):
             The zero state
 
         Examples:
-            >>> StateVector.zero(2)
+            >>> StateVector.zero(2,gpu=False)
             tensor([0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
         """
 
@@ -84,8 +86,10 @@ class StateVector(State):
             The described state
 
         Examples:
-            >>> StateVector.make(2)
+            >>> StateVector.make(2,gpu=False)
             tensor([1.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
+
+
         """
 
         result = cls.zero(num_sites=num_sites, gpu=gpu)
@@ -125,23 +129,22 @@ class StateVector(State):
         Returns:
             the measured bitstrings, by count
         """
+        assert p_false_neg == p_false_pos == 0.0, "Error rates must be 0.0"
 
         probabilities = torch.abs(self.vector) ** 2
 
         outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
 
         # Convert outcomes to bitstrings and count occurrences
-        counts = Counter([self._index_to_bitstring(outcome) for outcome in outcomes])
+        counts = Counter(
+            [
+                index_to_bitstring(self.vector.reshape(-1).shape[0], outcome)
+                for outcome in outcomes
+            ]
+        )
 
         # NOTE: false positives and negatives
         return counts
-
-    def _index_to_bitstring(self, index: int) -> str:
-        """
-        Convert an integer index into its corresponding bitstring representation.
-        """
-        nqubits = int(math.log2(self.vector.reshape(-1).shape[0]))
-        return format(index, f"0{nqubits}b")
 
     def __add__(self, other: State) -> StateVector:
         """Sum of two state vectors
@@ -207,9 +210,11 @@ class StateVector(State):
         Examples:
             >>> basis = ("r","g")
             >>> n = 2
-            >>> st=StateVector.from_state_string(basis=basis,nqubits=n,strings={"rr":1.0,"gg":1.0})
+            >>> st=StateVector.from_state_string(basis=basis,
+                ... nqubits=n,strings={"rr":1.0,"gg":1.0},gpu=False)
             >>> print(st)
-            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j], dtype=torch.complex128)
+            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
+                   dtype=torch.complex128)
         """
 
         basis = set(basis)
@@ -250,12 +255,12 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
         >>> nqubits = 2
         >>> string_state1 = {"gg":1.0,"rr":1.0}
         >>> state1 = StateVector.from_state_string(basis=basis,
-        >>>     nqubits=nqubits,strings=string_state1)
+            ... nqubits=nqubits,strings=string_state1)
         >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
         >>> state2 = StateVector.from_state_string(basis=basis,
-        >>>     nqubits=nqubits,strings=string_state2)
+            ... nqubits=nqubits,strings=string_state2)
         >>> inner(state1,state2).item()
-        (0.4999999999999999+0j)
+        (0.49999999144286444+0j)
     """
 
     assert (left.vector.shape == right.vector.shape) and (
