@@ -70,7 +70,7 @@ class DensityMatrix(State):
             self.matrix.shape == other.matrix.shape
         ), "States do not have the same number of sites"
 
-        return torch.trace(self.matrix.conj().T @ other.matrix).item()
+        return torch.trace(self.matrix @ other.matrix.conj().T).item()
 
     @classmethod
     def from_state_vector(cls, state: StateVector) -> DensityMatrix:
@@ -162,6 +162,8 @@ class DensityMatrix(State):
          Counter({'00': 517, '11': 483})
         """
 
+        assert p_false_neg == p_false_pos == 0.0, "Error rates must be 0.0"
+
         probabilities = torch.abs(self.matrix.diagonal())
 
         outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
@@ -174,7 +176,6 @@ class DensityMatrix(State):
             ]
         )
 
-        # NOTE: false positives and negatives
         return counts
 
 

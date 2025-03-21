@@ -6,7 +6,7 @@ from test.utils_testing.utils_testing import random_density_matrix
 from pytest import approx
 
 dtype = torch.complex128
-device = "cpu"  # "cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu"
 gpu = False if device == "cpu" else True
 seed = 1337
 
@@ -64,7 +64,7 @@ def test_inner():
     base_mat = torch.zeros((2**n_atoms, 2**n_atoms), dtype=dtype)
     base_mat[n_atoms - 1, n_atoms - 1] = 1.0
     base_state = DensityMatrix(base_mat, gpu=gpu)
-    # getting the [24,24] element of the density matrix
+    # getting the [24,24] element of the random density matrix
     assert dense_matrix.inner(base_state) == approx(0.035517495)
 
 
@@ -75,7 +75,7 @@ def test_make():
     zeros_mat[0, 0] = 1.0
     assert torch.allclose(ground_density.matrix, zeros_mat)
 
-    n_atoms = 3
+    n_atoms = 7
     ground_density = DensityMatrix.make(n_atoms, gpu=gpu)
     zeros_mat = torch.zeros(2**n_atoms, 2**n_atoms, dtype=dtype, device=device)
     zeros_mat[0, 0] = 1.0

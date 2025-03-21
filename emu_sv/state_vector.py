@@ -129,6 +129,7 @@ class StateVector(State):
         Returns:
             the measured bitstrings, by count
         """
+        assert p_false_neg == p_false_pos == 0.0, "Error rates must be 0.0"
 
         probabilities = torch.abs(self.vector) ** 2
 
