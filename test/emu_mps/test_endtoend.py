@@ -128,7 +128,7 @@ def get_proba(state: MPS, bitstring: str):
 
     factors = [one if bitstring[i] == "1" else zero for i in range(state.num_sites)]
 
-    return (abs(state.inner(MPS(factors))) ** 2).item()
+    return abs(state.inner(MPS(factors)).item()) ** 2
 
 
 Omega_max = 4 * 2 * torch.pi
@@ -501,7 +501,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     )
 
     initial_state = emu_mps.MPS.from_state_amplitudes(
-        eigenstates=("r", "g"), amplitudes={"rr": 1.0}
+        eigenstates=["r", "g"], amplitudes={"rr": 1.0}
     )
     results = []
     for _ in range(100):
@@ -509,12 +509,11 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
             simulate(seq, noise_model=noise_model, initial_state=initial_state, dt=10000)
         )
 
-    final_time = -1  # seq.get_duration()
     counts = {}
     # round probabilities to merge 1.0 and 0.9999999999999998 etc.
     for string in ["00", "01", "10", "11"]:
         counts[string] = Counter(
-            [round(get_proba(result.state[final_time], string)) for result in results]
+            [round(get_proba(result.state[-1], string)) for result in results]
         )[1]
 
     # the exact rates are {"11":0.135, "01":0.233, "10":0.233, "00":0.400}

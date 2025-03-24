@@ -136,7 +136,7 @@ class MPSBackendImpl:
             timestep_count=self.timestep_count,
         )
         self.autosave_file = self._get_autosave_filepath(self.config.autosave_prefix)
-        self.config.logger.warning(
+        self.config.logger.debug(
             f"""Will save simulation state to file "{self.autosave_file.name}"
             every {self.config.autosave_dt} seconds.\n"""
             f"""To resume: `MPSBackend().resume("{self.autosave_file}")`"""
