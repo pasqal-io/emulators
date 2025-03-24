@@ -14,6 +14,7 @@ from .mps_config import MPSConfig
 from .mpo import MPO
 from .mps import MPS, inner
 from .mps_backend import MPSBackend
+from emu_base import aggregate
 
 
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     "Energy",
     "EnergyVariance",
     "EnergySecondMoment",
+    "aggregate",
 ]
 
 __version__ = "2.0.0"

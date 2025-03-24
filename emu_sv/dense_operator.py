@@ -39,7 +39,7 @@ def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:
             )
 
 
-class DenseOperator(Operator):
+class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
     """DenseOperator in EMU-SV use dense matrices"""
 
     def __init__(
@@ -113,7 +113,7 @@ class DenseOperator(Operator):
 
         return StateVector(self.matrix @ other.vector)
 
-    def expect(self, state: State) -> float | complex:
+    def expect(self, state: State) -> torch.Tensor:
         """
         Compute the expectation value of the operator with respect to a state.
 
@@ -127,16 +127,16 @@ class DenseOperator(Operator):
             state, StateVector
         ), "Only expectation values of StateVectors are supported."
 
-        return torch.vdot(state.vector, self.apply_to(state).vector).item()
+        return torch.vdot(state.vector, self.apply_to(state).vector).to("cpu")
 
     @classmethod
-    def from_operator_repr(
+    def _from_operator_repr(
         cls: Type[DenseOperator],
         *,
         eigenstates: Sequence[Eigenstate],
         n_qudits: int,
-        operations: FullOp,
-    ) -> DenseOperator:
+        operations: FullOp[complex],
+    ) -> tuple[DenseOperator, FullOp[complex]]:
         """
         Construct a DenseOperator from an operator representation.
 
@@ -197,4 +197,4 @@ class DenseOperator(Operator):
 
             accum_res += coeff * reduce(torch.kron, single_qubit_gates)
 
-        return DenseOperator(accum_res)
+        return DenseOperator(accum_res), operations

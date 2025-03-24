@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Sequence, SupportsComplex, Type
+from typing import Sequence, Type, TypeVar, Mapping
 
 import torch
 
@@ -14,7 +14,7 @@ from pulser.backend.state import Eigenstate
 dtype = torch.complex128
 
 
-class StateVector(State):
+class StateVector(State[complex, torch.Tensor]):
     """
     Represents a quantum state vector in a computational basis.
 
@@ -199,13 +199,13 @@ class StateVector(State):
         return repr(self.vector)
 
     @classmethod
-    def from_state_amplitudes(
-        cls: Type[StateVector],
+    def _from_state_amplitudes(
+        cls: Type[StateVectorType],
         *,
         eigenstates: Sequence[Eigenstate],
-        amplitudes: dict[str, SupportsComplex],
+        amplitudes: Mapping[str, complex],
         gpu: bool = True,
-    ) -> StateVector:
+    ) -> tuple[StateVector, Mapping[str, complex]]:
         """Transforms a state given by a string into a state vector.
 
         Construct a state from the pulser abstract representation
@@ -250,7 +250,7 @@ class StateVector(State):
 
         accum_state._normalize()
 
-        return accum_state
+        return accum_state, amplitudes
 
     def overlap(self, other: StateVector, /) -> torch.Tensor:
         return self.inner(other)

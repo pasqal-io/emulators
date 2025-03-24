@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Any, List, Optional, Sequence, TypeVar
+from typing import Any, List, Optional, Sequence, TypeVar, Mapping
 
 import torch
 
@@ -364,13 +364,13 @@ class MPS(State[complex, torch.Tensor]):
         return self.__rmul__(scalar)
 
     @classmethod
-    def from_state_amplitudes(
+    def _from_state_amplitudes(
         cls,
         *,
         eigenstates: Sequence[str],
-        amplitudes: dict[str, complex],
+        amplitudes: Mapping[str, complex],
         **kwargs: Any,
-    ) -> MPS:
+    ) -> tuple[MPS, Mapping[str, complex]]:
         """
         See the base class.
 
@@ -409,7 +409,7 @@ class MPS(State[complex, torch.Tensor]):
             print("\nThe state is not normalized, normalizing it for you.")
             accum_mps *= 1 / norm
 
-        return accum_mps
+        return accum_mps, amplitudes
 
     def expect_batch(self, single_qubit_operators: torch.Tensor) -> torch.Tensor:
         """
