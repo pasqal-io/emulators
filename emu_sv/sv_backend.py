@@ -11,6 +11,7 @@ from emu_sv.state_vector import StateVector
 from emu_sv.sv_config import SVConfig
 from emu_sv.time_evolution import do_time_step
 
+
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
 
 
