@@ -121,6 +121,7 @@ class StateVector(State):
             self.vector.shape == other.vector.shape
         ), "States do not have the same shape"
 
+        # by our internal convention inner and norm return to cpu
         return torch.vdot(self.vector, other.vector).cpu()
 
     def sample(
