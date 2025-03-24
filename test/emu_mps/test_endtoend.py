@@ -127,7 +127,7 @@ def get_proba(state: MPS, bitstring: str):
 
     factors = [one if bitstring[i] == "1" else zero for i in range(state.num_sites)]
 
-    return abs(state.inner(MPS(factors))) ** 2
+    return (abs(state.inner(MPS(factors))) ** 2).item()
 
 
 Omega_max = 4 * 2 * torch.pi
@@ -476,7 +476,7 @@ def test_end_to_end_spontaneous_emission() -> None:
     # would be too much for this unit test.
 
 
-def test_end_to_end_spontaneous_emission_rate():
+def test_end_to_end_spontaneous_emission_rate() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -499,8 +499,8 @@ def test_end_to_end_spontaneous_emission_rate():
         relaxation_rate=0.1,
     )
 
-    initial_state = emu_mps.MPS.from_state_string(
-        basis=("r", "g"), nqubits=2, strings={"rr": 1.0}
+    initial_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rr": 1.0}
     )
     results = []
     for _ in range(100):
@@ -508,12 +508,12 @@ def test_end_to_end_spontaneous_emission_rate():
             simulate(seq, noise_model=noise_model, initial_state=initial_state, dt=10000)
         )
 
-    final_time = seq.get_duration()
+    final_time = -1  # seq.get_duration()
     counts = {}
     # round probabilities to merge 1.0 and 0.9999999999999998 etc.
     for string in ["00", "01", "10", "11"]:
         counts[string] = Counter(
-            [round(get_proba(result["state"][final_time], string)) for result in results]
+            [round(get_proba(result.state[final_time], string)) for result in results]
         )[1]
 
     # the exact rates are {"11":0.135, "01":0.233, "10":0.233, "00":0.400}
@@ -522,7 +522,7 @@ def test_end_to_end_spontaneous_emission_rate():
     assert counts == expected_counts
 
 
-def test_laser_waist():
+def test_laser_waist() -> None:
     duration = 1000
     reg = pulser.Register.from_coordinates(
         [(0.0, 0.0), (10.0, 0.0)], center=False, prefix="q"
