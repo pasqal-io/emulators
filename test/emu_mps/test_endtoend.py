@@ -1,6 +1,7 @@
 import time
 from unittest.mock import ANY, MagicMock, patch
 from collections import Counter
+from typing import Any
 
 import pulser
 import pytest
