@@ -116,6 +116,15 @@ def simulate(
     return result
 
 
+def test_default_SVConfig_ctr() -> None:
+    sv_config = SVConfig()
+    assert len(sv_config.observables) == 1
+    assert isinstance(sv_config.observables[0], StateResult)
+    assert sv_config.observables[0].evaluation_times == [
+        1.0
+    ]  # meaning very end of the simuation
+
+
 def test_end_to_end_afm_ring() -> None:
     torch.manual_seed(seed)
 
