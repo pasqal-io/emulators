@@ -39,13 +39,14 @@ seed = 1337
 
 
 def create_antiferromagnetic_mps(num_qubits: int):
-    factors = [torch.zeros((1, 2, 1), dtype=torch.complex128) for _ in range(num_qubits)]
+    str = ""
     for i in range(num_qubits):
         if i % 2:
-            factors[i][0, 0, 0] = 1.0
+            str += "g"
         else:
-            factors[i][0, 1, 0] = 1.0
-    return MPS(factors)
+            str += "r"
+    amplitudes = {str: 1.0}
+    return MPS.from_state_amplitudes(eigenstates=["r", "g"], amplitudes=amplitudes)
 
 
 def simulate(

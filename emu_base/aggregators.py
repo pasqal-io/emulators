@@ -1,4 +1,5 @@
 import statistics
+import torch
 from typing import Any, Callable
 import collections
 from enum import Enum, auto
@@ -29,6 +30,7 @@ def mean_aggregator(
     | list[float]
     | list[list[complex]]
     | list[list[float]]
+    | torch.Tensor
 ):  # FIXME: support tuples?
     if values == []:
         raise ValueError("Cannot average 0 samples")
@@ -37,6 +39,12 @@ def mean_aggregator(
 
     if element_type in _NUMERIC_TYPES:
         return statistics.fmean(values)
+
+    if element_type == torch.Tensor:
+        acc = torch.zeros_like(values[0])
+        for ten in values:
+            acc += ten
+        return acc / len(values)
 
     if element_type != list:
         raise NotImplementedError("Cannot average this type of data")

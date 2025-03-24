@@ -27,7 +27,7 @@ def test_creating_state() -> None:
 
     # test make()
     nqubits = 3
-    state = StateVector.make(num_sites=nqubits, gpu=False)  # create |00..0>
+    state = StateVector.make(num_sites=nqubits)  # create |00..0>
     zero_state_tensor = torch.tensor([0] * 2**nqubits, dtype=dtype)
     zero_state_tensor[0] = 1
     zero_state = StateVector(zero_state_tensor)
@@ -102,7 +102,7 @@ def test_sample() -> None:
     torch.manual_seed(seed)
 
     tensor = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
-    state = StateVector(tensor)
+    state = StateVector(tensor, gpu=False)
     sampling = state.sample(num_shots=1000)
 
     assert sampling["111"] == 485
@@ -114,7 +114,6 @@ def test_from_amplitudes() -> None:
     state = StateVector.from_state_amplitudes(
         eigenstates=("r", "g"),
         amplitudes={"rr": 1.0, "gg": 1.0},
-        gpu=False,
     )
     expected_state = StateVector(torch.tensor([factor, 0, 0, factor], dtype=dtype))
     result = state.overlap(expected_state)

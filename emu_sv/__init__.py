@@ -1,9 +1,6 @@
 # from emu_base.base_classes import Results
 from pulser.backend.results import Results
 
-from emu_base.base_classes.aggregators import AggregationType
-
-
 from pulser.backend import (
     BitStrings,
     Callback,
@@ -23,7 +20,6 @@ from emu_sv.state_vector import StateVector, inner
 
 __all__ = [
     "__version__",
-    "AggregationType",
     "BitStrings",
     "Callback",
     "CorrelationMatrix",

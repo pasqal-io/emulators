@@ -204,7 +204,6 @@ class StateVector(State[complex, torch.Tensor]):
         *,
         eigenstates: Sequence[Eigenstate],
         amplitudes: Mapping[str, complex],
-        gpu: bool = True,
     ) -> tuple[StateVector, Mapping[str, complex]]:
         """Transforms a state given by a string into a state vector.
 
@@ -240,7 +239,7 @@ class StateVector(State[complex, torch.Tensor]):
         else:
             raise ValueError("Unsupported basis provided")
 
-        accum_state = StateVector.zero(num_sites=nqubits, gpu=gpu)
+        accum_state = StateVector.zero(num_sites=nqubits)
 
         for state, amplitude in amplitudes.items():
             bin_to_int = int(
