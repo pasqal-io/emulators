@@ -36,13 +36,14 @@ pulser_base_string="$(grep pulser-core ci/emu_base/pyproject.toml)"
 pulser_base_dep="${BASH_REMATCH[1]}"
 echo "emu-base depends on pulser-core version $pulser_base_dep"
 
-if [[ "$pulser_root_dep" != "$pulser_base_dep" ]]
-then
-    echo "*********"
-    echo "$pulser_root_dep != $pulser_base_dep temporarily not checked !!!"
-    echo "*********"
-    #exit 1
-fi
+echo "**************"
+echo "$pulser_root_dep != $pulser_base_dep temporarily not checked !!!"
+echo "**************"
+#if [[ "$pulser_root_dep" != "$pulser_base_dep" ]]
+#then
+#    echo "$pulser_root_dep != $pulser_base_dep"
+#    #exit 1
+#fi
 
 torch_pre_commit_string="$(grep torch .pre-commit-config.yaml)"
 [[ "$torch_pre_commit_string" =~ .*([0-9]\.[0-9]\.[0-9]).* ]]
