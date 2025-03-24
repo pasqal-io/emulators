@@ -62,7 +62,7 @@ class StateVector(State):
         norm = self.norm()
 
         if not torch.allclose(norm, torch.tensor(1.0, dtype=torch.float64)):
-            self.vector = self.vector / norm
+            self.vector = self.vector / norm.to(self.vector.device)
 
     @classmethod
     def zero(cls, num_sites: int, gpu: bool = True) -> StateVector:
@@ -121,7 +121,7 @@ class StateVector(State):
             self.vector.shape == other.vector.shape
         ), "States do not have the same shape"
 
-        return torch.vdot(self.vector, other.vector)
+        return torch.vdot(self.vector, other.vector).cpu()
 
     def sample(
         self,
@@ -191,7 +191,7 @@ class StateVector(State):
         Returns:
             the norm of the state
         """
-        nrm: torch.Tensor = torch.linalg.vector_norm(self.vector)
+        nrm: torch.Tensor = torch.linalg.vector_norm(self.vector).cpu()
         return nrm
 
     def __repr__(self) -> str:
