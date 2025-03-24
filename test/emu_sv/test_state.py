@@ -10,7 +10,7 @@ device = "cpu"
 # device= "cuda"
 
 
-def test_inner_algebra_sample():
+def test_inner_algebra_sample() -> None:
 
     factor = torch.sqrt(torch.tensor(2.0))
     state1 = StateVector(
