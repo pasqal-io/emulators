@@ -220,3 +220,19 @@ def pulser_blackman(duration: float, area: float, phase: float = 0.0):
     seq.add(pi_2, "ch0")
 
     return seq
+
+
+def random_density_matrix(num_qubits: int):
+    """Generates a random density matrix for a given number of qubits."""
+    dim = 2**num_qubits
+
+    # Generate a random complex matrix
+    real_part = torch.randn(dim, dim)
+    imag_part = torch.randn(dim, dim)
+    A = real_part + 1j * imag_part
+
+    # Create a Hermitian matrix
+    state = A @ A.conj().T
+
+    # Normalize the matrix
+    return state / torch.trace(state)
