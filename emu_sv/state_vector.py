@@ -10,6 +10,7 @@ from emu_base import DEVICE_COUNT
 from pulser.backend import State
 from pulser.backend.state import Eigenstate
 
+StateVectorType = TypeVar("StateVectorType", bound="StateVector")
 # Default tensor data type
 dtype = torch.complex128
 
