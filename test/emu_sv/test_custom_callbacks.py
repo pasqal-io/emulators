@@ -5,9 +5,9 @@ from unittest.mock import MagicMock
 
 from emu_base import DEVICE_COUNT
 
+from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv import (
     DenseOperator,
-    RydbergHamiltonian,
     SVConfig,
     StateVector,
     CorrelationMatrix,

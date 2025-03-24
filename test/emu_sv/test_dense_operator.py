@@ -13,10 +13,7 @@ zero_state_torch = torch.tensor([[1, 0]], dtype=dtype)
 one_state_torch = torch.tensor([[0, 1]], dtype=dtype)
 
 
-@pytest.mark.parametrize(
-    ("zero", "one"),
-    (("g", "r"), ("0", "1")),
-)
+@pytest.mark.parametrize(("zero", "one"), [("g", "r")])
 def test_from_operator_repr_and_rmul_DenseOperator(zero: str, one: str) -> None:
     # creation 2 qubit operator X_0Z_1
     N = 2
@@ -44,10 +41,7 @@ def test_from_operator_repr_and_rmul_DenseOperator(zero: str, one: str) -> None:
     assert torch.allclose(operator.matrix.cpu(), expected)
 
 
-@pytest.mark.parametrize(
-    ("zero", "one"),
-    (("g", "r"), ("0", "1")),
-)
+@pytest.mark.parametrize(("zero", "one"), [("g", "r")])
 def test_matmul_and_add_DenseOperator(zero: str, one: str) -> None:
     N = 2
 
@@ -92,10 +86,7 @@ def test_matmul_and_add_DenseOperator(zero: str, one: str) -> None:
     assert torch.allclose(op.matrix.cpu(), expected)
 
 
-@pytest.mark.parametrize(
-    ("zero", "one"),
-    (("g", "r"), ("0", "1")),
-)
+@pytest.mark.parametrize(("zero", "one"), [("g", "r")])
 def test_applyto_expect_DenseOperator(zero: str, one: str) -> None:
     # creation 2 qubit operator X_0Z_2
     N = 3

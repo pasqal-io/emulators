@@ -20,7 +20,6 @@ from pulser.backend import (
 from emu_sv.dense_operator import DenseOperator
 from emu_sv.sv_backend import SVBackend, SVConfig
 from emu_sv.state_vector import StateVector, inner
-from emu_sv.hamiltonian import RydbergHamiltonian
 
 __all__ = [
     "__version__",
@@ -36,7 +35,6 @@ __all__ = [
     "Fidelity",
     "Occupation",
     "Results",
-    "RydbergHamiltonian",
     "SVBackend",
     "SVConfig",
     "StateResult",

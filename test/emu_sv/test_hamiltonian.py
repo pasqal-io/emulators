@@ -5,7 +5,7 @@ from test.utils_testing import (
     nn_interaction_matrix,
     randn_interaction_matrix,
 )
-from emu_sv import RydbergHamiltonian
+from emu_sv.hamiltonian import RydbergHamiltonian
 
 dtype = torch.complex128
 device = "cpu"
