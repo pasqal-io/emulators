@@ -164,12 +164,9 @@ class DenseOperator(Operator):
                 "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype),
             }
         elif set(eigenstates) == {"0", "1"}:
-            operators_with_tensors |= {
-                "00": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype),
-                "01": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype),
-                "10": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype),
-                "11": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype),
-            }
+            raise NotImplementedError(
+                "{'r','g'} basis is related to XY Hamiltonian, which is not implemented"
+            )
         else:
             raise ValueError("An unsupported basis of eigenstates has been provided.")
 

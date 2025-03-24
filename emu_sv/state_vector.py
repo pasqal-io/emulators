@@ -2,17 +2,13 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Sequence, SupportsComplex, Type, TypeVar
+from typing import Sequence, SupportsComplex, Type
 
 import torch
 
 from emu_base import DEVICE_COUNT
 from pulser.backend import State
 from pulser.backend.state import Eigenstate
-
-# Type variables
-ArgScalarType = TypeVar("ArgScalarType")
-StateVectorType = TypeVar("StateVectorType", bound="StateVector")
 
 # Default tensor data type
 dtype = torch.complex128
@@ -203,7 +199,7 @@ class StateVector(State):
 
     @classmethod
     def from_state_amplitudes(
-        cls: Type[StateVectorType],
+        cls: Type[StateVector],
         *,
         eigenstates: Sequence[Eigenstate],
         amplitudes: dict[str, SupportsComplex],
@@ -237,7 +233,9 @@ class StateVector(State):
         if basis == {"r", "g"}:
             one = "r"
         elif basis == {"0", "1"}:
-            one = "1"
+            raise NotImplementedError(
+                "{'r','g'} basis is related to XY Hamiltonian, which is not implemented"
+            )
         else:
             raise ValueError("Unsupported basis provided")
 
