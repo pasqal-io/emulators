@@ -61,7 +61,7 @@ def test_inner_algebra_sample():
         assert sampling_sum["{0:03b}".format(i)] == results[i]
 
 
-def test_from_string():
+def test_from_string() -> None:
     torch.manual_seed(seed)
 
     basis = ("r", "g")

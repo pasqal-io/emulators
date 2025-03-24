@@ -41,13 +41,35 @@ class StateVector(State):
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         self.vector = vector.to(dtype=dtype, device=device)
 
+    def _inner(self, other: State) -> torch.Tensor:
+        """
+        helper function. Computes <self, other>. The type of other must be StateVector.
+
+        Args:
+            other: the other state
+
+        Returns:
+            the inner product
+        """
+        assert isinstance(
+            other, StateVector
+        ), "Other state also needs to be a StateVector"
+        assert (
+            self.vector.device == other.vector.device
+        ), "States are not on the same device"
+        assert (
+            self.vector.shape == other.vector.shape
+        ), "States do not have the same number of sites"
+        return torch.vdot(self.vector, other.vector)
+
     def _normalize(self) -> None:
         # NOTE: use this in the callbacks
         """Checks if the input is normalized or not"""
-        norm_state = torch.linalg.vector_norm(self.vector)
+        norm_state = self._inner(self)
+        one_tensor = torch.tensor(1.0, dtype=self.vector.dtype, device=self.vector.device)
 
-        if not torch.allclose(norm_state, torch.tensor(1.0, dtype=torch.float64)):
-            self.vector = self.vector / norm_state
+        if not torch.allclose(norm_state, one_tensor):
+            self.vector = self.vector / torch.sqrt(norm_state)
 
     @classmethod
     def zero(cls, num_sites: int, gpu: bool = True) -> StateVector:
@@ -102,14 +124,7 @@ class StateVector(State):
         Returns:
             the inner product
         """
-        assert isinstance(
-            other, StateVector
-        ), "Other state also needs to be a StateVector"
-        assert (
-            self.vector.shape == other.vector.shape
-        ), "States do not have the same number of sites"
-
-        return torch.vdot(self.vector, other.vector).item()
+        return self._inner(other).cpu().item()
 
     def sample(
         self, num_shots: int = 1000, p_false_pos: float = 0.0, p_false_neg: float = 0.0
@@ -177,7 +192,7 @@ class StateVector(State):
         Returns:
             the norm of the state
         """
-        norm: float | complex = torch.linalg.vector_norm(self.vector).item()
+        norm: float | complex = self._inner(self).cpu().item()
         return norm
 
     def __repr__(self) -> str:
@@ -209,7 +224,8 @@ class StateVector(State):
             >>> n = 2
             >>> st=StateVector.from_state_string(basis=basis,nqubits=n,strings={"rr":1.0,"gg":1.0})
             >>> print(st)
-            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j], dtype=torch.complex128)
+            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
+                   dtype=torch.complex128)
         """
 
         basis = set(basis)
@@ -245,23 +261,19 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
         the inner product
 
     Examples:
-        >>> factor = math.sqrt(2.0)
+        >>> factor = 1.0/math.sqrt(2.0)
         >>> basis = ("r","g")
         >>> nqubits = 2
         >>> string_state1 = {"gg":1.0,"rr":1.0}
         >>> state1 = StateVector.from_state_string(basis=basis,
-        >>>     nqubits=nqubits,strings=string_state1)
-        >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
+        ...     nqubits=nqubits,strings=string_state1)
+        >>> string_state2 = {"gr":factor,"rr":factor}
         >>> state2 = StateVector.from_state_string(basis=basis,
-        >>>     nqubits=nqubits,strings=string_state2)
+        ...     nqubits=nqubits,strings=string_state2)
         >>> inner(state1,state2).item()
-        (0.4999999999999999+0j)
+        (0.49999999144286444+0j)
     """
-
-    assert (left.vector.shape == right.vector.shape) and (
-        left.vector.dim() == 1
-    ), "Shape of a and b should be the same and both needs to be 1D tesnor"
-    return torch.inner(left.vector, right.vector)
+    return left._inner(right).cpu()
 
 
 if __name__ == "__main__":
