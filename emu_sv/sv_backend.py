@@ -55,7 +55,7 @@ class SVBackend(EmulatorBackend):
 
         if self._config.initial_state is not None:
             state = self._config.initial_state
-            state.vector = state.vector.to(device)
+            state.vector = state.vector.clone().to(device)
         else:
             state = StateVector.make(nqubits, gpu=self._config.gpu)
 
