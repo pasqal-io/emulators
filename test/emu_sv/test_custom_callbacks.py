@@ -87,9 +87,7 @@ def test_custom_energy_and_variance_and_second() -> None:
     basis = ("r", "g")
     num_qubits = 4
     strings = {"rgrg": 1.0, "grgr": 1.0}
-    state = StateVector.from_state_amplitudes(
-        eigenstates=basis, amplitudes=strings, gpu=device == "cuda"
-    )
+    state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
     config = SVConfig()
 
     omegas = torch.randn(num_qubits, dtype=torch.float64).to(

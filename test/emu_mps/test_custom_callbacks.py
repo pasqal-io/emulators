@@ -86,9 +86,7 @@ def test_custom_energy_and_variance_and_second() -> None:
     basis = ("r", "g")
     num_qubits = 4
     strings = {"rgrg": 1.0, "grgr": 1.0}
-    state = MPS.from_state_amplitudes(
-        eigenstates=basis, amplitudes=strings, num_gpus_to_use=DEVICE_COUNT
-    )
+    state = MPS.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
     config = MPSConfig()
 
     omegas = torch.randn(num_qubits, dtype=torch.float64).to(torch.complex128)

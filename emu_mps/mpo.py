@@ -155,14 +155,14 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
         return acc.reshape(1).to("cpu")
 
     @classmethod
-    def from_operator_repr(
+    def _from_operator_repr(
         cls,
         *,
         eigenstates: Sequence[str],
         n_qudits: int,
-        operations: FullOp,
+        operations: FullOp[complex],
         **kwargs: Any,
-    ) -> MPO:
+    ) -> tuple[MPO, FullOp[complex]]:
         """
         See the base class
 
@@ -244,4 +244,4 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
                     factors[target_qubit] = factor
 
             mpos.append(coeff * cls(factors, **kwargs))
-        return sum(mpos[1:], start=mpos[0])  # type: ignore[no-any-return]
+        return sum(mpos[1:], start=mpos[0]), operations  # type: ignore[no-any-return]
