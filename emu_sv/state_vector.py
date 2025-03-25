@@ -174,7 +174,7 @@ class StateVector(State[complex, torch.Tensor]):
             The summed state
         """
         assert isinstance(other, StateVector), "`Other` state can only be a StateVector"
-        return StateVector(self.vector + other.vector)
+        return StateVector(self.vector + other.vector, gpu=self.vector.is_cuda)
 
     def __rmul__(self, scalar: complex) -> StateVector:
         """Scalar multiplication
@@ -185,7 +185,7 @@ class StateVector(State[complex, torch.Tensor]):
         Returns:
             The scaled state
         """
-        return StateVector(scalar * self.vector)
+        return StateVector(scalar * self.vector, gpu=self.vector.is_cuda)
 
     def norm(self) -> torch.Tensor:
         """Returns the norm of the state
@@ -235,7 +235,7 @@ class StateVector(State[complex, torch.Tensor]):
             one = "r"
         elif basis == {"0", "1"}:
             raise NotImplementedError(
-                "{'r','g'} basis is related to XY Hamiltonian, which is not implemented"
+                "{'0','1'} basis is related to XY Hamiltonian, which is not implemented"
             )
         else:
             raise ValueError("Unsupported basis provided")

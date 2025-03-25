@@ -272,7 +272,7 @@ class MPS(State[complex, torch.Tensor]):
             else self.orthogonalize(0)
         )
         # the torch.norm function is not properly typed.
-        return self.factors[orthogonality_center].norm().to("cpu")  # type: ignore[no-any-return]
+        return self.factors[orthogonality_center].norm().cpu()  # type: ignore[no-any-return]
 
     def inner(self, other: State) -> torch.Tensor:
         """
@@ -298,7 +298,7 @@ class MPS(State[complex, torch.Tensor]):
             acc = torch.tensordot(acc, other.factors[i].to(acc.device), dims=1)
             acc = torch.tensordot(self.factors[i].conj(), acc, dims=([0, 1], [0, 1]))
 
-        return acc.reshape(1).to("cpu")
+        return acc.reshape(1).cpu()
 
     def overlap(self, other: State, /) -> torch.Tensor:
         return torch.abs(self.inner(other)) ** 2  # type: ignore[no-any-return]

@@ -152,7 +152,7 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
                 state.factors[i + 1].device
             )
         acc = new_left_bath(acc, state.factors[n], self.factors[n])
-        return acc.reshape(1).to("cpu")
+        return acc.reshape(1).cpu()
 
     @classmethod
     def _from_operator_repr(

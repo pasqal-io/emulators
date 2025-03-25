@@ -54,7 +54,7 @@ class SVBackend(EmulatorBackend):
 
         if self._config.initial_state is not None:
             state = self._config.initial_state
-            state = StateVector(state.vector.clone(), gpu=state.vector.is_cuda())
+            state = StateVector(state.vector.clone(), gpu=state.vector.is_cuda)
         else:
             state = StateVector.make(nqubits, gpu=self._config.gpu)
 
@@ -74,7 +74,7 @@ class SVBackend(EmulatorBackend):
             # callbacks in observables and self.statistics in H
             # have "# type: ignore[arg-type]" because H has it's own type
             # meaning H is not inherited from Operator class.
-            # We decided that ignore[arg-type] is better compare to
+            # We decided that ignore[arg-type] is better compared to
             # having many unused NotImplemented methods
             for callback in self._config.observables:
                 callback(

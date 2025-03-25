@@ -3,7 +3,6 @@ from pulser.backend.results import Results
 
 from pulser.backend import (
     BitStrings,
-    Callback,
     CorrelationMatrix,
     Energy,
     EnergyVariance,
@@ -21,7 +20,6 @@ from emu_sv.state_vector import StateVector, inner
 __all__ = [
     "__version__",
     "BitStrings",
-    "Callback",
     "CorrelationMatrix",
     "DenseOperator",
     "Energy",

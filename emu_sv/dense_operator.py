@@ -127,7 +127,7 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
             state, StateVector
         ), "Only expectation values of StateVectors are supported."
 
-        return torch.vdot(state.vector, self.apply_to(state).vector).to("cpu")
+        return torch.vdot(state.vector, self.apply_to(state).vector).cpu()
 
     @classmethod
     def _from_operator_repr(
@@ -165,7 +165,7 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
             }
         elif set(eigenstates) == {"0", "1"}:
             raise NotImplementedError(
-                "{'r','g'} basis is related to XY Hamiltonian, which is not implemented"
+                "{'0','1'} basis is related to XY Hamiltonian, which is not implemented"
             )
         else:
             raise ValueError("An unsupported basis of eigenstates has been provided.")

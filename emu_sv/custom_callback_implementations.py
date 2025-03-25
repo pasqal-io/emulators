@@ -31,7 +31,7 @@ def qubit_occupation_sv_impl(
         # nᵢ is a projector and therefore nᵢ == nᵢnᵢ
         # ❬ψ|nᵢ|ψ❭ == ❬ψ|nᵢnᵢ|ψ❭ == ❬ψ|nᵢ * nᵢ|ψ❭ == ❬ϕ|ϕ❭ == |ϕ|**2
         occupation[i] = torch.linalg.vector_norm(state_tensor[:, 1]) ** 2
-    return occupation
+    return occupation.cpu()
 
 
 def correlation_matrix_sv_impl(
@@ -65,7 +65,7 @@ def correlation_matrix_sv_impl(
                 correlation[i, j] = value
                 correlation[j, i] = value
 
-    return correlation
+    return correlation.cpu()
 
 
 def energy_variance_sv_impl(
@@ -83,7 +83,7 @@ def energy_variance_sv_impl(
     energy = torch.vdot(state.vector, hstate)
     en_var: torch.Tensor = h_squared - energy**2
     assert torch.allclose(en_var.imag, torch.zeros_like(en_var.imag), atol=1e-8)
-    return en_var.real
+    return en_var.cpu().real
 
 
 def energy_second_moment_sv_impl(
@@ -100,7 +100,7 @@ def energy_second_moment_sv_impl(
     hstate = hamiltonian * state.vector
     en_2_mom: torch.Tensor = torch.vdot(hstate, hstate)
     assert torch.allclose(en_2_mom.imag, torch.zeros_like(en_2_mom.imag), atol=1e-8)
-    return en_2_mom.real
+    return en_2_mom.cpu().real
 
 
 def energy_sv_impl(

@@ -11,7 +11,6 @@ from emu_sv.custom_callback_implementations import (
     energy_variance_sv_impl,
     qubit_occupation_sv_impl,
 )
-from emu_sv.state_vector import StateVector
 
 from pulser.backend import (
     CorrelationMatrix,
@@ -30,7 +29,6 @@ class SVConfig(EmulationConfig):
     See the API for that class for a list of available options.
 
     Args:
-        initial_state: the initial state to use in the simulation
         dt: the timestep size that the solver uses. Note that observables are
             only calculated if the evaluation_times are divisible by dt.
         max_krylov_dim:
@@ -52,7 +50,6 @@ class SVConfig(EmulationConfig):
     def __init__(
         self,
         *,
-        initial_state: StateVector | None = None,
         dt: int = 10,
         max_krylov_dim: int = 100,
         krylov_tolerance: float = 1e-10,
@@ -64,7 +61,6 @@ class SVConfig(EmulationConfig):
     ):
         kwargs.setdefault("observables", [StateResult(evaluation_times=[1.0])])
         super().__init__(**kwargs)
-        self._backend_options["initial_state"] = initial_state
         self._backend_options["dt"] = dt
         self._backend_options["max_krylov_dim"] = max_krylov_dim
         self._backend_options["gpu"] = gpu

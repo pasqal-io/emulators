@@ -1,5 +1,4 @@
 from pulser.backend import (
-    Callback,
     BitStrings,
     CorrelationMatrix,
     Energy,
@@ -24,7 +23,6 @@ __all__ = [
     "inner",
     "MPSConfig",
     "MPSBackend",
-    "Callback",
     "StateResult",
     "BitStrings",
     "Occupation",
