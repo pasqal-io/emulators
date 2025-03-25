@@ -59,10 +59,10 @@ class StateVector(State[complex, torch.Tensor]):
         Note:
             This method is intended to be used in callbacks.
         """
+
         norm = torch.linalg.vector_norm(self.vector)
-        if not torch.allclose(
-            norm, torch.tensor(1.0, dtype=torch.float64, device=self.vector.device)
-        ):
+
+        if not torch.allclose(norm, torch.ones_like(norm)):
             self.vector = self.vector / norm
 
     @classmethod

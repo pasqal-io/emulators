@@ -130,23 +130,23 @@ class MPSConfig(EmulationConfig):
             obs_copy = copy.deepcopy(obs)
             if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    qubit_occupation_mps_impl, obs
+                    qubit_occupation_mps_impl, obs_copy
                 )
             elif isinstance(obs, EnergyVariance):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    energy_variance_mps_impl, obs
+                    energy_variance_mps_impl, obs_copy
                 )
             elif isinstance(obs, EnergySecondMoment):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    energy_second_moment_mps_impl, obs
+                    energy_second_moment_mps_impl, obs_copy
                 )
             elif isinstance(obs, CorrelationMatrix):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    correlation_matrix_mps_impl, obs
+                    correlation_matrix_mps_impl, obs_copy
                 )
             elif isinstance(obs, Energy):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    energy_mps_impl, obs
+                    energy_mps_impl, obs_copy
                 )
             obs_list.append(obs_copy)
         self.observables = tuple(obs_list)
