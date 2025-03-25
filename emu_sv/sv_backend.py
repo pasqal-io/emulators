@@ -2,6 +2,7 @@ import torch
 from resource import RUSAGE_SELF, getrusage
 import time
 import typing
+import copy
 
 from pulser.backend import EmulatorBackend, Results, Observable, State, EmulationConfig
 
@@ -55,8 +56,8 @@ class SVBackend(EmulatorBackend):
         device = "cuda" if self._config.gpu and DEVICE_COUNT > 0 else "cpu"
 
         if self._config.initial_state is not None:
-            state = self._config.initial_state
-            state.vector = state.vector.clone().to(device)
+            state = copy.deepcopy(self._config.initial_state)
+            state.vector = state.vector.to(device)
         else:
             state = StateVector.make(nqubits, gpu=self._config.gpu)
 
