@@ -16,7 +16,19 @@ def double_krylov(
     tolerance: float,
 ) -> tuple[list, torch.Tensor, torch.Tensor]:
     """
-            |op |state><grad||
+    Decomposition of the Fréchet derivative of the exponential map along the
+    direction |state❭❬grad|, such that, with U=exp(op),
+        dU(op, |state❭❬grad|) = V_even * H * V_odd^-1
+
+    Args:
+        op (Callable): linear map to exponentiate, op(|x❭) = H|x❭.
+        grad (torch.Tensor):
+        state (torch.Tensor):
+        tolerance (float): tolerance of the returned derivative.
+
+    Notes:
+
+            |op |state❭❬grad||
     let h = |0        op     |
     Then this computes
     V = Gram-Scmidt(grad,state,op(grad),op(state),op^2(grad),op^2(state),...)

@@ -25,7 +25,7 @@ def test_double_krylov(N, tolerance):
     state = state / state.norm()
 
     grad = torch.randn(2**N, dtype=dtype)
-    #grad = grad / grad.norm()
+    # grad = grad / grad.norm()
 
     dt, iteration_count = 1.0, 80
     tolerance = 1e-8
