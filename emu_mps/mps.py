@@ -201,7 +201,7 @@ class MPS(State[complex, torch.Tensor]):
         Returns:
             the measured bitstrings, by count
         """
-        assert one_state is None or one_state == "r" or one_state == "1"
+        assert one_state in {None, "r", "1"}
         self.orthogonalize(0)
 
         rnd_matrix = torch.rand(num_shots, self.num_sites).to(self.factors[0].device)
