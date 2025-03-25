@@ -79,11 +79,10 @@ def energy_variance_sv_impl(
     Custom implementation of the energy variance ❬ψ|H²|ψ❭-❬ψ|H|ψ❭² for the state vector solver.
     """
     hstate = hamiltonian * state.vector
-    h_squared = torch.vdot(hstate, hstate)
-    energy = torch.vdot(state.vector, hstate)
+    h_squared = torch.vdot(hstate, hstate).real
+    energy = torch.vdot(state.vector, hstate).real
     en_var: torch.Tensor = h_squared - energy**2
-    assert torch.allclose(en_var.imag, torch.zeros_like(en_var.imag), atol=1e-8)
-    return en_var.cpu().real
+    return en_var.cpu()
 
 
 def energy_second_moment_sv_impl(
@@ -98,9 +97,8 @@ def energy_second_moment_sv_impl(
     for the state vector solver.
     """
     hstate = hamiltonian * state.vector
-    en_2_mom: torch.Tensor = torch.vdot(hstate, hstate)
-    assert torch.allclose(en_2_mom.imag, torch.zeros_like(en_2_mom.imag), atol=1e-8)
-    return en_2_mom.cpu().real
+    en_2_mom: torch.Tensor = torch.vdot(hstate, hstate).real
+    return en_2_mom.cpu()
 
 
 def energy_sv_impl(
