@@ -19,3 +19,6 @@ results
 
 /examples/save_bitstring-10.png
 public
+
+# for emu_mps_save
+*.dat

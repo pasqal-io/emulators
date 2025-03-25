@@ -71,15 +71,14 @@ class RydbergHamiltonian:
             the resulting state vector.
         """
         # (-∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ)|ψ❭
-        diag_result = self.diag * vec
+        result = self.diag * vec
         # ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ]|ψ❭
-        sigma_result = self._apply_sigma_operators(vec)
-        result: torch.Tensor
-        result = diag_result + sigma_result
-
+        self._apply_sigma_operators(result, vec)
         return result
 
-    def _apply_sigma_operators_real(self, vec: torch.Tensor) -> torch.Tensor:
+    def _apply_sigma_operators_real(
+        self, result: torch.Tensor, vec: torch.Tensor
+    ) -> None:
         """
         Apply the ∑ⱼ(Ωⱼ/2)σˣⱼ operator to the input vector |ψ❭.
 
@@ -89,18 +88,16 @@ class RydbergHamiltonian:
         Returns:
             the resulting state vector.
         """
-        result = torch.zeros_like(vec)
-
         dim_to_act = 1
         for n, omega_n in enumerate(self.omegas):
             shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
-            vec = vec.reshape(shape_n)
-            result = result.reshape(shape_n)
+            vec = vec.view(shape_n)
+            result = result.view(shape_n)
             result.index_add_(dim_to_act, self.inds, vec, alpha=omega_n)
 
-        return result.reshape(-1)
-
-    def _apply_sigma_operators_complex(self, vec: torch.Tensor) -> torch.Tensor:
+    def _apply_sigma_operators_complex(
+        self, result: torch.Tensor, vec: torch.Tensor
+    ) -> None:
         """
         Apply the ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] operator to the input vector |ψ❭.
 
@@ -111,13 +108,12 @@ class RydbergHamiltonian:
             the resulting state vector.
         """
         c_omegas = self.omegas * torch.exp(1j * self.phis)
-        result = torch.zeros_like(vec)
 
         dim_to_act = 1
         for n, c_omega_n in enumerate(c_omegas):
             shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
-            vec = vec.reshape(shape_n)
-            result = result.reshape(shape_n)
+            vec = vec.view(shape_n)
+            result = result.view(shape_n)
             result.index_add_(
                 dim_to_act, self.inds[0], vec[:, 0, :].unsqueeze(1), alpha=c_omega_n
             )
@@ -128,8 +124,6 @@ class RydbergHamiltonian:
                 alpha=c_omega_n.conj(),
             )
 
-        return result.reshape(-1)
-
     def _create_diagonal(self) -> torch.Tensor:
         """
         Return the diagonal elements of the Rydberg Hamiltonian matrix
@@ -139,19 +133,21 @@ class RydbergHamiltonian:
         diag = torch.zeros(2**self.nqubits, dtype=torch.complex128, device=self.device)
 
         for i in range(self.nqubits):
-            diag = diag.reshape(2**i, 2, -1)
+            diag = diag.view(2**i, 2, -1)
             i_fixed = diag[:, 1, :]
             i_fixed -= self.deltas[i]
             for j in range(i + 1, self.nqubits):
-                i_fixed = i_fixed.reshape(2**i, 2 ** (j - i - 1), 2, -1)
+                i_fixed = i_fixed.view(2**i, 2 ** (j - i - 1), 2, -1)
                 # replacing i_j_fixed by i_fixed breaks the code :)
                 i_j_fixed = i_fixed[:, :, 1, :]
                 i_j_fixed += self.interaction_matrix[i, j]
-        return diag.reshape(-1)
+        return diag.view(-1)
 
     def expect(self, state: StateVector) -> torch.Tensor:
         """Return the energy expectation value E=❬ψ|H|ψ❭"""
         assert isinstance(
             state, StateVector
         ), "Currently, only expectation values of StateVectors are supported"
-        return torch.vdot(state.vector, self * state.vector)
+        en = torch.vdot(state.vector, self * state.vector)
+        assert torch.allclose(en.imag, torch.zeros_like(en.imag), atol=1e-8)
+        return en.real

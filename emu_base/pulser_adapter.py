@@ -1,11 +1,13 @@
 import pulser
-from typing import Tuple
+from typing import Tuple, Sequence
 import torch
 import math
 from pulser.noise_model import NoiseModel
+from pulser.register.base_register import BaseRegister
 from enum import Enum
 
-from emu_base.base_classes.config import BackendConfig
+from pulser.backend.config import EmulationConfig
+
 from emu_base.lindblad_operators import get_lindblad_operators
 from emu_base.utils import dist2, dist3
 
@@ -16,7 +18,7 @@ class HamiltonianType(Enum):
 
 
 def _get_qubit_positions(
-    register: pulser.Register,
+    register: BaseRegister,
 ) -> list[torch.Tensor]:
     """Conversion from pulser Register to emu-mps register (torch type).
     Each element will be given as [Rx,Ry,Rz]"""
@@ -31,7 +33,7 @@ def _get_qubit_positions(
 def _rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     """
     Computes the Ising interaction matrix from the qubit positions.
-    Hᵢⱼ=C₆/Rᵢⱼ⁶ (nᵢ⊗ nⱼ)
+    Hᵢⱼ=C₆/R⁶ᵢⱼ (nᵢ⊗ nⱼ)
     """
 
     num_qubits = len(sequence.register.qubit_ids)
@@ -88,7 +90,7 @@ def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
 def _extract_omega_delta_phi(
     *,
     sequence: pulser.Sequence,
-    dt: int,
+    target_times: list[int],
     with_modulation: bool,
     laser_waist: float | None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -125,7 +127,7 @@ def _extract_omega_delta_phi(
 
     max_duration = sequence.get_duration(include_fall_time=with_modulation)
 
-    nsamples = math.ceil(max_duration / dt - 1 / 2)
+    nsamples = len(target_times) - 1
     omega = torch.zeros(
         nsamples,
         len(sequence.register.qubit_ids),
@@ -157,12 +159,11 @@ def _extract_omega_delta_phi(
             for slot in ch_samples.slots:
                 global_times |= set(i for i in range(slot.ti, slot.tf))
 
-    step = 0
-    t = (step + 1 / 2) * dt
     omega_1 = torch.zeros_like(omega[0])
     omega_2 = torch.zeros_like(omega[0])
 
-    while t < max_duration:
+    for i in range(nsamples):
+        t = (target_times[i] + target_times[i + 1]) / 2
         # The sampled values correspond to the start of each interval
         # To maximize the order of the solver, we need the values in the middle
         if math.ceil(t) < max_duration:
@@ -173,10 +174,10 @@ def _extract_omega_delta_phi(
                 t2 = math.ceil(t)
                 omega_1[q_pos] = locals_a_d_p[q_id]["amp"][t1]
                 omega_2[q_pos] = locals_a_d_p[q_id]["amp"][t2]
-                delta[step, q_pos] = (
+                delta[i, q_pos] = (
                     locals_a_d_p[q_id]["det"][t1] + locals_a_d_p[q_id]["det"][t2]
                 ) / 2.0
-                phi[step, q_pos] = (
+                phi[i, q_pos] = (
                     locals_a_d_p[q_id]["phase"][t1] + locals_a_d_p[q_id]["phase"][t2]
                 ) / 2.0
             # omegas at different times need to have the laser waist applied independently
@@ -184,21 +185,19 @@ def _extract_omega_delta_phi(
                 omega_1 *= waist_factors
             if t2 in global_times:
                 omega_2 *= waist_factors
-            omega[step] = 0.5 * (omega_1 + omega_2)
+            omega[i] = 0.5 * (omega_1 + omega_2)
         else:
             # We're in the final step and dt=1, approximate this using linear extrapolation
             # we can reuse omega_1 and omega_2 from before
             for q_pos, q_id in enumerate(sequence.register.qubit_ids):
-                delta[step, q_pos] = (
+                delta[i, q_pos] = (
                     3.0 * locals_a_d_p[q_id]["det"][t2] - locals_a_d_p[q_id]["det"][t1]
                 ) / 2.0
-                phi[step, q_pos] = (
+                phi[i, q_pos] = (
                     3.0 * locals_a_d_p[q_id]["phase"][t2]
                     - locals_a_d_p[q_id]["phase"][t1]
                 ) / 2.0
-            omega[step] = torch.clamp(0.5 * (3 * omega_2 - omega_1).real, min=0.0)
-        step += 1
-        t = (step + 1 / 2) * dt
+            omega[i] = torch.clamp(0.5 * (3 * omega_2 - omega_1).real, min=0.0)
 
     return omega, delta, phi
 
@@ -221,7 +220,7 @@ def _get_all_lindblad_noise_operators(
 
 
 class PulserData:
-    slm_end_time: int
+    slm_end_time: float
     full_interaction_matrix: torch.Tensor
     masked_interaction_matrix: torch.Tensor
     omega: torch.Tensor
@@ -230,15 +229,29 @@ class PulserData:
     hamiltonian_type: HamiltonianType
     lindblad_ops: list[torch.Tensor]
 
-    def __init__(self, *, sequence: pulser.Sequence, config: BackendConfig, dt: int):
+    def __init__(self, *, sequence: pulser.Sequence, config: EmulationConfig, dt: int):
         self.qubit_count = len(sequence.register.qubit_ids)
+        sequence_duration = sequence.get_duration()
+        # the end value is exclusive, so add +1
+        observable_times = set(torch.arange(0, sequence.get_duration() + 1, dt).tolist())
+        observable_times.add(sequence.get_duration())
+        for obs in config.observables:
+            times: Sequence[float]
+            if obs.evaluation_times is not None:
+                times = obs.evaluation_times
+            elif config.default_evaluation_times != "Full":
+                times = config.default_evaluation_times.tolist()  # type: ignore[union-attr]
+            observable_times |= set([round(time * sequence_duration) for time in times])
+
+        self.target_times: list[int] = list(observable_times)
+        self.target_times.sort()
 
         laser_waist = (
             config.noise_model.laser_waist if config.noise_model is not None else None
         )
         self.omega, self.delta, self.phi = _extract_omega_delta_phi(
             sequence=sequence,
-            dt=dt,
+            target_times=self.target_times,
             with_modulation=config.with_modulation,
             laser_waist=laser_waist,
         )
@@ -259,9 +272,7 @@ class PulserData:
                 "the interaction matrix"
             )
 
-            self.full_interaction_matrix = torch.tensor(
-                config.interaction_matrix, dtype=torch.float64
-            )
+            self.full_interaction_matrix = config.interaction_matrix.as_tensor()
         elif self.hamiltonian_type == HamiltonianType.Rydberg:
             self.full_interaction_matrix = _rydberg_interaction(sequence)
         elif self.hamiltonian_type == HamiltonianType.XY:
