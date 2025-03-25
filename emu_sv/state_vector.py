@@ -59,11 +59,11 @@ class StateVector(State[complex, torch.Tensor]):
         Note:
             This method is intended to be used in callbacks.
         """
-
-        norm = self.norm()
-
-        if not torch.allclose(norm, torch.tensor(1.0, dtype=torch.float64)):
-            self.vector = self.vector / norm.to(self.vector.device)
+        norm = torch.linalg.vector_norm(self.vector)
+        if not torch.allclose(
+            norm, torch.tensor(1.0, dtype=torch.float64, device=self.vector.device)
+        ):
+            self.vector = self.vector / norm
 
     @classmethod
     def zero(cls, num_sites: int, gpu: bool = True) -> StateVector:
