@@ -1,5 +1,6 @@
 from emu_mps.mps_backend_impl import MPSBackendImpl, NoisyMPSBackendImpl
 from emu_mps.mps_config import MPSConfig
+from pulser import NoiseModel
 import math
 import cmath
 from unittest.mock import MagicMock, patch
@@ -28,12 +29,16 @@ def _create_victim(constructor, dt, noise_model):
 
 
 def create_victim(dt=10, noise_model=None):
+    if noise_model is None:
+        noise_model = NoiseModel()
     victim = _create_victim(constructor=MPSBackendImpl, dt=dt, noise_model=noise_model)
     victim.has_lindblad_noise = False
     return victim
 
 
 def create_noisy_victim(dt=10, noise_model=None):
+    if noise_model is None:
+        noise_model = NoiseModel()
     victim = _create_victim(
         constructor=NoisyMPSBackendImpl, dt=dt, noise_model=noise_model
     )
@@ -43,7 +48,10 @@ def create_noisy_victim(dt=10, noise_model=None):
 
 @patch("emu_mps.mps_backend_impl.pick_well_prepared_qubits")
 def test_init_dark_qubits_without_state_prep_error(pick_well_prepared_qubits_mock):
-    noise_model = MagicMock()
+    noise_model = MagicMock(spec=NoiseModel)
+    noise_model.runs = 1
+    noise_model.samples_per_run = 1
+    noise_model.noise_types = []
     noise_model.state_prep_error = 0.0
     victim = create_victim(noise_model=noise_model)
 
@@ -98,7 +106,10 @@ def test_init_dark_qubits_without_state_prep_error(pick_well_prepared_qubits_moc
 
 @patch("emu_mps.mps_backend_impl.pick_well_prepared_qubits")
 def test_init_dark_qubits_with_state_prep_error(pick_well_prepared_qubits_mock):
-    noise_model = MagicMock()
+    noise_model = MagicMock(spec=NoiseModel)
+    noise_model.runs = 1
+    noise_model.samples_per_run = 1
+    noise_model.noise_types = []
     noise_model.state_prep_error = 0.123
     victim = create_victim(noise_model=noise_model)
 
@@ -189,7 +200,10 @@ def test_init_lindblad_noise_with_lindbladians(compute_noise_from_lindbladians_m
     victim.lindblad_ops = [lindbladian1, lindbladian2]
     victim.has_lindblad_noise = True
 
-    noise_mock = MagicMock()
+    noise_mock = MagicMock(spec=NoiseModel)
+    noise_mock.noise_types = []
+    noise_mock.runs = 1
+    noise_mock.samples_per_run = 1
     compute_noise_from_lindbladians_mock.return_value = noise_mock
     victim.init_lindblad_noise()
     assert torch.allclose(
@@ -225,7 +239,10 @@ def test_set_jump_threshold(random_mock):
 def test_init_initial_state_default(pick_well_prepared_qubits_mock):
     pick_well_prepared_qubits_mock.return_value = [True, False, False, True, True]
 
-    noise_model = MagicMock()
+    noise_model = MagicMock(spec=NoiseModel)
+    noise_model.noise_types = []
+    noise_model.runs = 1
+    noise_model.samples_per_run = 1
     noise_model.state_prep_error = 0.1
 
     victim = create_victim(noise_model=noise_model)

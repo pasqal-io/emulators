@@ -15,7 +15,7 @@ device = "cpu"
     ("N", "krylov_tolerance"),
     [(3, 1e-10), (5, 1e-12), (7, 1e-10), (8, 1e-12)],
 )
-def test_forward_no_phase(N: int, krylov_tolerance: float):
+def test_forward_no_phase(N: int, krylov_tolerance: float) -> None:
     torch.manual_seed(1337)
     omegas = torch.randn(N)
     deltas = torch.randn(N)
@@ -42,11 +42,9 @@ def test_forward_no_phase(N: int, krylov_tolerance: float):
     ("N", "krylov_tolerance"),
     [(3, 1e-10), (5, 1e-12), (7, 1e-10), (8, 1e-12)],
 )
-def test_forward_with_phase(N: int, krylov_tolerance: float):
+def test_forward_with_phase(N: int, krylov_tolerance: float) -> None:
     torch.manual_seed(1337)
-    omegas = torch.randn(N)
-    deltas = torch.randn(N)
-    phis = torch.randn(N)
+    omegas, deltas, phis = torch.randn(3, N)  # unpack a 3*N tensor
     interaction = randn_interaction_matrix(N)
     ham_params = (omegas, deltas, phis, interaction)
 

@@ -1,6 +1,7 @@
 import time
 from unittest.mock import ANY, MagicMock, patch
 from collections import Counter
+from typing import Any
 
 import pulser
 import pytest
@@ -9,8 +10,6 @@ import random
 from pytest import approx
 
 import emu_mps
-import emu_base.base_classes
-import emu_base.base_classes.default_callbacks
 from emu_mps import (
     MPS,
     BitStrings,
@@ -18,14 +17,15 @@ from emu_mps import (
     MPSBackend,
     MPSConfig,
     StateResult,
-    QubitDensity,
+    Occupation,
     Energy,
     EnergyVariance,
-    SecondMomentOfEnergy,
+    EnergySecondMoment,
     CorrelationMatrix,
 )
 
 import pulser.noise_model
+from pulser.backend import Results
 
 from emu_mps.mps_backend_impl import MPSBackendImpl
 from emu_mps.tdvp import right_baths
@@ -37,32 +37,30 @@ from test.utils_testing import (
 
 seed = 1337
 
-mps_backend = MPSBackend()
-
 
 def create_antiferromagnetic_mps(num_qubits: int):
-    factors = [torch.zeros((1, 2, 1), dtype=torch.complex128) for _ in range(num_qubits)]
+    str = ""
     for i in range(num_qubits):
         if i % 2:
-            factors[i][0, 0, 0] = 1.0
+            str += "g"
         else:
-            factors[i][0, 1, 0] = 1.0
-    return MPS(factors)
+            str += "r"
+    amplitudes = {str: 1.0}
+    return MPS.from_state_amplitudes(eigenstates=["r", "g"], amplitudes=amplitudes)
 
 
 def simulate(
     seq: pulser.Sequence,
     *,
-    dt=100,
-    noise_model=None,
-    state_prep_error=0.0,
-    p_false_pos=0.0,
-    p_false_neg=0.0,
-    initial_state=None,
-    given_fidelity_state=True,
-    interaction_cutoff=0.0,
-):
-    final_time = seq.get_duration()
+    dt: int = 100,
+    noise_model: Any | None = None,
+    state_prep_error: float = 0,
+    p_false_pos: float = 0,
+    p_false_neg: float = 0,
+    initial_state: Any | None = None,
+    given_fidelity_state: bool = True,
+    interaction_cutoff: float = 0,
+) -> Results:
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
     else:
@@ -81,8 +79,10 @@ def simulate(
             p_false_pos=p_false_pos,
             p_false_neg=p_false_neg,
         )
-    nqubits = len(seq.register.qubit_ids)
-    times = {final_time}
+    else:
+        if noise_model is None:
+            noise_model = pulser.noise_model.NoiseModel()
+    times = [1.0]
     mps_config = MPSConfig(
         initial_state=initial_state,
         dt=dt,
@@ -90,18 +90,19 @@ def simulate(
         observables=[
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=1000),
-            Fidelity(evaluation_times=times, state=fidelity_state),
-            QubitDensity(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
+            Fidelity(evaluation_times=times, state=fidelity_state, tag_suffix="1"),
+            Occupation(evaluation_times=times),
             Energy(evaluation_times=times),
             EnergyVariance(evaluation_times=times),
-            SecondMomentOfEnergy(evaluation_times=times),
-            CorrelationMatrix(basis={"r", "g"}, evaluation_times=times, nqubits=nqubits),
+            EnergySecondMoment(evaluation_times=times),
+            CorrelationMatrix(evaluation_times=times),
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
     )
 
-    result = mps_backend.run(seq, mps_config)
+    backend = MPSBackend(seq, config=mps_config)
+    result = backend.run()
 
     return result
 
@@ -117,7 +118,7 @@ def simulate_line(n, **kwargs):
         t_rise=t_rise,
         t_fall=t_fall,
     )
-    return seq.get_duration(), simulate(seq, **kwargs)
+    return simulate(seq, **kwargs)
 
 
 def get_proba(state: MPS, bitstring: str):
@@ -127,7 +128,7 @@ def get_proba(state: MPS, bitstring: str):
 
     factors = [one if bitstring[i] == "1" else zero for i in range(state.num_sites)]
 
-    return abs(state.inner(MPS(factors))) ** 2
+    return abs(state.inner(MPS(factors)).item()) ** 2
 
 
 Omega_max = 4 * 2 * torch.pi
@@ -138,14 +139,22 @@ t_rise = 500
 t_fall = 1000
 
 
-def test_XY_3atoms():
+def test_default_MPSConfig_ctr() -> None:
+    mps_config = MPSConfig()
+    assert len(mps_config.observables) == 1
+    assert isinstance(mps_config.observables[0], StateResult)
+    assert mps_config.observables[0].evaluation_times == [
+        1.0
+    ]  # meaning very end of the simuation
+
+
+def test_XY_3atoms() -> None:
     torch.manual_seed(seed)
     seq = pulser_XY_sequence_slm_mask(amplitude=25.0)
 
     result = simulate(seq, dt=10, given_fidelity_state=False)
 
-    final_time = seq.get_duration()
-    final_state: MPS = result["state"][final_time]
+    final_state: MPS = result.state[-1]
     final_vec = torch.einsum("abc,cde,efg->abdfg", *(final_state.factors)).reshape(8)
 
     expected_res = torch.tensor(
@@ -164,23 +173,21 @@ def test_XY_3atoms():
     )
 
     # pulser magnetization: [0.46024234949993825,0.4776498885102908,0.4602423494999386#
-    q_density = result["qubit_density"][final_time]
+    q_density = result.occupation[-1]
 
     max_bond_dim = final_state.get_max_bond_dim()
     assert max_bond_dim == 2
-    assert approx(q_density, 1e-3) == [0.4610, 0.4786, 0.4610]
-    print(torch.max(torch.abs(final_vec - expected_res)))
+    assert approx(q_density.tolist(), 1e-3) == [0.4610, 0.4786, 0.4610]
     assert torch.allclose(final_vec, expected_res, rtol=0, atol=1e-4)
 
 
-def test_XY_3atomswith_slm():
+def test_XY_3atomswith_slm() -> None:
     torch.manual_seed(seed)
     seq = pulser_XY_sequence_slm_mask(amplitude=0.0, slm_masked_atoms=(1, 2))
 
     result = simulate(seq, dt=10, given_fidelity_state=False)
 
-    final_time = seq.get_duration()
-    final_state: MPS = result["state"][final_time]
+    final_state: MPS = result.state[-1]
     final_vec = torch.einsum("abc,cde,efg->abdfg", *(final_state.factors)).reshape(8)
     # pulser vector: 0.707,(−0.171+0.182j),(0.449−0.103j),0.0,(0.138−0.455j),1.761×10 −12,
     # −1.873×10−12j,0.0
@@ -200,7 +207,7 @@ def test_XY_3atomswith_slm():
         dtype=torch.complex128,
     )
     # pulser magnetization: [0.22572457283642877,0.21208108307887844,0.06213666344288577
-    q_density = result["qubit_density"][final_time]
+    q_density = result.occupation[-1]
 
     max_bond_dim = final_state.get_max_bond_dim()
     assert max_bond_dim == 2
@@ -210,7 +217,7 @@ def test_XY_3atomswith_slm():
     )  # todo, compare against pulser results
 
 
-def test_end_to_end_afm_ring():
+def test_end_to_end_afm_ring() -> None:
     torch.manual_seed(seed)
 
     num_qubits = 10
@@ -226,45 +233,42 @@ def test_end_to_end_afm_ring():
 
     result = simulate(seq)
 
-    final_time = seq.get_duration()
-    bitstrings = result["bitstrings"][final_time]
-    final_state = result["state"][final_time]
-    final_fidelity = result[
-        f"fidelity_{emu_base.base_classes.default_callbacks._fidelity_counter}"
-    ][final_time]
+    bitstrings = result.bitstrings[-1]
+    final_state = result.state[-1]
+    final_fidelity = result.fidelity_1[-1]
     max_bond_dim = final_state.get_max_bond_dim()
     fidelity_state = create_antiferromagnetic_mps(num_qubits)
 
     assert bitstrings["1010101010"] == 129  # -> fidelity as samples increase
     assert bitstrings["0101010101"] == 135
-    assert fidelity_state.inner(final_state) == approx(final_fidelity, abs=1e-10)
+    assert fidelity_state.overlap(final_state) == approx(final_fidelity, abs=1e-10)
     assert max_bond_dim == 29
 
-    q_density = result["qubit_density"][final_time]
+    q_density = result.occupation[-1]
     assert approx(q_density, 1e-3) == [0.578] * 10
 
-    energy = result["energy"][final_time]
+    energy = result.energy[-1]
     assert approx(energy, 1e-8) == -115.34370829396005
 
-    energy_variance = result["energy_variance"][final_time]
+    energy_variance = result.energy_variance[-1]
     assert approx(energy_variance, 1e-6) == 45.905980469959104
 
-    second_moment_energy = result["second_moment_of_energy"][final_time]
+    second_moment_energy = result.energy_second_moment[-1]
     assert approx(second_moment_energy, 1e-6) == 13350.07680148
 
-    correlation_matrix = result["correlation_matrix"][final_time]
+    correlation_matrix = result.correlation_matrix[-1]
     print(correlation_matrix)
 
 
-def test_end_to_end_afm_line_with_state_preparation_errors():
+def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     torch.manual_seed(seed)
 
     with patch(
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [True, True, True, False]
-        final_time, result = simulate_line(4, state_prep_error=0.1)
-        final_state = result["state"][final_time]
+        result = simulate_line(4, state_prep_error=0.1)
+        final_state = result.state[-1]
         pick_well_prepared_qubits_mock.assert_called_with(0.1, 4)
 
     assert get_proba(final_state, "1110") == approx(0.56, abs=1e-2)
@@ -274,8 +278,8 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
     with patch(
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
-        final_time, result = simulate_line(3)
-        final_state = result["state"][final_time]
+        result = simulate_line(3)
+        final_state = result.state[-1]
         pick_well_prepared_qubits_mock.assert_not_called()
         assert get_proba(final_state, "111") == approx(0.56, abs=1e-2)
         assert get_proba(final_state, "101") == approx(0.43, abs=1e-2)
@@ -284,22 +288,22 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [True, False, True, True]
-        final_time, result = simulate_line(4, state_prep_error=0.1)
-        final_state = result["state"][final_time]
+        result = simulate_line(4, state_prep_error=0.1)
+        final_state = result.state[-1]
 
     assert get_proba(final_state, "1011") == approx(0.95, abs=1e-2)
 
     # Results for a 2 qubit line.
-    final_time, result = simulate_line(2)
-    final_state = result["state"][final_time]
+    result = simulate_line(2)
+    final_state = result.state[-1]
     assert get_proba(final_state, "11") == approx(0.95, abs=1e-2)
 
     with patch(
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         pick_well_prepared_qubits_mock.return_value = [False, True, True, False]
-        final_time, result = simulate_line(4, state_prep_error=0.1)
-        final_state = result["state"][final_time]
+        result = simulate_line(4, state_prep_error=0.1)
+        final_state = result.state[-1]
 
     assert get_proba(final_state, "0110") == approx(0.95, abs=1e-2)
 
@@ -309,24 +313,24 @@ def test_end_to_end_afm_line_with_state_preparation_errors():
     ) as pick_well_prepared_qubits_mock:
         with pytest.raises(ValueError) as exception_info:
             pick_well_prepared_qubits_mock.return_value = [False, False, True, False]
-            final_time, result = simulate_line(4, state_prep_error=0.1)
-            final_state = result["state"][final_time]
+            result = simulate_line(4, state_prep_error=0.1)
+            final_state = result.state[-1]
 
     assert "For 1 qubit states, do state vector" in str(exception_info.value)
 
 
-def test_end_to_end_afm_line_with_measurement_errors():
+def test_end_to_end_afm_line_with_measurement_errors() -> None:
     with patch("emu_mps.mps.apply_measurement_errors") as apply_measurement_errors_mock:
         bitstrings = MagicMock()
         apply_measurement_errors_mock.return_value = bitstrings
-        final_time, results = simulate_line(4, p_false_pos=0.0, p_false_neg=0.5)
+        results = simulate_line(4, p_false_pos=0.0, p_false_neg=0.5)
         apply_measurement_errors_mock.assert_called_with(
             ANY, p_false_pos=0.0, p_false_neg=0.5
         )
-        assert results["bitstrings"][final_time] is bitstrings
+        assert results.bitstrings[-1] is bitstrings
 
 
-def test_initial_state():
+def test_initial_state() -> None:
     pulse = pulser.Pulse.ConstantAmplitude(
         0.0, pulser.waveforms.ConstantWaveform(10.0, 0.0), 0.0
     )
@@ -335,20 +339,22 @@ def test_initial_state():
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(pulse, "ising_global")  # do nothing in the pulse
 
-    state = emu_mps.MPS.from_state_string(
-        basis=("r", "g"), nqubits=5, strings={"rrrrr": 1.0}
+    state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rrrrr": 1.0}
     )
-    assert state.inner(state).real == approx(1.0)  # assert unit norm
+    assert state.norm() == approx(1.0)  # assert unit norm
 
-    state_result = emu_mps.StateResult(evaluation_times={10})
+    state_result = emu_mps.StateResult(evaluation_times=[1.0])
     config = emu_mps.MPSConfig(observables=[state_result], initial_state=state)
-    backend = emu_mps.MPSBackend()
-    results = backend.run(seq, config)
+    backend = emu_mps.MPSBackend(seq, config=config)
+    results = backend.run()
     # assert that the initial state was used by the emulator
-    assert results[state_result.name][10].inner(state).real == approx(1.0)
+    assert results.get_result(state_result, 1.0).inner(state).real == approx(1.0)
+    # but that it's a copy
+    assert results.get_result(state_result, 1.0) is not state
 
 
-def test_initial_state_copy():
+def test_initial_state_copy() -> None:
     duration = 10.0
     pulse = pulser.Pulse.ConstantAmplitude(
         Omega_max, pulser.waveforms.RampWaveform(duration, delta_0, delta_f), 0.0
@@ -358,27 +364,27 @@ def test_initial_state_copy():
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(pulse, "ising_global")
 
-    initial_state = emu_mps.MPS.from_state_string(
-        basis=("r", "g"), nqubits=5, strings={"rrrrr": 1.0}
+    initial_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rrrrr": 1.0}
     )
 
     config = emu_mps.MPSConfig(initial_state=initial_state)
 
-    emu_mps.MPSBackend().run(seq, config)
+    emu_mps.MPSBackend(seq, config=config).run()
 
     # Check the initial state's factors were not modified.
     assert all(
         torch.allclose(initial_state_factor, expected_initial_state_factor)
         for initial_state_factor, expected_initial_state_factor in zip(
             initial_state.factors,
-            emu_mps.MPS.from_state_string(
-                basis=("r", "g"), nqubits=5, strings={"rrrrr": 1.0}
+            emu_mps.MPS.from_state_amplitudes(
+                eigenstates=("r", "g"), amplitudes={"rrrrr": 1.0}
             ).factors,
         )
     )
 
 
-def test_end_to_end_afm_ring_with_noise():
+def test_end_to_end_afm_ring_with_noise() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -399,9 +405,8 @@ def test_end_to_end_afm_ring_with_noise():
 
     result = simulate(seq, noise_model=noise_model)
 
-    final_time = seq.get_duration()
-    bitstrings = result["bitstrings"][final_time]
-    final_state = result["state"][final_time]
+    bitstrings = result.bitstrings[-1]
+    final_state = result.state[-1]
     max_bond_dim = final_state.get_max_bond_dim()
 
     assert bitstrings["101010"] == 472
@@ -409,7 +414,7 @@ def test_end_to_end_afm_ring_with_noise():
     assert max_bond_dim == 8
 
 
-def test_end_to_end_spontaneous_emission():
+def test_end_to_end_spontaneous_emission() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -434,8 +439,8 @@ def test_end_to_end_spontaneous_emission():
         relaxation_rate=0.1,
     )
 
-    initial_state = emu_mps.MPS.from_state_string(
-        basis=("r", "g"), nqubits=12, strings={"rrrrrrrrrrrr": 1.0}
+    initial_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rrrrrrrrrrrr": 1.0}
     )
 
     def check_baths(impl: MPSBackendImpl):
@@ -466,8 +471,7 @@ def test_end_to_end_spontaneous_emission():
 
         result = simulate(seq, noise_model=noise_model, initial_state=initial_state)
 
-    final_time = seq.get_duration()
-    final_state = result["state"][final_time]
+    final_state = result.state[-1]
 
     assert get_proba(final_state, "100000110000") == approx(1, abs=1e-2)
 
@@ -475,7 +479,7 @@ def test_end_to_end_spontaneous_emission():
     # would be too much for this unit test.
 
 
-def test_end_to_end_spontaneous_emission_rate():
+def test_end_to_end_spontaneous_emission_rate() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -498,8 +502,8 @@ def test_end_to_end_spontaneous_emission_rate():
         relaxation_rate=0.1,
     )
 
-    initial_state = emu_mps.MPS.from_state_string(
-        basis=("r", "g"), nqubits=2, strings={"rr": 1.0}
+    initial_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=["r", "g"], amplitudes={"rr": 1.0}
     )
     results = []
     for _ in range(100):
@@ -507,12 +511,11 @@ def test_end_to_end_spontaneous_emission_rate():
             simulate(seq, noise_model=noise_model, initial_state=initial_state, dt=10000)
         )
 
-    final_time = seq.get_duration()
     counts = {}
     # round probabilities to merge 1.0 and 0.9999999999999998 etc.
     for string in ["00", "01", "10", "11"]:
         counts[string] = Counter(
-            [round(get_proba(result["state"][final_time], string)) for result in results]
+            [round(get_proba(result.state[-1], string)) for result in results]
         )[1]
 
     # the exact rates are {"11":0.135, "01":0.233, "10":0.233, "00":0.400}
@@ -521,7 +524,7 @@ def test_end_to_end_spontaneous_emission_rate():
     assert counts == expected_counts
 
 
-def test_laser_waist():
+def test_laser_waist() -> None:
     duration = 1000
     reg = pulser.Register.from_coordinates(
         [(0.0, 0.0), (10.0, 0.0)], center=False, prefix="q"
@@ -554,19 +557,18 @@ def test_laser_waist():
 
     result = simulate(seq, noise_model=noise_model, dt=10, interaction_cutoff=100)
 
-    final_time = seq.get_duration()
-    final_state = result["state"][final_time]
+    final_state = result.state[-1]
 
     assert pytest.approx(final_state.norm()) == 1.0
 
-    expected_state = emu_mps.MPS.from_state_string(
-        basis=("r", "g"), nqubits=2, strings={"rr": 1.0}
+    expected_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rr": 1.0}
     )
 
     assert pytest.approx(final_state.inner(expected_state)) == -1.0
 
 
-def test_autosave():
+def test_autosave() -> None:
     duration = 300
     rows, cols = 2, 3
     reg = pulser.Register.rectangle(
@@ -583,8 +585,8 @@ def test_autosave():
         "ising_global",
     )
 
-    evaluation_times = {10, 100, 150}
-    energy = emu_base.Energy(evaluation_times=evaluation_times)
+    evaluation_times = [1.0 / 30.0, 1.0 / 3.0, 0.5]
+    energy = Energy(evaluation_times=evaluation_times)
 
     save_simulation_original = MPSBackendImpl.save_simulation
     save_file = None
@@ -612,16 +614,19 @@ def test_autosave():
         save_simulation_mock.side_effect = save_simulation_mock_side_effect
 
         with pytest.raises(Exception) as e:
-            MPSBackend().run(seq, MPSConfig(observables=[energy]))
+            MPSBackend(seq, config=MPSConfig(observables=[energy])).run()
 
         assert str(e.value) == "Process killed!"
 
     assert save_file is not None and save_file.is_file()
-    results_after_resume = MPSBackend().resume(save_file)
+    results_after_resume = MPSBackend.resume(save_file)
 
     assert not save_file.is_file()
 
-    results_expected = MPSBackend().run(seq, MPSConfig(observables=[energy]))
+    results_expected = MPSBackend(seq, config=MPSConfig(observables=[energy])).run()
 
     for t in evaluation_times:
-        assert results_after_resume["energy", t] == results_expected["energy", t]
+        assert torch.allclose(
+            results_after_resume.get_result("energy", t),
+            results_expected.get_result("energy", t),
+        )
