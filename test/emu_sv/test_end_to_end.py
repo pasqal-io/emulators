@@ -199,3 +199,27 @@ def test_end_to_end_pi_half_pulse_with_phase() -> None:
     expected = torch.tensor([1, 1], dtype=torch.complex128) / math.sqrt(2)
 
     assert torch.allclose(final_state.vector.cpu(), expected, atol=1e-8)
+
+
+def test_initial_state() -> None:
+    pulse = pulser.Pulse.ConstantAmplitude(
+        0.0, pulser.waveforms.ConstantWaveform(10.0, 0.0), 0.0
+    )
+    reg = pulser.Register.rectangle(5, 1, spacing=1e10, prefix="q")
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(pulse, "ising_global")  # do nothing in the pulse
+
+    state = StateVector.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rrrrr": 1.0}
+    )
+    assert state.norm() == approx(1.0)  # assert unit norm
+
+    state_result = StateResult(evaluation_times=[1.0])
+    config = SVConfig(observables=[state_result], initial_state=state)
+    backend = SVBackend(seq, config=config)
+    results = backend.run()
+    # assert that the initial state was used by the emulator
+    assert results.get_result(state_result, 1.0).inner(state).real == approx(1.0)
+    # but that it's a copy
+    assert results.get_result(state_result, 1.0) is not state

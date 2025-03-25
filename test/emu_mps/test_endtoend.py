@@ -342,7 +342,7 @@ def test_initial_state() -> None:
     state = emu_mps.MPS.from_state_amplitudes(
         eigenstates=("r", "g"), amplitudes={"rrrrr": 1.0}
     )
-    assert state.inner(state).real == approx(1.0)  # assert unit norm
+    assert state.norm() == approx(1.0)  # assert unit norm
 
     state_result = emu_mps.StateResult(evaluation_times=[1.0])
     config = emu_mps.MPSConfig(observables=[state_result], initial_state=state)
@@ -350,6 +350,8 @@ def test_initial_state() -> None:
     results = backend.run()
     # assert that the initial state was used by the emulator
     assert results.get_result(state_result, 1.0).inner(state).real == approx(1.0)
+    # but that it's a copy
+    assert results.get_result(state_result, 1.0) is not state
 
 
 def test_initial_state_copy() -> None:
