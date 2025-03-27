@@ -215,7 +215,7 @@ def minimize_bandwidth(input_matrix: np.ndarray, samples: int = 100) -> list[int
         (np.random.permutation(L).tolist() for _ in range(samples)),
     )
 
-    opt_permutations_and_opt_bandwidth = (
+    opt_permutations_and_opt_bandwidth = (  # type: ignore[arg-type]
         minimize_bandwidth_impl(input_mat, rnd_perm) for rnd_perm in rnd_permutations
     )
 
