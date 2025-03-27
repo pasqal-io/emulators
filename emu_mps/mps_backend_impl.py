@@ -13,8 +13,7 @@ import time
 from pulser import Sequence
 from types import MethodType
 
-from emu_mps.results import MPSResults
-from pulser.backend import State, Observable, EmulationConfig
+from pulser.backend import State, Observable, EmulationConfig, Results
 from emu_base import PulserData, DEVICE_COUNT
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_mps.hamiltonian import make_H, update_H
@@ -104,7 +103,7 @@ class MPSBackendImpl:
     swipe_direction: SwipeDirection
     timestep_index: int
     target_time: float
-    results: MPSResults
+    results: Results
 
     def __init__(self, mps_config: MPSConfig, pulser_data: PulserData):
         self.config = mps_config
@@ -129,7 +128,7 @@ class MPSBackendImpl:
         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
         self.tdvp_index = 0
         self.timestep_index = 0
-        self.results = MPSResults(atom_order=(), total_duration=self.target_times[-1])
+        self.results = Results(atom_order=(), total_duration=self.target_times[-1])
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
             data=[],
@@ -153,11 +152,12 @@ class MPSBackendImpl:
         for obs in self.config.observables:
             obs.apply = MethodType(type(obs).apply, obs)  # type: ignore[method-assign]
         d = self.__dict__
-        d["results"] = self.results._to_abstract_repr()
+        # mypy thinks the method below is an attribute, because of the __getattr__ override
+        d["results"] = self.results._to_abstract_repr()  # type: ignore[operator]
         return d
 
     def __setstate__(self, d: dict) -> None:
-        d["results"] = MPSResults._from_abstract_repr(d["results"])
+        d["results"] = Results._from_abstract_repr(d["results"])  # type: ignore [attr-defined]
         self.__dict__ = d
         self.config.monkeypatch_observables()
 
