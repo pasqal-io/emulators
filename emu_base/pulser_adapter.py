@@ -240,8 +240,9 @@ class PulserData:
             if obs.evaluation_times is not None:
                 times = obs.evaluation_times
             elif config.default_evaluation_times != "Full":
-                evaluation_times = config.default_evaluation_times
-                times = evaluation_times.tolist()  # type: ignore[union-attr,assignment]
+                times = (
+                    config.default_evaluation_times.tolist()  # type: ignore[union-attr,assignment]
+                )
             observable_times |= set([round(time * sequence_duration) for time in times])
 
         self.target_times: list[int] = list(observable_times)
