@@ -114,11 +114,9 @@ class MPSConfig(EmulationConfig):
                 filemode="w",
                 force=True,
             )
-        if (
-            self.noise_model.runs != 1
-            or self.noise_model.samples_per_run != 1
-            or self.noise_model.runs is not None
-            or self.noise_model.samples_per_run is not None
+        if (self.noise_model.runs != 1 and self.noise_model.runs is not None) or (
+            self.noise_model.samples_per_run != 1
+            and self.noise_model.samples_per_run is not None
         ):
             self.logger.warning(
                 "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
