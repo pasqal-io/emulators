@@ -298,7 +298,7 @@ class MPS(State[complex, torch.Tensor]):
             acc = torch.tensordot(acc, other.factors[i].to(acc.device), dims=1)
             acc = torch.tensordot(self.factors[i].conj(), acc, dims=([0, 1], [0, 1]))
 
-        return acc.reshape(1).cpu()
+        return acc.reshape(1)[0].cpu()
 
     def overlap(self, other: State, /) -> torch.Tensor:
         return torch.abs(self.inner(other)) ** 2  # type: ignore[no-any-return]
