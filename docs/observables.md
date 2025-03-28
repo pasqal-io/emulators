@@ -6,31 +6,31 @@ The available callbacks, together with examples for how to create them are on th
 The following default callbacks are available. Please take the listed source code with a grain of salt, since individual emulators can overwrite the implementation for performance reasons.
 
 ## StateResult
-::: emu_base.base_classes.default_callbacks.StateResult
+::: pulser.backend.default_observables.StateResult
 
 ## BitStrings
-::: emu_base.base_classes.default_callbacks.BitStrings
+::: pulser.backend.default_observables.BitStrings
 
 ## Fidelity
-::: emu_base.base_classes.default_callbacks.Fidelity
+::: pulser.backend.default_observables.Fidelity
 
 ## Expectation
-::: emu_base.base_classes.default_callbacks.Expectation
+::: pulser.backend.default_observables.Expectation
 
 ## CorrelationMatrix
-::: emu_base.base_classes.default_callbacks.CorrelationMatrix
+::: pulser.backend.default_observables.CorrelationMatrix
 
 ## QubitDensity
-::: emu_base.base_classes.default_callbacks.QubitDensity
+::: pulser.backend.default_observables.Occupation
 
 ## Energy
-::: emu_base.base_classes.default_callbacks.Energy
-
-## SecondMomentOfEnergy
-::: emu_base.base_classes.default_callbacks.SecondMomentOfEnergy
+::: pulser.backend.default_observables.Energy
 
 ## EnergyVariance
-::: emu_base.base_classes.default_callbacks.EnergyVariance
+::: pulser.backend.default_observables.EnergyVariance
+
+## SecondMomentOfEnergy
+::: pulser.backend.default_observables.EnergySecondMoment
 
 
 ## Defining your own callbacks

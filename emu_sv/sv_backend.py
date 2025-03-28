@@ -26,10 +26,6 @@ class SVBackend(EmulatorBackend):
         """
         Emulates the given sequence.
 
-        Args:
-            sequence: a Pulser sequence to simulate
-            sv_config: the backends config. Should be of type SVConfig
-
         Returns:
             the simulation results
         """

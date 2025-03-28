@@ -47,10 +47,6 @@ class MPSBackend(EmulatorBackend):
         """
         Emulates the given sequence.
 
-        Args:
-            sequence: a Pulser sequence to simulate
-            mps_config: the backends config. Should be of type MPSConfig
-
         Returns:
             the simulation results
         """
