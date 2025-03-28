@@ -126,6 +126,7 @@ extra_javascript:
 watch:
   - emu_base
   - emu_mps
+  - emu_sv
 
 extra:
   version:
