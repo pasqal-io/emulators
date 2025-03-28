@@ -1,19 +1,19 @@
 # Base classes
 
 ## Backend
-::: emu_base.base_classes.backend.Backend
+::: pulser.backend.Backend
 
 ## BackendConfig
-::: emu_base.base_classes.config.BackendConfig
+::: pulser.backend.config.BackendConfig
 
 ## Results
-::: emu_base.base_classes.results.Results
+::: pulser.backend.results.Results
 
 ## State
-::: emu_base.base_classes.state.State
+::: pulser.backend.state.State
 
 ## Operator
-::: emu_base.base_classes.operator.Operator
+::: pulser.backend.operator.Operator
 
 ## Callback
-::: emu_base.base_classes.callback.Callback
+::: pulser.backend.observable.Observable
