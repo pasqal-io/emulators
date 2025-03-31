@@ -142,7 +142,6 @@ def create_omega_delta_phi(nqubits: int):
     [HamiltonianType.Rydberg, HamiltonianType.XY],
 )
 def test_2_qubit(hamiltonian_type):
-    num_gpus = 0
     omega, delta, phi = create_omega_delta_phi(2)
     if hamiltonian_type == HamiltonianType.Rydberg:
         interaction_matrix = torch.tensor([[0.0000, 5.4202], [5.4202, 0.0000]])
@@ -152,7 +151,7 @@ def test_2_qubit(hamiltonian_type):
     ham = make_H(
         interaction_matrix=interaction_matrix,
         hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=num_gpus,
+        device="cpu",
     )
 
     update_H(
@@ -189,7 +188,6 @@ def test_2_qubit(hamiltonian_type):
     ],
 )
 def test_noise(hamiltonian_type):
-    num_gpus = 0
     omega = torch.tensor([0.0, 0.0], dtype=dtype)
     delta = torch.tensor([0.0, 0.0], dtype=dtype)
     phi = torch.tensor([0.0, 0.0], dtype=dtype)
@@ -203,7 +201,7 @@ def test_noise(hamiltonian_type):
     ham = make_H(
         interaction_matrix=interaction_matrix,
         hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=num_gpus,
+        device="cpu",
     )
 
     update_H(hamiltonian=ham, omega=omega, delta=delta, phi=phi, noise=noise)
@@ -234,7 +232,6 @@ def test_noise(hamiltonian_type):
     ],
 )
 def test_4_qubit(hamiltonian_type):
-    num_gpus = 0
     omega, delta, phi = create_omega_delta_phi(4)
 
     interaction_matrix = torch.randn(4, 4, dtype=torch.float64)
@@ -244,7 +241,7 @@ def test_4_qubit(hamiltonian_type):
     ham = make_H(
         interaction_matrix=interaction_matrix,
         hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=num_gpus,
+        device="cpu",
     )
     update_H(
         hamiltonian=ham,
@@ -283,7 +280,6 @@ def test_4_qubit(hamiltonian_type):
     ],
 )
 def test_5_qubit(hamiltonian_type):
-    num_gpus = 0
     omega, delta, phi = create_omega_delta_phi(5)
 
     interaction_matrix = torch.randn(5, 5, dtype=torch.float64)
@@ -293,7 +289,7 @@ def test_5_qubit(hamiltonian_type):
     ham = make_H(
         interaction_matrix=interaction_matrix,
         hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=num_gpus,
+        device="cpu",
     )
     update_H(
         hamiltonian=ham,
@@ -337,7 +333,6 @@ def test_5_qubit(hamiltonian_type):
     ],
 )
 def test_9_qubit_noise(hamiltonian_type):
-    num_gpus = 0
     omega = torch.tensor([12.566370614359172] * 9, dtype=dtype)
     delta = torch.tensor([10.771174812307862] * 9, dtype=dtype)
     phi = torch.tensor([torch.pi] * 9, dtype=dtype)
@@ -357,7 +352,7 @@ def test_9_qubit_noise(hamiltonian_type):
     ham = make_H(
         interaction_matrix=interaction_matrix,
         hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=num_gpus,
+        device="cpu",
     )
     update_H(
         hamiltonian=ham,
@@ -388,7 +383,6 @@ def test_differentiation():
     # The interaction term of the Hamiltonian will not affect the differentiation.
     # Thus, we are not testing with XY interaction
     n = 5
-    num_gpus = 0
 
     omega = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
     delta = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
@@ -408,7 +402,7 @@ def test_differentiation():
     ham = make_H(
         interaction_matrix=interaction_matrix,
         hamiltonian_type=HamiltonianType.Rydberg,
-        num_gpus_to_use=num_gpus,
+        device="cpu",
     )
     update_H(
         hamiltonian=ham,
@@ -468,7 +462,6 @@ def test_differentiation():
 )
 def test_truncation_random(hamiltonian_type):
     n = 9
-    num_gpus = 0
 
     omega = torch.tensor([12.566370614359172] * n, dtype=dtype)
     delta = torch.zeros(n, dtype=dtype)
@@ -482,7 +475,7 @@ def test_truncation_random(hamiltonian_type):
     ham = make_H(
         interaction_matrix=interaction_matrix,
         hamiltonian_type=hamiltonian_type,
-        num_gpus_to_use=num_gpus,
+        device="cpu",
     )
     update_H(
         hamiltonian=ham,
@@ -530,8 +523,8 @@ def test_truncation_nn(hamiltonian_type):
     interaction_matrix = interaction_matrix + interaction_matrix.T
     ham = make_H(
         interaction_matrix=interaction_matrix,
-        num_gpus_to_use=0,
         hamiltonian_type=hamiltonian_type,
+        device="cpu",
     )
 
     sv = torch.einsum("abcd,defg,ghij,jklm,mnop->abehkncfilop", *(ham.factors)).reshape(

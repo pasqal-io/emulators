@@ -96,8 +96,8 @@ def test_custom_energy_and_variance_and_second() -> None:
     interaction_matrix = (interaction_matrix + interaction_matrix.T) * 0.5
     h_rydberg = make_H(
         interaction_matrix=interaction_matrix,
-        num_gpus_to_use=DEVICE_COUNT,
         hamiltonian_type=HamiltonianType.Rydberg,
+        device="cpu",
     )
     update_H(hamiltonian=h_rydberg, omega=omegas, delta=deltas, phi=phis)
 

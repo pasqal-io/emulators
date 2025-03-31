@@ -14,7 +14,7 @@ from pulser import Sequence
 from types import MethodType
 
 from pulser.backend import State, Observable, EmulationConfig, Results
-from emu_base import PulserData, DEVICE_COUNT
+from emu_base import PulserData
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
@@ -91,6 +91,9 @@ class SwipeDirection(Enum):
     RIGHT_TO_LEFT = auto()
 
 
+COMPUTE_DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+
 class MPSBackendImpl:
     current_time: float = (
         0.0  # While dt is an integer, noisy collapse can happen at non-integer times.
@@ -142,12 +145,6 @@ class MPSBackendImpl:
         )
         self.last_save_time = time.time()
 
-        if self.config.num_gpus_to_use > DEVICE_COUNT:
-            self.config.logger.warning(
-                f"Requested to use {self.config.num_gpus_to_use} GPU(s) "
-                f"but only {DEVICE_COUNT if DEVICE_COUNT > 0 else 'cpu'} available"
-            )
-
     def __getstate__(self) -> dict:
         for obs in self.config.observables:
             obs.apply = MethodType(type(obs).apply, obs)  # type: ignore[method-assign]
@@ -192,7 +189,6 @@ class MPSBackendImpl:
             self.state = MPS.make(
                 self.qubit_count,
                 config=self.config,
-                num_gpus_to_use=self.config.num_gpus_to_use,
             )
             return
 
@@ -207,7 +203,6 @@ class MPSBackendImpl:
             # Deep copy of every tensor of the initial state.
             [f.clone().detach() for f in initial_state.factors],
             config=self.config,
-            num_gpus_to_use=self.config.num_gpus_to_use,
         )
         initial_state.truncate()
         initial_state *= 1 / initial_state.norm()
@@ -225,7 +220,7 @@ class MPSBackendImpl:
                 else self.full_interaction_matrix
             ),
             hamiltonian_type=self.hamiltonian_type,
-            num_gpus_to_use=self.config.num_gpus_to_use,
+            device=COMPUTE_DEVICE,
         )
 
         update_H(
@@ -237,18 +232,17 @@ class MPSBackendImpl:
         )
 
     def init_baths(self) -> None:
-        self.left_baths = [
-            torch.ones(
-                1, 1, 1, dtype=torch.complex128, device=self.state.factors[0].device
-            )
-        ]
-        self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
+        self.left_baths = [torch.ones(1, 1, 1, dtype=torch.complex128, device="cpu")]
+        self.right_baths = right_baths(
+            self.state, self.hamiltonian, final_qubit=2, compute_device=COMPUTE_DEVICE
+        )
         assert len(self.right_baths) == self.qubit_count - 1
 
     def get_current_right_bath(self) -> torch.Tensor:
         return self.right_baths[-1]
 
     def get_current_left_bath(self) -> torch.Tensor:
+        self.left_baths[-1] = self.left_baths[-1].to(COMPUTE_DEVICE)
         return self.left_baths[-1]
 
     def init(self) -> None:
@@ -271,12 +265,16 @@ class MPSBackendImpl:
         """
         assert 1 <= len(indices) <= 2
 
-        baths = (self.get_current_left_bath(), self.get_current_right_bath())
+        self.right_baths[-1] = self.right_baths[-1].to(COMPUTE_DEVICE)
+        self.left_baths[-1] = self.left_baths[-1].to(COMPUTE_DEVICE)
+        baths = (self.get_current_left_bath(), self.get_current_right_bath())  # meh
 
         if len(indices) == 1:
             assert orth_center_right is None
             (index,) = indices
             assert self.state.orthogonality_center == index
+
+            self.state.factors[index] = self.state.factors[index].to(COMPUTE_DEVICE)
 
             self.state.factors[index] = evolve_single(
                 state_factor=self.state.factors[index],
@@ -293,6 +291,9 @@ class MPSBackendImpl:
             assert self.state.orthogonality_center in {l, r}, (
                 "State needs to be orthogonalized" " on one of the evolved indices"
             )
+
+            self.state.factors[l] = self.state.factors[l].to(COMPUTE_DEVICE)
+            self.state.factors[r] = self.state.factors[r].to(COMPUTE_DEVICE)
 
             self.state.factors[l : r + 1] = evolve_pair(
                 state_factors=self.state.factors[l : r + 1],
@@ -348,6 +349,12 @@ class MPSBackendImpl:
                     self.hamiltonian.factors[self.tdvp_index],
                 ).to(self.state.factors[self.tdvp_index + 1].device)
             )
+            # Warning: moving asynchronously to cpu means tensor shouldn't be used
+            # before end of transaction.
+            self.left_baths[-2] = self.left_baths[-2].to("cpu", non_blocking=True)
+            self.state.factors[self.tdvp_index] = self.state.factors[self.tdvp_index].to(
+                "cpu", non_blocking=True
+            )
             self._evolve(self.tdvp_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
             self.tdvp_index += 1
@@ -377,9 +384,14 @@ class MPSBackendImpl:
                     self.hamiltonian.factors[self.tdvp_index + 1],
                 ).to(self.state.factors[self.tdvp_index].device)
             )
+            self.state.factors[self.tdvp_index + 1] = self.state.factors[
+                self.tdvp_index + 1
+            ].to("cpu", non_blocking=True)
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
                 self.right_baths[-2] = torch.zeros(0)
+            else:
+                self.right_baths[-2] = self.right_baths[-2].to("cpu", non_blocking=True)
 
             self._evolve(self.tdvp_index, dt=-delta_time / 2)
             self.left_baths.pop()
@@ -393,6 +405,8 @@ class MPSBackendImpl:
             self.tdvp_index -= 1
 
             if self.tdvp_index == 0:
+                self.state.factors[0] = self.state.factors[0].to("cpu")
+                self.state.factors[1] = self.state.factors[1].to("cpu")
                 self.tdvp_complete()
                 self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
 
@@ -413,7 +427,7 @@ class MPSBackendImpl:
             self.hamiltonian = make_H(
                 interaction_matrix=self.full_interaction_matrix,
                 hamiltonian_type=self.hamiltonian_type,
-                num_gpus_to_use=self.config.num_gpus_to_use,
+                device=COMPUTE_DEVICE,
             )
 
         if not self.is_finished():
@@ -499,7 +513,6 @@ class MPSBackendImpl:
                         extended_mps_factors(
                             normalized_state.factors, self.well_prepared_qubits_filter
                         ),
-                        num_gpus_to_use=None,  # Keep the already assigned devices.
                         orthogonality_center=get_extended_site_index(
                             self.well_prepared_qubits_filter,
                             normalized_state.orthogonality_center,

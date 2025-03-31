@@ -35,11 +35,13 @@ def truncate_factor(
     return trunc[:, :, :, torch.cat((padding, right_interactions))]
 
 
-def _first_factor_rydberg(interaction: bool) -> torch.Tensor:
+def _first_factor_rydberg(
+    interaction: bool, *, device: torch.device | str
+) -> torch.Tensor:
     """
     Creates the first Ising Hamiltonian factor.
     """
-    fac = torch.zeros(1, 2, 2, 3 if interaction else 2, dtype=dtype)
+    fac = torch.zeros(1, 2, 2, 3 if interaction else 2, dtype=dtype, device=device)
     fac[0, :, :, 1] = iden_op
     if interaction:
         fac[0, :, :, 2] = n_op  # number operator
@@ -47,11 +49,11 @@ def _first_factor_rydberg(interaction: bool) -> torch.Tensor:
     return fac
 
 
-def _first_factor_xy(interaction: bool) -> torch.Tensor:
+def _first_factor_xy(interaction: bool, *, device: torch.device | str) -> torch.Tensor:
     """
     Creates the first XY Hamiltonian factor.
     """
-    fac = torch.zeros(1, 2, 2, 4 if interaction else 2, dtype=dtype)
+    fac = torch.zeros(1, 2, 2, 4 if interaction else 2, dtype=dtype, device=device)
     fac[0, :, :, 1] = iden_op
     if interaction:
         fac[0, :, :, 2] = creation_op
@@ -60,11 +62,13 @@ def _first_factor_xy(interaction: bool) -> torch.Tensor:
     return fac
 
 
-def _last_factor_rydberg(scale: float | complex) -> torch.Tensor:
+def _last_factor_rydberg(
+    scale: float | complex, *, device: torch.device | str
+) -> torch.Tensor:
     """
     Creates the last Ising Hamiltonian factor.
     """
-    fac = torch.zeros(3 if scale != 0.0 else 2, 2, 2, 1, dtype=dtype)
+    fac = torch.zeros(3 if scale != 0.0 else 2, 2, 2, 1, dtype=dtype, device=device)
     fac[0, :, :, 0] = iden_op
     if scale != 0:
         fac[2, :, :, 0] = scale * n_op
@@ -72,11 +76,13 @@ def _last_factor_rydberg(scale: float | complex) -> torch.Tensor:
     return fac
 
 
-def _last_factor_xy(scale: float | complex) -> torch.Tensor:
+def _last_factor_xy(
+    scale: float | complex, *, device: torch.device | str
+) -> torch.Tensor:
     """
     Creates the last XY Hamiltonian factor.
     """
-    fac = torch.zeros(4 if scale != 0.0 else 2, 2, 2, 1, dtype=dtype)
+    fac = torch.zeros(4 if scale != 0.0 else 2, 2, 2, 1, dtype=dtype, device=device)
     fac[0, :, :, 0] = iden_op
     if scale != 0:
         fac[2, :, :, 0] = scale * creation_op.T
@@ -89,12 +95,14 @@ def _left_factor_rydberg(
     scales: torch.Tensor,
     left_interactions: torch.Tensor,
     right_interactions: torch.Tensor,
+    *,
+    device: torch.device | str,
 ) -> torch.Tensor:
     """
     Creates the Ising Hamiltonian factors in the left half of the MPS, excepted the first factor.
     """
     index = len(scales)
-    fac = torch.zeros(index + 2, 2, 2, index + 3, dtype=dtype)
+    fac = torch.zeros(index + 2, 2, 2, index + 3, dtype=dtype, device=device)
     fac[2 : scales.shape[0] + 2, :, :, 0] = (
         scales.reshape(-1, 1, 1) * n_op
     )  # interaction with previous qubits
@@ -114,12 +122,14 @@ def _left_factor_xy(
     scales: torch.Tensor,
     left_interactions: torch.Tensor,
     right_interactions: torch.Tensor,
+    *,
+    device: torch.device | str,
 ) -> torch.Tensor:
     """
     Creates the XY Hamiltonian factors in the left half of the MPS, excepted the first factor.
     """
     index = len(scales)
-    fac = torch.zeros(2 * index + 2, 2, 2, 2 * index + 4, dtype=dtype)
+    fac = torch.zeros(2 * index + 2, 2, 2, 2 * index + 4, dtype=dtype, device=device)
 
     fac[2 : 2 * scales.shape[0] + 2 : 2, :, :, 0] = (
         scales.reshape(-1, 1, 1) * creation_op.T
@@ -142,12 +152,14 @@ def _right_factor_rydberg(
     scales: torch.Tensor,
     left_interactions: torch.Tensor,
     right_interactions: torch.Tensor,
+    *,
+    device: torch.device | str,
 ) -> torch.Tensor:
     """
     Creates the Ising Hamiltonian factors in the right half of the MPS, excepted the last factor.
     """
     index = len(scales)
-    fac = torch.zeros(index + 3, 2, 2, index + 2, dtype=dtype)
+    fac = torch.zeros(index + 3, 2, 2, index + 2, dtype=dtype, device=device)
     fac[1, :, :, 2 : scales.shape[0] + 2] = scales * n_op.reshape(
         2, 2, 1
     )  # XY interaction with previous qubits
@@ -169,12 +181,14 @@ def _right_factor_xy(
     scales: torch.Tensor,
     left_interactions: torch.Tensor,
     right_interactions: torch.Tensor,
+    *,
+    device: torch.device | str,
 ) -> torch.Tensor:
     """
     Creates the XY Hamiltonian factors in the right half of the MPS, excepted the last factor.
     """
     index = len(scales)
-    fac = torch.zeros(2 * index + 4, 2, 2, 2 * index + 2, dtype=dtype)
+    fac = torch.zeros(2 * index + 4, 2, 2, 2 * index + 2, dtype=dtype, device=device)
     fac[1, :, :, 2 : 2 * scales.shape[0] + 2 : 2] = scales * creation_op.reshape(
         2, 2, 1
     )  # XY interaction with previous qubits
@@ -204,6 +218,8 @@ def _middle_factor_rydberg(
     scales_mat: torch.Tensor,
     left_interactions: torch.Tensor,
     right_interactions: torch.Tensor,
+    *,
+    device: torch.device | str,
 ) -> torch.Tensor:
     """
     Creates the Ising Hamiltonian factor at index ⌊n/2⌋ of the n-qubit MPO.
@@ -211,7 +227,9 @@ def _middle_factor_rydberg(
     assert len(scales_mat) == len(scales_l)
     assert all(len(x) == len(scales_r) for x in scales_mat)
 
-    fac = torch.zeros(len(scales_l) + 2, 2, 2, len(scales_r) + 2, dtype=dtype)
+    fac = torch.zeros(
+        len(scales_l) + 2, 2, 2, len(scales_r) + 2, dtype=dtype, device=device
+    )
     fac[1, :, :, 2 : scales_r.shape[0] + 2] = scales_r * n_op.reshape(
         2, 2, 1
     )  # rydberg interaction with previous qubits
@@ -241,6 +259,8 @@ def _middle_factor_xy(
     scales_mat: torch.Tensor,
     left_interactions: torch.Tensor,
     right_interactions: torch.Tensor,
+    *,
+    device: torch.device | str,
 ) -> torch.Tensor:
     """
     Creates the XY Hamiltonian factor at index ⌊n/2⌋ of the n-qubit MPO.
@@ -248,7 +268,9 @@ def _middle_factor_xy(
     assert len(scales_mat) == len(scales_l)
     assert all(len(x) == len(scales_r) for x in scales_mat)
 
-    fac = torch.zeros(2 * len(scales_l) + 2, 2, 2, 2 * len(scales_r) + 2, dtype=dtype)
+    fac = torch.zeros(
+        2 * len(scales_l) + 2, 2, 2, 2 * len(scales_r) + 2, dtype=dtype, device=device
+    )
     fac[1, :, :, 2 : 2 * scales_r.shape[0] + 2 : 2] = scales_r * creation_op.reshape(
         2, 2, 1
     )  # XY interaction with previous qubits
@@ -312,7 +334,7 @@ def make_H(
     *,
     interaction_matrix: torch.Tensor,  # depends on Hamiltonian Type
     hamiltonian_type: HamiltonianType,
-    num_gpus_to_use: int | None,
+    device: torch.device | str,
 ) -> MPO:
     r"""
     Constructs and returns a Matrix Product Operator (MPO) representing the
@@ -333,7 +355,6 @@ def make_H(
     Args:
         interaction_matrix (torch.Tensor): The interaction matrix describing the interactions
         between qubits.
-        num_gpus_to_use (int): how many gpus to put the Hamiltonian on. See utils.assign_devices
     Returns:
         MPO: A Matrix Product Operator (MPO) representing the specified Hamiltonian.
 
@@ -362,7 +383,7 @@ def make_H(
     middle = nqubits // 2
     interactions_to_keep = _get_interactions_to_keep(interaction_matrix)
 
-    cores = [_first_factor(interactions_to_keep[0].item() != 0.0)]
+    cores = [_first_factor(interactions_to_keep[0].item() != 0.0, device=device)]
 
     if nqubits > 2:
         for i in range(1, middle):
@@ -371,6 +392,7 @@ def make_H(
                     interaction_matrix[:i, i],
                     left_interactions=interactions_to_keep[i - 1],
                     right_interactions=interactions_to_keep[i],
+                    device=device,
                 )
             )
 
@@ -382,6 +404,7 @@ def make_H(
                 interaction_matrix[:i, i + 1 :],
                 interactions_to_keep[i - 1],
                 interactions_to_keep[i],
+                device=device,
             )
         )
 
@@ -391,6 +414,7 @@ def make_H(
                     interaction_matrix[i, i + 1 :],
                     interactions_to_keep[i - 1],
                     interactions_to_keep[i],
+                    device=device,
                 )
             )
     if nqubits == 2:
@@ -402,9 +426,10 @@ def make_H(
     cores.append(
         _last_factor(
             scale,
+            device=device,
         )
     )
-    return MPO(cores, num_gpus_to_use=num_gpus_to_use)
+    return MPO(cores)
 
 
 def update_H(
