@@ -183,10 +183,7 @@ class DensityMatrix(State[complex, torch.Tensor]):
 
         # Convert outcomes to bitstrings and count occurrences
         counts = Counter(
-            [
-                index_to_bitstring(self.matrix.diagonal().shape[0], outcome)
-                for outcome in outcomes
-            ]
+            [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes]
         )
 
         return counts

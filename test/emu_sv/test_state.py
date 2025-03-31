@@ -119,6 +119,7 @@ def test_from_amplitudes() -> None:
         amplitudes={"rr": 1.0, "gg": 1.0},
     )
     expected_state = StateVector(torch.tensor([factor, 0, 0, factor], dtype=dtype))
+
     result = state.overlap(expected_state)
     assert math.isclose(result.real, 1.0, rel_tol=1e-5)
     assert math.isclose(result.imag, 0.0, rel_tol=1e-5)
