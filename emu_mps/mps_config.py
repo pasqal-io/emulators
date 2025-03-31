@@ -26,7 +26,7 @@ import sys
 
 class MPSConfig(EmulationConfig):
     """
-    The configuration of the emu-ct MPSBackend. The kwargs passed to this class
+    The configuration of the emu-mps MPSBackend. The kwargs passed to this class
     are passed on to the base class.
     See the API for that class for a list of available options.
 

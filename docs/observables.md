@@ -1,39 +1,59 @@
-# The callback mechanism
+# Computing observables
 
-Since the desired output of the emulator can be quite user dependent, emu-mps uses a callback mechanism to specify its output.
-The available callbacks, together with examples for how to create them are on this page. How to use created callbacks to obtain results from an emulation is shown in the example notebooks [for emu-sv](./emu_sv/notebooks/getting_started.ipynb) and [for emu-mps](./emu_mps/notebooks/getting_started.ipynb).
+All emulators (backends) share a convenient way to define observables to be tracked during the simulation, as defined in [pulser](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.html). The default available observables are listed below, together with examples for how to create them.
 
-The following default callbacks are available. Please take the listed source code with a grain of salt, since individual emulators can overwrite the implementation for performance reasons.
+!!! info "Examples"
+    How to use created observables to obtain results from an emulation is shown in the example notebooks [for emu-sv](./emu_sv/notebooks/getting_started.ipynb) and [for emu-mps](./emu_mps/notebooks/getting_started.ipynb).
+
+!!! warning
+    Please, take into account that, for performance reasons, individual emulators may overwrite the default implementation in [pulser](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.html).
 
 ## StateResult
 ::: pulser.backend.default_observables.StateResult
+    options:
+        show_source: false
 
 ## BitStrings
 ::: pulser.backend.default_observables.BitStrings
+    options:
+        show_source: false
 
 ## Fidelity
 ::: pulser.backend.default_observables.Fidelity
+    options:
+        show_source: false
 
 ## Expectation
 ::: pulser.backend.default_observables.Expectation
+    options:
+        show_source: false
 
 ## CorrelationMatrix
 ::: pulser.backend.default_observables.CorrelationMatrix
+    options:
+        show_source: false
 
 ## QubitDensity
 ::: pulser.backend.default_observables.Occupation
+    options:
+        show_source: false
 
 ## Energy
 ::: pulser.backend.default_observables.Energy
+    options:
+        show_source: false
 
 ## EnergyVariance
 ::: pulser.backend.default_observables.EnergyVariance
+    options:
+        show_source: false
 
 ## SecondMomentOfEnergy
 ::: pulser.backend.default_observables.EnergySecondMoment
+    options:
+        show_source: false
 
-
-## Defining your own callbacks
+## Defining your own observable
 Most commonly desired information can be obtained using the classes documented above
 
 - arbitrary observables can be measured using `Expectation`

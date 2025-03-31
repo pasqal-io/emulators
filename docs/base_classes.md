@@ -1,19 +1,18 @@
+The base classes below are defined in [pulser](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.html) and shared among all backends.
+
 ## Backend
 ::: pulser.backend.Backend
     options:
-        show_root_heading: true
         show_source: false
 
 ## EmulatorBackend
 ::: pulser.backend.EmulatorBackend
     options:
-        show_root_heading: true
         show_source: false
 
 ## EmulationConfig
 ::: pulser.backend.config.EmulationConfig
     options:
-        show_root_heading: true
         show_source: false
 
 ## Results
@@ -26,12 +25,22 @@
     options:
         show_source: false
 
+## StateRepr
+::: pulser.backend.state.StateRepr
+    options:
+        show_source: false
+
 ## Operator
 ::: pulser.backend.operator.Operator
     options:
         show_source: false
 
-## Callback
+## OperatorRepr
+::: pulser.backend.operator.OperatorRepr
+    options:
+        show_source: false
+
+## Observable
 ::: pulser.backend.observable.Observable
     options:
         show_source: false
