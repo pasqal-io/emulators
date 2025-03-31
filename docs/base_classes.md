@@ -1,4 +1,5 @@
-The base classes below are defined in [pulser](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.html) and shared among all backends.
+The base classes below are defined in [pulser](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.html).
+Different backends inherit from and specialize them if needed.
 
 ## Backend
 ::: pulser.backend.Backend
