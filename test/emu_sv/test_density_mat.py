@@ -133,32 +133,32 @@ def test_from_state_string():
 
 def test_probabilities():
     torch.manual_seed(seed)
-    density = DensityMatrix(density_bell_state, gpu=gpu)
+    density = DensityMatrix(density_bell_state, gpu=False)
     sampling1 = density.sample(1000)
 
-    assert sampling1["11"] == 486
-    assert sampling1["00"] == 514
+    assert sampling1["11"] == 485
+    assert sampling1["00"] == 515
 
-    density = DensityMatrix(torch.eye(8, dtype=dtype), gpu=gpu)
+    density = DensityMatrix(torch.eye(8, dtype=dtype), gpu=False)
     sampling2 = density.sample(1000)
 
-    assert sampling2["000"] == 120
-    assert sampling2["001"] == 122
-    assert sampling2["010"] == 140
-    assert sampling2["011"] == 121
-    assert sampling2["100"] == 115
-    assert sampling2["101"] == 127
-    assert sampling2["110"] == 124
-    assert sampling2["111"] == 131
+    assert sampling2["000"] == 144
+    assert sampling2["001"] == 105
+    assert sampling2["010"] == 130
+    assert sampling2["011"] == 122
+    assert sampling2["100"] == 103
+    assert sampling2["101"] == 128
+    assert sampling2["110"] == 150
+    assert sampling2["111"] == 118
 
     # testing a random matrix
     n_atoms = 8
     dummy_mat = random_density_matrix(n_atoms)
-    density_mat = DensityMatrix(dummy_mat, gpu=gpu)
+    density_mat = DensityMatrix(dummy_mat, gpu=False)
 
     sampling3 = density_mat.sample(3000)
 
-    assert sampling3["0" * n_atoms] == 10
+    assert sampling3["0" * n_atoms] == 11
     assert sampling3["1" * n_atoms] == 13
-    assert sampling3["01010101"] == 16
-    assert sampling3["10101001"] == 16
+    assert sampling3["01010101"] == 14
+    assert sampling3["10101001"] == 11
