@@ -1,16 +1,20 @@
 from __future__ import annotations
 from collections import Counter
-from typing import Any, Iterable
+import math
+from typing import Mapping, TypeVar, Type, Sequence
 import torch
-from emu_base import State, DEVICE_COUNT
+from pulser.backend import State
+from emu_base import DEVICE_COUNT
 from emu_sv.state_vector import StateVector
 from emu_sv.utils import index_to_bitstring
+from pulser.backend.state import Eigenstate
 
+DensityMatrixType = TypeVar("DensityMatrixType", bound="DensityMatrix")
 
 dtype = torch.complex128
 
 
-class DensityMatrix(State):
+class DensityMatrix(State[complex, torch.Tensor]):
     """Represents a density matrix in a computational basis."""
 
     # for the moment no need to check positivity and trace 1
@@ -24,6 +28,12 @@ class DensityMatrix(State):
 
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         self.matrix = matrix.to(dtype=dtype, device=device)
+
+    @property
+    def n_qudits(self) -> int:
+        """The number of qudits in the state."""
+        nqudits = math.log2(self.matrix.shape[0])
+        return int(nqudits)
 
     @classmethod
     def make(cls, n_atoms: int, gpu: bool = True) -> DensityMatrix:
@@ -45,7 +55,7 @@ class DensityMatrix(State):
         if not torch.allclose(matrix_trace, torch.tensor(1.0, dtype=torch.float64)):
             self.matrix = self.matrix / matrix_trace
 
-    def inner(self, other: State) -> float | complex:
+    def overlap(self, other: State) -> torch.Tensor:
         """
         Compute Tr(self^† @ other). The type of other must be DensityMatrix.
 
@@ -70,7 +80,7 @@ class DensityMatrix(State):
             self.matrix.shape == other.matrix.shape
         ), "States do not have the same number of sites"
 
-        return torch.trace(self.matrix @ other.matrix.conj().T).item()
+        return torch.trace(self.matrix @ other.matrix.conj().T)
 
     @classmethod
     def from_state_vector(cls, state: StateVector) -> DensityMatrix:
@@ -96,14 +106,13 @@ class DensityMatrix(State):
             torch.outer(state.vector, state.vector.conj()), gpu=state.vector.is_cuda
         )
 
-    @staticmethod
-    def from_state_string(
+    @classmethod
+    def _from_state_amplitudes(
+        cls: Type[DensityMatrixType],
         *,
-        basis: Iterable[str],
-        nqubits: int,
-        strings: dict[str, complex],
-        **kwargs: Any,
-    ) -> DensityMatrix:
+        eigenstates: Sequence[Eigenstate],
+        amplitudes: Mapping[str, complex],
+    ) -> tuple[DensityMatrix, Mapping[str, complex]]:
         """Transforms a state given by a string into a density matrix.
 
         Construct a state from the pulser abstract representation
@@ -130,14 +139,18 @@ class DensityMatrix(State):
                    dtype=torch.complex128)
         """
 
-        state_vector = StateVector.from_state_string(
-            basis=basis, nqubits=nqubits, strings=strings, **kwargs
+        state_vector, amplitudes = StateVector._from_state_amplitudes(
+            eigenstates=eigenstates, amplitudes=amplitudes
         )
 
-        return DensityMatrix.from_state_vector(state_vector)
+        return DensityMatrix.from_state_vector(state_vector), amplitudes
 
     def sample(
-        self, num_shots: int = 1000, p_false_pos: float = 0.0, p_false_neg: float = 0.0
+        self,
+        num_shots: int = 1000,
+        one_state: Eigenstate | None = None,
+        p_false_pos: float = 0.0,
+        p_false_neg: float = 0.0,
     ) -> Counter[str]:
         """
         Samples bitstrings, taking into account the specified error rates.

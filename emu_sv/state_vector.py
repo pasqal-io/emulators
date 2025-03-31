@@ -156,10 +156,7 @@ class StateVector(State[complex, torch.Tensor]):
 
         # Convert outcomes to bitstrings and count occurrences
         counts = Counter(
-            [
-                index_to_bitstring(self.vector.reshape(-1).shape[0], outcome)
-                for outcome in outcomes
-            ]
+            [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes]
         )
 
         # NOTE: false positives and negatives
@@ -209,31 +206,28 @@ class StateVector(State[complex, torch.Tensor]):
     ) -> tuple[StateVector, Mapping[str, complex]]:
         """Transforms a state given by a string into a state vector.
 
-                Construct a state from the pulser abstract representation
-                https://pulser.readthedocs.io/en/stable/conventions.html
+        Construct a state from the pulser abstract representation
+        https://pulser.readthedocs.io/en/stable/conventions.html
 
-                Args:
-                    eigenstates: A tuple containing the basis states (e.g., ('r', 'g')).
-                    amplitudes: A dictionary mapping state strings to complex or floats amplitudes.
+        Args:
+            eigenstates: A tuple containing the basis states (e.g., ('r', 'g')).
+            amplitudes: A dictionary mapping state strings to complex or floats amplitudes.
 
-                Returns:
-                    The normalised resulting state.
+        Returns:
+            The normalised resulting state.
 
-                Examples:
-                    >>> basis = ("r","g")
-        <<<<<<< HEAD
-                    >>> n = 2
-                    >>> st=StateVector.from_state_string(basis=basis,
-                        ... nqubits=n,strings={"rr":1.0,"gg":1.0},gpu=False)
-        =======
-                    >>> st = StateVector.from_state_amplitudes(
-                    ...     eigenstates=basis,
-                    ...     amplitudes={"rr": 1.0, "gg": 1.0}
-                    ... )
-        >>>>>>> main
-                    >>> print(st)
-                    tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
-                           dtype=torch.complex128)
+        Examples:
+            >>> basis = ("r","g")
+            >>> n = 2
+            >>> st=StateVector.from_state_string(basis=basis,
+                ... nqubits=n,strings={"rr":1.0,"gg":1.0},gpu=False)
+            >>> st = StateVector.from_state_amplitudes(
+            ...     eigenstates=basis,
+            ...     amplitudes={"rr": 1.0, "gg": 1.0}
+            ... )
+            >>> print(st)
+            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
+                   dtype=torch.complex128)
         """
 
         nqubits = len(next(iter(amplitudes.keys())))
@@ -265,34 +259,32 @@ class StateVector(State[complex, torch.Tensor]):
 
 def inner(left: StateVector, right: StateVector) -> torch.Tensor:
     """
-        Wrapper around StateVector.inner.
+    Wrapper around StateVector.inner.
 
-        Args:
-            left:  StateVector argument
-            right: StateVector argument
+    Args:
+        left:  StateVector argument
+        right: StateVector argument
 
-        Returns:
-            the inner product
+    Returns:
+        the inner product
 
-        Examples:
-            >>> factor = math.sqrt(2.0)
-            >>> basis = ("r","g")
-            >>> string_state1 = {"gg":1.0,"rr":1.0}
-    <<<<<<< HEAD
-            >>> state1 = StateVector.from_state_string(basis=basis,
-                ... nqubits=nqubits,strings=string_state1)
-            >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
-            >>> state2 = StateVector.from_state_string(basis=basis,
-                ... nqubits=nqubits,strings=string_state2)
-    =======
-            >>> state1 = StateVector.from_state_amplitudes(eigenstates=basis,
-            ...     amplitudes=string_state1)
-            >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
-            >>> state2 = StateVector.from_state_amplitudes(eigenstates=basis,
-            ...     amplitudes=string_state2)
-    >>>>>>> main
-            >>> inner(state1,state2).item()
-            (0.49999999144286444+0j)
+    Examples:
+        >>> factor = math.sqrt(2.0)
+        >>> basis = ("r","g")
+        >>> string_state1 = {"gg":1.0,"rr":1.0}
+        >>> state1 = StateVector.from_state_string(basis=basis,
+            ... nqubits=nqubits,strings=string_state1)
+        >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
+        >>> state2 = StateVector.from_state_string(basis=basis,
+            ... nqubits=nqubits,strings=string_state2)
+
+        >>> state1 = StateVector.from_state_amplitudes(eigenstates=basis,
+        ...     amplitudes=string_state1)
+        >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
+        >>> state2 = StateVector.from_state_amplitudes(eigenstates=basis,
+        ...     amplitudes=string_state2)
+        >>> inner(state1,state2).item()
+        (0.49999999144286444+0j)
     """
 
     assert (left.vector.shape == right.vector.shape) and (left.vector.dim() == 1), (

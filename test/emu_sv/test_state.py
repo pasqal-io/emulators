@@ -87,14 +87,14 @@ def test_index_to_bitstring() -> None:
     state = StateVector(tensor)
     state._normalize()
 
-    assert "000" == index_to_bitstring(state, 0)
-    assert "001" == index_to_bitstring(state, 1)
-    assert "010" == index_to_bitstring(state, 2)
-    assert "111" == index_to_bitstring(state, 7)
+    assert "000" == index_to_bitstring(state.n_qudits, 0)
+    assert "001" == index_to_bitstring(state.n_qudits, 1)
+    assert "010" == index_to_bitstring(state.n_qudits, 2)
+    assert "111" == index_to_bitstring(state.n_qudits, 7)
 
     indx = 8  # 8 is above Hilbert space of 3 qubits
     with pytest.raises(AssertionError) as msg:
-        state.index_to_bitstring(indx)
+        index_to_bitstring(state.n_qudits, indx)
     assert (
         str(msg.value) == f"index {indx} can not exceed Hilbert space size d**{nqubits}"
     )
