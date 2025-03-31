@@ -30,7 +30,7 @@ def test_custom_occupation() -> None:
     # set up for state
     basis = ("r", "g")
     num_qubits = 4
-    strings = {"rrrr": 1.0, "ggggg": 1.0}
+    strings = {"rrrr": 1.0, "gggg": 1.0}
     state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
 
     operator_mock = MagicMock(spec=DenseOperator)

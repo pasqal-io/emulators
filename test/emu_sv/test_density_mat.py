@@ -107,10 +107,6 @@ def test_from_state_vector():
 
 def test_from_state_string():
     n_atoms = 2
-    #     state = StateVector.from_state_amplitudes(
-    #     eigenstates=("r", "g"),
-    #     amplitudes={"rr": 1.0, "gg": 1.0},
-    # )
     amplitudes = {"gg": 1.0, "rr": 1.0j}
     eigenstates = ("r", "g")
     density, _ = DensityMatrix._from_state_amplitudes(
@@ -120,7 +116,7 @@ def test_from_state_string():
     assert torch.allclose(density.matrix, density_bell_state_complex)
 
     n_atoms = 3
-    amplitudes = {"111": 1.0}
+    amplitudes = {"rrr": 1.0}
     eigenstates = ("r", "g")
     density, _ = DensityMatrix._from_state_amplitudes(
         eigenstates=eigenstates, amplitudes=amplitudes

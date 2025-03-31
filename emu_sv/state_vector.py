@@ -230,7 +230,8 @@ class StateVector(State[complex, torch.Tensor]):
                    dtype=torch.complex128)
         """
 
-        nqubits = len(next(iter(amplitudes.keys())))
+        # nqubits = len(next(iter(amplitudes.keys())))
+        nqubits = cls._validate_amplitudes(amplitudes=amplitudes, eigenstates=eigenstates)
         basis = set(eigenstates)
         if basis == {"r", "g"}:
             one = "r"
