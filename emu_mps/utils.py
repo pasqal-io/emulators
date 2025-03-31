@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 import torch
 import random
 from collections import Counter
@@ -89,27 +89,6 @@ def truncate_impl(
         )
 
 
-def assign_devices(tensors: List[torch.Tensor], num_gpus_to_use: int) -> None:
-    """
-    Evenly distributes each tensor in the list to a device.
-    If num_gpus_to_use is 0, then all tensors go to CPU.
-    """
-    num_gpus_to_use = min(len(tensors), num_gpus_to_use)
-
-    if num_gpus_to_use <= 0:
-        for i in range(len(tensors)):
-            tensors[i] = tensors[i].to("cpu")
-        return
-
-    tensors_per_device = len(tensors) // num_gpus_to_use
-
-    if len(tensors) % num_gpus_to_use != 0:
-        tensors_per_device += 1
-
-    for i in range(len(tensors)):
-        tensors[i] = tensors[i].to(f"cuda:{i // tensors_per_device}")
-
-
 def extended_mps_factors(
     mps_factors: list[torch.Tensor], where: list[bool]
 ) -> list[torch.Tensor]:
@@ -130,9 +109,7 @@ def extended_mps_factors(
             bond_dimension = mps_factors[factor_index].shape[2]
             factor_index += 1
         elif factor_index == len(mps_factors):
-            factor = torch.zeros(
-                bond_dimension, 2, 1, dtype=torch.complex128
-            )  # FIXME: assign device
+            factor = torch.zeros(bond_dimension, 2, 1, dtype=torch.complex128)
             factor[:, 0, :] = torch.eye(bond_dimension, 1)
             bond_dimension = 1
             result.append(factor)
@@ -141,7 +118,7 @@ def extended_mps_factors(
                 bond_dimension,
                 2,
                 bond_dimension,
-                dtype=torch.complex128,  # FIXME: assign device
+                dtype=torch.complex128,
             )
             factor[:, 0, :] = torch.eye(bond_dimension, bond_dimension)
             result.append(factor)

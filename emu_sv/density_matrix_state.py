@@ -4,7 +4,6 @@ import math
 from typing import Mapping, TypeVar, Type, Sequence
 import torch
 from pulser.backend import State
-from emu_base import DEVICE_COUNT
 from emu_sv.state_vector import StateVector
 from emu_sv.utils import index_to_bitstring
 from pulser.backend.state import Eigenstate
@@ -26,7 +25,7 @@ class DensityMatrix(State[complex, torch.Tensor]):
     ):
         # NOTE: this accepts also zero matrices.
 
-        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
+        device = "cuda" if gpu and torch.cuda.is_available() else "cpu"
         self.matrix = matrix.to(dtype=dtype, device=device)
 
     @property

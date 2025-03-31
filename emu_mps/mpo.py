@@ -1,15 +1,14 @@
 from __future__ import annotations
 import itertools
-from typing import Any, List, Sequence, Optional
+from typing import Any, List, Sequence
 
 import torch
 
 from pulser.backend import State, Operator
-from emu_base import DEVICE_COUNT
 from emu_mps.algebra import add_factors, scale_factors, zip_right
 from pulser.backend.operator import FullOp, QuditOp
 from emu_mps.mps import MPS
-from emu_mps.utils import new_left_bath, assign_devices
+from emu_mps.utils import new_left_bath
 
 
 def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:
@@ -40,9 +39,7 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
         factors: the tensors making up the MPO
     """
 
-    def __init__(
-        self, factors: List[torch.Tensor], /, num_gpus_to_use: Optional[int] = None
-    ):
+    def __init__(self, factors: List[torch.Tensor]):
         self.factors = factors
         self.num_sites = len(factors)
         if not self.num_sites > 1:
@@ -55,9 +52,6 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
             factors[i - 1].shape[-1] == factors[i].shape[0]
             for i in range(1, self.num_sites)
         )
-
-        if num_gpus_to_use is not None:
-            assign_devices(self.factors, min(DEVICE_COUNT, num_gpus_to_use))
 
     def __repr__(self) -> str:
         return "[" + ", ".join(map(repr, self.factors)) + "]"

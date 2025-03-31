@@ -23,7 +23,7 @@ class Operators:
 
 
 class HamiltonianMPOFactors(ABC):
-    def __init__(self, interaction_matrix: torch.Tensor):
+    def __init__(self, interaction_matrix: torch.Tensor, device: torch.device | str):
         assert interaction_matrix.ndim == 2, "interaction matrix is not a matrix"
         assert (
             interaction_matrix.shape[0] == interaction_matrix.shape[1]
@@ -33,6 +33,8 @@ class HamiltonianMPOFactors(ABC):
         self.interaction_matrix.fill_diagonal_(0.0)  # or assert
         self.qubit_count = self.interaction_matrix.shape[0]
         self.middle = self.qubit_count // 2
+
+        self.device = device
 
     def __iter__(self) -> Iterator[torch.Tensor]:
         yield self.first_factor()
@@ -72,7 +74,9 @@ class HamiltonianMPOFactors(ABC):
 class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
     def first_factor(self) -> torch.Tensor:
         has_right_interaction = self.interaction_matrix[0, 1:].any()
-        fac = torch.zeros(1, 2, 2, 3 if has_right_interaction else 2, dtype=dtype)
+        fac = torch.zeros(
+            1, 2, 2, 3 if has_right_interaction else 2, dtype=dtype, device=self.device
+        )
         fac[0, :, :, 1] = Operators.id
         if has_right_interaction:
             fac[0, :, :, 2] = Operators.n
@@ -90,6 +94,7 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
             2,
             int(left_interactions_to_keep.sum().item() + int(has_right_interaction) + 2),
             dtype=dtype,
+            device=self.device,
         )
 
         fac[0, :, :, 0] = Operators.id
@@ -122,6 +127,7 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
             2,
             int(current_right_interactions.sum().item() + 2),
             dtype=dtype,
+            device=self.device,
         )
 
         fac[0, :, :, 0] = Operators.id
@@ -156,6 +162,7 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
             2,
             int(current_right_interactions.sum().item() + 2),
             dtype=dtype,
+            device=self.device,
         )
 
         fac[0, :, :, 0] = Operators.id
@@ -178,7 +185,9 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
 
     def last_factor(self) -> torch.Tensor:
         has_left_interaction = self.interaction_matrix[-1, :-1].any()
-        fac = torch.zeros(3 if has_left_interaction else 2, 2, 2, 1, dtype=dtype)
+        fac = torch.zeros(
+            3 if has_left_interaction else 2, 2, 2, 1, dtype=dtype, device=self.device
+        )
         fac[0, :, :, 0] = Operators.id
         if has_left_interaction:
             if self.qubit_count >= 3:
@@ -192,7 +201,9 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
 class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
     def first_factor(self) -> torch.Tensor:
         has_right_interaction = self.interaction_matrix[0, 1:].any()
-        fac = torch.zeros(1, 2, 2, 4 if has_right_interaction else 2, dtype=dtype)
+        fac = torch.zeros(
+            1, 2, 2, 4 if has_right_interaction else 2, dtype=dtype, device=self.device
+        )
         fac[0, :, :, 1] = Operators.id
         if has_right_interaction:
             fac[0, :, :, 2] = Operators.creation
@@ -215,6 +226,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
                 + 2
             ),
             dtype=dtype,
+            device=self.device,
         )
 
         fac[0, :, :, 0] = Operators.id
@@ -253,6 +265,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
             2,
             int(2 * current_right_interactions.sum().item() + 2),
             dtype=dtype,
+            device=self.device,
         )
 
         fac[0, :, :, 0] = Operators.id
@@ -304,6 +317,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
             2,
             int(2 * current_right_interactions.sum().item() + 2),
             dtype=dtype,
+            device=self.device,
         )
 
         fac[0, :, :, 0] = Operators.id
@@ -331,7 +345,9 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
 
     def last_factor(self) -> torch.Tensor:
         has_left_interaction = self.interaction_matrix[-1, :-1].any()
-        fac = torch.zeros(4 if has_left_interaction else 2, 2, 2, 1, dtype=dtype)
+        fac = torch.zeros(
+            4 if has_left_interaction else 2, 2, 2, 1, dtype=dtype, device=self.device
+        )
         fac[0, :, :, 0] = Operators.id
         if has_left_interaction:
             if self.qubit_count >= 3:
@@ -346,9 +362,9 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
 
 def make_H(
     *,
-    interaction_matrix: torch.Tensor,  # depends on Hamiltonian Type
+    interaction_matrix: torch.Tensor,
     hamiltonian_type: HamiltonianType,
-    num_gpus_to_use: int | None,
+    device: torch.device | str,
 ) -> MPO:
     r"""
     Constructs and returns a Matrix Product Operator (MPO) representing the
@@ -369,7 +385,8 @@ def make_H(
     Args:
         interaction_matrix (torch.Tensor): The interaction matrix describing the interactions
         between qubits.
-        num_gpus_to_use (int): how many gpus to put the Hamiltonian on. See utils.assign_devices
+        hamiltonian_type (HamiltonianType): which type of hamiltonian
+        device (torch.device): on which device to create the MPO tensors.
     Returns:
         MPO: A Matrix Product Operator (MPO) representing the specified Hamiltonian.
 
@@ -380,14 +397,12 @@ def make_H(
     """
     if hamiltonian_type == HamiltonianType.Rydberg:
         return MPO(
-            list(RydbergHamiltonianMPOFactors(interaction_matrix)),
-            num_gpus_to_use=num_gpus_to_use,
+            list(RydbergHamiltonianMPOFactors(interaction_matrix, device=device)),
         )
 
     if hamiltonian_type == HamiltonianType.XY:
         return MPO(
-            list(XYHamiltonianMPOFactors(interaction_matrix)),
-            num_gpus_to_use=num_gpus_to_use,
+            list(XYHamiltonianMPOFactors(interaction_matrix, device=device)),
         )
 
     raise ValueError(f"Unsupported hamiltonian type {hamiltonian_type}")

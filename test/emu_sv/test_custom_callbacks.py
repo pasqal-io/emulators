@@ -3,8 +3,6 @@ import torch
 from pytest import approx
 from unittest.mock import MagicMock
 
-from emu_base import DEVICE_COUNT
-
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv import (
     DenseOperator,
@@ -23,7 +21,7 @@ from emu_sv.custom_callback_implementations import (
     qubit_occupation_sv_impl,
 )
 
-device = "cuda" if DEVICE_COUNT > 0 else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def test_custom_occupation() -> None:

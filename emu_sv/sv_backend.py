@@ -121,11 +121,7 @@ class Statistics(Observable):
         assert isinstance(config, SVConfig)
         duration = self.data[-1]
         if state.vector.is_cuda:
-            max_mem_per_device = (
-                torch.cuda.max_memory_allocated(device) * 1e-6
-                for device in range(torch.cuda.device_count())
-            )
-            max_mem = max(max_mem_per_device)
+            max_mem = float(torch.cuda.max_memory_allocated(state.vector.device))
         else:
             max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
 

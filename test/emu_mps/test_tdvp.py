@@ -22,7 +22,7 @@ def test_right_baths_bell():
 
     state = MPS([mps_factor1, mps_factor2, mps_factor3], eigenstates=("0", "1"))
     obs = MPO([mpo_factor] * 3)
-    for i, b in enumerate(right_baths(state, obs, 1)):
+    for i, b in enumerate(right_baths(state, obs, 1, compute_device="cpu")):
         # Because the Hamiltonian flips all the spins, the baths have shape
         # (2,1,2) and they're all pauli_x
         if i == 0:
@@ -56,7 +56,7 @@ def test_right_baths_total_magnetization():
 
     state = MPS([mps_factor] * 3, eigenstates=("0", "1"))
     obs = MPO([mpo_factor1, mpo_factor2, mpo_factor3])
-    baths = right_baths(state, obs, 1)
+    baths = right_baths(state, obs, 1, compute_device="cpu")
     # The baths carry the information of the magnetization, so the baths have shape
     # (1,2,1), and L_i = [-i,1], which basically counts how magnetized the bath is.
     assert torch.allclose(

@@ -3,8 +3,6 @@ import torch
 from pytest import approx
 from unittest.mock import MagicMock
 
-from emu_base import DEVICE_COUNT
-
 from emu_mps.custom_callback_implementations import (
     correlation_matrix_mps_impl,
     energy_variance_mps_impl,
@@ -24,7 +22,7 @@ from pulser.backend.default_observables import (
     Energy,
 )
 
-device = "cuda" if DEVICE_COUNT > 0 else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def test_custom_qubit_density() -> None:
@@ -96,8 +94,8 @@ def test_custom_energy_and_variance_and_second() -> None:
     interaction_matrix = (interaction_matrix + interaction_matrix.T) * 0.5
     h_rydberg = make_H(
         interaction_matrix=interaction_matrix,
-        num_gpus_to_use=DEVICE_COUNT,
         hamiltonian_type=HamiltonianType.Rydberg,
+        device="cpu",
     )
     update_H(hamiltonian=h_rydberg, omega=omegas, delta=deltas, phi=phis)
 

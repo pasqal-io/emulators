@@ -3,7 +3,6 @@ from types import MethodType
 
 import copy
 
-from emu_base import DEVICE_COUNT
 from emu_mps.custom_callback_implementations import (
     energy_mps_impl,
     energy_second_moment_mps_impl,
@@ -40,9 +39,6 @@ class MPSConfig(EmulationConfig):
             the size of the krylov subspace that the Lanczos algorithm maximally builds
         extra_krylov_tolerance:
             the Lanczos algorithm uses this*precision as the convergence tolerance
-        num_gpus_to_use: during the simulation, distribute the state over this many GPUs
-            0=all factors to cpu. As shown in the benchmarks, using multiple GPUs might
-            alleviate memory pressure per GPU, but the runtime should be similar.
         autosave_prefix: filename prefix for autosaving simulation state to file
         autosave_dt: minimum time interval in seconds between two autosaves
             Saving the simulation state is only possible at specific times,
@@ -50,10 +46,9 @@ class MPSConfig(EmulationConfig):
         kwargs: arguments that are passed to the base class
 
     Examples:
-        >>> num_gpus_to_use = 2 #use 2 gpus if available, otherwise 1 or cpu
         >>> dt = 1 #this will impact the runtime
         >>> precision = 1e-6 #smaller dt requires better precision, generally
-        >>> MPSConfig(num_gpus_to_use=num_gpus_to_use, dt=dt, precision=precision,
+        >>> MPSConfig(dt=dt, precision=precision,
         >>>     with_modulation=True) #the last arg is taken from the base class
     """
 
@@ -68,7 +63,6 @@ class MPSConfig(EmulationConfig):
         max_bond_dim: int = 1024,
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
-        num_gpus_to_use: int = DEVICE_COUNT,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
@@ -83,7 +77,6 @@ class MPSConfig(EmulationConfig):
             max_bond_dim=max_bond_dim,
             max_krylov_dim=max_krylov_dim,
             extra_krylov_tolerance=extra_krylov_tolerance,
-            num_gpus_to_use=num_gpus_to_use,
             interaction_cutoff=interaction_cutoff,
             log_level=log_level,
             log_file=log_file,
@@ -135,7 +128,6 @@ class MPSConfig(EmulationConfig):
             "max_bond_dim",
             "max_krylov_dim",
             "extra_krylov_tolerance",
-            "num_gpus_to_use",
             "interaction_cutoff",
             "log_level",
             "log_file",

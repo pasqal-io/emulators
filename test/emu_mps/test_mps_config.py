@@ -19,7 +19,6 @@ mps_params = {
     "max_bond_dim": 10,
     "max_krylov_dim": 15,
     "extra_krylov_tolerance": 1e-1,
-    "num_gpus_to_use": 0,
     "interaction_cutoff": 1.1,
     "log_level": logging.ERROR,
     "log_file": None,

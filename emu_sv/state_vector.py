@@ -8,7 +8,6 @@ import torch
 
 from emu_sv.utils import index_to_bitstring
 
-from emu_base import DEVICE_COUNT
 from pulser.backend import State
 from pulser.backend.state import Eigenstate
 
@@ -45,7 +44,7 @@ class StateVector(State[complex, torch.Tensor]):
         ).is_integer(), "The number of elements in the vector should be power of 2"
 
         super().__init__(eigenstates=eigenstates)
-        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
+        device = "cuda" if gpu and torch.cuda.is_available() else "cpu"
         self.vector = vector.to(dtype=dtype, device=device)
 
     @property
@@ -91,7 +90,7 @@ class StateVector(State[complex, torch.Tensor]):
             tensor([0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
         """
 
-        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
+        device = "cuda" if gpu and torch.cuda.is_available() else "cpu"
         vector = torch.zeros(2**num_sites, dtype=dtype, device=device)
         return cls(vector, gpu=gpu, eigenstates=eigenstates)
 
