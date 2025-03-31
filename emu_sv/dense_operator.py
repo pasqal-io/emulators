@@ -1,11 +1,21 @@
 from __future__ import annotations
+
 import itertools
-from typing import Any, Iterable
+from functools import reduce
 
 import torch
-from emu_base.base_classes.operator import FullOp, QuditOp
-from emu_base import Operator, State, DEVICE_COUNT
+
+from typing import Sequence, Type
+
+from emu_base import DEVICE_COUNT
 from emu_sv.state_vector import StateVector
+
+from pulser.backend import (
+    Operator,
+    State,
+)
+from pulser.backend.operator import FullOp, QuditOp
+from pulser.backend.state import Eigenstate
 
 dtype = torch.complex128
 
@@ -29,8 +39,8 @@ def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:
             )
 
 
-class DenseOperator(Operator):
-    """Operators in EMU-SV are dense matrices"""
+class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
+    """DenseOperator in EMU-SV use dense matrices"""
 
     def __init__(
         self,
@@ -46,154 +56,145 @@ class DenseOperator(Operator):
 
     def __matmul__(self, other: Operator) -> DenseOperator:
         """
-        Apply this operator to a other. The ordering is that
-        self is applied after other.
+        Compose two DenseOperators via matrix multiplication.
 
         Args:
-            other: the operator to compose with self
+            other: a DenseOperator instance.
 
         Returns:
-            the composed operator
+            A new DenseOperator representing the product `self @ other`.
         """
         assert isinstance(
             other, DenseOperator
-        ), "DenseOperator can only be multiplied with Operator"
-
+        ), "DenseOperator can only be multiplied with a DenseOperator."
         return DenseOperator(self.matrix @ other.matrix)
 
     def __add__(self, other: Operator) -> DenseOperator:
         """
-        Returns the sum of two matrices
+        Element-wise addition of two DenseOperators.
 
         Args:
-            other: the other operator
+            other: a DenseOperator instance.
 
         Returns:
-            the summed operator
+            A new DenseOperator representing the sum.
         """
-        assert isinstance(other, DenseOperator), "MPO can only be added to another MPO"
-
+        assert isinstance(
+            other, DenseOperator
+        ), "DenseOperator can only be added to another DenseOperator."
         return DenseOperator(self.matrix + other.matrix)
 
     def __rmul__(self, scalar: complex) -> DenseOperator:
         """
-        Multiply a DenseOperator by scalar.
+        Scalar multiplication of the DenseOperator.
 
         Args:
-            scalar: the scale factor to multiply with
+            scalar: a number to scale the operator.
 
         Returns:
-            the scaled MPO
+            A new DenseOperator scaled by the given scalar.
         """
 
-        return DenseOperator(self.matrix * scalar)
+        return DenseOperator(scalar * self.matrix)
 
-    def __mul__(self, other: State) -> StateVector:
+    def apply_to(self, other: State) -> StateVector:
         """
-        Applies this DenseOperator to the given StateVector.
+        Apply the DenseOperator to a given StateVector.
 
         Args:
-            other: the state to apply this operator to
+            other: a StateVector instance.
 
         Returns:
-            the resulting state
+            A new StateVector after applying the operator.
         """
         assert isinstance(
             other, StateVector
-        ), "DenseOperator can only be applied to another DenseOperator"
+        ), "DenseOperator can only be applied to a StateVector."
 
         return StateVector(self.matrix @ other.vector)
 
-    def expect(self, state: State) -> float | complex:
+    def expect(self, state: State) -> torch.Tensor:
         """
-        Compute the expectation value of self on the given state.
+        Compute the expectation value of the operator with respect to a state.
 
         Args:
-            state: the state with which to compute
+            state: a StateVector instance.
 
         Returns:
-            the expectation
+            The expectation value as a float or complex number.
         """
         assert isinstance(
             state, StateVector
-        ), "currently, only expectation values of StateVectors are \
-        supported"
+        ), "Only expectation values of StateVectors are supported."
 
-        return torch.vdot(state.vector, self.matrix @ state.vector).item()
+        return torch.vdot(state.vector, self.apply_to(state).vector).cpu()
 
-    @staticmethod
-    def from_operator_string(
-        basis: Iterable[str],
-        nqubits: int,
-        operations: FullOp,
-        operators: dict[str, QuditOp] = {},
-        /,
-        **kwargs: Any,
-    ) -> DenseOperator:
+    @classmethod
+    def _from_operator_repr(
+        cls: Type[DenseOperator],
+        *,
+        eigenstates: Sequence[Eigenstate],
+        n_qudits: int,
+        operations: FullOp[complex],
+    ) -> tuple[DenseOperator, FullOp[complex]]:
         """
-        See the base class
+        Construct a DenseOperator from an operator representation.
 
         Args:
-            basis: the eigenstates in the basis to use e.g. ('r', 'g')
-            nqubits: how many qubits there are in the state
-            operations: which bitstrings make up the state with what weight
-            operators: additional symbols to be used in operations
+            eigenstates: the eigenstates of the basis to use, e.g. ("r", "g") or ("0", "1").
+            n_qudits: number of qudits in the system.
+            operations: which bitstrings make up the state with what weight.
 
         Returns:
-            the operator in MPO form.
+            A DenseOperator instance corresponding to the given representation.
         """
 
-        _validate_operator_targets(operations, nqubits)
+        _validate_operator_targets(operations, n_qudits)
+        assert len(set(eigenstates)) == 2, "Only qubits are supported in EMU-SV."
 
-        operators_with_tensors: dict[str, torch.Tensor | QuditOp] = dict(operators)
+        operators_with_tensors: dict[str, torch.Tensor | QuditOp] = dict()
 
-        basis = set(basis)
-        if basis == {"r", "g"}:
+        if set(eigenstates) == {"r", "g"}:
             # operators_with_tensors will now contain the basis for single qubit ops,
-            # and potentially user defined strings in terms of these
+            # and potentially user defined strings in terms of {r, g} or {0, 1}
             operators_with_tensors |= {
-                "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128),
-                "gr": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128),
-                "rg": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128),
-                "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128),
+                "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype),
+                "gr": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype),
+                "rg": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype),
+                "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype),
             }
-        elif basis == {"0", "1"}:
-            # operators_with_tensors will now contain the basis for single qubit ops,
-            # and potentially user defined strings in terms of these
-            operators_with_tensors |= {
-                "00": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128),
-                "01": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128),
-                "10": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128),
-                "11": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128),
-            }
+        elif set(eigenstates) == {"0", "1"}:
+            raise NotImplementedError(
+                "{'0','1'} basis is related to XY Hamiltonian, which is not implemented"
+            )
         else:
-            raise ValueError("Unsupported basis provided")
+            raise ValueError("An unsupported basis of eigenstates has been provided.")
 
-        accum_res = torch.zeros(2**nqubits, 2**nqubits, dtype=torch.complex128)
-        for coeff, tensorop in operations:
-            # this function will recurse through the operators_with_tensors,
-            # and replace any definitions in terms of strings by the computed matrix
-            def replace_operator_string(op: QuditOp | torch.Tensor) -> torch.Tensor:
-                if isinstance(op, torch.Tensor):
-                    return op
+        accum_res = torch.zeros(2**n_qudits, 2**n_qudits, dtype=dtype)
+        for coeff, oper_torch_with_target_qubits in operations:
 
-                result = torch.zeros(2, 2, dtype=torch.complex128)
-                for opstr, coeff in op.items():
-                    tensor = replace_operator_string(operators_with_tensors[opstr])
+            def build_torch_operator_from_string(
+                oper: QuditOp | torch.Tensor,
+            ) -> torch.Tensor:
+                if isinstance(oper, torch.Tensor):
+                    return oper
+
+                result = torch.zeros((2, 2), dtype=dtype)
+                for opstr, coeff in oper.items():
+                    tensor = build_torch_operator_from_string(
+                        operators_with_tensors[opstr]
+                    )
                     operators_with_tensors[opstr] = tensor
                     result += tensor * coeff
                 return result
 
-            total_op_per_qubit = [torch.eye(2, 2, dtype=torch.complex128)] * nqubits
+            single_qubit_gates = [torch.eye(2, dtype=dtype) for _ in range(n_qudits)]
 
-            for op in tensorop:
-                factor = replace_operator_string(op[0])
-                for target_qubit in op[1]:
-                    total_op_per_qubit[target_qubit] = factor
+            for operator_torch, target_qubits in oper_torch_with_target_qubits:
+                factor = build_torch_operator_from_string(operator_torch)
+                for target_qubit in target_qubits:
+                    single_qubit_gates[target_qubit] = factor
 
-            dense_op = total_op_per_qubit[0]
-            for single_qubit_operator in total_op_per_qubit[1:]:
-                dense_op = torch.kron(dense_op, single_qubit_operator)
+            accum_res += coeff * reduce(torch.kron, single_qubit_gates)
 
-            accum_res += coeff * dense_op
-        return DenseOperator(accum_res)
+        return DenseOperator(accum_res), operations

@@ -16,7 +16,7 @@ def test_mul():
         tensor[0, 1, 0, 0] = 1
         factors.append(tensor)
     mpo = MPO(factors)
-    out = mpo * mps
+    out = mpo.apply_to(mps)
     for i in out.factors:
         assert torch.allclose(
             i, torch.tensor([[[0], [1]]], dtype=torch.complex128, device=i.device)
@@ -35,7 +35,7 @@ def test_wrong_basis_string_state():
     ]
 
     with pytest.raises(ValueError) as ve:
-        MPO.from_operator_string({"g", "1"}, 3, operations)
+        MPO.from_operator_repr(eigenstates={"g", "1"}, n_qudits=3, operations=operations)
     msg = "Unsupported basis provided"
     assert str(ve.value) == msg
 
@@ -45,19 +45,20 @@ def test_wrong_basis_string_state():
     (("g", "r"), ("0", "1")),
 )
 def test_from_operator_string(zero, one):
-    x = {zero + one: 1.0, one + zero: 1.0}
-    z = {zero + zero: 1.0, one + one: -1.0}
-    operators = {"X": x, "Z": z}
+    x = {zero + one: 2.0, one + zero: 2.0}
+    z = {zero + zero: 3.0, one + one: -3.0}
     operations = [
         (
             1.0,
             [
-                ({"X": 2.0}, [0, 2]),
-                ({"Z": 3.0}, [1]),
+                (x, [0, 2]),
+                (z, [1]),
             ],
         )
     ]
-    mpo = MPO.from_operator_string({one, zero}, 3, operations, operators)
+    mpo = MPO.from_operator_repr(
+        eigenstates={one, zero}, n_qudits=3, operations=operations
+    )
     assert torch.allclose(
         mpo.factors[0],
         torch.tensor(
@@ -117,7 +118,7 @@ def test_expect():
         [torch.randn(*shape(i, 1), dtype=torch.complex128) for i in range(nqubits)]
     )
     op = MPO([torch.randn(*shape(i, 2), dtype=torch.complex128) for i in range(nqubits)])
-    assert op.expect(state) == pytest.approx(state.inner(op * state))
+    assert op.expect(state) == pytest.approx(state.inner(op.apply_to(state)))
 
 
 def test_add_expectation_values():
@@ -189,8 +190,8 @@ def test_matmul():
     )
 
     # test (O @ O)*|Ψ〉= O*(O*|Ψ〉)
-    matmul_mps = (mpo1 @ mpo2) * mps
-    mul_mps = mpo1 * (mpo2 * mps)
+    matmul_mps = (mpo1 @ mpo2).apply_to(mps)
+    mul_mps = mpo1.apply_to(mpo2.apply_to(mps))
 
     # assert same projection on initial state |Ψ〉
     expected = mps.inner(matmul_mps)

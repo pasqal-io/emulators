@@ -6,7 +6,7 @@ from emu_base.pulser_adapter import (
     PulserData,
     HamiltonianType,
 )
-from emu_base import BackendConfig
+from pulser.backend import EmulationConfig
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -777,7 +777,7 @@ def test_parsed_sequence(mock_pulser_sample):
 
     ops = _get_all_lindblad_noise_operators(noise_model)
 
-    config = BackendConfig(
+    config = EmulationConfig(
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
@@ -862,7 +862,7 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
         laser_waist=0.1,
     )
 
-    config = BackendConfig(
+    config = EmulationConfig(
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,

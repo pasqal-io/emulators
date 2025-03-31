@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Any, List, Optional, Iterable
+from typing import List, Optional, Sequence, TypeVar, Mapping
 
 import torch
 
-from emu_base import State, DEVICE_COUNT
+from pulser.backend.state import State, Eigenstate
+from emu_base import DEVICE_COUNT
 from emu_mps import MPSConfig
 from emu_mps.algebra import add_factors, scale_factors
 from emu_mps.utils import (
@@ -17,8 +18,10 @@ from emu_mps.utils import (
     n_operator,
 )
 
+ArgScalarType = TypeVar("ArgScalarType")
 
-class MPS(State):
+
+class MPS(State[complex, torch.Tensor]):
     """
     Matrix Product State, aka tensor train.
 
@@ -53,6 +56,7 @@ class MPS(State):
             num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu, None=keep the existing device assignment.
         """
+        self._eigenstates = ["0", "1"]
         self.config = config if config is not None else MPSConfig()
         assert all(
             factors[i - 1].shape[2] == factors[i].shape[0] for i in range(1, len(factors))
@@ -72,6 +76,11 @@ class MPS(State):
 
         if num_gpus_to_use is not None:
             assign_devices(self.factors, min(DEVICE_COUNT, num_gpus_to_use))
+
+    @property
+    def n_qudits(self) -> int:
+        """The number of qudits in the state."""
+        return self.num_sites
 
     @classmethod
     def make(
@@ -174,7 +183,12 @@ class MPS(State):
         return max((x.shape[2] for x in self.factors), default=0)
 
     def sample(
-        self, num_shots: int, p_false_pos: float = 0.0, p_false_neg: float = 0.0
+        self,
+        *,
+        num_shots: int,
+        one_state: Eigenstate | None = None,
+        p_false_pos: float = 0.0,
+        p_false_neg: float = 0.0,
     ) -> Counter[str]:
         """
         Samples bitstrings, taking into account the specified error rates.
@@ -187,6 +201,7 @@ class MPS(State):
         Returns:
             the measured bitstrings, by count
         """
+        assert one_state in {None, "r", "1"}
         self.orthogonalize(0)
 
         rnd_matrix = torch.rand(num_shots, self.num_sites).to(self.factors[0].device)
@@ -249,19 +264,17 @@ class MPS(State):
             )
         return bitstrings
 
-    def norm(self) -> float:
+    def norm(self) -> torch.Tensor:
         """Computes the norm of the MPS."""
         orthogonality_center = (
             self.orthogonality_center
             if self.orthogonality_center is not None
             else self.orthogonalize(0)
         )
+        # the torch.norm function is not properly typed.
+        return self.factors[orthogonality_center].norm().cpu()  # type: ignore[no-any-return]
 
-        return float(
-            torch.linalg.norm(self.factors[orthogonality_center].to("cpu")).item()
-        )
-
-    def inner(self, other: State) -> float | complex:
+    def inner(self, other: State) -> torch.Tensor:
         """
         Compute the inner product between this state and other.
         Note that self is the left state in the inner product,
@@ -285,7 +298,10 @@ class MPS(State):
             acc = torch.tensordot(acc, other.factors[i].to(acc.device), dims=1)
             acc = torch.tensordot(self.factors[i].conj(), acc, dims=([0, 1], [0, 1]))
 
-        return acc.item()  # type: ignore[no-any-return]
+        return acc.reshape(1)[0].cpu()
+
+    def overlap(self, other: State, /) -> torch.Tensor:
+        return torch.abs(self.inner(other)) ** 2  # type: ignore[no-any-return]
 
     def get_memory_footprint(self) -> float:
         """
@@ -347,14 +363,13 @@ class MPS(State):
     def __imul__(self, scalar: complex) -> MPS:
         return self.__rmul__(scalar)
 
-    @staticmethod
-    def from_state_string(
+    @classmethod
+    def _from_state_amplitudes(
+        cls,
         *,
-        basis: Iterable[str],
-        nqubits: int,
-        strings: dict[str, complex],
-        **kwargs: Any,
-    ) -> MPS:
+        eigenstates: Sequence[str],
+        amplitudes: Mapping[str, complex],
+    ) -> tuple[MPS, Mapping[str, complex]]:
         """
         See the base class.
 
@@ -367,7 +382,8 @@ class MPS(State):
             The resulting MPS representation of the state.s
         """
 
-        basis = set(basis)
+        nqubits = len(next(iter(amplitudes.keys())))
+        basis = set(eigenstates)
         if basis == {"r", "g"}:
             one = "r"
         elif basis == {"0", "1"}:
@@ -381,18 +397,17 @@ class MPS(State):
         accum_mps = MPS(
             [torch.zeros((1, 2, 1), dtype=torch.complex128)] * nqubits,
             orthogonality_center=0,
-            **kwargs,
         )
 
-        for state, amplitude in strings.items():
+        for state, amplitude in amplitudes.items():
             factors = [basis_1 if ch == one else basis_0 for ch in state]
-            accum_mps += amplitude * MPS(factors, **kwargs)
+            accum_mps += amplitude * MPS(factors)
         norm = accum_mps.norm()
         if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
             print("\nThe state is not normalized, normalizing it for you.")
             accum_mps *= 1 / norm
 
-        return accum_mps
+        return accum_mps, amplitudes
 
     def expect_batch(self, single_qubit_operators: torch.Tensor) -> torch.Tensor:
         """
@@ -460,7 +475,7 @@ class MPS(State):
 
     def get_correlation_matrix(
         self, *, operator: torch.Tensor = n_operator
-    ) -> list[list[float]]:
+    ) -> torch.Tensor:
         """
         Efficiently compute the symmetric correlation matrix
             C_ij = <self|operator_i operator_j|self>
@@ -474,7 +489,7 @@ class MPS(State):
         """
         assert operator.shape == (2, 2)
 
-        result = [[0.0 for _ in range(self.num_sites)] for _ in range(self.num_sites)]
+        result = torch.zeros(self.num_sites, self.num_sites, dtype=torch.complex128)
 
         for left in range(0, self.num_sites):
             self.orthogonalize(left)
@@ -486,7 +501,7 @@ class MPS(State):
             accumulator = torch.tensordot(
                 accumulator, self.factors[left].conj(), dims=([0, 2], [0, 1])
             )
-            result[left][left] = accumulator.trace().item().real
+            result[left, left] = accumulator.trace().item().real
             for right in range(left + 1, self.num_sites):
                 partial = torch.tensordot(
                     accumulator.to(self.factors[right].device),
@@ -497,7 +512,7 @@ class MPS(State):
                     partial, self.factors[right].conj(), dims=([0], [0])
                 )
 
-                result[left][right] = (
+                result[left, right] = (
                     torch.tensordot(
                         partial, operator.to(partial.device), dims=([0, 2], [0, 1])
                     )
@@ -505,13 +520,13 @@ class MPS(State):
                     .item()
                     .real
                 )
-                result[right][left] = result[left][right]
+                result[right, left] = result[left, right]
                 accumulator = tensor_trace(partial, 0, 2)
 
         return result
 
 
-def inner(left: MPS, right: MPS) -> float | complex:
+def inner(left: MPS, right: MPS) -> torch.Tensor:
     """
     Wrapper around MPS.inner.
 

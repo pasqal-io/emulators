@@ -91,8 +91,8 @@ class RydbergHamiltonian:
         dim_to_act = 1
         for n, omega_n in enumerate(self.omegas):
             shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
-            vec = vec.reshape(shape_n)
-            result = result.reshape(shape_n)
+            vec = vec.view(shape_n)
+            result = result.view(shape_n)
             result.index_add_(dim_to_act, self.inds, vec, alpha=omega_n)
 
     def _apply_sigma_operators_complex(
@@ -112,8 +112,8 @@ class RydbergHamiltonian:
         dim_to_act = 1
         for n, c_omega_n in enumerate(c_omegas):
             shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
-            vec = vec.reshape(shape_n)
-            result = result.reshape(shape_n)
+            vec = vec.view(shape_n)
+            result = result.view(shape_n)
             result.index_add_(
                 dim_to_act, self.inds[0], vec[:, 0, :].unsqueeze(1), alpha=c_omega_n
             )
@@ -133,19 +133,21 @@ class RydbergHamiltonian:
         diag = torch.zeros(2**self.nqubits, dtype=torch.complex128, device=self.device)
 
         for i in range(self.nqubits):
-            diag = diag.reshape(2**i, 2, -1)
+            diag = diag.view(2**i, 2, -1)
             i_fixed = diag[:, 1, :]
             i_fixed -= self.deltas[i]
             for j in range(i + 1, self.nqubits):
-                i_fixed = i_fixed.reshape(2**i, 2 ** (j - i - 1), 2, -1)
+                i_fixed = i_fixed.view(2**i, 2 ** (j - i - 1), 2, -1)
                 # replacing i_j_fixed by i_fixed breaks the code :)
                 i_j_fixed = i_fixed[:, :, 1, :]
                 i_j_fixed += self.interaction_matrix[i, j]
-        return diag.reshape(-1)
+        return diag.view(-1)
 
     def expect(self, state: StateVector) -> torch.Tensor:
         """Return the energy expectation value E=❬ψ|H|ψ❭"""
         assert isinstance(
             state, StateVector
         ), "Currently, only expectation values of StateVectors are supported"
-        return torch.vdot(state.vector, self * state.vector)
+        en = torch.vdot(state.vector, self * state.vector)
+        assert torch.allclose(en.imag, torch.zeros_like(en.imag), atol=1e-8)
+        return en.real

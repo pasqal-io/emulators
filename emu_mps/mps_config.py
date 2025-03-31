@@ -1,16 +1,36 @@
 from typing import Any
+from types import MethodType
+import copy
 
-from emu_base import BackendConfig, State, DEVICE_COUNT
+from emu_base import DEVICE_COUNT
+from emu_mps.custom_callback_implementations import (
+    energy_mps_impl,
+    energy_second_moment_mps_impl,
+    energy_variance_mps_impl,
+    correlation_matrix_mps_impl,
+    qubit_occupation_mps_impl,
+)
+from pulser.backend import (
+    Occupation,
+    CorrelationMatrix,
+    Energy,
+    EnergySecondMoment,
+    EnergyVariance,
+    StateResult,
+    EmulationConfig,
+)
+import logging
+import pathlib
+import sys
 
 
-class MPSConfig(BackendConfig):
+class MPSConfig(EmulationConfig):
     """
     The configuration of the emu-ct MPSBackend. The kwargs passed to this class
     are passed on to the base class.
     See the API for that class for a list of available options.
 
     Args:
-        initial_state: the initial state to use in the simulation
         dt: the timestep size that the solver uses. Note that observables are
             only calculated if the evaluation_times are divisible by dt.
         precision: up to what precision the state is truncated
@@ -39,39 +59,106 @@ class MPSConfig(BackendConfig):
     def __init__(
         self,
         *,
-        initial_state: State | None = None,
         dt: int = 10,
         precision: float = 1e-5,
         max_bond_dim: int = 1024,
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
         num_gpus_to_use: int = DEVICE_COUNT,
+        interaction_cutoff: float = 0.0,
+        log_level: int = logging.INFO,
+        log_file: pathlib.Path | None = None,
         autosave_prefix: str = "emu_mps_save_",
         autosave_dt: int = 600,  # 10 minutes
         **kwargs: Any,
     ):
+        kwargs.setdefault("observables", [StateResult(evaluation_times=[1.0])])
         super().__init__(**kwargs)
-        self.initial_state = initial_state
-        self.dt = dt
-        self.precision = precision
-        self.max_bond_dim = max_bond_dim
-        self.max_krylov_dim = max_krylov_dim
-        self.num_gpus_to_use = num_gpus_to_use
-        self.extra_krylov_tolerance = extra_krylov_tolerance
+        self._backend_options["dt"] = dt
+        self._backend_options["precision"] = precision
+        self._backend_options["max_bond_dim"] = max_bond_dim
+        self._backend_options["max_krylov_dim"] = max_krylov_dim
+        self._backend_options["extra_krylov_tolerance"] = extra_krylov_tolerance
+        self._backend_options["num_gpus_to_use"] = num_gpus_to_use
+        self._backend_options["interaction_cutoff"] = interaction_cutoff
+        self._backend_options["log_level"] = log_level
+        self._backend_options["log_file"] = log_file
+        self._backend_options["autosave_prefix"] = autosave_prefix
+        self._backend_options["autosave_dt"] = autosave_dt
 
-        if self.noise_model is not None:
-            if "doppler" in self.noise_model.noise_types:
-                raise NotImplementedError("Unsupported noise type: doppler")
-            if (
-                "amplitude" in self.noise_model.noise_types
-                and self.noise_model.amp_sigma != 0.0
-            ):
-                raise NotImplementedError("Unsupported noise type: amp_sigma")
-
-        self.autosave_prefix = autosave_prefix
-        self.autosave_dt = autosave_dt
+        if "doppler" in self.noise_model.noise_types:
+            raise NotImplementedError("Unsupported noise type: doppler")
+        if (
+            "amplitude" in self.noise_model.noise_types
+            and self.noise_model.amp_sigma != 0.0
+        ):
+            raise NotImplementedError("Unsupported noise type: amp_sigma")
 
         MIN_AUTOSAVE_DT = 10
         assert (
             self.autosave_dt > MIN_AUTOSAVE_DT
         ), f"autosave_dt must be larger than {MIN_AUTOSAVE_DT} seconds"
+
+        self.monkeypatch_observables()
+
+        self.logger = logging.getLogger("global_logger")
+        if log_file is None:
+            logging.basicConfig(
+                level=log_level, format="%(message)s", stream=sys.stdout, force=True
+            )  # default to stream = sys.stderr
+        else:
+            logging.basicConfig(
+                level=log_level,
+                format="%(message)s",
+                filename=str(log_file),
+                filemode="w",
+                force=True,
+            )
+        if (self.noise_model.runs != 1 and self.noise_model.runs is not None) or (
+            self.noise_model.samples_per_run != 1
+            and self.noise_model.samples_per_run is not None
+        ):
+            self.logger.warning(
+                "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
+            )
+
+    def monkeypatch_observables(self) -> None:
+        obs_list = []
+        for num, obs in enumerate(self.observables):  # monkey patch
+            obs_copy = copy.deepcopy(obs)
+            if isinstance(obs, Occupation):
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    qubit_occupation_mps_impl, obs_copy
+                )
+            elif isinstance(obs, EnergyVariance):
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    energy_variance_mps_impl, obs_copy
+                )
+            elif isinstance(obs, EnergySecondMoment):
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    energy_second_moment_mps_impl, obs_copy
+                )
+            elif isinstance(obs, CorrelationMatrix):
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    correlation_matrix_mps_impl, obs_copy
+                )
+            elif isinstance(obs, Energy):
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    energy_mps_impl, obs_copy
+                )
+            obs_list.append(obs_copy)
+        self.observables = tuple(obs_list)
+
+    def init_logging(self) -> None:
+        if self.log_file is None:
+            logging.basicConfig(
+                level=self.log_level, format="%(message)s", stream=sys.stdout, force=True
+            )  # default to stream = sys.stderr
+        else:
+            logging.basicConfig(
+                level=self.log_level,
+                format="%(message)s",
+                filename=str(self.log_file),
+                filemode="w",
+                force=True,
+            )

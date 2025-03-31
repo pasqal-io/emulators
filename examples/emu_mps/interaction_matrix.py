@@ -53,17 +53,11 @@ seq.add(sweep, "ising_global")
 seq.add(fall, "ising_global")
 
 
-# we initialize a Backend instance
-sim = MPSBackend()
-
 # Configuration for the Backend and for observables
 dt = 100  # time step for discretization, by the default: dt =10
 
 # information for the observables
-
-final_time = seq.get_duration()
-
-times = {final_time}  # final step for an observable to be measure
+times = [1.0]  # final step for an observable to be measure
 
 # As an example, we are going to create an antiferromagnetic (afm) state (mps) and
 # a suporpostion of afm states in order to calculate the
@@ -84,34 +78,37 @@ another_afm = {
     "grgrg": 1.0 / np.sqrt(2),
 }
 
-afm_mps_state = MPS.from_state_string(
-    basis=basis, nqubits=nqubits, strings=afm_string_state
-)
-another_afm_mps = MPS.from_state_string(basis=basis, nqubits=nqubits, strings=another_afm)
+afm_mps_state = MPS.from_state_amplitudes(eigenstates=basis, amplitudes=afm_string_state)
+another_afm_mps = MPS.from_state_amplitudes(eigenstates=basis, amplitudes=another_afm)
 
 
 state_result = StateResult(evaluation_times=times)
 bitstrings = BitStrings(evaluation_times=times, num_shots=1000)
-fidelity = Fidelity(evaluation_times=times, state=afm_mps_state)  # fidelity number 1
+fidelity = Fidelity(
+    evaluation_times=times, state=afm_mps_state, tag_suffix="afm"
+)  # fidelity number 1
 fidelity_another_state = Fidelity(
-    evaluation_times=times, state=another_afm_mps
+    evaluation_times=times, state=another_afm_mps, tag_suffix="bell_afm"
 )  # fidelity number 2
 
 
 # we give the configuration of the backend and the observables
 mpsconfig = MPSConfig(
     dt=dt,
-    observables=[state_result, bitstrings, fidelity, fidelity_another_state],
+    observables=[bitstrings, fidelity, fidelity_another_state],
     interaction_matrix=interaction_matrix,
 )
 
-results = sim.run(seq, mpsconfig)
+# we initialize a Backend instance
+sim = MPSBackend(seq, config=mpsconfig)
+
+results = sim.run()
 
 # all the observables computed
-results.get_result_names()
+results.get_result_tags()
 
 # bitstrings at a given time
-bitstrings_final = results[bitstrings.name][final_time]  # get the bitstring
+bitstrings_final = results.get_result(bitstrings, 1.0)  # get the bitstring
 
 max_val = max(bitstrings_final.values())  # max number of counts in the bitstring
 print("Max count value: ", max_val)
