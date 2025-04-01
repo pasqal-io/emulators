@@ -124,17 +124,17 @@ class MPSConfig(EmulationConfig):
 
     def _expected_kwargs(self) -> set[str]:
         return super()._expected_kwargs() | {
-            #"dt",
-            #"precision",
-            #"max_bond_dim",
-            #"max_krylov_dim",
-            #"extra_krylov_tolerance",
-            #"num_gpus_to_use",
+            "dt",
+            "precision",
+            "max_bond_dim",
+            "max_krylov_dim",
+            "extra_krylov_tolerance",
+            "num_gpus_to_use",
         }
 
     def monkeypatch_observables(self) -> None:
         obs_list = []
-        for num, obs in enumerate(self.observables):  # monkey patch
+        for _, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
             if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
@@ -159,7 +159,7 @@ class MPSConfig(EmulationConfig):
             obs_list.append(obs_copy)
         self.observables = tuple(obs_list)
 
-    def init_logging(self) -> None:
+    def init_logging(self) -> Any:
         if self.log_file is None:
             logging.basicConfig(
                 level=self.log_level, format="%(message)s", stream=sys.stdout, force=True
