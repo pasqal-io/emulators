@@ -59,7 +59,7 @@ class SVConfig(EmulationConfig):
         log_file: pathlib.Path | None = None,
         **kwargs: Any,
     ):
-        kwargs.setdefault("observables", [StateResult(evaluation_times=[1.0])])
+        #kwargs.setdefault("observables", [StateResult(evaluation_times=[1.0])])
         super().__init__(**kwargs)
         self._backend_options["dt"] = dt
         self._backend_options["max_krylov_dim"] = max_krylov_dim
