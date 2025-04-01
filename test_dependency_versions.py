@@ -40,6 +40,7 @@ if mps_dep != base_version:
 if sv_dep != base_version:
     fail(f" - emu-sv dependency version {sv_dep} != emu_base {base_version}")
 
+
 print("Checking pulser_core version:")
 
 # pulser_core -> emu_base
@@ -52,6 +53,7 @@ print(f" - The root package depends on pulser-core version {pulser_root_dep}")
 
 if pulser_root_dep != pulser_base_dep:
     fail(f"{pulser_root_dep} != {pulser_base_dep}")
+
 
 print("Checking torch:")
 
@@ -66,7 +68,7 @@ print(f" - pyproject.toml uses torch version {torch_pyproject_version}")
 if torch_pre_commit_version != torch_pyproject_version:
     fail(
         f" - torch in .pre-commit version {torch_pre_commit_version}"
-        " != torch in pyproject.toml {torch_pyproject_version}"
+        f" != torch in pyproject.toml {torch_pyproject_version}"
     )
 
 print("All checks passed.")
