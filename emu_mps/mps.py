@@ -196,7 +196,7 @@ class MPS(State[complex, torch.Tensor]):
         Args:
             num_shots: how many bitstrings to sample
             p_false_pos: the rate at which a 0 is read as a 1
-            p_false_neg: teh rate at which a 1 is read as a 0
+            p_false_neg: the rate at which a 1 is read as a 0
 
         Returns:
             the measured bitstrings, by count
@@ -301,6 +301,10 @@ class MPS(State[complex, torch.Tensor]):
         return acc.reshape(1)[0].cpu()
 
     def overlap(self, other: State, /) -> torch.Tensor:
+        """
+        Compute the overlap of this state and other. This is defined as
+        $|\\langle self | other \\rangle |^2$
+        """
         return torch.abs(self.inner(other)) ** 2  # type: ignore[no-any-return]
 
     def get_memory_footprint(self) -> float:
