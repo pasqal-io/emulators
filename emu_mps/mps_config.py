@@ -16,7 +16,7 @@ from pulser.backend import (
     Energy,
     EnergySecondMoment,
     EnergyVariance,
-    StateResult,
+    BitStrings,
     EmulationConfig,
 )
 import logging
@@ -72,7 +72,7 @@ class MPSConfig(EmulationConfig):
         autosave_dt: int = 600,  # 10 minutes
         **kwargs: Any,
     ):
-        kwargs.setdefault("observables", [StateResult(evaluation_times=[1.0])])
+        kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
         super().__init__(**kwargs)
         self._backend_options["dt"] = dt
         self._backend_options["precision"] = precision
