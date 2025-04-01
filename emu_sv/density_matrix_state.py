@@ -69,18 +69,18 @@ class DensityMatrix(State[complex, torch.Tensor]):
         >>> density_bell_state = (1/2* torch.tensor([[1, 0, 0, 1], [0, 0, 0, 0],
         ... [0, 0, 0, 0], [1, 0, 0, 1]],dtype=torch.complex128))
         >>> density_c = DensityMatrix(density_bell_state, gpu=False)
-        >>> density_c.inner(density_c)
-        (1+0j)
+        >>> density_c.overlap(density_c)
+        tensor(1.+0.j, dtype=torch.complex128)
         """
 
         assert isinstance(
             other, DensityMatrix
-        ), "Other state also needs to be a StateVector"
+        ), "Other state also needs to be a DensityMatrix"
         assert (
             self.matrix.shape == other.matrix.shape
         ), "States do not have the same number of sites"
 
-        return torch.trace(self.matrix @ other.matrix.conj().T)
+        return torch.vdot(self.matrix.flatten(), other.matrix.flatten())
 
     @classmethod
     def from_state_vector(cls, state: StateVector) -> DensityMatrix:
@@ -127,10 +127,10 @@ class DensityMatrix(State[complex, torch.Tensor]):
             The resulting state.
 
         Examples:
-            >>> basis = ("r","g")
+            >>> eigenstates = ("r","g")
             >>> n = 2
-            >>> dense_mat=DensityMatrix.from_state_string(basis=basis,
-            ... nqubits=n,strings={"rr":1.0,"gg":1.0},gpu=False)
+            >>> dense_mat=DensityMatrix.from_state_amplitudes(eigenstates=eigenstates,
+            ... amplitudes={"rr":1.0,"gg":1.0})
             >>> print(dense_mat.matrix)
             tensor([[0.5000+0.j, 0.0000+0.j, 0.0000+0.j, 0.5000+0.j],
                     [0.0000+0.j, 0.0000+0.j, 0.0000+0.j, 0.0000+0.j],
@@ -165,12 +165,12 @@ class DensityMatrix(State[complex, torch.Tensor]):
 
         Example:
         >>> import math
+        >>> torch.manual_seed(1234)
         >>> from emu_sv import StateVector
         >>> bell_vec = 1 / math.sqrt(2) * torch.tensor(
         ... [1.0, 0.0, 0.0, 1.0j],dtype=torch.complex128)
         >>> bell_state_vec = StateVector(bell_vec)
         >>> bell_density = DensityMatrix.from_state_vector(bell_state_vec)
-        >>> torch.manual_seed(1234)
         >>> bell_density.sample(1000)
          Counter({'00': 517, '11': 483})
         """
