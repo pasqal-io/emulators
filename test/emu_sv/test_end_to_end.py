@@ -119,7 +119,7 @@ def simulate(
 def test_default_SVConfig_ctr() -> None:
     sv_config = SVConfig()
     assert len(sv_config.observables) == 1
-    assert isinstance(sv_config.observables[0], StateResult)
+    assert isinstance(sv_config.observables[0], BitStrings)
     assert sv_config.observables[0].evaluation_times == [
         1.0
     ]  # meaning very end of the simuation

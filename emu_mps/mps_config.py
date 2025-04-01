@@ -122,6 +122,16 @@ class MPSConfig(EmulationConfig):
                 "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
             )
 
+    def _expected_kwargs(self) -> set[str]:
+        return super()._expected_kwargs() | {
+            #"dt",
+            #"precision",
+            #"max_bond_dim",
+            #"max_krylov_dim",
+            #"extra_krylov_tolerance",
+            #"num_gpus_to_use",
+        }
+
     def monkeypatch_observables(self) -> None:
         obs_list = []
         for num, obs in enumerate(self.observables):  # monkey patch

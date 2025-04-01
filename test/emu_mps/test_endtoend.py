@@ -142,7 +142,7 @@ t_fall = 1000
 def test_default_MPSConfig_ctr() -> None:
     mps_config = MPSConfig()
     assert len(mps_config.observables) == 1
-    assert isinstance(mps_config.observables[0], StateResult)
+    assert isinstance(mps_config.observables[0], BitStrings)
     assert mps_config.observables[0].evaluation_times == [
         1.0
     ]  # meaning very end of the simuation
