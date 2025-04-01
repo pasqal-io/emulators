@@ -1,4 +1,3 @@
-# from emu_base.base_classes import Results
 from pulser.backend.results import Results
 
 from pulser.backend import (
@@ -13,9 +12,9 @@ from pulser.backend import (
     StateResult,
 )
 
-from emu_sv.dense_operator import DenseOperator
-from emu_sv.sv_backend import SVBackend, SVConfig
-from emu_sv.state_vector import StateVector, inner
+from .dense_operator import DenseOperator
+from .sv_backend import SVBackend, SVConfig
+from .state_vector import StateVector, inner
 
 __all__ = [
     "__version__",

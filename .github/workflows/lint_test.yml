@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: ./test_dependency_versions.sh
+      - run: ./test_dependency_versions.py
   test:
     needs: check_dependency_versions
     runs-on: ${{ matrix.os }}

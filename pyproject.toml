@@ -20,7 +20,7 @@ classifiers=[
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pulser-core @ git+https://github.com/pasqal-io/Pulser.git@develop#subdirectory=pulser-core",
+  "pulser-core=1.4.*",
   "torch==2.5.0"]  # The version in .pre-commit-config.yaml must match
 dynamic = ["version"]
 
