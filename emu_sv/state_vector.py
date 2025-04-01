@@ -6,6 +6,8 @@ from typing import Sequence, Type, TypeVar, Mapping
 
 import torch
 
+from emu_sv.utils import index_to_bitstring
+
 from emu_base import DEVICE_COUNT
 from pulser.backend import State
 from pulser.backend.state import Eigenstate
@@ -78,7 +80,7 @@ class StateVector(State[complex, torch.Tensor]):
             The zero state
 
         Examples:
-            >>> StateVector.zero(2)
+            >>> StateVector.zero(2,gpu=False)
             tensor([0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
         """
 
@@ -99,8 +101,10 @@ class StateVector(State[complex, torch.Tensor]):
             The described state
 
         Examples:
-            >>> StateVector.make(2)
+            >>> StateVector.make(2,gpu=False)
             tensor([1.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
+
+
         """
 
         result = cls.zero(num_sites=num_sites, gpu=gpu)
@@ -144,25 +148,19 @@ class StateVector(State[complex, torch.Tensor]):
         Returns:
             the measured bitstrings, by count
         """
+        assert p_false_neg == p_false_pos == 0.0, "Error rates must be 0.0"
 
         probabilities = torch.abs(self.vector) ** 2
 
         outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
 
         # Convert outcomes to bitstrings and count occurrences
-        counts = Counter([self._index_to_bitstring(outcome) for outcome in outcomes])
+        counts = Counter(
+            [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes]
+        )
 
         # NOTE: false positives and negatives
         return counts
-
-    def _index_to_bitstring(self, index: int) -> str:
-        """
-        Convert an integer index into its corresponding bitstring representation.
-        """
-        nqubits = self.n_qudits
-        msg = f"index {index} can not exceed Hilbert space size d**{nqubits}"
-        assert index < 2**nqubits, msg
-        return format(index, f"0{nqubits}b")
 
     def __add__(self, other: State) -> StateVector:
         """Sum of two state vectors
@@ -220,6 +218,9 @@ class StateVector(State[complex, torch.Tensor]):
 
         Examples:
             >>> basis = ("r","g")
+            >>> n = 2
+            >>> st=StateVector.from_state_string(basis=basis,
+                ... nqubits=n,strings={"rr":1.0,"gg":1.0},gpu=False)
             >>> st = StateVector.from_state_amplitudes(
             ...     eigenstates=basis,
             ...     amplitudes={"rr": 1.0, "gg": 1.0}
@@ -229,7 +230,8 @@ class StateVector(State[complex, torch.Tensor]):
                    dtype=torch.complex128)
         """
 
-        nqubits = len(next(iter(amplitudes.keys())))
+        # nqubits = len(next(iter(amplitudes.keys())))
+        nqubits = cls._validate_amplitudes(amplitudes=amplitudes, eigenstates=eigenstates)
         basis = set(eigenstates)
         if basis == {"r", "g"}:
             one = "r"
@@ -271,6 +273,12 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
         >>> factor = math.sqrt(2.0)
         >>> basis = ("r","g")
         >>> string_state1 = {"gg":1.0,"rr":1.0}
+        >>> state1 = StateVector.from_state_string(basis=basis,
+            ... nqubits=nqubits,strings=string_state1)
+        >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
+        >>> state2 = StateVector.from_state_string(basis=basis,
+            ... nqubits=nqubits,strings=string_state2)
+
         >>> state1 = StateVector.from_state_amplitudes(eigenstates=basis,
         ...     amplitudes=string_state1)
         >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
