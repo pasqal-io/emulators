@@ -73,18 +73,20 @@ class MPSConfig(EmulationConfig):
         **kwargs: Any,
     ):
         kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
-        super().__init__(**kwargs)
-        self._backend_options["dt"] = dt
-        self._backend_options["precision"] = precision
-        self._backend_options["max_bond_dim"] = max_bond_dim
-        self._backend_options["max_krylov_dim"] = max_krylov_dim
-        self._backend_options["extra_krylov_tolerance"] = extra_krylov_tolerance
-        self._backend_options["num_gpus_to_use"] = num_gpus_to_use
-        self._backend_options["interaction_cutoff"] = interaction_cutoff
-        self._backend_options["log_level"] = log_level
-        self._backend_options["log_file"] = log_file
-        self._backend_options["autosave_prefix"] = autosave_prefix
-        self._backend_options["autosave_dt"] = autosave_dt
+        super().__init__(
+            dt=dt,
+            precision=precision,
+            max_bond_dim=max_bond_dim,
+            max_krylov_dim=max_krylov_dim,
+            extra_krylov_tolerance=extra_krylov_tolerance,
+            num_gpus_to_use=num_gpus_to_use,
+            interaction_cutoff=interaction_cutoff,
+            log_level=log_level,
+            log_file=log_file,
+            autosave_prefix=autosave_prefix,
+            autosave_dt=autosave_dt,
+            **kwargs,
+        )
 
         if "doppler" in self.noise_model.noise_types:
             raise NotImplementedError("Unsupported noise type: doppler")

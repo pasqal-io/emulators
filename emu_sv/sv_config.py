@@ -60,14 +60,16 @@ class SVConfig(EmulationConfig):
         **kwargs: Any,
     ):
         kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
-        super().__init__(**kwargs)
-        self._backend_options["dt"] = dt
-        self._backend_options["max_krylov_dim"] = max_krylov_dim
-        self._backend_options["gpu"] = gpu
-        self._backend_options["krylov_tolerance"] = krylov_tolerance
-        self._backend_options["interaction_cutoff"] = interaction_cutoff
-        self._backend_options["log_level"] = log_level
-        self._backend_options["log_file"] = log_file
+        super().__init__(
+            dt=dt,
+            max_krylov_dim=max_krylov_dim,
+            gpu=gpu,
+            krylov_tolerance=krylov_tolerance,
+            interaction_cutoff=interaction_cutoff,
+            log_level=log_level,
+            log_file=log_file,
+            **kwargs,
+        )
 
         self.monkeypatch_observables()
 
