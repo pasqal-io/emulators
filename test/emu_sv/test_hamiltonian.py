@@ -12,7 +12,7 @@ device = "cpu"
 
 
 @pytest.mark.parametrize("N", [3, 5, 7, 8])
-def test_dense_vs_sparse_no_phase(N: int):
+def test_dense_vs_sparse_no_phase(N: int) -> None:
     torch.manual_seed(1337)
     omegas = torch.randn(N)
     deltas = torch.randn(N)
@@ -44,7 +44,7 @@ def test_dense_vs_sparse_no_phase(N: int):
 
 
 @pytest.mark.parametrize("N", [2, 4, 7, 9])
-def test_dense_vs_sparse_with_phase(N: int):
+def test_dense_vs_sparse_with_phase(N: int) -> None:
     torch.manual_seed(1337)
     omegas = torch.randn(N)
     deltas = torch.randn(N)
@@ -75,7 +75,7 @@ def test_dense_vs_sparse_with_phase(N: int):
     assert torch.allclose(res_sparse, res_dense, atol=1e-12)
 
 
-def test_call_sigma_real_complex():
+def test_call_sigma_real_complex() -> None:
     torch.manual_seed(1337)
     N = 2
     omegas = torch.randn(N)

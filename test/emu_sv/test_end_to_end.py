@@ -1,27 +1,25 @@
-from pytest import approx
 import math
-import pulser
 import torch
+from pytest import approx
+from typing import Any
 
-import emu_base.base_classes
-import emu_base.base_classes.default_callbacks
-
-from emu_base.base_classes import (
-    BitStrings,
-    Fidelity,
-    StateResult,
-    QubitDensity,
-    Energy,
-    EnergyVariance,
-    SecondMomentOfEnergy,
-    CorrelationMatrix,
-)
-
-from emu_sv.sv_config import SVConfig, StateVector
-from emu_sv.sv_backend import SVBackend
-
-
+import pulser
 import pulser.noise_model
+
+from emu_sv import (
+    SVBackend,
+    SVConfig,
+    StateVector,
+    CorrelationMatrix,
+    EnergySecondMoment,
+    EnergyVariance,
+    Occupation,
+    BitStrings,
+    Energy,
+    Fidelity,
+    Results,
+    StateResult,
+)
 
 from test.utils_testing import (
     pulser_afm_sequence_ring,
@@ -30,8 +28,6 @@ from test.utils_testing import (
 
 
 seed = 1337
-
-sv_backend = SVBackend()
 
 
 Omega_max = 4 * 2 * torch.pi
@@ -62,24 +58,24 @@ def create_antiferromagnetic_state_vector(
 def simulate(
     seq: pulser.Sequence,
     *,
-    dt=100,
-    noise_model=None,
-    state_prep_error=0.0,
-    p_false_pos=0.0,
-    p_false_neg=0.0,
-    initial_state=None,
-    given_fidelity_state=True,
-    interaction_cutoff=0.0,
-    gpu=True,
-):
-    final_time = seq.get_duration()
+    dt: int = 100,
+    noise_model: Any | None = None,
+    state_prep_error: float = 0,
+    p_false_pos: float = 0,
+    p_false_neg: float = 0,
+    initial_state: Any | None = None,
+    given_fidelity_state: bool = True,
+    interaction_cutoff: float = 0,
+    gpu: bool = True,
+) -> Results:
+    n_qubits = len(seq.register.qubit_ids)
+    if noise_model is None:
+        noise_model = pulser.noise_model.NoiseModel()
 
     if given_fidelity_state:
-        fidelity_state = create_antiferromagnetic_state_vector(
-            len(seq.register.qubit_ids), gpu=gpu
-        )
+        fidelity_state = create_antiferromagnetic_state_vector(n_qubits, gpu=gpu)
     else:
-        fidelity_state = StateVector.make(len(seq.register.qubit_ids))
+        fidelity_state = StateVector.make(n_qubits)  # make |00.0>
 
     if state_prep_error > 0.0 or p_false_pos > 0.0 or p_false_neg > 0.0:
         assert noise_model is None, "Provide either noise_model or SPAM values"
@@ -95,9 +91,7 @@ def simulate(
             p_false_neg=p_false_neg,
         )
 
-    nqubits = len(seq.register.qubit_ids)
-    times = {final_time}
-
+    times = [1.0]
     sv_config = SVConfig(
         initial_state=initial_state,
         dt=dt,
@@ -105,24 +99,33 @@ def simulate(
         observables=[
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=1000),
-            Fidelity(evaluation_times=times, state=fidelity_state),
-            QubitDensity(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
+            Fidelity(evaluation_times=times, state=fidelity_state, tag_suffix="1"),
+            Occupation(evaluation_times=times),
             Energy(evaluation_times=times),
             EnergyVariance(evaluation_times=times),
-            SecondMomentOfEnergy(evaluation_times=times),
-            CorrelationMatrix(evaluation_times=times, basis={"r", "g"}, nqubits=nqubits),
+            EnergySecondMoment(evaluation_times=times),
+            CorrelationMatrix(evaluation_times=times),
         ],
         noise_model=noise_model,
-        interaction_cutoff=interaction_cutoff,
         gpu=gpu,
+        interaction_cutoff=interaction_cutoff,
     )
 
-    result = sv_backend.run(seq, sv_config)
-
+    backend = SVBackend(seq, config=sv_config)
+    result = backend.run()
     return result
 
 
-def test_end_to_end_afm_ring():
+def test_default_SVConfig_ctr() -> None:
+    sv_config = SVConfig()
+    assert len(sv_config.observables) == 1
+    assert isinstance(sv_config.observables[0], StateResult)
+    assert sv_config.observables[0].evaluation_times == [
+        1.0
+    ]  # meaning very end of the simuation
+
+
+def test_end_to_end_afm_ring() -> None:
     torch.manual_seed(seed)
 
     num_qubits = 10
@@ -140,52 +143,48 @@ def test_end_to_end_afm_ring():
         seq, gpu=False
     )  # only run on cpu, bitstring sampling is device dependent
 
-    final_time = seq.get_duration()
-    bitstrings = result["bitstrings"][final_time]
-    final_state = result["state"][final_time]
-    final_fidelity = result[
-        f"fidelity_{emu_base.base_classes.default_callbacks._fidelity_counter}"
-    ][final_time]
+    final_time = -1  # seq.get_duration()
+    bitstrings = result.bitstrings[final_time]
+    final_state = result.state[final_time]
+    final_fidelity = result.fidelity_1[final_time]
 
     fidelity_state = create_antiferromagnetic_state_vector(num_qubits, gpu=False)
 
     assert bitstrings["1010101010"] == 136
     assert bitstrings["0101010101"] == 159
-    assert fidelity_state.inner(final_state) == approx(final_fidelity, abs=1e-10)
+    assert fidelity_state.overlap(final_state) == approx(final_fidelity, abs=1e-10)
 
-    q_density = result["qubit_density"][final_time]
+    occupation = result.occupation[final_time]
 
     assert torch.allclose(
-        torch.tensor([0.578] * 10, dtype=torch.float64), q_density, atol=1e-3
+        torch.tensor([0.578] * 10, dtype=torch.float64), occupation, atol=1e-3
     )
 
-    energy = result["energy"][final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
+    energy = result.energy[final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
     assert approx(energy, 1e-7) == -115.34554479213088
 
-    energy_variance = result["energy_variance"][final_time]  # 45.911110563993134
+    energy_variance = result.energy_variance[final_time]  # 45.911110563993134
     assert approx(energy_variance, 1e-3) == 45.91111056399
 
-    second_moment_energy = result["second_moment_of_energy"][
-        final_time
-    ]  # 13350.505342183847
-    assert approx(second_moment_energy, 1e-6) == 13350.5053421
+    energy_second_moment = result.energy_second_moment[final_time]  # 13350.505342183847
+    assert approx(energy_second_moment, 1e-6) == 13350.5053421
 
 
-def test_end_to_end_pi_half_pulse():
+def test_end_to_end_pi_half_pulse() -> None:
     # π/2 pulse Blackman creates |ψ❭=(|0❭-1j|1❭)/sqrt(2)
     duration = 1000  # ns, so 1 μs
     area = math.pi / 2
     seq = pulser_blackman(duration, area)
     result = simulate(seq, dt=50)
 
-    final_time = seq.get_duration()
-    final_state = result["state"][final_time]
+    final_time = -1
+    final_state = result.state[final_time]
 
     expected = torch.tensor([1, -1j], dtype=torch.complex128) / math.sqrt(2)
     assert torch.allclose(final_state.vector.cpu(), expected, atol=1e-8)
 
 
-def test_end_to_end_pi_half_pulse_with_phase():
+def test_end_to_end_pi_half_pulse_with_phase() -> None:
     # π/2 pulse Blackman creates |ψ❭=(|0❭-1j|1❭)/sqrt(2)
     # with a phase factor exp(-1j*duration*φ) = 1j
     duration = 1000  # ns, so 1 μs
@@ -193,10 +192,34 @@ def test_end_to_end_pi_half_pulse_with_phase():
     phase = math.pi / 2
     seq = pulser_blackman(duration, area, phase=phase)
     result = simulate(seq, dt=50)
-    final_time = seq.get_duration()
+    final_time = -1
 
-    final_state = result["state"][final_time]
+    final_state = result.state[final_time]
     # with the phase we expect |ψ❭=(|0❭+|1❭)/sqrt(2)
     expected = torch.tensor([1, 1], dtype=torch.complex128) / math.sqrt(2)
 
     assert torch.allclose(final_state.vector.cpu(), expected, atol=1e-8)
+
+
+def test_initial_state() -> None:
+    pulse = pulser.Pulse.ConstantAmplitude(
+        0.0, pulser.waveforms.ConstantWaveform(10.0, 0.0), 0.0
+    )
+    reg = pulser.Register.rectangle(5, 1, spacing=1e10, prefix="q")
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(pulse, "ising_global")  # do nothing in the pulse
+
+    state = StateVector.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rrrrr": 1.0}
+    )
+    assert state.norm() == approx(1.0)  # assert unit norm
+
+    state_result = StateResult(evaluation_times=[1.0])
+    config = SVConfig(observables=[state_result], initial_state=state)
+    backend = SVBackend(seq, config=config)
+    results = backend.run()
+    # assert that the initial state was used by the emulator
+    assert results.get_result(state_result, 1.0).inner(state).real == approx(1.0)
+    # but that it's a copy
+    assert results.get_result(state_result, 1.0) is not state

@@ -232,8 +232,8 @@ def test_mps_algebra():
 
 def test_from_string_bell_state():
     afm_string_state = {"rrr": 1.0 / math.sqrt(2), "ggg": 1.0 / math.sqrt(2)}
-    afm_mps_state = MPS.from_state_string(
-        basis=("r", "g"), nqubits=3, strings=afm_string_state
+    afm_mps_state = MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes=afm_string_state
     )
 
     assert get_bitstring_coeff(afm_mps_state, 0b000) == pytest.approx(1.0 / math.sqrt(2))
@@ -248,8 +248,8 @@ def test_from_string_bell_state():
 def test_from_string_not_normalized_state(mock_print, zero, one):
     afm_not_normalized = {one * 3: 1 / math.sqrt(2), zero * 3: 0.1 / math.sqrt(2)}
 
-    afm_mps_state_normalized = MPS.from_state_string(
-        basis=(one, zero), nqubits=3, strings=afm_not_normalized
+    afm_mps_state_normalized = MPS.from_state_amplitudes(
+        eigenstates=(one, zero), amplitudes=afm_not_normalized
     )
 
     assert "The state is not normalized, normalizing it for you" in mock_print.getvalue()
@@ -286,7 +286,7 @@ def test_wrong_basis_string_state():
     afm_string_state = {"rrr": 1.0 / math.sqrt(2), "ggg": 1.0 / math.sqrt(2)}
 
     with pytest.raises(ValueError) as ve:
-        MPS.from_state_string(basis=("0", "r"), nqubits=3, strings=afm_string_state)
+        MPS.from_state_amplitudes(eigenstates=("0", "r"), amplitudes=afm_string_state)
     msg = "Unsupported basis provided"
     assert str(ve.value) == msg
 
@@ -404,17 +404,17 @@ def test_correlation_matrix_random():
     )
 
     def nn(index1, index2):
-        return MPO.from_operator_string(
-            ("r", "g"),
-            qubit_count,
-            [(1.0, [({"rr": 1.0}, list({index1, index2}))])],
+        return MPO.from_operator_repr(
+            eigenstates=("r", "g"),
+            n_qudits=qubit_count,
+            operations=[(1.0, [({"rr": 1.0}, list({index1, index2}))])],
         )
 
     def zz(index1, index2):
-        return MPO.from_operator_string(
-            ("r", "g"),
-            qubit_count,
-            [(1.0, [({"gg": 1.0, "rr": -1.0}, list({index1, index2}))])],
+        return MPO.from_operator_repr(
+            eigenstates=("r", "g"),
+            n_qudits=qubit_count,
+            operations=[(1.0, [({"gg": 1.0, "rr": -1.0}, list({index1, index2}))])],
         )
 
     assert len(correlation_matrix_nn) == len(correlation_matrix_zz) == qubit_count
@@ -423,5 +423,9 @@ def test_correlation_matrix_random():
             len(correlation_matrix_nn[i]) == len(correlation_matrix_zz[i]) == qubit_count
         )
         for j in range(qubit_count):
-            assert correlation_matrix_nn[i][j] == pytest.approx(nn(i, j).expect(state))
-            assert correlation_matrix_zz[i][j] == pytest.approx(zz(i, j).expect(state))
+            assert correlation_matrix_nn[i][j].item() == pytest.approx(
+                nn(i, j).expect(state)
+            )
+            assert correlation_matrix_zz[i][j].item() == pytest.approx(
+                zz(i, j).expect(state)
+            )

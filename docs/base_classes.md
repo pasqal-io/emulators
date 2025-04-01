@@ -1,19 +1,47 @@
-# Base classes
+The base classes below are defined in [pulser](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.html).
+Different backends inherit from and specialize them if needed.
 
 ## Backend
-::: emu_base.base_classes.backend.Backend
+::: pulser.backend.Backend
+    options:
+        show_source: false
 
-## BackendConfig
-::: emu_base.base_classes.config.BackendConfig
+## EmulatorBackend
+::: pulser.backend.EmulatorBackend
+    options:
+        show_source: false
+
+## EmulationConfig
+::: pulser.backend.config.EmulationConfig
+    options:
+        show_source: false
 
 ## Results
-::: emu_base.base_classes.results.Results
+::: pulser.backend.results.Results
+    options:
+        show_source: false
 
 ## State
-::: emu_base.base_classes.state.State
+::: pulser.backend.state.State
+    options:
+        show_source: false
+
+## StateRepr
+::: pulser.backend.state.StateRepr
+    options:
+        show_source: false
 
 ## Operator
-::: emu_base.base_classes.operator.Operator
+::: pulser.backend.operator.Operator
+    options:
+        show_source: false
 
-## Callback
-::: emu_base.base_classes.callback.Callback
+## OperatorRepr
+::: pulser.backend.operator.OperatorRepr
+    options:
+        show_source: false
+
+## Observable
+::: pulser.backend.observable.Observable
+    options:
+        show_source: false

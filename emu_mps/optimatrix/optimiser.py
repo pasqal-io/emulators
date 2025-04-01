@@ -210,9 +210,9 @@ def minimize_bandwidth(input_matrix: np.ndarray, samples: int = 100) -> list[int
     # We are interested in strength of the interaction, not sign
 
     L = input_mat.shape[0]
-    rnd_permutations = itertools.chain(
+    rnd_permutations: itertools.chain[list[int]] = itertools.chain(
         [list(range(L))],  # First element is always the identity list
-        (np.random.permutation(L).tolist() for _ in range(samples)),
+        (np.random.permutation(L).tolist() for _ in range(samples)),  # type: ignore[misc]
     )
 
     opt_permutations_and_opt_bandwidth = (
