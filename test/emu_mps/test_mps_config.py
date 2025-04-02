@@ -103,6 +103,47 @@ def test_serialise_config() -> None:
         assert getattr(deserialized_config, attr) == val, f"{attr} != {val} mismatch"
 
 
+def test_serialise_config_into_EmulationConfig() -> None:
+    # This test is required for the cloud workflow
+    # Arguments are arbitrary just to be != default, no deep meaning behind
+    dt = 1
+    precision = 1e-2
+    max_bond_dim = 10
+    max_krylov_dim = 15
+    extra_krylov_tolerance = 1e-1
+    num_gpus_to_use = 0
+    observables = [BitStrings(evaluation_times=[1.0])]  # to avoid waring
+
+    default_config = EmulationConfig(
+        dt=dt,
+        precision=precision,
+        max_bond_dim=max_bond_dim,
+        max_krylov_dim=max_krylov_dim,
+        extra_krylov_tolerance=extra_krylov_tolerance,
+        num_gpus_to_use=num_gpus_to_use,
+        observables=observables,
+    )
+
+    config_str = default_config.to_abstract_repr()
+    deserialized_config = MPSConfig.from_abstract_repr(config_str)
+
+    values = [
+        dt,
+        precision,
+        max_bond_dim,
+        max_krylov_dim,
+        extra_krylov_tolerance,
+        num_gpus_to_use,
+        observables,
+    ]
+
+    for attr, val in zip(mps_attributes, values):
+        assert getattr(deserialized_config, attr) == getattr(
+            default_config, attr
+        ), f"{attr} mismatch"
+        assert getattr(deserialized_config, attr) == val, f"{attr} != {val} mismatch"
+
+
 def test_default_constructors_for_all_config() -> None:
     # BackendConfig
     msg = (
