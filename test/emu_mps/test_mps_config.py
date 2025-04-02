@@ -1,7 +1,12 @@
-import pulser
 import pytest
+import warnings
+import re
+
+import pulser
 
 from emu_mps.mps_config import MPSConfig
+from pulser.backend.config import EmulationConfig, BackendConfig
+from pulser.backend import BitStrings
 
 import pulser.noise_model
 
@@ -96,3 +101,32 @@ def test_serialise_config() -> None:
             default_config, attr
         ), f"{attr} mismatch"
         assert getattr(deserialized_config, attr) == val, f"{attr} != {val} mismatch"
+
+
+def test_default_constructors_for_all_config() -> None:
+    # BackendConfig
+    msg = (
+        "'BackendConfig' received unexpected keyword arguments: "
+        "{'blabla'}; only the following keyword arguments "
+        "are expected: set(). "
+    )
+    # ^ and $ are for full regex match
+    # re.escape() avoid interpreting message symbols "{}"", "()","."" as regex
+    with pytest.warns(UserWarning, match="^" + re.escape(msg) + "$"):
+        BackendConfig(blabla=10)
+
+    # EmulationConfig No warning
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        EmulationConfig(blabla=10, observables=[BitStrings(evaluation_times=[1.0])])
+        assert not w, "Unexpected warnings: No warning"
+
+    # MPSConfig
+    msg = (
+        "'MPSConfig' received unexpected keyword arguments: "
+        "{'blabla'}; only the following keyword arguments "
+        "are expected:"
+    )
+    # re.escape() avoid interpreting message symbols "{}"", "()","."" as regex
+    with pytest.warns(UserWarning, match="^" + re.escape(msg)):
+        MPSConfig(blabla=10)

@@ -68,7 +68,8 @@ def test_default_constructors_for_all_config() -> None:
     msg = (
         "'BackendConfig' received unexpected keyword arguments: "
         "{'blabla'}; only the following keyword arguments "
-        "are expected: set(). ")
+        "are expected: set(). "
+    )
     # ^ and $ are for full regex match
     # re.escape() avoid interpreting message symbols "{}"", "()","."" as regex
     with pytest.warns(UserWarning, match="^" + re.escape(msg) + "$"):
@@ -77,17 +78,15 @@ def test_default_constructors_for_all_config() -> None:
     # EmulationConfig No warning
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        EmulationConfig(
-            blabla=10,
-            observables=[BitStrings(evaluation_times=[1.0])]
-            )
+        EmulationConfig(blabla=10, observables=[BitStrings(evaluation_times=[1.0])])
         assert not w, "Unexpected warnings: No warning"
 
     # SVConfig
     msg = (
         "'SVConfig' received unexpected keyword arguments: "
         "{'blabla'}; only the following keyword arguments "
-        "are expected:")
+        "are expected:"
+    )
     # re.escape() avoid interpreting message symbols "{}"", "()","."" as regex
     with pytest.warns(UserWarning, match="^" + re.escape(msg)):
         SVConfig(blabla=10)

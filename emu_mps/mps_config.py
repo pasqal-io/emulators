@@ -1,5 +1,6 @@
-from typing import Any
+from typing import Any, ClassVar
 from types import MethodType
+
 import copy
 
 from emu_base import DEVICE_COUNT
@@ -55,6 +56,9 @@ class MPSConfig(EmulationConfig):
         >>> MPSConfig(num_gpus_to_use=num_gpus_to_use, dt=dt, precision=precision,
         >>>     with_modulation=True) #the last arg is taken from the base class
     """
+
+    # Whether to warn if unexpected kwargs are received
+    _enforce_expected_kwargs: ClassVar[bool] = True
 
     def __init__(
         self,
@@ -132,6 +136,11 @@ class MPSConfig(EmulationConfig):
             "max_krylov_dim",
             "extra_krylov_tolerance",
             "num_gpus_to_use",
+            "interaction_cutoff",
+            "log_level",
+            "log_file",
+            "autosave_prefix",
+            "autosave_dt",
         }
 
     def monkeypatch_observables(self) -> None:
