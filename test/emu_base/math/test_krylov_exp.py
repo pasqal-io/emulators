@@ -190,38 +190,18 @@ def test_converged_non_hermitian_non_normalized():
 
 def test_krylov_with_matrix():
 
-    def op(x):
-        # pi/2 sigma_x
-        A = 3.14159 / 2 * torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
-        return A @ x
-
-    M = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=dtype)
-
-    result = krylov_exp_to_matrix(
-        op,
-        M,
-        exp_tolerance=1e-6,
-        norm_tolerance=1e-6,
-        is_hermitian=False,
-        max_krylov_dim=100,
-    )
-
-    A = 3.14159 / 2 * torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
-    expected = torch.linalg.matrix_exp(A) @ M
-
-    assert torch.allclose(result, expected)
-
-    Ident = torch.eye(2, 2, dtype=dtype)
-    sigma_x = torch.tensor([[0.0, 1.0], [1.0, 0.0]])
+    Ident = torch.eye(2, dtype=dtype)
+    sigma_x = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
+    sigma_y = torch.tensor([[0.0, -1.0j], [1.0j, 0.0]], dtype=dtype)
 
     def op(x):
-        # pi/2 sigma_x
-        A = (
+        # pi/2 sigma_x x I +  pi/2  I x sigma_y
+        H = (
             3.14159 / 2 * torch.kron(sigma_x, Ident)
             + 3.14159 / 2
-            + torch.kron(Ident, sigma_x)
+            + torch.kron(Ident, sigma_y)
         )
-        return A @ x
+        return H @ x
 
     M = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=dtype)
 
@@ -235,12 +215,12 @@ def test_krylov_with_matrix():
         max_krylov_dim=100,
     )
 
-    A = (
+    H = (
         3.14159 / 2 * torch.kron(sigma_x, Ident)
         + 3.14159 / 2
-        + torch.kron(Ident, sigma_x)
+        + torch.kron(Ident, sigma_y)
     )
-    expected = torch.linalg.matrix_exp(A) @ MxM
+    expected = torch.linalg.matrix_exp(H) @ MxM
 
     assert torch.allclose(result, expected)
 
