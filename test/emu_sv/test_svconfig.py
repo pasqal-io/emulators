@@ -1,6 +1,7 @@
 import pytest
 import warnings
 import re
+import logging
 
 from emu_sv import SVConfig
 from pulser.backend.config import EmulationConfig, BackendConfig
@@ -8,12 +9,16 @@ from pulser.backend import BitStrings
 
 # copypaste sv_config.py specific attributes
 # attributes from SVConfig._expected_kwargs
-sv_attributes = [
-    "dt",
-    "max_krylov_dim",
-    "gpu",
-    "krylov_tolerance",
-]
+# Arguments are arbitrary just to be != default, no deep meaning behind
+sv_params = {
+    "dt": 1,
+    "max_krylov_dim": 15,
+    "krylov_tolerance": 1e-1,
+    "gpu": False,
+    "interaction_cutoff": 1.1,
+    "log_level": logging.ERROR,
+    "log_file": None,
+}
 
 
 def test_default_SVConfig_ctr() -> None:
@@ -25,74 +30,43 @@ def test_default_SVConfig_ctr() -> None:
     ]  # meaning very end of the simuation
 
 
-def test_serialise_default_config() -> None:
+def test_default_config_repr() -> None:
     default_config = SVConfig()
     config_str = default_config.to_abstract_repr()
-
     deserialized_config = SVConfig.from_abstract_repr(config_str)
 
-    for attr in sv_attributes:
+    for attr, _ in sv_params.items():
         assert getattr(deserialized_config, attr) == getattr(
             default_config, attr
         ), f"{attr} mismatch"
 
 
-def test_serialise_config() -> None:
-    # Arguments are arbitrary just to be != default, no deep meaning behind
-    dt = 1
-    max_krylov_dim = 10
-    gpu = False
-    krylov_tolerance = 1e-5
-
-    default_config = SVConfig(
-        dt=dt,
-        max_krylov_dim=max_krylov_dim,
-        gpu=gpu,
-        krylov_tolerance=krylov_tolerance,
-    )
-
-    config_str = default_config.to_abstract_repr()
-    deserialized_config = SVConfig.from_abstract_repr(config_str)
-
-    values = [dt, max_krylov_dim, gpu, krylov_tolerance]
-
-    for attr, val in zip(sv_attributes, values):
-        assert getattr(deserialized_config, attr) == getattr(
-            default_config, attr
-        ), f"{attr} mismatch"
-        assert getattr(deserialized_config, attr) == val, f"{attr} != {val} mismatch"
-
-
-def test_serialise_EmulationConfig_into_SVCсonfig() -> None:
+@pytest.mark.parametrize(
+    "config_var",
+    [
+        (EmulationConfig),
+        (SVConfig),
+    ],
+)
+def test_config_repr(config_var: EmulationConfig | SVConfig) -> None:
     # This test is required for the cloud workflow
-    # Arguments are arbitrary just to be != default, no deep meaning behind
-    dt = 1
-    max_krylov_dim = 10
-    gpu = False
-    krylov_tolerance = 1e-5
     observables = [BitStrings(evaluation_times=[1.0])]  # to avoid waring
-
-    default_config = EmulationConfig(
-        dt=dt,
-        max_krylov_dim=max_krylov_dim,
-        gpu=gpu,
-        krylov_tolerance=krylov_tolerance,
+    default_config = config_var(
+        **sv_params,
         observables=observables,
     )
 
     config_str = default_config.to_abstract_repr()
     deserialized_config = SVConfig.from_abstract_repr(config_str)
 
-    values = [dt, max_krylov_dim, gpu, krylov_tolerance, observables]
-
-    for attr, val in zip(sv_attributes, values):
+    for attr, val in sv_params.items():
         assert getattr(deserialized_config, attr) == getattr(
             default_config, attr
         ), f"{attr} mismatch"
         assert getattr(deserialized_config, attr) == val, f"{attr} != {val} mismatch"
 
 
-def test_default_constructors_for_all_config() -> None:
+def test_expected_kwargs() -> None:
     # BackendConfig
     msg = (
         "'BackendConfig' received unexpected keyword arguments: "

@@ -132,7 +132,7 @@ class SVConfig(EmulationConfig):
             obs_list.append(obs_copy)
         self.observables = tuple(obs_list)
 
-    def init_logging(self) -> Any:
+    def init_logging(self) -> None:
         if self.log_file is None:
             logging.basicConfig(
                 level=self.log_level, format="%(message)s", stream=sys.stdout, force=True
