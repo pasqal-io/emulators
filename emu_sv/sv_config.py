@@ -3,7 +3,7 @@ import logging
 import pathlib
 import sys
 from types import MethodType
-from typing import Any
+from typing import Any, ClassVar
 
 from emu_sv.custom_callback_implementations import (
     correlation_matrix_sv_impl,
@@ -46,6 +46,9 @@ class SVConfig(EmulationConfig):
         >>> SVConfig(gpu=gpu, dt=dt, krylov_tolerance=krylov_tolerance,
         >>>     with_modulation=True) #the last arg is taken from the base class
     """
+
+    # Whether to warn if unexpected kwargs are received
+    _enforce_expected_kwargs: ClassVar[bool] = True
 
     def __init__(
         self,
@@ -91,7 +94,8 @@ class SVConfig(EmulationConfig):
             and self.noise_model.samples_per_run is not None
         ):
             self.logger.warning(
-                "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
+                "Warning: The runs and samples_per_run "
+                "values of the NoiseModel are ignored!"
             )
 
     def _expected_kwargs(self) -> set[str]:
@@ -100,6 +104,9 @@ class SVConfig(EmulationConfig):
             "max_krylov_dim",
             "krylov_tolerance",
             "gpu",
+            "interaction_cutoff",
+            "log_level",
+            "log_file",
         }
 
     def monkeypatch_observables(self) -> None:
