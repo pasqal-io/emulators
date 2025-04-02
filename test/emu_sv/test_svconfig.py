@@ -63,7 +63,7 @@ def test_serialise_config() -> None:
         assert getattr(deserialized_config, attr) == val, f"{attr} != {val} mismatch"
 
 
-def test_serialise_config_into_EmulationConfig() -> None:
+def test_serialise_EmulationConfig_into_SVCсonfig() -> None:
     # This test is required for the cloud workflow
     # Arguments are arbitrary just to be != default, no deep meaning behind
     dt = 1
