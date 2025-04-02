@@ -193,19 +193,16 @@ def test_krylov_with_matrix():
     Ident = torch.eye(2, dtype=dtype)
     sigma_x = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
     sigma_y = torch.tensor([[0.0, -1.0j], [1.0j, 0.0]], dtype=dtype)
+    # pi/2 sigma_x x I +  pi/4  I x sigma_y
+    const = 3.14159 / 2
+    H = const * torch.kron(sigma_x, Ident) + 1.5 * const + torch.kron(Ident, sigma_y)
 
     def op(x):
-        # pi/2 sigma_x x I +  pi/2  I x sigma_y
-        H = (
-            3.14159 / 2 * torch.kron(sigma_x, Ident)
-            + 3.14159 / 2
-            + torch.kron(Ident, sigma_y)
-        )
         return H @ x
 
     M = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=dtype)
+    MxM = torch.kron(M, M)  # matrix to evolve
 
-    MxM = torch.kron(M, M)
     result = krylov_exp_to_matrix(
         op,
         MxM,
@@ -213,12 +210,6 @@ def test_krylov_with_matrix():
         norm_tolerance=1e-6,
         is_hermitian=False,
         max_krylov_dim=100,
-    )
-
-    H = (
-        3.14159 / 2 * torch.kron(sigma_x, Ident)
-        + 3.14159 / 2
-        + torch.kron(Ident, sigma_y)
     )
     expected = torch.linalg.matrix_exp(H) @ MxM
 
