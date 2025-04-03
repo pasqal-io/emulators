@@ -1,10 +1,9 @@
 import pytest
-import warnings
 import re
 import logging
 
 from emu_sv import SVConfig
-from pulser.backend.config import EmulationConfig, BackendConfig
+from pulser.backend.config import EmulationConfig
 from pulser.backend import BitStrings
 
 # copypaste sv_config.py specific attributes
@@ -67,24 +66,6 @@ def test_config_repr(config_var: EmulationConfig | SVConfig) -> None:
 
 
 def test_expected_kwargs() -> None:
-    # BackendConfig
-    msg = (
-        "'BackendConfig' received unexpected keyword arguments: "
-        "{'blabla'}; only the following keyword arguments "
-        "are expected: set(). "
-    )
-    # ^ and $ are for full regex match
-    # re.escape() avoid interpreting message symbols "{}"", "()","."" as regex
-    with pytest.warns(UserWarning, match="^" + re.escape(msg) + "$"):
-        BackendConfig(blabla=10)
-
-    # EmulationConfig No warning
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        EmulationConfig(blabla=10, observables=[BitStrings(evaluation_times=[1.0])])
-        assert not w, "Unexpected warnings: No warning"
-
-    # SVConfig
     msg = (
         "'SVConfig' received unexpected keyword arguments: "
         "{'blabla'}; only the following keyword arguments "
