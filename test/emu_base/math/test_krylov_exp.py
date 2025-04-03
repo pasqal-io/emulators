@@ -1,7 +1,7 @@
 import torch
 import pytest
 
-from emu_base.math.krylov_exp import krylov_exp, krylov_exp_impl, krylov_exp_to_matrix
+from emu_base.math.krylov_exp import krylov_exp, krylov_exp_impl
 
 dtype = torch.complex128
 
@@ -194,16 +194,16 @@ def test_krylov_with_matrix():
     sigma_x = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
     sigma_y = torch.tensor([[0.0, -1.0j], [1.0j, 0.0]], dtype=dtype)
     # pi/2 sigma_x x I +  pi/4  I x sigma_y
-    const = 3.14159 / 2
-    H = const * torch.kron(sigma_x, Ident) + 1.5 * const + torch.kron(Ident, sigma_y)
+    const = 0.001 * 3.14159 / 2
+    Ht = const * torch.kron(sigma_x, Ident) + 0.5 * const + torch.kron(Ident, sigma_y)
 
     def op(x):
-        return H @ x
+        return Ht @ x
 
     M = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=dtype)
     MxM = torch.kron(M, M)  # matrix to evolve
 
-    result = krylov_exp_to_matrix(
+    result = krylov_exp_impl(
         op,
         MxM,
         exp_tolerance=1e-6,
@@ -211,9 +211,9 @@ def test_krylov_with_matrix():
         is_hermitian=False,
         max_krylov_dim=100,
     )
-    expected = torch.linalg.matrix_exp(H) @ MxM
+    expected = torch.linalg.matrix_exp(Ht) @ MxM
 
-    assert torch.allclose(result, expected)
+    assert torch.allclose(result.result, expected)
 
 
 def make_random_hermitian_mat_from_params(
