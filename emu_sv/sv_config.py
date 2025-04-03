@@ -3,7 +3,7 @@ import logging
 import pathlib
 import sys
 from types import MethodType
-from typing import Any
+from typing import Any, ClassVar
 
 from emu_sv.custom_callback_implementations import (
     correlation_matrix_sv_impl,
@@ -18,7 +18,7 @@ from pulser.backend import (
     EnergySecondMoment,
     EnergyVariance,
     Occupation,
-    StateResult,
+    BitStrings,
 )
 
 
@@ -47,6 +47,9 @@ class SVConfig(EmulationConfig):
         >>>     with_modulation=True) #the last arg is taken from the base class
     """
 
+    # Whether to warn if unexpected kwargs are received
+    _enforce_expected_kwargs: ClassVar[bool] = True
+
     def __init__(
         self,
         *,
@@ -59,15 +62,17 @@ class SVConfig(EmulationConfig):
         log_file: pathlib.Path | None = None,
         **kwargs: Any,
     ):
-        kwargs.setdefault("observables", [StateResult(evaluation_times=[1.0])])
-        super().__init__(**kwargs)
-        self._backend_options["dt"] = dt
-        self._backend_options["max_krylov_dim"] = max_krylov_dim
-        self._backend_options["gpu"] = gpu
-        self._backend_options["krylov_tolerance"] = krylov_tolerance
-        self._backend_options["interaction_cutoff"] = interaction_cutoff
-        self._backend_options["log_level"] = log_level
-        self._backend_options["log_file"] = log_file
+        kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
+        super().__init__(
+            dt=dt,
+            max_krylov_dim=max_krylov_dim,
+            gpu=gpu,
+            krylov_tolerance=krylov_tolerance,
+            interaction_cutoff=interaction_cutoff,
+            log_level=log_level,
+            log_file=log_file,
+            **kwargs,
+        )
 
         self.monkeypatch_observables()
 
@@ -89,7 +94,8 @@ class SVConfig(EmulationConfig):
             and self.noise_model.samples_per_run is not None
         ):
             self.logger.warning(
-                "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
+                "Warning: The runs and samples_per_run "
+                "values of the NoiseModel are ignored!"
             )
 
     def _expected_kwargs(self) -> set[str]:
@@ -98,6 +104,9 @@ class SVConfig(EmulationConfig):
             "max_krylov_dim",
             "krylov_tolerance",
             "gpu",
+            "interaction_cutoff",
+            "log_level",
+            "log_file",
         }
 
     def monkeypatch_observables(self) -> None:
