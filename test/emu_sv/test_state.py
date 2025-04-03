@@ -2,6 +2,7 @@ import pytest
 import torch
 import math
 from emu_sv import StateVector, inner
+from emu_sv.utils import index_to_bitstring
 
 pi = torch.tensor(math.pi)
 factor = 1.0 / torch.sqrt(torch.tensor(2.0))
@@ -10,6 +11,8 @@ seed = 1337
 dtype = torch.complex128
 device = "cpu"
 # device= "cuda"
+
+gpu = False if device == "cpu" else True
 
 
 def test_creating_state() -> None:
@@ -83,22 +86,22 @@ def test_index_to_bitstring() -> None:
     tensor = torch.tensor([1] * 2**nqubits, dtype=dtype)
     state = StateVector(tensor)
     state._normalize()
-    state._index_to_bitstring(0)
 
-    assert "000" == state._index_to_bitstring(0)
-    assert "001" == state._index_to_bitstring(1)
-    assert "010" == state._index_to_bitstring(2)
-    assert "111" == state._index_to_bitstring(7)
+    assert "000" == index_to_bitstring(state.n_qudits, 0)
+    assert "001" == index_to_bitstring(state.n_qudits, 1)
+    assert "010" == index_to_bitstring(state.n_qudits, 2)
+    assert "111" == index_to_bitstring(state.n_qudits, 7)
 
     indx = 8  # 8 is above Hilbert space of 3 qubits
     with pytest.raises(AssertionError) as msg:
-        state._index_to_bitstring(indx)
+        index_to_bitstring(state.n_qudits, indx)
     assert (
         str(msg.value) == f"index {indx} can not exceed Hilbert space size d**{nqubits}"
     )
 
 
 def test_sample() -> None:
+
     torch.manual_seed(seed)
 
     tensor = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
@@ -116,6 +119,7 @@ def test_from_amplitudes() -> None:
         amplitudes={"rr": 1.0, "gg": 1.0},
     )
     expected_state = StateVector(torch.tensor([factor, 0, 0, factor], dtype=dtype))
+
     result = state.overlap(expected_state)
     assert math.isclose(result.real, 1.0, rel_tol=1e-5)
     assert math.isclose(result.imag, 0.0, rel_tol=1e-5)

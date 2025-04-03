@@ -1,5 +1,6 @@
-from typing import Any
+from typing import Any, ClassVar
 from types import MethodType
+
 import copy
 
 from emu_base import DEVICE_COUNT
@@ -16,7 +17,7 @@ from pulser.backend import (
     Energy,
     EnergySecondMoment,
     EnergyVariance,
-    StateResult,
+    BitStrings,
     EmulationConfig,
 )
 import logging
@@ -26,7 +27,7 @@ import sys
 
 class MPSConfig(EmulationConfig):
     """
-    The configuration of the emu-ct MPSBackend. The kwargs passed to this class
+    The configuration of the emu-mps MPSBackend. The kwargs passed to this class
     are passed on to the base class.
     See the API for that class for a list of available options.
 
@@ -56,6 +57,9 @@ class MPSConfig(EmulationConfig):
         >>>     with_modulation=True) #the last arg is taken from the base class
     """
 
+    # Whether to warn if unexpected kwargs are received
+    _enforce_expected_kwargs: ClassVar[bool] = True
+
     def __init__(
         self,
         *,
@@ -72,19 +76,21 @@ class MPSConfig(EmulationConfig):
         autosave_dt: int = 600,  # 10 minutes
         **kwargs: Any,
     ):
-        kwargs.setdefault("observables", [StateResult(evaluation_times=[1.0])])
-        super().__init__(**kwargs)
-        self._backend_options["dt"] = dt
-        self._backend_options["precision"] = precision
-        self._backend_options["max_bond_dim"] = max_bond_dim
-        self._backend_options["max_krylov_dim"] = max_krylov_dim
-        self._backend_options["extra_krylov_tolerance"] = extra_krylov_tolerance
-        self._backend_options["num_gpus_to_use"] = num_gpus_to_use
-        self._backend_options["interaction_cutoff"] = interaction_cutoff
-        self._backend_options["log_level"] = log_level
-        self._backend_options["log_file"] = log_file
-        self._backend_options["autosave_prefix"] = autosave_prefix
-        self._backend_options["autosave_dt"] = autosave_dt
+        kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
+        super().__init__(
+            dt=dt,
+            precision=precision,
+            max_bond_dim=max_bond_dim,
+            max_krylov_dim=max_krylov_dim,
+            extra_krylov_tolerance=extra_krylov_tolerance,
+            num_gpus_to_use=num_gpus_to_use,
+            interaction_cutoff=interaction_cutoff,
+            log_level=log_level,
+            log_file=log_file,
+            autosave_prefix=autosave_prefix,
+            autosave_dt=autosave_dt,
+            **kwargs,
+        )
 
         if "doppler" in self.noise_model.noise_types:
             raise NotImplementedError("Unsupported noise type: doppler")
@@ -114,19 +120,32 @@ class MPSConfig(EmulationConfig):
                 filemode="w",
                 force=True,
             )
-        if (
-            self.noise_model.runs != 1
-            or self.noise_model.samples_per_run != 1
-            or self.noise_model.runs is not None
-            or self.noise_model.samples_per_run is not None
+        if (self.noise_model.runs != 1 and self.noise_model.runs is not None) or (
+            self.noise_model.samples_per_run != 1
+            and self.noise_model.samples_per_run is not None
         ):
             self.logger.warning(
                 "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
             )
 
+    def _expected_kwargs(self) -> set[str]:
+        return super()._expected_kwargs() | {
+            "dt",
+            "precision",
+            "max_bond_dim",
+            "max_krylov_dim",
+            "extra_krylov_tolerance",
+            "num_gpus_to_use",
+            "interaction_cutoff",
+            "log_level",
+            "log_file",
+            "autosave_prefix",
+            "autosave_dt",
+        }
+
     def monkeypatch_observables(self) -> None:
         obs_list = []
-        for num, obs in enumerate(self.observables):  # monkey patch
+        for _, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
             if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
