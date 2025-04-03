@@ -203,7 +203,7 @@ def test_krylov_with_matrix():
     M = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=dtype)
     MxM = torch.kron(M, M)  # matrix to evolve
 
-    result = krylov_exp_impl(
+    result = krylov_exp(
         op,
         MxM,
         exp_tolerance=1e-6,
@@ -213,7 +213,7 @@ def test_krylov_with_matrix():
     )
     expected = torch.linalg.matrix_exp(Ht) @ MxM
 
-    assert torch.allclose(result.result, expected)
+    assert torch.allclose(result, expected)
 
 
 def make_random_hermitian_mat_from_params(
