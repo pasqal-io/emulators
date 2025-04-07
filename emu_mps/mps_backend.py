@@ -1,11 +1,13 @@
-from pulser.backend import EmulatorBackend, Results
-from emu_mps.mps_config import MPSConfig
-from emu_mps.mps_backend_impl import create_impl, MPSBackendImpl
-import pickle
-import os
-import time
 import logging
+import os
 import pathlib
+import pickle
+import time
+
+from pulser.backend import EmulatorBackend, Results
+
+from emu_mps.mps_backend_impl import MPSBackendImpl, create_impl
+from emu_mps.mps_config import MPSConfig
 
 
 class MPSBackend(EmulatorBackend):
@@ -54,8 +56,12 @@ class MPSBackend(EmulatorBackend):
 
         impl = create_impl(self._sequence, self._config)
         impl.init()  # This is separate from the constructor for testing purposes.
+        results = self._run(impl)
 
-        return self._run(impl)
+
+        
+
+        return results
 
     @staticmethod
     def _run(impl: MPSBackendImpl) -> Results:

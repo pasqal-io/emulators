@@ -33,6 +33,9 @@ from emu_mps.utils import (
     get_extended_site_index,
     new_left_bath,
 )
+
+import emu_mps.optimatrix as optimatrix
+
 from enum import Enum, auto
 
 
@@ -118,8 +121,10 @@ class MPSBackendImpl:
         self.timestep_count: int = self.omega.shape[0]
         self.has_lindblad_noise = pulser_data.has_lindblad_noise
         self.lindblad_noise = torch.zeros(2, 2, dtype=torch.complex128)
-        self.full_interaction_matrix = pulser_data.full_interaction_matrix
-        self.masked_interaction_matrix = pulser_data.masked_interaction_matrix
+        self._optimise_interaction_matrix(
+            pulser_data.full_interaction_matrix,
+            pulser_data.masked_interaction_matrix,
+            True)
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.slm_end_time = pulser_data.slm_end_time
         self.is_masked = self.slm_end_time > 0.0
@@ -164,6 +169,27 @@ class MPSBackendImpl:
     @staticmethod
     def _get_autosave_filepath(autosave_prefix: str) -> pathlib.Path:
         return pathlib.Path(os.getcwd()) / (autosave_prefix + str(uuid.uuid1()) + ".dat")
+
+    def _optimise_interaction_matrix(
+            self,
+            f_mat: torch.Tensor,
+            m_mat: torch.Tensor,
+            optimise: bool = True
+            ) -> None:
+        if not optimise:
+            self.full_interaction_matrix = f_mat
+            self.masked_interaction_matrix = m_mat
+            return
+
+        f_mat_numpy = f_mat.numpy()
+        m_mat_numpy = m_mat.numpy()
+        self.opt_perm = optimatrix.minimize_bandwidth(f_mat_numpy)
+
+        f_mat_numpy = optimatrix.permute_matrix(f_mat_numpy, self.opt_perm)
+        m_mat_numpy = optimatrix.permute_matrix(m_mat_numpy, self.opt_perm)
+
+        self.full_interaction_matrix = torch.tensor(f_mat_numpy)
+        self.masked_interaction_matrix = torch.tensor(m_mat_numpy)
 
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
