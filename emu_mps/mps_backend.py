@@ -3,11 +3,15 @@ import os
 import pathlib
 import pickle
 import time
+from collections import Counter
 
 from pulser.backend import EmulatorBackend, Results
 
 from emu_mps.mps_backend_impl import MPSBackendImpl, create_impl
 from emu_mps.mps_config import MPSConfig
+import emu_mps.optimatrix as opmat
+
+from pulser.backend import BitStrings, Fidelity, Occupation, CorrelationMatrix
 
 
 class MPSBackend(EmulatorBackend):
@@ -57,9 +61,23 @@ class MPSBackend(EmulatorBackend):
         impl = create_impl(self._sequence, self._config)
         impl.init()  # This is separate from the constructor for testing purposes.
         results = self._run(impl)
+        if not self._config.optimise_interaction_matrix:
+            return results
 
 
-        
+        inv_perm = opmat.invert_permutation(impl.opt_perm)
+        #uuid_occup = results._find_uuid("occupation")
+        #uuid_occup = results._find_uuid("correlation_matrix")
+        uuid_bitstrings = results._find_uuid("bitstrings")
+
+        counter_time_slices = results._results[uuid_bitstrings]
+        for t in range(len(counter_time_slices)):
+            old_time_slice = counter_time_slices[t]
+
+            new_time_slice = Counter({
+                opmat.permute_string(bstr, inv_perm): c for bstr, c in old_time_slice.items()
+                })
+            counter_time_slices[t] = new_time_slice
 
         return results
 

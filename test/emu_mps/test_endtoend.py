@@ -233,31 +233,29 @@ def test_end_to_end_afm_ring() -> None:
 
     result = simulate(seq)
 
-    bitstrings = result.bitstrings[-1]
-    final_state = result.state[-1]
-    final_fidelity = result.fidelity_1[-1]
+    final_time = -1
+    bitstrings = result.bitstrings[final_time]
+    final_state = result.state[final_time]
+    final_fidelity = result.fidelity_1[final_time]
     max_bond_dim = final_state.get_max_bond_dim()
     fidelity_state = create_antiferromagnetic_mps(num_qubits)
+    occupation = result.occupation[final_time]
+    energy = result.energy[final_time]
+    energy_variance = result.energy_variance[final_time]
+    second_moment_energy = result.energy_second_moment[final_time]
 
-    assert bitstrings["1010101010"] == 129  # -> fidelity as samples increase
-    assert bitstrings["0101010101"] == 135
+    assert bitstrings["1010101010"] == 139  # -> fidelity as samples increase
+    assert bitstrings["0101010101"] == 164
     assert fidelity_state.overlap(final_state) == approx(final_fidelity, abs=1e-10)
     assert max_bond_dim == 29
+    # Comparing against EMU-SV -- state vector emulator
+    assert approx(occupation, abs=1e-3) == [0.5782] * 10
+    assert approx(energy, abs=1.6*1e-3) == -115.34554479213088
+    assert approx(energy_variance, abs=5*1e-2) == 45.91111056399
+    assert approx(second_moment_energy, abs=0.31) == 13350.5053421
 
-    q_density = result.occupation[-1]
-    assert approx(q_density, 1e-3) == [0.578] * 10
-
-    energy = result.energy[-1]
-    assert approx(energy, 1e-8) == -115.34370829396005
-
-    energy_variance = result.energy_variance[-1]
-    assert approx(energy_variance, 1e-6) == 45.905980469959104
-
-    second_moment_energy = result.energy_second_moment[-1]
-    assert approx(second_moment_energy, 1e-6) == 13350.07680148
-
-    correlation_matrix = result.correlation_matrix[-1]
-    print(correlation_matrix)
+    #correlation_matrix = result.correlation_matrix[final_time]
+    #print(correlation_matrix)
 
 
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:

@@ -124,7 +124,7 @@ class MPSBackendImpl:
         self._optimise_interaction_matrix(
             pulser_data.full_interaction_matrix,
             pulser_data.masked_interaction_matrix,
-            True)
+            mps_config.optimise_interaction_matrix)
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.slm_end_time = pulser_data.slm_end_time
         self.is_masked = self.slm_end_time > 0.0

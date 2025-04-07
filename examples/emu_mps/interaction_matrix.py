@@ -6,7 +6,7 @@ from pulser.devices import AnalogDevice
 
 
 # emu_mps backend, confing and observables
-from emu_mps import MPS, MPSConfig, MPSBackend, StateResult, BitStrings, Fidelity
+from emu_mps import MPS, MPSConfig, MPSBackend, StateResult, BitStrings, Fidelity, Occupation, CorrelationMatrix
 
 # interaction matrix for 5 atoms
 interaction_matrix = [
@@ -91,11 +91,13 @@ fidelity_another_state = Fidelity(
     evaluation_times=times, state=another_afm_mps, tag_suffix="bell_afm"
 )  # fidelity number 2
 
+occup = Occupation(evaluation_times=times)
+corr = CorrelationMatrix(evaluation_times=times)
 
 # we give the configuration of the backend and the observables
 mpsconfig = MPSConfig(
     dt=dt,
-    observables=[bitstrings, fidelity, fidelity_another_state],
+    observables=[bitstrings, fidelity, fidelity_another_state, occup, corr],
     interaction_matrix=interaction_matrix,
 )
 
