@@ -103,7 +103,7 @@ def test_id_large():
     )
 
 
-def test_happy_breakdown():
+def test_happy_breakdown() -> None:
     m = torch.diag(torch.tensor([1.0, 2.0, 3.0, 3.0, 3.0], dtype=dtype))
     v = torch.ones(5, 1).to(dtype)
 
@@ -150,7 +150,7 @@ def test_converged():
     )
 
 
-def test_converged_non_hermitian():
+def test_converged_non_hermitian() -> None:
     torch.random.manual_seed(1234)
 
     dim = 1000
@@ -192,7 +192,7 @@ def test_krylov_with_matrix():
 
     torch.random.manual_seed(1211)
 
-    n_atoms = 7
+    n_atoms = 8  # do not change this value and let is_hermitian be False
     random_matrix = torch.rand(2**n_atoms, 2**n_atoms, dtype=dtype)  # random operator
 
     def op(x):
@@ -205,7 +205,7 @@ def test_krylov_with_matrix():
         MxM,
         exp_tolerance=1e-6,
         norm_tolerance=1e-6,
-        is_hermitian=True,
+        is_hermitian=False,
         max_krylov_dim=100,
     )
     expected = torch.linalg.matrix_exp(random_matrix) @ MxM
