@@ -190,28 +190,25 @@ def test_converged_non_hermitian_non_normalized():
 
 def test_krylov_with_matrix():
 
-    Ident = torch.eye(2, dtype=dtype)
-    sigma_x = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
-    sigma_y = torch.tensor([[0.0, -1.0j], [1.0j, 0.0]], dtype=dtype)
-    # pi/2 sigma_x x I +  pi/4  I x sigma_y
-    const = 0.001 * 3.14159 / 2
-    Ht = const * torch.kron(sigma_x, Ident) + 0.5 * const + torch.kron(Ident, sigma_y)
+    torch.random.manual_seed(1211)
+
+    n_atoms = 7
+    random_matrix = torch.rand(2**n_atoms, 2**n_atoms, dtype=dtype)  # random operator
 
     def op(x):
-        return Ht @ x
+        return random_matrix @ x
 
-    M = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=dtype)
-    MxM = torch.kron(M, M)  # matrix to evolve
+    MxM = torch.rand(2**n_atoms, 2**n_atoms, dtype=dtype)  # matrix to be evolved
 
     result = krylov_exp(
         op,
         MxM,
         exp_tolerance=1e-6,
         norm_tolerance=1e-6,
-        is_hermitian=False,
+        is_hermitian=True,
         max_krylov_dim=100,
     )
-    expected = torch.linalg.matrix_exp(Ht) @ MxM
+    expected = torch.linalg.matrix_exp(random_matrix) @ MxM
 
     assert torch.allclose(result, expected)
 
