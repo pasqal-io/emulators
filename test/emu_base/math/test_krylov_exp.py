@@ -194,6 +194,7 @@ def test_krylov_with_matrix():
 
     n_atoms = 8  # do not change this value and let is_hermitian be False
     random_matrix = torch.rand(2**n_atoms, 2**n_atoms, dtype=dtype)  # random operator
+    random_matrix = random_matrix / random_matrix.norm()
 
     def op(x):
         return random_matrix @ x
