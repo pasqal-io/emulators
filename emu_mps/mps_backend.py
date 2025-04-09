@@ -12,6 +12,7 @@ from emu_mps.mps_config import MPSConfig
 import emu_mps.optimatrix as opmat
 
 from pulser.backend import BitStrings, Fidelity, Occupation, CorrelationMatrix
+import torch
 
 
 class MPSBackend(EmulatorBackend):
@@ -66,18 +67,36 @@ class MPSBackend(EmulatorBackend):
 
 
         inv_perm = opmat.invert_permutation(impl.opt_perm)
-        #uuid_occup = results._find_uuid("occupation")
-        #uuid_occup = results._find_uuid("correlation_matrix")
-        uuid_bitstrings = results._find_uuid("bitstrings")
+        
 
+        #if key exists 
+        uuid_bitstrings = results._find_uuid("bitstrings")
         counter_time_slices = results._results[uuid_bitstrings]
         for t in range(len(counter_time_slices)):
             old_time_slice = counter_time_slices[t]
-
             new_time_slice = Counter({
                 opmat.permute_string(bstr, inv_perm): c for bstr, c in old_time_slice.items()
                 })
             counter_time_slices[t] = new_time_slice
+
+
+        uuid_occup = results._find_uuid("occupation")
+        occup_time_slices = results._results[uuid_occup]
+        for t in range(len(occup_time_slices)):
+            old_time_slice = occup_time_slices[t]
+            new_time_slice = old_time_slice.tolist()
+            new_time_slice = opmat.permute_list(new_time_slice, inv_perm)
+            occup_time_slices[t] = torch.tensor(new_time_slice)
+
+
+        uuid_corr_mat = results._find_uuid("correlation_matrix")
+        corr_time_slices = results._results[uuid_corr_mat]
+        for t in range(len(corr_time_slices)):
+            old_time_slice = corr_time_slices[t]
+            new_time_slice = old_time_slice.numpy()
+            new_time_slice = opmat.permute_matrix(new_time_slice, inv_perm)
+            corr_time_slices[t] = torch.tensor(new_time_slice)
+
 
         return results
 

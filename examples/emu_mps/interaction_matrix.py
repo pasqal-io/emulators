@@ -57,7 +57,7 @@ seq.add(fall, "ising_global")
 dt = 100  # time step for discretization, by the default: dt =10
 
 # information for the observables
-times = [1.0]  # final step for an observable to be measure
+times = [0.5, 1.0]  # final step for an observable to be measure
 
 # As an example, we are going to create an antiferromagnetic (afm) state (mps) and
 # a suporpostion of afm states in order to calculate the
@@ -99,6 +99,7 @@ mpsconfig = MPSConfig(
     dt=dt,
     observables=[bitstrings, fidelity, fidelity_another_state, occup, corr],
     interaction_matrix=interaction_matrix,
+    optimise_interaction_matrix=True,
 )
 
 # we initialize a Backend instance
