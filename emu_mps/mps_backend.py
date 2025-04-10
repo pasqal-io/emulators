@@ -65,37 +65,10 @@ class MPSBackend(EmulatorBackend):
         if not self._config.optimise_interaction_matrix:
             return results
 
-
-        inv_perm = opmat.invert_permutation(impl.opt_perm)
-        
-
-        #if key exists 
-        uuid_bitstrings = results._find_uuid("bitstrings")
-        counter_time_slices = results._results[uuid_bitstrings]
-        for t in range(len(counter_time_slices)):
-            old_time_slice = counter_time_slices[t]
-            new_time_slice = Counter({
-                opmat.permute_string(bstr, inv_perm): c for bstr, c in old_time_slice.items()
-                })
-            counter_time_slices[t] = new_time_slice
-
-
-        uuid_occup = results._find_uuid("occupation")
-        occup_time_slices = results._results[uuid_occup]
-        for t in range(len(occup_time_slices)):
-            old_time_slice = occup_time_slices[t]
-            new_time_slice = old_time_slice.tolist()
-            new_time_slice = opmat.permute_list(new_time_slice, inv_perm)
-            occup_time_slices[t] = torch.tensor(new_time_slice)
-
-
-        uuid_corr_mat = results._find_uuid("correlation_matrix")
-        corr_time_slices = results._results[uuid_corr_mat]
-        for t in range(len(corr_time_slices)):
-            old_time_slice = corr_time_slices[t]
-            new_time_slice = old_time_slice.numpy()
-            new_time_slice = opmat.permute_matrix(new_time_slice, inv_perm)
-            corr_time_slices[t] = torch.tensor(new_time_slice)
+        inv_perm = impl.inv_opt_perm
+        permute_bitstrings(inv_perm, results)
+        permute_occupation(inv_perm, results)
+        permute_correlation_matrix(inv_perm, results)
 
 
         return results
@@ -109,3 +82,34 @@ class MPSBackend(EmulatorBackend):
             os.remove(impl.autosave_file)
 
         return impl.results
+
+
+def permute_bitstrings(perm, results) -> None:
+    uuid_bitstrings = results._find_uuid("bitstrings")
+    counter_time_slices = results._results[uuid_bitstrings]
+    for t in range(len(counter_time_slices)):
+        old_time_slice = counter_time_slices[t]
+        new_time_slice = Counter({
+            opmat.permute_string(bstr, perm): c for bstr, c in old_time_slice.items()
+            })
+        counter_time_slices[t] = new_time_slice
+
+
+def permute_occupation(perm, results) -> None:
+    uuid_occup = results._find_uuid("occupation")
+    occup_time_slices = results._results[uuid_occup]
+    for t in range(len(occup_time_slices)):
+        old_time_slice = occup_time_slices[t]
+        new_time_slice = old_time_slice.tolist()
+        new_time_slice = opmat.permute_list(new_time_slice, perm)
+        occup_time_slices[t] = torch.tensor(new_time_slice)
+
+
+def permute_correlation_matrix(perm, results) -> None:
+    uuid_corr_mat = results._find_uuid("correlation_matrix")
+    corr_time_slices = results._results[uuid_corr_mat]
+    for t in range(len(corr_time_slices)):
+        old_time_slice = corr_time_slices[t]
+        new_time_slice = old_time_slice.numpy()
+        new_time_slice = opmat.permute_matrix(new_time_slice, perm)
+        corr_time_slices[t] = torch.tensor(new_time_slice)

@@ -184,6 +184,7 @@ class MPSBackendImpl:
         f_mat_numpy = f_mat.numpy()
         m_mat_numpy = m_mat.numpy()
         self.opt_perm = optimatrix.minimize_bandwidth(f_mat_numpy)
+        self.inv_opt_perm = optimatrix.invert_permutation(self.opt_perm)
 
         f_mat_numpy = optimatrix.permute_matrix(f_mat_numpy, self.opt_perm)
         m_mat_numpy = optimatrix.permute_matrix(m_mat_numpy, self.opt_perm)
