@@ -28,6 +28,30 @@ def permute_list(input_list: list, permutation: list[int]) -> list:
     return permuted_list
 
 
+def permute_string(input_string: str, permutation: list[int]) -> str:
+    """
+    Permutes the input string according to the given permutation.
+
+    Parameters
+    -------
+    input_string :
+        A string to permute.
+    permutation :
+        A list of indices representing the new order.
+
+    Returns
+    -------
+        The permuted string.
+
+    Example
+    -------
+    >>> permute_string('abc', [2, 0, 1])
+    'cab'
+    """
+    permuted_list = permute_list(list(input_string), permutation)
+    return ''.join(permuted_list)
+
+
 def invert_permutation(permutation: list[int]) -> list[int]:
     """
     invert_permutation(permutation) -> inv_permutation
@@ -51,7 +75,7 @@ def invert_permutation(permutation: list[int]) -> list[int]:
 
     inv_perm = np.empty_like(permutation)
     inv_perm[permutation] = np.arange(len(permutation))
-    return list(inv_perm)
+    return inv_perm.tolist()
 
 
 def permute_matrix(mat: np.ndarray, permutation: list[int]) -> np.ndarray:

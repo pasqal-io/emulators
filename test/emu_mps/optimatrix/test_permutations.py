@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 from emu_mps.optimatrix.permutations import (
     permute_list,
+    permute_string,
     invert_permutation,
     permute_matrix,
 )
@@ -21,6 +22,20 @@ def test_permute_list() -> None:
     assert permute_list(input_list, [1, 2, 0]) == ["b", "c", "a"]
     assert permute_list(input_list, [2, 0, 1]) == ["c", "a", "b"]
     assert permute_list(input_list, [2, 1, 0]) == ["c", "b", "a"]
+
+def test_permute_string() -> None:
+    perm = [1, 0]
+    input_str = "ab"
+    assert permute_string(input_str, perm) == "ba"
+
+    # 6 permutations of [a, b, c]
+    input_str = "abc"
+    assert permute_string(input_str, [0, 1, 2]) == "abc"
+    assert permute_string(input_str, [0, 2, 1]) == "acb"
+    assert permute_string(input_str, [1, 0, 2]) == "bac"
+    assert permute_string(input_str, [1, 2, 0]) == "bca"
+    assert permute_string(input_str, [2, 0, 1]) == "cab"
+    assert permute_string(input_str, [2, 1, 0]) == "cba"
 
 
 @pytest.mark.parametrize("N", [10, 20, 30])

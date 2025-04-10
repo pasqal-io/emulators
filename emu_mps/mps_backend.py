@@ -1,11 +1,18 @@
-from pulser.backend import EmulatorBackend, Results
-from emu_mps.mps_config import MPSConfig
-from emu_mps.mps_backend_impl import create_impl, MPSBackendImpl
-import pickle
-import os
-import time
 import logging
+import os
 import pathlib
+import pickle
+import time
+from collections import Counter
+
+from pulser.backend import EmulatorBackend, Results
+
+from emu_mps.mps_backend_impl import MPSBackendImpl, create_impl
+from emu_mps.mps_config import MPSConfig
+import emu_mps.optimatrix as opmat
+
+from pulser.backend import BitStrings, Fidelity, Occupation, CorrelationMatrix
+import torch
 
 
 class MPSBackend(EmulatorBackend):
@@ -54,8 +61,17 @@ class MPSBackend(EmulatorBackend):
 
         impl = create_impl(self._sequence, self._config)
         impl.init()  # This is separate from the constructor for testing purposes.
+        results = self._run(impl)
+        if not self._config.optimise_interaction_matrix:
+            return results
 
-        return self._run(impl)
+        inv_perm = impl.inv_opt_perm
+        permute_bitstrings(inv_perm, results)
+        permute_occupation(inv_perm, results)
+        permute_correlation_matrix(inv_perm, results)
+
+
+        return results
 
     @staticmethod
     def _run(impl: MPSBackendImpl) -> Results:
@@ -66,3 +82,34 @@ class MPSBackend(EmulatorBackend):
             os.remove(impl.autosave_file)
 
         return impl.results
+
+
+def permute_bitstrings(perm, results) -> None:
+    uuid_bitstrings = results._find_uuid("bitstrings")
+    counter_time_slices = results._results[uuid_bitstrings]
+    for t in range(len(counter_time_slices)):
+        old_time_slice = counter_time_slices[t]
+        new_time_slice = Counter({
+            opmat.permute_string(bstr, perm): c for bstr, c in old_time_slice.items()
+            })
+        counter_time_slices[t] = new_time_slice
+
+
+def permute_occupation(perm, results) -> None:
+    uuid_occup = results._find_uuid("occupation")
+    occup_time_slices = results._results[uuid_occup]
+    for t in range(len(occup_time_slices)):
+        old_time_slice = occup_time_slices[t]
+        new_time_slice = old_time_slice.tolist()
+        new_time_slice = opmat.permute_list(new_time_slice, perm)
+        occup_time_slices[t] = torch.tensor(new_time_slice)
+
+
+def permute_correlation_matrix(perm, results) -> None:
+    uuid_corr_mat = results._find_uuid("correlation_matrix")
+    corr_time_slices = results._results[uuid_corr_mat]
+    for t in range(len(corr_time_slices)):
+        old_time_slice = corr_time_slices[t]
+        new_time_slice = old_time_slice.numpy()
+        new_time_slice = opmat.permute_matrix(new_time_slice, perm)
+        corr_time_slices[t] = torch.tensor(new_time_slice)
