@@ -35,6 +35,8 @@ class SVBackend(EmulatorBackend):
             sequence=self._sequence, config=self._config, dt=self._config.dt
         )
         self.target_times = pulser_data.target_times
+        # list_lindblad_op = pulser_data.lindblad_ops  # reading lindblad operators
+
         self.time = time.time()
         omega, delta, phi = pulser_data.omega, pulser_data.delta, pulser_data.phi
 
@@ -65,6 +67,7 @@ class SVBackend(EmulatorBackend):
                 pulser_data.full_interaction_matrix,
                 state.vector,
                 self._config.krylov_tolerance,
+                linblad_ops=[],
             )
 
             # callbacks in observables and self.statistics in H
