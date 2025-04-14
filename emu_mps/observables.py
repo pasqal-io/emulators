@@ -1,8 +1,8 @@
 from pulser.backend.state import State
 from pulser.backend.observable import Observable
-from emu_mps.custom_callbacks import calculate_entanglement_entropy
 from emu_mps.mps import MPS
 from typing import Sequence, Any
+import torch
 
 
 class EntanglementEntropy(Observable):
@@ -10,13 +10,13 @@ class EntanglementEntropy(Observable):
 
     def __init__(
         self,
-        bond_index: int,
+        mps_site: int,
         *,
         evaluation_times: Sequence[float] | None = None,
         tag_suffix: str | None = None,
     ):
         super().__init__(evaluation_times=evaluation_times, tag_suffix=tag_suffix)
-        self.bond_index = bond_index
+        self.mps_site = mps_site
 
     @property
     def _base_tag(self) -> str:
@@ -24,17 +24,17 @@ class EntanglementEntropy(Observable):
 
     def _to_abstract_repr(self) -> dict[str, Any]:
         repr = super()._to_abstract_repr()
-        repr["bond_index"] = self.bond_index
+        repr["mps_site"] = self.mps_site
         return repr
 
-    def apply(self, *, state: State, **kwargs: Any) -> float:
+    def apply(self, *, state: State, **kwargs: Any) -> torch.Tensor:
         if not isinstance(state, MPS):
             raise NotImplementedError(
                 "Entanglement entropy observable is only available for emu_mps emulator."
             )
-        if not (0 < self.bond_index < len(state.factors)):
+        if not (0 <= self.mps_site <= len(state.factors) - 2):
             raise ValueError(
-                f"Invalid bond index {self.bond_index}. "
-                f"Expected value in range 1 <= bond_index < {len(state.factors)}."
+                f"Invalid bond index {self.mps_site}. "
+                f"Expected value in range 0 <= bond_index <= {len(state.factors)-2}."
             )
-        return float(calculate_entanglement_entropy(state, self.bond_index))
+        return state.entanglement_entropy(self.mps_site)
