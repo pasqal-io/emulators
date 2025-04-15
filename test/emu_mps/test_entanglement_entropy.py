@@ -20,9 +20,9 @@ def create_constant_pulse_sequence():
     seq.declare_channel("rydberg_global", "rydberg_global")
 
     # adding constant pulses to the sequence
-    pulse1 = pulser.Pulse.ConstantPulse(100, 0, 0, 0)
-    pulse2 = pulser.Pulse.ConstantPulse(200, 0.5 * omega, 0.2 * delta, 0)
-    pulse3 = pulser.Pulse.ConstantPulse(200, 0.2 * omega, 0.3 * delta, 0)
+    pulse1 = pulser.Pulse.ConstantPulse(20, 0, 0, 0)
+    pulse2 = pulser.Pulse.ConstantPulse(32, 0.5 * omega, 0.2 * delta, 0)
+    pulse3 = pulser.Pulse.ConstantPulse(52, 0.2 * omega, 0.3 * delta, 0)
     seq.add(pulse1, "rydberg_global")
     seq.add(pulse2, "rydberg_global")
     seq.add(pulse3, "rydberg_global")
@@ -39,12 +39,14 @@ def test_zero_entropy_product_state():
     )
     entropies = []
     for b in range(8):
-        ent_entropy = EntanglementEntropy(mps_site=b, evaluation_times=[1 / 100])
+        ent_entropy = EntanglementEntropy(mps_site=b, evaluation_times=[10 / 100])
         config = emu_mps.MPSConfig(observables=[ent_entropy], initial_state=initial_state)
         seq = create_constant_pulse_sequence()
         backend = emu_mps.MPSBackend(sequence=seq, config=config)
         result = backend.run()
-        S_E_res = result.get_result(ent_entropy, time=1 / 100)
+        S_E_res = result.get_result(
+            ent_entropy, time=result.get_result_times(ent_entropy)[0]
+        )
         entropies.append(S_E_res)
 
     assert all(s < 1e-7 for s in entropies)
@@ -71,15 +73,17 @@ def test_entropy_superposition_state():
     entropies_t_finals = []
 
     for b in range(8):
-        ent_entropy = EntanglementEntropy(mps_site=b, evaluation_times=[1 / 100, 1.0])
+        ent_entropy = EntanglementEntropy(mps_site=b, evaluation_times=[10 / 100, 1.0])
         config = emu_mps.MPSConfig(observables=[ent_entropy], initial_state=initial_state)
         seq = create_constant_pulse_sequence()
         backend = emu_mps.MPSBackend(sequence=seq, config=config)
         result = backend.run()
-        entropies_t_initial.append(result.get_result(ent_entropy, time=1 / 100))
+        entropies_t_initial.append(
+            result.get_result(ent_entropy, time=result.get_result_times(ent_entropy)[0])
+        )
         entropies_t_finals.append(result.get_result(ent_entropy, time=1))
 
-    # --- Check at t = 1/100: entropy = log (2) for the max entangled Bell state
+    # --- Check at t = 10/100: entropy = log (2) for the max entangled Bell state
     entropies_t_initial = torch.tensor(entropies_t_initial)
     expected = torch.log(torch.tensor(2.0, dtype=torch.float64))
 
