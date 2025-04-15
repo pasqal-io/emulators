@@ -62,8 +62,7 @@ def simulate(
     interaction_cutoff: float = 0,
     eval_times: list[float] = [1.0],
     n_shots: int = 1000,
-    optimise_interaction_matrix: bool = False
-
+    optimise_interaction_matrix: bool = False,
 ) -> Results:
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
@@ -86,7 +85,7 @@ def simulate(
     else:
         if noise_model is None:
             noise_model = pulser.noise_model.NoiseModel()
-    
+
     mps_config = MPSConfig(
         initial_state=initial_state,
         dt=dt,
@@ -232,7 +231,7 @@ def test_XY_3atomswith_slm() -> None:
 def test_end_to_end_afm_ring(
     optimize_int_matr: bool,
     bs_count: list[int],
-    ) -> None:
+) -> None:
     torch.manual_seed(seed)
 
     num_qubits = 10

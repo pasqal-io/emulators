@@ -11,7 +11,7 @@ from emu_mps.mps_backend_impl import MPSBackendImpl, create_impl
 from emu_mps.mps_config import MPSConfig
 import emu_mps.optimatrix as opmat
 
-from pulser.backend import BitStrings, Fidelity, Occupation, CorrelationMatrix
+#from pulser.backend import BitStrings, Fidelity, Occupation, CorrelationMatrix
 import torch
 
 
@@ -70,7 +70,6 @@ class MPSBackend(EmulatorBackend):
         permute_occupation(inv_perm, results)
         permute_correlation_matrix(inv_perm, results)
 
-
         return results
 
     @staticmethod
@@ -91,9 +90,9 @@ def permute_bitstrings(perm: list[int], results: Results) -> None:
     counter_time_slices = results._results[uuid_bitstrings]
     for t in range(len(counter_time_slices)):
         old_time_slice = counter_time_slices[t]
-        new_time_slice = Counter({
-            opmat.permute_string(bstr, perm): c for bstr, c in old_time_slice.items()
-            })
+        new_time_slice = Counter(
+            {opmat.permute_string(bstr, perm): c for bstr, c in old_time_slice.items()}
+        )
         counter_time_slices[t] = new_time_slice
 
 

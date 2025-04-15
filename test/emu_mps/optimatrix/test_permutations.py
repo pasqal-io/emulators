@@ -23,6 +23,7 @@ def test_permute_list() -> None:
     assert permute_list(input_list, [2, 0, 1]) == ["c", "a", "b"]
     assert permute_list(input_list, [2, 1, 0]) == ["c", "b", "a"]
 
+
 def test_permute_string() -> None:
     perm = [1, 0]
     input_str = "ab"

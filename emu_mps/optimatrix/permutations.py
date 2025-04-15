@@ -49,7 +49,7 @@ def permute_string(input_string: str, permutation: list[int]) -> str:
     'cab'
     """
     permuted_list = permute_list(list(input_string), permutation)
-    return ''.join(permuted_list)
+    return "".join(permuted_list)
 
 
 def invert_permutation(permutation: list[int]) -> list[int]:

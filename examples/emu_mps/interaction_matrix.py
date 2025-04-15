@@ -6,7 +6,16 @@ from pulser.devices import AnalogDevice
 
 
 # emu_mps backend, confing and observables
-from emu_mps import MPS, MPSConfig, MPSBackend, StateResult, BitStrings, Fidelity, Occupation, CorrelationMatrix
+from emu_mps import (
+    MPS,
+    MPSConfig,
+    MPSBackend,
+    StateResult,
+    BitStrings,
+    Fidelity,
+    Occupation,
+    CorrelationMatrix,
+)
 
 # interaction matrix for 5 atoms
 interaction_matrix = [

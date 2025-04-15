@@ -124,7 +124,8 @@ class MPSBackendImpl:
         self._optimise_interaction_matrix(
             pulser_data.full_interaction_matrix,
             pulser_data.masked_interaction_matrix,
-            mps_config.optimise_interaction_matrix)
+            mps_config.optimise_interaction_matrix,
+        )
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.slm_end_time = pulser_data.slm_end_time
         self.is_masked = self.slm_end_time > 0.0
@@ -171,11 +172,8 @@ class MPSBackendImpl:
         return pathlib.Path(os.getcwd()) / (autosave_prefix + str(uuid.uuid1()) + ".dat")
 
     def _optimise_interaction_matrix(
-            self,
-            f_mat: torch.Tensor,
-            m_mat: torch.Tensor,
-            optimise: bool = True
-            ) -> None:
+        self, f_mat: torch.Tensor, m_mat: torch.Tensor, optimise: bool = True
+    ) -> None:
         if not optimise:
             self.full_interaction_matrix = f_mat
             self.masked_interaction_matrix = m_mat
