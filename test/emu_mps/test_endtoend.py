@@ -222,7 +222,17 @@ def test_XY_3atomswith_slm() -> None:
     )  # todo, compare against pulser results
 
 
-def test_end_to_end_afm_ring() -> None:
+@pytest.mark.parametrize(
+    "optimize_int_matr, bs_count",
+    [
+        (False, [129, 135]),
+        (True, [139, 164]),
+    ],
+)
+def test_end_to_end_afm_ring(
+    optimize_int_matr: bool,
+    bs_count: list[int],
+    ) -> None:
     torch.manual_seed(seed)
 
     num_qubits = 10
@@ -236,26 +246,24 @@ def test_end_to_end_afm_ring() -> None:
         t_fall=t_fall,
     )
 
-    result = simulate(
-        seq,
-        optimise_interaction_matrix=True
-        )
+    result = simulate(seq, optimise_interaction_matrix=optimize_int_matr)
 
     final_time = -1
     bitstrings = result.bitstrings[final_time]
-    final_state = result.state[final_time]
-    final_fidelity = result.fidelity_1[final_time]
-    max_bond_dim = final_state.get_max_bond_dim()
-    fidelity_state = create_antiferromagnetic_mps(num_qubits)
+    state_fin = result.state[final_time]
+    fidelity_fin = result.fidelity_1[final_time]
+    max_bond_dim = state_fin.get_max_bond_dim()
+    fidelity_st = create_antiferromagnetic_mps(num_qubits)
     occupation = result.occupation[final_time]
     energy = result.energy[final_time]
     energy_variance = result.energy_variance[final_time]
     second_moment_energy = result.energy_second_moment[final_time]
 
-    assert bitstrings["1010101010"] == 139  # 129  # -> fidelity as samples increase
-    assert bitstrings["0101010101"] == 164  # 135
-    assert fidelity_state.overlap(final_state) == approx(final_fidelity, abs=1e-10)
+    assert bitstrings["1010101010"] == bs_count[0]
+    assert bitstrings["0101010101"] == bs_count[1]
+    assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
     assert max_bond_dim == 29
+
     # Comparing against EMU-SV -- state vector emulator
     assert approx(occupation, abs=1e-3) == [0.5782] * 10
     assert approx(occupation, rel=1e-3) == [0.5782] * 10
@@ -268,9 +276,6 @@ def test_end_to_end_afm_ring() -> None:
 
     assert approx(second_moment_energy, abs=0.45) == 13350.5053421
     assert approx(second_moment_energy, rel=1e-4) == 13350.5053421
-
-    #correlation_matrix = result.correlation_matrix[final_time]
-    #print(correlation_matrix)
 
 
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
