@@ -314,20 +314,15 @@ class MPS(State[complex, torch.Tensor]):
         S = -Σᵢsᵢ² log(sᵢ²)),
         where sᵢ are the singular values at the chosen bond.
         """
-        # orthogonalize the MPS at site b
         self.orthogonalize(mps_site)
 
         # perform svd on reshaped matrix at site b
         matrix = self.factors[mps_site].flatten(end_dim=1)
-        s = torch.linalg.torch.linalg.svdvals(matrix)
+        s = torch.linalg.svdvals(matrix)
 
-        # Calculate entropy from singular values 's'
-        s_sqrd = s**2
-        s_sqrd = s_sqrd[s_sqrd > 1e-12]
+        s_e = torch.Tensor(torch.special.entr(s**2))
+        s_e = torch.sum(s_e)
 
-        s_e = -torch.sum(s_sqrd * torch.log(s_sqrd))
-
-        # shift the orthogonality center back to 0 before the new tdvp step
         self.orthogonalize(0)
         return s_e
 

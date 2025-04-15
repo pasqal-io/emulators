@@ -37,17 +37,19 @@ def test_zero_entropy_product_state():
     initial_state = emu_mps.MPS.from_state_amplitudes(
         eigenstates=("r", "g"), amplitudes={"rrrrrrrrr": 1.0}
     )
-    entropies = []
-    for b in range(8):
-        ent_entropy = EntanglementEntropy(mps_site=b, evaluation_times=[10 / 100])
-        config = emu_mps.MPSConfig(observables=[ent_entropy], initial_state=initial_state)
-        seq = create_constant_pulse_sequence()
-        backend = emu_mps.MPSBackend(sequence=seq, config=config)
-        result = backend.run()
-        S_E_res = result.get_result(
-            ent_entropy, time=result.get_result_times(ent_entropy)[0]
-        )
-        entropies.append(S_E_res)
+    entanglement_obs = [
+        EntanglementEntropy(mps_site=b, evaluation_times=[10 / 100], tag_suffix=f"_{b}")
+        for b in range(8)
+    ]
+    config = emu_mps.MPSConfig(observables=entanglement_obs, initial_state=initial_state)
+    seq = create_constant_pulse_sequence()
+    backend = emu_mps.MPSBackend(sequence=seq, config=config)
+    result = backend.run()
+
+    entropies = [
+        result.get_result(obs, time=result.get_result_times(obs)[0])
+        for obs in entanglement_obs
+    ]
 
     assert all(s < 1e-7 for s in entropies)
 
@@ -72,16 +74,23 @@ def test_entropy_superposition_state():
     entropies_t_initial = []
     entropies_t_finals = []
 
-    for b in range(8):
-        ent_entropy = EntanglementEntropy(mps_site=b, evaluation_times=[10 / 100, 1.0])
-        config = emu_mps.MPSConfig(observables=[ent_entropy], initial_state=initial_state)
-        seq = create_constant_pulse_sequence()
-        backend = emu_mps.MPSBackend(sequence=seq, config=config)
-        result = backend.run()
-        entropies_t_initial.append(
-            result.get_result(ent_entropy, time=result.get_result_times(ent_entropy)[0])
+    entanglement_obs = [
+        EntanglementEntropy(
+            mps_site=b, evaluation_times=[10 / 100, 1.0], tag_suffix=f"_{b}"
         )
-        entropies_t_finals.append(result.get_result(ent_entropy, time=1))
+        for b in range(8)
+    ]
+    config = emu_mps.MPSConfig(observables=entanglement_obs, initial_state=initial_state)
+    seq = create_constant_pulse_sequence()
+    backend = emu_mps.MPSBackend(sequence=seq, config=config)
+    result = backend.run()
+
+    entropies_t_initial = [
+        result.get_result(obs, time=result.get_result_times(obs)[0])
+        for obs in entanglement_obs
+    ]
+
+    entropies_t_finals = [result.get_result(obs, time=1.0) for obs in entanglement_obs]
 
     # --- Check at t = 10/100: entropy = log (2) for the max entangled Bell state
     entropies_t_initial = torch.tensor(entropies_t_initial)
@@ -97,6 +106,6 @@ def test_entropy_superposition_state():
     edge_entropies = [entropies_t_finals[0], entropies_t_finals[-1]]
 
     assert all(
-        SE_center > SE_edge
-        for SE_center, SE_edge in zip(center_entropies, edge_entropies)
+        se_center > se_edge
+        for se_center, se_edge in zip(center_entropies, edge_entropies)
     ), "Central bonds should have higher entropy than the edge bonds."
