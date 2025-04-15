@@ -37,8 +37,11 @@ def test_zero_entropy_product_state():
     initial_state = emu_mps.MPS.from_state_amplitudes(
         eigenstates=("r", "g"), amplitudes={"rrrrrrrrr": 1.0}
     )
+    first_time_step = 10 / 100
     entanglement_obs = [
-        EntanglementEntropy(mps_site=b, evaluation_times=[10 / 100], tag_suffix=f"_{b}")
+        EntanglementEntropy(
+            mps_site=b, evaluation_times=[first_time_step], tag_suffix=f"_{b}"
+        )
         for b in range(8)
     ]
     config = emu_mps.MPSConfig(observables=entanglement_obs, initial_state=initial_state)
