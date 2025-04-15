@@ -69,7 +69,7 @@ class MPSConfig(EmulationConfig):
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
         num_gpus_to_use: int = DEVICE_COUNT,
-        optimise_interaction_matrix: bool = False,
+        optimise_interaction_matrix: bool = True,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,

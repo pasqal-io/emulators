@@ -84,7 +84,9 @@ class MPSBackend(EmulatorBackend):
         return impl.results
 
 
-def permute_bitstrings(perm, results) -> None:
+def permute_bitstrings(perm: list[int], results: Results) -> None:
+    if "bitstrings" not in results.get_result_tags():
+        return
     uuid_bitstrings = results._find_uuid("bitstrings")
     counter_time_slices = results._results[uuid_bitstrings]
     for t in range(len(counter_time_slices)):
@@ -95,7 +97,9 @@ def permute_bitstrings(perm, results) -> None:
         counter_time_slices[t] = new_time_slice
 
 
-def permute_occupation(perm, results) -> None:
+def permute_occupation(perm: list[int], results: Results) -> None:
+    if "occupation" not in results.get_result_tags():
+        return
     uuid_occup = results._find_uuid("occupation")
     occup_time_slices = results._results[uuid_occup]
     for t in range(len(occup_time_slices)):
@@ -105,7 +109,9 @@ def permute_occupation(perm, results) -> None:
         occup_time_slices[t] = torch.tensor(new_time_slice)
 
 
-def permute_correlation_matrix(perm, results) -> None:
+def permute_correlation_matrix(perm: list[int], results: Results) -> None:
+    if "correlation_matrix" not in results.get_result_tags():
+        return
     uuid_corr_mat = results._find_uuid("correlation_matrix")
     corr_time_slices = results._results[uuid_corr_mat]
     for t in range(len(corr_time_slices)):
