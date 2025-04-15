@@ -3,309 +3,345 @@ This file deals with creation of the MPO corresponding
 to the Hamiltonian of a neutral atoms quantum processor.
 """
 
+from abc import abstractmethod, ABC
+from typing import Iterator
+
 from emu_base import HamiltonianType
 import torch
-
 from emu_mps.mpo import MPO
 
-dtype = torch.complex128  # always complex128
-iden_op = torch.eye(2, 2, dtype=dtype)  # dtype is always complex128
-n_op = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
-creation_op = torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype)
-sx = torch.tensor([[0.0, 0.5], [0.5, 0.0]], dtype=dtype)
-sy = torch.tensor([[0.0, -0.5j], [0.5j, 0.0]], dtype=dtype)
-pu = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
+dtype = torch.complex128
 
 
-def truncate_factor(
-    factor: torch.Tensor,
-    left_interactions: torch.Tensor,
-    right_interactions: torch.Tensor,
-    hamiltonian_type: HamiltonianType,
-) -> torch.Tensor:
-    if hamiltonian_type == HamiltonianType.XY:
-        left_interactions = torch.stack(
-            (left_interactions, left_interactions), dim=-1
-        ).reshape(-1)
-        right_interactions = torch.stack(
-            (right_interactions, right_interactions), dim=-1
-        ).reshape(-1)
-    padding = torch.tensor([True] * 2)
-    trunc = factor[torch.cat((padding, left_interactions))]
-    return trunc[:, :, :, torch.cat((padding, right_interactions))]
+class Operators:
+    id = torch.eye(2, dtype=dtype)
+    n = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
+    creation = torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype)
+    sx = torch.tensor([[0.0, 0.5], [0.5, 0.0]], dtype=dtype)
+    sy = torch.tensor([[0.0, -0.5j], [0.5j, 0.0]], dtype=dtype)
+    pu = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
 
 
-def _first_factor_rydberg(interaction: bool) -> torch.Tensor:
-    """
-    Creates the first Ising Hamiltonian factor.
-    """
-    fac = torch.zeros(1, 2, 2, 3 if interaction else 2, dtype=dtype)
-    fac[0, :, :, 1] = iden_op
-    if interaction:
-        fac[0, :, :, 2] = n_op  # number operator
+class HamiltonianMPOFactors(ABC):
+    def __init__(self, interaction_matrix: torch.Tensor):
+        assert interaction_matrix.ndim == 2, "interaction matrix is not a matrix"
+        assert (
+            interaction_matrix.shape[0] == interaction_matrix.shape[1]
+        ), "interaction matrix is not square"
 
-    return fac
+        self.interaction_matrix = interaction_matrix.clone()
+        self.interaction_matrix.fill_diagonal_(0.0)  # or assert
+        self.qubit_count = self.interaction_matrix.shape[0]
+        self.middle = self.qubit_count // 2
 
+    def __iter__(self) -> Iterator[torch.Tensor]:
+        yield self.first_factor()
 
-def _first_factor_xy(interaction: bool) -> torch.Tensor:
-    """
-    Creates the first XY Hamiltonian factor.
-    """
-    fac = torch.zeros(1, 2, 2, 4 if interaction else 2, dtype=dtype)
-    fac[0, :, :, 1] = iden_op
-    if interaction:
-        fac[0, :, :, 2] = creation_op
-        fac[0, :, :, 3] = creation_op.T
+        for n in range(1, self.middle):
+            yield self.left_factor(n)
 
-    return fac
+        if self.qubit_count >= 3:
+            yield self.middle_factor()
 
+        for n in range(self.middle + 1, self.qubit_count - 1):
+            yield self.right_factor(n)
 
-def _last_factor_rydberg(scale: float | complex) -> torch.Tensor:
-    """
-    Creates the last Ising Hamiltonian factor.
-    """
-    fac = torch.zeros(3 if scale != 0.0 else 2, 2, 2, 1, dtype=dtype)
-    fac[0, :, :, 0] = iden_op
-    if scale != 0:
-        fac[2, :, :, 0] = scale * n_op
+        yield self.last_factor()
 
-    return fac
+    @abstractmethod
+    def first_factor(self) -> torch.Tensor:
+        pass
 
+    @abstractmethod
+    def left_factor(self, n: int) -> torch.Tensor:
+        pass
 
-def _last_factor_xy(scale: float | complex) -> torch.Tensor:
-    """
-    Creates the last XY Hamiltonian factor.
-    """
-    fac = torch.zeros(4 if scale != 0.0 else 2, 2, 2, 1, dtype=dtype)
-    fac[0, :, :, 0] = iden_op
-    if scale != 0:
-        fac[2, :, :, 0] = scale * creation_op.T
-        fac[3, :, :, 0] = scale * creation_op
+    @abstractmethod
+    def middle_factor(self) -> torch.Tensor:
+        pass
 
-    return fac
+    @abstractmethod
+    def right_factor(self, n: int) -> torch.Tensor:
+        pass
+
+    @abstractmethod
+    def last_factor(self) -> torch.Tensor:
+        pass
 
 
-def _left_factor_rydberg(
-    scales: torch.Tensor,
-    left_interactions: torch.Tensor,
-    right_interactions: torch.Tensor,
-) -> torch.Tensor:
-    """
-    Creates the Ising Hamiltonian factors in the left half of the MPS, excepted the first factor.
-    """
-    index = len(scales)
-    fac = torch.zeros(index + 2, 2, 2, index + 3, dtype=dtype)
-    fac[2 : scales.shape[0] + 2, :, :, 0] = (
-        scales.reshape(-1, 1, 1) * n_op
-    )  # interaction with previous qubits
-    fac[1, :, :, index + 2] = n_op  # interaction with next qubits
-    for i in range(index + 2):
-        fac[i, :, :, i] = iden_op  # identity matrix to carry the gates of other qubits
+class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
+    def first_factor(self) -> torch.Tensor:
+        has_right_interaction = self.interaction_matrix[0, 1:].any()
+        fac = torch.zeros(1, 2, 2, 3 if has_right_interaction else 2, dtype=dtype)
+        fac[0, :, :, 1] = Operators.id
+        if has_right_interaction:
+            fac[0, :, :, 2] = Operators.n
 
-    return truncate_factor(
-        fac,
-        left_interactions,
-        right_interactions,
-        hamiltonian_type=HamiltonianType.Rydberg,
-    )
+        return fac
 
+    def left_factor(self, n: int) -> torch.Tensor:
+        has_right_interaction = self.interaction_matrix[n, n + 1 :].any()
+        current_left_interactions = self.interaction_matrix[:n, n:].any(dim=1)
+        left_interactions_to_keep = self.interaction_matrix[:n, n + 1 :].any(dim=1)
 
-def _left_factor_xy(
-    scales: torch.Tensor,
-    left_interactions: torch.Tensor,
-    right_interactions: torch.Tensor,
-) -> torch.Tensor:
-    """
-    Creates the XY Hamiltonian factors in the left half of the MPS, excepted the first factor.
-    """
-    index = len(scales)
-    fac = torch.zeros(2 * index + 2, 2, 2, 2 * index + 4, dtype=dtype)
+        fac = torch.zeros(
+            int(current_left_interactions.sum().item() + 2),
+            2,
+            2,
+            int(left_interactions_to_keep.sum().item() + int(has_right_interaction) + 2),
+            dtype=dtype,
+        )
 
-    fac[2 : 2 * scales.shape[0] + 2 : 2, :, :, 0] = (
-        scales.reshape(-1, 1, 1) * creation_op.T
-    )  # sigma-
-    fac[3 : 2 * scales.shape[0] + 3 : 2, :, :, 0] = (
-        scales.reshape(-1, 1, 1) * creation_op
-    )  # sigma+
-    fac[1, :, :, -2] = creation_op
-    fac[1, :, :, -1] = creation_op.T
-    for i in range(2 * index + 2):
-        fac[i, :, :, i] = iden_op  # identity to carry the gates of other qubits
+        fac[0, :, :, 0] = Operators.id
+        fac[1, :, :, 1] = Operators.id
+        if has_right_interaction:
+            fac[1, :, :, -1] = Operators.n
 
-    # duplicate each bool, because each interaction term occurs twice
-    return truncate_factor(
-        fac, left_interactions, right_interactions, hamiltonian_type=HamiltonianType.XY
-    )
+        fac[2:, :, :, 0] = (
+            self.interaction_matrix[:n][current_left_interactions, n, None, None]
+            * Operators.n
+        )
 
+        i = 2
+        j = 2
+        for current_left_interaction in current_left_interactions.nonzero().flatten():
+            if left_interactions_to_keep[current_left_interaction]:
+                fac[i, :, :, j] = Operators.id
+                j += 1
+            i += 1
+        return fac
 
-def _right_factor_rydberg(
-    scales: torch.Tensor,
-    left_interactions: torch.Tensor,
-    right_interactions: torch.Tensor,
-) -> torch.Tensor:
-    """
-    Creates the Ising Hamiltonian factors in the right half of the MPS, excepted the last factor.
-    """
-    index = len(scales)
-    fac = torch.zeros(index + 3, 2, 2, index + 2, dtype=dtype)
-    fac[1, :, :, 2 : scales.shape[0] + 2] = scales * n_op.reshape(
-        2, 2, 1
-    )  # XY interaction with previous qubits
-    fac[2, :, :, 0] = n_op  # XY interaction with next qubits
-    for i in range(2, index + 2):
-        fac[i + 1, :, :, i] = iden_op
-    fac[0, :, :, 0] = iden_op  # identity to carry the next gates to the previous qubits
-    fac[1, :, :, 1] = iden_op  # identity to carry previous gates to next qubits
+    def middle_factor(self) -> torch.Tensor:
+        n = self.middle
+        current_left_interactions = self.interaction_matrix[:n, n:].any(dim=1)
+        current_right_interactions = self.interaction_matrix[n + 1 :, : n + 1].any(dim=1)
 
-    return truncate_factor(
-        fac,
-        left_interactions,
-        right_interactions,
-        hamiltonian_type=HamiltonianType.Rydberg,
-    )
+        fac = torch.zeros(
+            int(current_left_interactions.sum().item() + 2),
+            2,
+            2,
+            int(current_right_interactions.sum().item() + 2),
+            dtype=dtype,
+        )
 
+        fac[0, :, :, 0] = Operators.id
+        fac[1, :, :, 1] = Operators.id
 
-def _right_factor_xy(
-    scales: torch.Tensor,
-    left_interactions: torch.Tensor,
-    right_interactions: torch.Tensor,
-) -> torch.Tensor:
-    """
-    Creates the XY Hamiltonian factors in the right half of the MPS, excepted the last factor.
-    """
-    index = len(scales)
-    fac = torch.zeros(2 * index + 4, 2, 2, 2 * index + 2, dtype=dtype)
-    fac[1, :, :, 2 : 2 * scales.shape[0] + 2 : 2] = scales * creation_op.reshape(
-        2, 2, 1
-    )  # XY interaction with previous qubits
-    fac[1, :, :, 3 : 2 * scales.shape[0] + 3 : 2] = scales * creation_op.T.reshape(
-        2, 2, 1
-    )
-    fac[2, :, :, 0] = creation_op.T  # s- with next qubits
-    fac[3, :, :, 0] = creation_op  # s+ with next qubits
-    for i in range(2, index + 2):
-        fac[2 * i, :, :, 2 * i - 2] = iden_op
-        fac[2 * i + 1, :, :, 2 * i - 1] = iden_op
+        fac[2:, :, :, 0] = (
+            self.interaction_matrix[:n][current_left_interactions, n, None, None]
+            * Operators.n
+        )
 
-    # identity to carry the next gates to the previous qubits
-    fac[0, :, :, 0] = iden_op
-    # identity to carry previous gates to next qubits
-    fac[1, :, :, 1] = iden_op
+        fac[1, :, :, 2:] = self.interaction_matrix[n + 1 :][
+            None, None, current_right_interactions, n
+        ] * Operators.n.unsqueeze(-1)
 
-    # duplicate each bool, because each interaction term occurs twice
-    return truncate_factor(
-        fac, left_interactions, right_interactions, hamiltonian_type=HamiltonianType.XY
-    )
+        fac[2:, :, :, 2:] = (
+            self.interaction_matrix[:n, n + 1 :][current_left_interactions, :][
+                :, None, None, current_right_interactions
+            ]
+            * Operators.id[None, ..., None]
+        )
 
+        return fac
 
-def _middle_factor_rydberg(
-    scales_l: torch.Tensor,
-    scales_r: torch.Tensor,
-    scales_mat: torch.Tensor,
-    left_interactions: torch.Tensor,
-    right_interactions: torch.Tensor,
-) -> torch.Tensor:
-    """
-    Creates the Ising Hamiltonian factor at index ⌊n/2⌋ of the n-qubit MPO.
-    """
-    assert len(scales_mat) == len(scales_l)
-    assert all(len(x) == len(scales_r) for x in scales_mat)
+    def right_factor(self, n: int) -> torch.Tensor:
+        has_left_interaction = self.interaction_matrix[n, :n].any()
+        current_right_interactions = self.interaction_matrix[n + 1 :, : n + 1].any(dim=1)
+        right_interactions_to_keep = self.interaction_matrix[n + 1 :, :n].any(dim=1)
 
-    fac = torch.zeros(len(scales_l) + 2, 2, 2, len(scales_r) + 2, dtype=dtype)
-    fac[1, :, :, 2 : scales_r.shape[0] + 2] = scales_r * n_op.reshape(
-        2, 2, 1
-    )  # rydberg interaction with previous qubits
-    fac[2 : scales_l.shape[0] + 2, :, :, 0] = (
-        scales_l.reshape(-1, 1, 1) * n_op
-    )  # rydberg interaction with next qubits
-    x_shape, y_shape = scales_mat.shape
-    fac[2 : x_shape + 2, :, :, 2 : y_shape + 2] = scales_mat.reshape(
-        x_shape, 1, 1, y_shape
-    ) * iden_op.reshape(
-        1, 2, 2, 1
-    )  # rydberg interaction of previous with next qubits
-    fac[0, :, :, 0] = iden_op  # identity to carry the next gates to the previous qubits
-    fac[1, :, :, 1] = iden_op  # identity to carry previous gates to next qubits
+        fac = torch.zeros(
+            int(right_interactions_to_keep.sum().item() + int(has_left_interaction) + 2),
+            2,
+            2,
+            int(current_right_interactions.sum().item() + 2),
+            dtype=dtype,
+        )
 
-    return truncate_factor(
-        fac,
-        left_interactions,
-        right_interactions,
-        hamiltonian_type=HamiltonianType.Rydberg,
-    )
+        fac[0, :, :, 0] = Operators.id
+        fac[1, :, :, 1] = Operators.id
+        if has_left_interaction:
+            fac[2, :, :, 0] = Operators.n
+
+        fac[1, :, :, 2:] = self.interaction_matrix[n + 1 :][
+            None, None, current_right_interactions, n
+        ] * Operators.n.unsqueeze(-1)
+
+        i = 3 if has_left_interaction else 2
+        j = 2
+        for current_right_interaction in current_right_interactions.nonzero().flatten():
+            if right_interactions_to_keep[current_right_interaction]:
+                fac[i, :, :, j] = Operators.id
+                i += 1
+            j += 1
+        return fac
+
+    def last_factor(self) -> torch.Tensor:
+        has_left_interaction = self.interaction_matrix[-1, :-1].any()
+        fac = torch.zeros(3 if has_left_interaction else 2, 2, 2, 1, dtype=dtype)
+        fac[0, :, :, 0] = Operators.id
+        if has_left_interaction:
+            if self.qubit_count >= 3:
+                fac[2, :, :, 0] = Operators.n
+            else:
+                fac[2, :, :, 0] = self.interaction_matrix[0, 1] * Operators.n
+
+        return fac
 
 
-def _middle_factor_xy(
-    scales_l: torch.Tensor,
-    scales_r: torch.Tensor,
-    scales_mat: torch.Tensor,
-    left_interactions: torch.Tensor,
-    right_interactions: torch.Tensor,
-) -> torch.Tensor:
-    """
-    Creates the XY Hamiltonian factor at index ⌊n/2⌋ of the n-qubit MPO.
-    """
-    assert len(scales_mat) == len(scales_l)
-    assert all(len(x) == len(scales_r) for x in scales_mat)
+class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
+    def first_factor(self) -> torch.Tensor:
+        has_right_interaction = self.interaction_matrix[0, 1:].any()
+        fac = torch.zeros(1, 2, 2, 4 if has_right_interaction else 2, dtype=dtype)
+        fac[0, :, :, 1] = Operators.id
+        if has_right_interaction:
+            fac[0, :, :, 2] = Operators.creation
+            fac[0, :, :, 3] = Operators.creation.T
 
-    fac = torch.zeros(2 * len(scales_l) + 2, 2, 2, 2 * len(scales_r) + 2, dtype=dtype)
-    fac[1, :, :, 2 : 2 * scales_r.shape[0] + 2 : 2] = scales_r * creation_op.reshape(
-        2, 2, 1
-    )  # XY interaction with previous qubits
-    fac[1, :, :, 3 : 2 * scales_r.shape[0] + 3 : 2] = scales_r * creation_op.T.reshape(
-        2, 2, 1
-    )  # XY interaction with previous qubits
-    fac[2 : 2 * scales_l.shape[0] + 2 : 2, :, :, 0] = (
-        scales_l.reshape(-1, 1, 1) * creation_op.T
-    )  # XY interaction with next qubits
-    fac[3 : 2 * scales_l.shape[0] + 3 : 2, :, :, 0] = (
-        scales_l.reshape(-1, 1, 1) * creation_op
-    )  # XY interaction with next qubits
-    x_shape, y_shape = scales_mat.shape
-    fac[2 : 2 * x_shape + 2 : 2, :, :, 2 : 2 * y_shape + 2 : 2] = scales_mat.reshape(
-        x_shape, 1, 1, y_shape
-    ) * iden_op.reshape(
-        1, 2, 2, 1
-    )  # XY interaction of previous with next qubits
-    fac[3 : 2 * x_shape + 3 : 2, :, :, 3 : 2 * y_shape + 3 : 2] = scales_mat.reshape(
-        x_shape, 1, 1, y_shape
-    ) * iden_op.reshape(
-        1, 2, 2, 1
-    )  # XY interaction of previous with next qubits
-    fac[0, :, :, 0] = iden_op  # identity to carry the next gates to the previous qubits
-    fac[1, :, :, 1] = iden_op  # identity to carry previous gates to next qubits
+        return fac
 
-    return truncate_factor(
-        fac, left_interactions, right_interactions, hamiltonian_type=HamiltonianType.XY
-    )
+    def left_factor(self, n: int) -> torch.Tensor:
+        has_right_interaction = self.interaction_matrix[n, n + 1 :].any()
+        current_left_interactions = self.interaction_matrix[:n, n:].any(dim=1)
+        left_interactions_to_keep = self.interaction_matrix[:n, n + 1 :].any(dim=1)
 
+        fac = torch.zeros(
+            int(2 * current_left_interactions.sum().item() + 2),
+            2,
+            2,
+            int(
+                2 * left_interactions_to_keep.sum().item()
+                + 2 * int(has_right_interaction)
+                + 2
+            ),
+            dtype=dtype,
+        )
 
-def _get_interactions_to_keep(interaction_matrix: torch.Tensor) -> list[torch.Tensor]:
-    """
-    returns a list of bool valued tensors,
-    indicating which interaction terms to keep for each bond in the MPO
-    """
-    interaction_matrix = interaction_matrix.clone()
-    nqubits = interaction_matrix.size(dim=1)
-    middle = nqubits // 2
-    interaction_matrix += torch.eye(
-        nqubits, nqubits, dtype=interaction_matrix.dtype
-    )  # below line fails on all zeros
-    interaction_boundaries = torch.tensor(
-        [torch.max(torch.nonzero(interaction_matrix[i])) for i in range(middle)]
-    )
-    interactions_to_keep = [interaction_boundaries[: i + 1] > i for i in range(middle)]
+        fac[0, :, :, 0] = Operators.id
+        fac[1, :, :, 1] = Operators.id
+        if has_right_interaction:
+            fac[1, :, :, -2] = Operators.creation
+            fac[1, :, :, -1] = Operators.creation.T
 
-    interaction_boundaries = torch.tensor(
-        [
-            torch.min(torch.nonzero(interaction_matrix[j]))
-            for j in range(middle + 1, nqubits)
-        ]
-    )
-    interactions_to_keep += [
-        interaction_boundaries[i - middle :] <= i for i in range(middle, nqubits - 1)
-    ]
-    return interactions_to_keep
+        fac[2::2, :, :, 0] = (
+            self.interaction_matrix[:n][current_left_interactions, n, None, None]
+            * Operators.creation.T
+        )
+        fac[3::2, :, :, 0] = (
+            self.interaction_matrix[:n][current_left_interactions, n, None, None]
+            * Operators.creation
+        )
+
+        i = 2
+        j = 2
+        for current_left_interaction in current_left_interactions.nonzero().flatten():
+            if left_interactions_to_keep[current_left_interaction]:
+                fac[i, :, :, j] = Operators.id
+                fac[i + 1, :, :, j + 1] = Operators.id
+                j += 2
+            i += 2
+        return fac
+
+    def middle_factor(self) -> torch.Tensor:
+        n = self.middle
+        current_left_interactions = self.interaction_matrix[:n, n:].any(dim=1)
+        current_right_interactions = self.interaction_matrix[n + 1 :, : n + 1].any(dim=1)
+
+        fac = torch.zeros(
+            int(2 * current_left_interactions.sum().item() + 2),
+            2,
+            2,
+            int(2 * current_right_interactions.sum().item() + 2),
+            dtype=dtype,
+        )
+
+        fac[0, :, :, 0] = Operators.id
+        fac[1, :, :, 1] = Operators.id
+
+        fac[2::2, :, :, 0] = (
+            self.interaction_matrix[:n][current_left_interactions, n, None, None]
+            * Operators.creation.T
+        )
+        fac[3::2, :, :, 0] = (
+            self.interaction_matrix[:n][current_left_interactions, n, None, None]
+            * Operators.creation
+        )
+
+        fac[1, :, :, 2::2] = self.interaction_matrix[n + 1 :][
+            None, None, current_right_interactions, n
+        ] * Operators.creation.unsqueeze(-1)
+        fac[1, :, :, 3::2] = self.interaction_matrix[n + 1 :][
+            None, None, current_right_interactions, n
+        ] * Operators.creation.T.unsqueeze(-1)
+
+        fac[2::2, :, :, 2::2] = (
+            self.interaction_matrix[:n, n + 1 :][current_left_interactions, :][
+                :, None, None, current_right_interactions
+            ]
+            * Operators.id[None, ..., None]
+        )
+        fac[3::2, :, :, 3::2] = (
+            self.interaction_matrix[:n, n + 1 :][current_left_interactions, :][
+                :, None, None, current_right_interactions
+            ]
+            * Operators.id[None, ..., None]
+        )
+
+        return fac
+
+    def right_factor(self, n: int) -> torch.Tensor:
+        has_left_interaction = self.interaction_matrix[n, :n].any()
+        current_right_interactions = self.interaction_matrix[n + 1 :, : n + 1].any(dim=1)
+        right_interactions_to_keep = self.interaction_matrix[n + 1 :, :n].any(dim=1)
+
+        fac = torch.zeros(
+            int(
+                2 * right_interactions_to_keep.sum().item()
+                + 2 * int(has_left_interaction)
+                + 2
+            ),
+            2,
+            2,
+            int(2 * current_right_interactions.sum().item() + 2),
+            dtype=dtype,
+        )
+
+        fac[0, :, :, 0] = Operators.id
+        fac[1, :, :, 1] = Operators.id
+        if has_left_interaction:
+            fac[2, :, :, 0] = Operators.creation.T
+            fac[3, :, :, 0] = Operators.creation
+
+        fac[1, :, :, 2::2] = self.interaction_matrix[n + 1 :][
+            None, None, current_right_interactions, n
+        ] * Operators.creation.unsqueeze(-1)
+        fac[1, :, :, 3::2] = self.interaction_matrix[n + 1 :][
+            None, None, current_right_interactions, n
+        ] * Operators.creation.T.unsqueeze(-1)
+
+        i = 4 if has_left_interaction else 2
+        j = 2
+        for current_right_interaction in current_right_interactions.nonzero().flatten():
+            if right_interactions_to_keep[current_right_interaction]:
+                fac[i, :, :, j] = Operators.id
+                fac[i + 1, :, :, j + 1] = Operators.id
+                i += 2
+            j += 2
+        return fac
+
+    def last_factor(self) -> torch.Tensor:
+        has_left_interaction = self.interaction_matrix[-1, :-1].any()
+        fac = torch.zeros(4 if has_left_interaction else 2, 2, 2, 1, dtype=dtype)
+        fac[0, :, :, 0] = Operators.id
+        if has_left_interaction:
+            if self.qubit_count >= 3:
+                fac[2, :, :, 0] = Operators.creation.T
+                fac[3, :, :, 0] = Operators.creation
+            else:
+                fac[2, :, :, 0] = self.interaction_matrix[0, 1] * Operators.creation.T
+                fac[3, :, :, 0] = self.interaction_matrix[0, 1] * Operators.creation
+
+        return fac
 
 
 def make_H(
@@ -342,69 +378,19 @@ def make_H(
     [Pulser documentation](https://pulser.readthedocs.io/en/stable/conventions.html#hamiltonians).
 
     """
-
     if hamiltonian_type == HamiltonianType.Rydberg:
-        _first_factor = _first_factor_rydberg
-        _last_factor = _last_factor_rydberg
-        _left_factor = _left_factor_rydberg
-        _right_factor = _right_factor_rydberg
-        _middle_factor = _middle_factor_rydberg
-    elif hamiltonian_type == HamiltonianType.XY:
-        _first_factor = _first_factor_xy
-        _last_factor = _last_factor_xy
-        _left_factor = _left_factor_xy
-        _right_factor = _right_factor_xy
-        _middle_factor = _middle_factor_xy
-    else:
-        raise ValueError(f"Unsupported hamiltonian type {hamiltonian_type}")
-
-    nqubits = interaction_matrix.size(dim=1)
-    middle = nqubits // 2
-    interactions_to_keep = _get_interactions_to_keep(interaction_matrix)
-
-    cores = [_first_factor(interactions_to_keep[0].item() != 0.0)]
-
-    if nqubits > 2:
-        for i in range(1, middle):
-            cores.append(
-                _left_factor(
-                    interaction_matrix[:i, i],
-                    left_interactions=interactions_to_keep[i - 1],
-                    right_interactions=interactions_to_keep[i],
-                )
-            )
-
-        i = middle
-        cores.append(
-            _middle_factor(
-                interaction_matrix[:i, i],
-                interaction_matrix[i, i + 1 :],
-                interaction_matrix[:i, i + 1 :],
-                interactions_to_keep[i - 1],
-                interactions_to_keep[i],
-            )
+        return MPO(
+            list(RydbergHamiltonianMPOFactors(interaction_matrix)),
+            num_gpus_to_use=num_gpus_to_use,
         )
 
-        for i in range(middle + 1, nqubits - 1):
-            cores.append(
-                _right_factor(
-                    interaction_matrix[i, i + 1 :],
-                    interactions_to_keep[i - 1],
-                    interactions_to_keep[i],
-                )
-            )
-    if nqubits == 2:
-        scale = interaction_matrix[0, 1].item()
-    elif interactions_to_keep[-1][0]:
-        scale = 1.0
-    else:
-        scale = 0.0
-    cores.append(
-        _last_factor(
-            scale,
+    if hamiltonian_type == HamiltonianType.XY:
+        return MPO(
+            list(XYHamiltonianMPOFactors(interaction_matrix)),
+            num_gpus_to_use=num_gpus_to_use,
         )
-    )
-    return MPO(cores, num_gpus_to_use=num_gpus_to_use)
+
+    raise ValueError(f"Unsupported hamiltonian type {hamiltonian_type}")
 
 
 def update_H(
@@ -437,9 +423,9 @@ def update_H(
     assert noise.shape == (2, 2)
     nqubits = omega.size(dim=0)
 
-    a = torch.tensordot(omega * torch.cos(phi), sx, dims=0)
-    c = torch.tensordot(delta, pu, dims=0)
-    b = torch.tensordot(omega * torch.sin(phi), sy, dims=0)
+    a = torch.tensordot(omega * torch.cos(phi), Operators.sx, dims=0)
+    c = torch.tensordot(delta, Operators.pu, dims=0)
+    b = torch.tensordot(omega * torch.sin(phi), Operators.sy, dims=0)
 
     single_qubit_terms = a + b - c + noise
     factors = hamiltonian.factors
