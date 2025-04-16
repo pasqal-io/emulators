@@ -8,6 +8,15 @@ dtype = torch.complex128
 dtype_params = torch.float64
 
 
+def frechet_exp(A: torch.Tensor, E: torch.Tensor):
+    """Returns exp([[A,E],[0,A]])"""
+    big_mat = torch.block_diag(A, A)
+    sizeA = A.shape[0]
+    big_mat[:sizeA, sizeA:] = E
+    big_exp = torch.linalg.matrix_exp(big_mat)
+    return big_exp[:sizeA, sizeA:]
+
+
 @mark.parametrize(
     "N, tolerance",
     [(n, tol) for n in [5, 7] for tol in [1e-8, 1e-10, 1e-12]],
@@ -25,10 +34,8 @@ def test_double_krylov(N, tolerance):
     state = state / state.norm()
 
     grad = torch.randn(2**N, dtype=dtype)
-    # grad = grad / grad.norm()
 
     dt, iteration_count = 1.0, 80
-    tolerance = 1e-8
     ham = RydbergHamiltonian(
         omegas=omegas,
         deltas=deltas,
@@ -49,11 +56,7 @@ def test_double_krylov(N, tolerance):
 
     Hsv = dense_rydberg_hamiltonian(omegas, deltas, phis, interactions)
     E = state.unsqueeze(-1) @ grad.conj().unsqueeze(0)
-    big_mat = torch.block_diag(-1j * dt * Hsv, -1j * dt * Hsv)
-    sizeH = Hsv.shape[0]
-    big_mat[:sizeH, sizeH:] = E
-    big_exp = torch.linalg.matrix_exp(big_mat)
-    expected_L = big_exp[:sizeH, sizeH:]
+    expected_L = frechet_exp(-1j * dt * Hsv, E)
 
     assert torch.allclose(L, expected_L, atol=tolerance)
 
@@ -75,10 +78,8 @@ def test_double_krylov_2(N, tolerance):
     state = state / state.norm()
 
     grad = torch.randn(2**N, dtype=dtype)
-    # grad = grad / grad.norm()
 
     dt = 1.0
-    tolerance = 1e-8
     ham = RydbergHamiltonian(
         omegas=omegas,
         deltas=deltas,
@@ -100,10 +101,6 @@ def test_double_krylov_2(N, tolerance):
 
     Hsv = dense_rydberg_hamiltonian(omegas, deltas, phis, interactions)
     E = state.unsqueeze(-1) @ grad.conj().unsqueeze(0)
-    big_mat = torch.block_diag(-1j * dt * Hsv, -1j * dt * Hsv)
-    sizeH = Hsv.shape[0]
-    big_mat[:sizeH, sizeH:] = E
-    big_exp = torch.linalg.matrix_exp(big_mat)
-    expected_L = big_exp[:sizeH, sizeH:]
+    expected_L = frechet_exp(-1j * dt * Hsv, E)
 
     assert torch.allclose(L, expected_L, atol=tolerance)

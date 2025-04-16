@@ -74,6 +74,7 @@ def double_krylov(
     new = 1e12
     n = 1e12
     for j_e in range(max_krylov_dim):  # TODO: exit condition
+        print(j_e, current_vector)
         w = op(lanczos_vectors_even[-1])
         for k in range(max(0, j_e - 1), j_e + 1):
             # overlaps of the even subspace
@@ -108,7 +109,9 @@ def double_krylov(
                 break
             current_vector += 1
             new = abs(expd[1, 2 * current_vector])
-    return lanczos_vectors_even[: current_vector + 1], lanczos_vectors_odd, expd
+    print(size)
+    print(len(lanczos_vectors_even))
+    return (lanczos_vectors_even[: current_vector + 1], lanczos_vectors_odd, expd)
 
 
 def double_krylov_2(
@@ -119,58 +122,21 @@ def double_krylov_2(
 ) -> tuple[list, list, torch.Tensor]:
 
     Tb = torch.zeros(2 * max_krylov_dim + 4, 2 * max_krylov_dim + 4, dtype=state.dtype)
-    Tb[1, 0] = (
-        grad.norm() * state.norm()
-    )  # the A matrix in the top left overlaps these two vectors, and nothing else
+    # the A matrix in the top left overlaps these two vectors, and nothing else
+    Tb[1, 0] = grad.norm() * state.norm()
 
     lanczos_vectors_odd, T_odd = lanczos(op, state, tolerance)
     size_odd = T_odd.shape[0]
     Tb[1 : (2 * size_odd) : 2, 1 : (2 * size_odd) : 2] = T_odd
 
-    current_vector = 0
-    old = 1e12
-    new = 1e12
-    n = 1e12
+    lanczos_vectors_even, T_even = lanczos(op, grad, tolerance)
+    size_even = T_even.shape[0]
+    Tb[: (2 * size_even) : 2, : (2 * size_even) : 2] = T_even
 
-    lanczos_vectors_even = [grad / grad.norm()]
+    size = 2 * max(size_even, size_odd)
 
-    for j_e in range(max_krylov_dim):  # TODO: exit condition
-        w = op(lanczos_vectors_even[j_e])
-        for k in range(max(0, j_e - 1), j_e + 1):
-            # overlaps of the even subspace
-            Tb[2 * k, 2 * j_e] = torch.tensordot(
-                lanczos_vectors_even[k].conj(), w, dims=w.dim()
-            )
-            w -= Tb[2 * k, 2 * j_e] * lanczos_vectors_even[k]
-        # even
-        tmp = w.norm()
-        Tb[2 * j_e + 2, 2 * j_e] = tmp
-        if tmp.real < tolerance:
-            # Happy breakdown
-            size = max(2 * j_e + 2, 2 * size_odd)
-            expd = torch.linalg.matrix_exp(Tb[:size, :size])
-            current_vector = j_e
-            break
-        lanczos_vectors_even.append(w / tmp)
-        # Compute exponential of extended T matrix
-        Tb[2 * j_e + 4, 2 * j_e + 2] = 1
-        size = max(2 * j_e + 6, 2 * size_odd)
-        expd = torch.linalg.matrix_exp(Tb[:size, :size])
-        old = new
-        new = abs(expd[1, 2 * current_vector])
-
-        err = abs(old - new)
-
-        if err < tolerance:
-            # check if we have enough vectors for the trace
-            tr_err = expd[1:size:2, 2 * current_vector]
-            n = tr_err.norm()
-            if n < tolerance:
-                break
-            current_vector += 1
-            new = abs(expd[1, 2 * current_vector])
-
-    return lanczos_vectors_even[: current_vector + 1], lanczos_vectors_odd, expd
+    expd = torch.linalg.matrix_exp(Tb[:size, :size])
+    return lanczos_vectors_even, lanczos_vectors_odd, expd
 
 
 def lanczos(
@@ -182,7 +148,7 @@ def lanczos(
     T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
 
     for j in range(max_krylov_dim):
-        w = op(lanczos_vectors[j])
+        w = op(lanczos_vectors[-1])
         n = w.norm()
         for k in range(max(0, j - 1), j + 1):
             overlap = torch.tensordot(lanczos_vectors[k].conj(), w, dims=w.dim())
@@ -193,8 +159,7 @@ def lanczos(
         T[j + 1, j] = n2
 
         if n2 < tolerance:
-            # Happy breakdown
-            size = j + 1
+            break
 
         lanczos_vectors.append(w / n2)
         # Compute exponential of extended T matrix
@@ -206,9 +171,8 @@ def lanczos(
         err2 = abs(expd[j + 2, 0] * n)
 
         err = err1 if err1 < err2 else (err1 * err2 / (err1 - err2))
-
         if err < tolerance:
-            # Converged
-            size = j + 3
+            break
 
+    size = len(lanczos_vectors)
     return lanczos_vectors, T[:size, :size]
