@@ -307,6 +307,25 @@ class MPS(State[complex, torch.Tensor]):
         """
         return torch.abs(self.inner(other)) ** 2  # type: ignore[no-any-return]
 
+    def entanglement_entropy(self, mps_site: int) -> torch.Tensor:
+        """
+        Returns
+        the Von Neumann entanglement entropy of the state `mps` at the bond between sites b and b+1
+        S = -Σᵢsᵢ² log(sᵢ²)),
+        where sᵢ are the singular values at the chosen bond.
+        """
+        self.orthogonalize(mps_site)
+
+        # perform svd on reshaped matrix at site b
+        matrix = self.factors[mps_site].flatten(end_dim=1)
+        s = torch.linalg.svdvals(matrix)
+
+        s_e = torch.Tensor(torch.special.entr(s**2))
+        s_e = torch.sum(s_e)
+
+        self.orthogonalize(0)
+        return s_e.cpu()
+
     def get_memory_footprint(self) -> float:
         """
         Returns the number of MBs of memory occupied to store the state
