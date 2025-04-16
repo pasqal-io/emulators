@@ -8,27 +8,18 @@ from emu_mps.mps import MPS
 import torch
 import pytest
 
-
 _ATOL = 1e-10
-
-
 QUBIT_COUNT = 5
 
 
-def adj_matrix_1d_chain(n):
-    A = torch.zeros((n, n), dtype=torch.int)
-    for i in range(n - 1):
-        A[i, i + 1] = 1.0
-        A[i + 1, i] = 1.0
-    return A
-
-
 def _create_victim(constructor, dt, noise_model):
-    config = MPSConfig(dt=dt,noise_model=noise_model,)
+    config = MPSConfig(
+        dt=dt,
+        noise_model=noise_model,
+        # no optimisation for Mock; full_interaction_matrix doesn't exist
+        optimise_interaction_matrix=False)
     mock_pulser_data = MagicMock()
     mock_pulser_data.qubit_count = QUBIT_COUNT
-    mock_pulser_data.full_interaction_matrix = adj_matrix_1d_chain(QUBIT_COUNT)
-    mock_pulser_data.masked_interaction_matrix = adj_matrix_1d_chain(QUBIT_COUNT)
     mock_pulser_data.slm_end_time = 10.0
     victim = constructor(config, mock_pulser_data)
 
