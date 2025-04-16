@@ -324,7 +324,7 @@ class MPS(State[complex, torch.Tensor]):
         s_e = torch.sum(s_e)
 
         self.orthogonalize(0)
-        return s_e
+        return s_e.cpu()
 
     def get_memory_footprint(self) -> float:
         """
