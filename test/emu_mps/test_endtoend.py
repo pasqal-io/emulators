@@ -277,6 +277,65 @@ def test_end_to_end_afm_ring(
     assert approx(second_moment_energy, rel=1e-4) == 13350.5053421
 
 
+@pytest.mark.parametrize(
+    "optimize_int_matr, bs_count",
+    [
+        (False, 100),
+        (True, 139),
+    ],
+)
+def test_end_to_end_domain_wall_ring(
+    optimize_int_matr: bool,
+    bs_count: list[int],
+) -> None:
+    torch.manual_seed(seed)
+
+    num_qubits = 6
+    seq = pulser_afm_sequence_ring(
+        num_qubits=num_qubits,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=1300,
+        t_fall=1400,
+    )
+
+    initial_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={(num_qubits//2)*"r"+(num_qubits//2)*"g": 1.0}
+    )
+
+    eval_times = [1/32, 1]  # 1/32 is 1 dt step with total duration 32
+    mps_config = MPSConfig(
+        initial_state=initial_state,
+        dt=100,
+        precision=1e-5,
+        observables=[
+            BitStrings(evaluation_times=eval_times, num_shots=100),
+            #Fidelity(evaluation_times=eval_times, state=fidelity_state, tag_suffix="1"),
+            Occupation(evaluation_times=eval_times),
+            Energy(evaluation_times=eval_times),
+            EnergyVariance(evaluation_times=eval_times),
+            CorrelationMatrix(evaluation_times=eval_times),
+        ],
+        optimise_interaction_matrix=optimize_int_matr,
+    )
+
+    backend = MPSBackend(seq, config=mps_config)
+    result = backend.run()
+
+    ntime_step = 0
+    bitstrings = result.bitstrings[ntime_step]
+    occupation = result.occupation[ntime_step]
+    energy = result.energy[ntime_step]
+    energy_variance = result.energy_variance[ntime_step]
+
+    assert bitstrings["111000"] == bs_count
+    assert approx(occupation, abs=1e-3) == [1, 1, 1, 0, 0, 0]
+    assert approx(energy, rel=1e-4) == 286.8666
+    assert approx(energy_variance, rel=1e-2) == 3.4843
+
+
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     torch.manual_seed(seed)
 
