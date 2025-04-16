@@ -2,6 +2,7 @@ import torch
 from emu_base.math.double_krylov import double_krylov, double_krylov_2
 from emu_sv.hamiltonian import RydbergHamiltonian
 from test.utils_testing.utils_dense_hamiltonians import dense_rydberg_hamiltonian
+from test.utils_testing.utils_interaction_matrix import randn_interaction_matrix
 from pytest import mark
 
 dtype = torch.complex128
@@ -26,10 +27,7 @@ def test_double_krylov(N, tolerance):
     omegas = torch.randn(N, dtype=dtype_params)
     deltas = torch.randn(N, dtype=dtype_params)
     phis = torch.randn(N, dtype=dtype_params)
-    interactions = torch.zeros(N, N, dtype=dtype_params)
-    for i in range(N):
-        for j in range(i + 1, N):
-            interactions[i, j] = 1 / abs(j - i)
+    interactions = randn_interaction_matrix(N)
     state = torch.randn(2**N, dtype=dtype)
     state = state / state.norm()
 
@@ -70,10 +68,7 @@ def test_double_krylov_2(N, tolerance):
     omegas = torch.randn(N, dtype=dtype_params)
     deltas = torch.randn(N, dtype=dtype_params)
     phis = torch.randn(N, dtype=dtype_params)
-    interactions = torch.zeros(N, N, dtype=dtype_params)
-    for i in range(N):
-        for j in range(i + 1, N):
-            interactions[i, j] = 1 / abs(j - i)
+    interactions = randn_interaction_matrix(N)
     state = torch.randn(2**N, dtype=dtype)
     state = state / state.norm()
 
