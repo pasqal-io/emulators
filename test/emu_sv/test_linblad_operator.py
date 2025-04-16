@@ -6,11 +6,12 @@ dtype = torch.complex128
 device = torch.device("cpu")
 
 
-def test_linblad():
+def test_ham_matmul_density():
+    # no lindblad operators
     torch.manual_seed(234)
-    nqubits = 3
-    omegas = torch.tensor([1.0, 2.0, 4.0], dtype=dtype, device=device)
-    deltas = torch.tensor([1.0, 2.0, 3.0], dtype=dtype, device=device)
+    nqubits = 10
+    omegas = torch.rand(nqubits, dtype=dtype, device=device)
+    deltas = torch.rand(nqubits, dtype=dtype, device=device)
     phis = torch.zeros(nqubits, dtype=dtype, device=device)
     pulser_linblad = torch.zeros(2**nqubits, dtype=dtype, device=device)
     interaction_matrix = nn_interaction_matrix(nqubits)
@@ -31,4 +32,6 @@ def test_linblad():
     )
     h_rho = ham @ rho
 
-    assert torch.allclose(result, h_rho, atol=1e-5), "LindbladOperator test failed"
+    assert torch.allclose(
+        result, h_rho, atol=1e-5
+    ), "LindbladOperator with no Lindblad test failed"

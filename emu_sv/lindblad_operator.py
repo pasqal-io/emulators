@@ -1,4 +1,3 @@
-from typing import List, Union
 import torch
 
 # from emu_sv.state_vector import StateVector
@@ -44,45 +43,60 @@ class LindbladOperator:
         return diag.view(-1)
 
     def apply_sum_sigma_x_i_to_density(self, rho: torch.Tensor) -> torch.Tensor:
-        # Convert rho to a tensor with shape (2, 2, ..., 2, 2, ..., 2)
-        # nqubits dimensions for row indices
+        # Convert rho to a tensor with shape (2,)* (2*nqubits),
+        # where the first nqubits dimensions are for the row indices.
         full_shape = (2,) * (2 * self.nqubits)
         rho_view = rho.view(full_shape)
 
-        # Prepare an accumulator for the change in rho
-        accum = torch.zeros_like(rho_view, dtype=dtype)
+        # Create an accumulator tensor with the same shape and data type as rho_view.
+        accum = torch.zeros_like(rho_view)
 
-        # Define the 'flip' indices for a Pauli X (i.e., [0,1] -> [1,0])
-        flip = torch.tensor([1, 0], device=rho.device)
-
-        # Loop over each qubit j:
+        # Loop over each qubit j and apply the Pauli X  along the row index (dimension j)
         for j, omega_j in enumerate(self.omegas):
-            # ---multiplication: X_j * rho ---
-            # We act on the row index corresponding to qubit j.
-            # Create a copy of rho_view where the j-th row index is flipped.
-            # To do this we use advanced indexing along dimension j.
+            # torch.flip reverses the order along dimension j,  swaps 0 and 1.
+            h_rho_term = torch.flip(rho_view, dims=[j])
+            # Accumulate the weighted contribution of this term in-place
+            accum.add_(omega_j * h_rho_term)
 
-            # Build index slices for all row dimensions: for qubit j use flip index,
-            # otherwise use colon
-            idx_all_rows: List[Union[slice, torch.Tensor]] = [slice(None)] * self.nqubits
-            # Replace the j-th index with the flipped index
-            # This is a trick to swap rows of the j-th qubit's index:
+        # Return the resulting tensor in its original 2^n x 2^n matrix shape.
+        return accum.view(2**self.nqubits, 2**self.nqubits)
 
-            idx_all_rows[j] = flip  # type ignore[call-overload]
-            # For the left action we leave the column indices untouched:
-            idx_all = idx_all_rows + [slice(None)] * self.nqubits
+    def apply_local_operator_to_density_matrix(
+        self, density_matrix: torch.Tensor, local_op: torch.Tensor, target_qubit: int
+    ) -> torch.Tensor:
+        # Reshape density matrix to a 2n-way tensor of shape (2,...,2) x (2,...,2)
+        rho = density_matrix.view([2] * (2 * self.nqubits))
 
-            # This produces the piece corresponding to X_j * rho.
-            h_rho_term = rho_view[tuple(idx_all)]
+        # Permute so that the target qubit comes first in both bra and ket spaces.
+        # Determine new ordering for the bra (first n_qubits) and for ket (next n_qubits) indices.
+        perm = list(range(self.nqubits))
+        perm.remove(target_qubit)
+        perm = [target_qubit] + perm  # target qubit now in the first position
+        bra_perm = perm
+        ket_perm = [p + self.nqubits for p in perm]
+        total_perm = bra_perm + ket_perm
+        rho = rho.permute(total_perm)
 
-            accum += (omega_j) * (h_rho_term)
+        # Reshape to a 2-index tensor: (2, 2^(n-1)* 2* 2^(n-1)) in order to multiply with A.
+        # The first index is the target qubit, the second index is the rest of the qubits.
+        rho = rho.contiguous().view(2, 2 ** (2 * self.nqubits - 1))
 
-        # Update rho_view
-        rho_view = accum
+        # Apply A to the bra index.
+        # Contract A (indices 'ab') with the first index of rho ('b') giving new index 'a'.
+        # rho = torch.einsum("ab,bijc->aijc", local_op, rho)
+        rho = local_op @ rho
 
-        # Return to the original 2^n x 2^n matrix
-        rho_new: torch.Tensor = rho_view.view(2**self.nqubits, 2**self.nqubits)
-        return rho_new
+        # Reshape back to a 2n-way tensor.
+        rho = rho.contiguous().view([2] * (2 * self.nqubits))
+
+        # Invert the permutation to return the indices to their original order.
+        inv_perm = [0] * (2 * self.nqubits)
+        for i, p in enumerate(total_perm):
+            inv_perm[p] = i
+        rho = rho.permute(inv_perm)
+
+        # Reshape back to the full density matrix shape [2**n, 2**n].
+        return rho.contiguous().view(2**self.nqubits, 2**self.nqubits)
 
     def __matmul__(self, densi_matrix: torch.Tensor) -> torch.Tensor:
 
