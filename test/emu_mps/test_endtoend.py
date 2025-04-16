@@ -630,3 +630,37 @@ def test_autosave() -> None:
             results_after_resume.get_result("energy", t),
             results_expected.get_result("energy", t),
         )
+
+
+def test_obs_after_autosave() -> None:
+    duration = 300
+    rows, cols = 2, 3
+    reg = pulser.Register.rectangle(
+        rows, cols, pulser.devices.MockDevice.rydberg_blockade_radius(U), prefix="q"
+    )
+    seq = pulser.Sequence(reg, pulser.devices.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(
+        pulser.Pulse.ConstantAmplitude(
+            amplitude=torch.pi,
+            detuning=pulser.waveforms.ConstantWaveform(duration=duration, value=0.0),
+            phase=0.0,
+        ),
+        "ising_global",
+    )
+
+    evaluation_times = [1.0 / 30.0, 1.0 / 3.0, 0.5]
+    energy = Energy(evaluation_times=evaluation_times)
+
+    save_simulation_original = MPSBackendImpl.save_simulation
+
+    def save_simulation_mock_side_effect(self):
+        self.last_save_time = 0  # save at each timestep
+        return save_simulation_original(self)
+
+    with patch.object(
+        MPSBackendImpl, "save_simulation", autospec=True
+    ) as save_simulation_mock:
+        save_simulation_mock.side_effect = save_simulation_mock_side_effect
+
+        MPSBackend(seq, config=MPSConfig(observables=[energy])).run()
