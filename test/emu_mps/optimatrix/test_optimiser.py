@@ -59,9 +59,9 @@ def test_minimize_bandwidth_global(N: int) -> None:
     # Test shuffled 1D ising chain which is described by tridiagonal matrix {1, 0 , 1}
     mat = np.diag([1] * (N - 1), k=1)
     mat += np.diag([1] * (N - 1), k=-1)
-    permuted_mat = optimiser.permute_matrix(mat, list(np.random.permutation(N)))
+    permuted_mat = optimiser.permute_2D_array(mat, list(np.random.permutation(N)))
     optimal_perm = optimiser.minimize_bandwidth_global(permuted_mat)
-    assert np.array_equal(mat, optimiser.permute_matrix(permuted_mat, optimal_perm))
+    assert np.array_equal(mat, optimiser.permute_2D_array(permuted_mat, optimal_perm))
 
 
 @pytest.mark.parametrize("N", [10, 20, 30])
@@ -73,18 +73,18 @@ def test_minimize_bandwidth(N: int) -> None:
         optimiser.minimize_bandwidth(mat)
     assert str(exc_msg.value) == "Input matrix is not symmetric"
 
-    def random_permute_matrix(mat: np.ndarray) -> np.ndarray:
+    def random_permute_2D_array(mat: np.ndarray) -> np.ndarray:
         s = mat.shape[0]
         perm_random = random.sample(list(range(s)), s)
-        return optimiser.permute_matrix(mat, perm_random)
+        return optimiser.permute_2D_array(mat, perm_random)
 
     # Test 1. The optimal 1D OPEN chain is tridiagonal
     subdiagonal = [1] * (N - 1)
     tridiagonal_matrix = np.diag(subdiagonal, k=1) + np.diag(subdiagonal, k=-1)
 
-    shuffled_matrix = random_permute_matrix(tridiagonal_matrix)
+    shuffled_matrix = random_permute_2D_array(tridiagonal_matrix)
     optimal_perm = optimiser.minimize_bandwidth(shuffled_matrix, samples=10)
-    opt_matrix = optimiser.permute_matrix(shuffled_matrix, optimal_perm)
+    opt_matrix = optimiser.permute_2D_array(shuffled_matrix, optimal_perm)
     assert np.array_equal(tridiagonal_matrix, opt_matrix)
 
     # Test 2. 1D PERIODIC
@@ -99,12 +99,12 @@ def test_minimize_bandwidth(N: int) -> None:
     expected_mat[N - 1, N - 2] = expected_mat[N - 2, N - 1] = 1
 
     optimal_perm = optimiser.minimize_bandwidth(initial_mat, samples=10)
-    opt_matrix = optimiser.permute_matrix(initial_mat, optimal_perm)
+    opt_matrix = optimiser.permute_2D_array(initial_mat, optimal_perm)
     assert np.array_equal(expected_mat, opt_matrix)
 
-    shuffled_matrix = random_permute_matrix(initial_mat)
+    shuffled_matrix = random_permute_2D_array(initial_mat)
     optimal_perm = optimiser.minimize_bandwidth(shuffled_matrix, samples=10)
-    opt_matrix = optimiser.permute_matrix(shuffled_matrix, optimal_perm)
+    opt_matrix = optimiser.permute_2D_array(shuffled_matrix, optimal_perm)
     assert np.array_equal(expected_mat, opt_matrix)
 
 
@@ -147,7 +147,7 @@ def test_2rings_1bar() -> None:
     )
 
     optimal_perm = optimiser.minimize_bandwidth(input_mat)
-    opt_matrix = optimiser.permute_matrix(input_mat, optimal_perm)
+    opt_matrix = optimiser.permute_2D_array(input_mat, optimal_perm)
     exp_bandwidth = optimiser.matrix_bandwidth(expected_mat)
     opt_bandwidth = optimiser.matrix_bandwidth(opt_matrix)
     assert exp_bandwidth == opt_bandwidth

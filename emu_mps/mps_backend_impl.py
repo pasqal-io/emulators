@@ -184,8 +184,8 @@ class MPSBackendImpl:
         self.opt_perm = optimatrix.minimize_bandwidth(f_mat_numpy)
         self.inv_opt_perm = optimatrix.invert_permutation(self.opt_perm)
 
-        f_mat_numpy = optimatrix.permute_matrix(f_mat_numpy, self.opt_perm)
-        m_mat_numpy = optimatrix.permute_matrix(m_mat_numpy, self.opt_perm)
+        f_mat_numpy = optimatrix.permute_2D_array(f_mat_numpy, self.opt_perm)
+        m_mat_numpy = optimatrix.permute_2D_array(m_mat_numpy, self.opt_perm)
 
         self.full_interaction_matrix = torch.tensor(f_mat_numpy)
         self.masked_interaction_matrix = torch.tensor(m_mat_numpy)

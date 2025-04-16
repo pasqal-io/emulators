@@ -4,7 +4,7 @@ from emu_mps.optimatrix.permutations import (
     permute_list,
     permute_string,
     invert_permutation,
-    permute_matrix,
+    permute_2D_array,
 )
 import random
 
@@ -75,10 +75,10 @@ def test_invert_permutation_random(N: int) -> None:
 
 
 @pytest.mark.parametrize("N", [10, 20, 30])
-def test_implementation_permute_matrix(N: int) -> None:
+def test_implementation_permute_2D_array(N: int) -> None:
     perm = np.random.permutation(N)
     rnd_matrix = np.random.rand(N, N)
-    rnd_permuted = permute_matrix(rnd_matrix, list(perm))
+    rnd_permuted = permute_2D_array(rnd_matrix, list(perm))
 
     assert np.array_equal(rnd_matrix[perm, :][:, perm], rnd_permuted)  # implementation 1
     assert np.array_equal(rnd_matrix[:, perm][perm, :], rnd_permuted)  # implementation 2
@@ -91,7 +91,7 @@ def test_implementation_permute_matrix(N: int) -> None:
 
 
 @pytest.mark.parametrize("N", [10, 20, 30])
-def test_permute_matrix(N: int) -> None:
+def test_permute_2D_array(N: int) -> None:
     mat012 = np.array(
         [
             [1, 2, 3],
@@ -101,12 +101,12 @@ def test_permute_matrix(N: int) -> None:
     )
 
     assert np.array_equal(
-        mat012, permute_matrix(mat012, [0, 1, 2])
+        mat012, permute_2D_array(mat012, [0, 1, 2])
     )  # identity permutation
 
     rnd_matrix = np.random.rand(N, N)
     assert np.array_equal(
-        rnd_matrix, permute_matrix(rnd_matrix, list(range(N)))
+        rnd_matrix, permute_2D_array(rnd_matrix, list(range(N)))
     )  # identity permutation for large matrices
 
     # composition of permutations == permutation
@@ -114,7 +114,7 @@ def test_permute_matrix(N: int) -> None:
     perm2 = np.random.permutation(N)
     double_perm = [perm1[i] for i in perm2]
 
-    mat_single_perm = permute_matrix(rnd_matrix, list(perm1))
-    mat_double_perm = permute_matrix(mat_single_perm, list(perm2))
+    mat_single_perm = permute_2D_array(rnd_matrix, list(perm1))
+    mat_double_perm = permute_2D_array(mat_single_perm, list(perm2))
 
-    assert np.array_equal(mat_double_perm, permute_matrix(rnd_matrix, double_perm))
+    assert np.array_equal(mat_double_perm, permute_2D_array(rnd_matrix, double_perm))
