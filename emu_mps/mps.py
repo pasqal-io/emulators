@@ -38,6 +38,7 @@ class MPS(State[complex, torch.Tensor]):
         orthogonality_center: Optional[int] = None,
         config: Optional[MPSConfig] = None,
         num_gpus_to_use: Optional[int] = DEVICE_COUNT,
+        eigenstates: Optional[list] = None,
     ):
         """
         This constructor creates a MPS directly from a list of tensors. It is for internal use only.
@@ -56,7 +57,7 @@ class MPS(State[complex, torch.Tensor]):
             num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu, None=keep the existing device assignment.
         """
-        self._eigenstates = ["0", "1"]
+        self._eigenstates = eigenstates
         self.config = config if config is not None else MPSConfig()
         assert all(
             factors[i - 1].shape[2] == factors[i].shape[0] for i in range(1, len(factors))
@@ -356,6 +357,7 @@ class MPS(State[complex, torch.Tensor]):
             config=self.config,
             num_gpus_to_use=None,
             orthogonality_center=None,  # Orthogonality is lost.
+            eigenstates=self._eigenstates,
         )
         result.truncate()
         return result
@@ -381,6 +383,7 @@ class MPS(State[complex, torch.Tensor]):
             config=self.config,
             num_gpus_to_use=None,
             orthogonality_center=self.orthogonality_center,
+            eigenstates=self._eigenstates,
         )
 
     def __imul__(self, scalar: complex) -> MPS:
@@ -404,7 +407,7 @@ class MPS(State[complex, torch.Tensor]):
         Returns:
             The resulting MPS representation of the state.s
         """
-
+        self._validate_amplitudes(amplitudes, eigenstates)
         nqubits = len(next(iter(amplitudes.keys())))
         basis = set(eigenstates)
         if basis == {"r", "g"}:
@@ -420,11 +423,12 @@ class MPS(State[complex, torch.Tensor]):
         accum_mps = MPS(
             [torch.zeros((1, 2, 1), dtype=torch.complex128)] * nqubits,
             orthogonality_center=0,
+            eigenstates=eigenstates,
         )
 
         for state, amplitude in amplitudes.items():
             factors = [basis_1 if ch == one else basis_0 for ch in state]
-            accum_mps += amplitude * MPS(factors)
+            accum_mps += amplitude * MPS(factors, eigenstates=eigenstates)
         norm = accum_mps.norm()
         if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
             print("\nThe state is not normalized, normalizing it for you.")
