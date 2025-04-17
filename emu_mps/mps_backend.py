@@ -68,8 +68,6 @@ class MPSBackend(EmulatorBackend):
         inv_perm = impl.inv_opt_perm
         permute_bitstrings(inv_perm, results)
         permute_occup_and_correlation_mat(inv_perm, results)
-        #permute_occupation(inv_perm, results)
-        #permute_correlation_matrix(inv_perm, results)
 
         return results
 

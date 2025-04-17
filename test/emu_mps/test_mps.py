@@ -446,7 +446,8 @@ def test_to_abstr_repr() -> None:
     assert eig == abstr["eigenstates"]
 
 
-@pytest.mark.xfail(reason="Known bug: default crt only knows basis {0,1}")
+# strict=True makes test fail when the bug is fixed
+@pytest.mark.xfail(strict=True, reason="Known bug: default crt only knows basis {0,1}")
 def test_to_abstr_repr_basis_rg() -> None:
     # MPS constructor doesn't update eigenstates
     initial_state = MPS.from_state_amplitudes(

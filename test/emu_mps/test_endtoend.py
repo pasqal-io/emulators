@@ -278,15 +278,10 @@ def test_end_to_end_afm_ring(
 
 
 @pytest.mark.parametrize(
-    "optimize_int_matr, bs_count",
-    [
-        (False, 100),
-        (True, 139),
-    ],
-)
+    "optimize_int_matr", [False, True,],
+    )
 def test_end_to_end_domain_wall_ring(
     optimize_int_matr: bool,
-    bs_count: list[int],
 ) -> None:
     torch.manual_seed(seed)
 
@@ -330,7 +325,7 @@ def test_end_to_end_domain_wall_ring(
     energy = result.energy[ntime_step]
     energy_variance = result.energy_variance[ntime_step]
 
-    assert bitstrings["111000"] == bs_count
+    assert bitstrings["111000"] == 100
     assert approx(occupation, abs=1e-3) == [1, 1, 1, 0, 0, 0]
     assert approx(energy, rel=1e-4) == 286.8666
     assert approx(energy_variance, rel=1e-2) == 3.4843
