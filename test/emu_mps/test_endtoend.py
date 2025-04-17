@@ -300,7 +300,7 @@ def test_end_to_end_domain_wall_ring(
         eigenstates=("0", "1"), amplitudes={(num_qubits//2)*"1"+(num_qubits//2)*"0": 1.0}
     )
 
-    eval_times = [1/32, 1]  # 1/32 is 1 dt step with total duration 32
+    eval_times = [1/44, 1]  # 1/44 is 1 dt step
     mps_config = MPSConfig(
         initial_state=initial_state,
         dt=100,
@@ -326,8 +326,8 @@ def test_end_to_end_domain_wall_ring(
     energy = result.energy[ntime_step]
     energy_variance = result.energy_variance[ntime_step]
 
-    exp_occup = torch.tensor([1, 1, 1, 0, 0, 0], dtype=torch.complex128)
-    expect_corr = torch.outer(exp_occup, exp_occup)
+    exp_occup = torch.tensor([1, 1, 1, 0, 0, 0], dtype=torch.float64)
+    expect_corr = torch.outer(exp_occup, exp_occup).to(torch.complex128)
 
     assert bitstrings["111000"] == 100
     assert torch.allclose(exp_occup, occupation, atol=1e-3)
