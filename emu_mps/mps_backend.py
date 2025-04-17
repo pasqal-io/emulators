@@ -95,28 +95,6 @@ def permute_bitstrings(perm: list[int], results: Results) -> None:
         counter_time_slices[t] = new_time_slice
 
 
-def permute_occupation(perm: list[int], results: Results) -> None:
-    if "occupation" not in results.get_result_tags():
-        return
-    uuid_occup = results._find_uuid("occupation")
-    time_slices = results._results[uuid_occup]
-    for t in range(len(time_slices)):
-        old_time_slice = time_slices[t]
-        new_time_slice = opmat.permute_1D_array(old_time_slice.numpy(), perm)
-        time_slices[t] = torch.tensor(new_time_slice)
-
-
-def permute_correlation_matrix(perm: list[int], results: Results) -> None:
-    if "correlation_matrix" not in results.get_result_tags():
-        return
-    uuid_corr_mat = results._find_uuid("correlation_matrix")
-    time_slices = results._results[uuid_corr_mat]
-    for t in range(len(time_slices)):
-        old_time_slice = time_slices[t]
-        new_time_slice = opmat.permute_2D_array(old_time_slice.numpy(), perm)
-        time_slices[t] = torch.tensor(new_time_slice)
-
-
 def permute_occup_and_correlation_mat(perm: list[int], results: Results) -> None:
     for corr in ["occupation", "correlation_matrix"]:
         if corr not in results.get_result_tags():
