@@ -110,7 +110,7 @@ class LindbladOperator:
         densi_matrix_sum_x = self.apply_sum_sigma_x_i_to_density(densi_matrix)
 
         # -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ in H
-        # NOTE: get rid of for loop
+        # NOTE: get rid of the for loop
         # use broadcasting to apply the diagonal term, reshape the diag tensor
         # look at torch bracasting rules
         storage = torch.zeros_like(densi_matrix, dtype=dtype)
