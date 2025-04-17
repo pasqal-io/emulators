@@ -38,7 +38,7 @@ class MPS(State[complex, torch.Tensor]):
         orthogonality_center: Optional[int] = None,
         config: Optional[MPSConfig] = None,
         num_gpus_to_use: Optional[int] = DEVICE_COUNT,
-        eigenstates: Optional[list] = None,
+        eigenstates: Sequence[Eigenstate],
     ):
         """
         This constructor creates a MPS directly from a list of tensors. It is for internal use only.
@@ -89,6 +89,7 @@ class MPS(State[complex, torch.Tensor]):
         num_sites: int,
         config: Optional[MPSConfig] = None,
         num_gpus_to_use: int = DEVICE_COUNT,
+        eigenstates: Sequence[Eigenstate] = ["0", "1"],
     ) -> MPS:
         """
         Returns a MPS in ground state |000..0>.
@@ -112,6 +113,7 @@ class MPS(State[complex, torch.Tensor]):
             config=config,
             num_gpus_to_use=num_gpus_to_use,
             orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
+            eigenstates=eigenstates,
         )
 
     def __repr__(self) -> str:
@@ -393,7 +395,7 @@ class MPS(State[complex, torch.Tensor]):
     def _from_state_amplitudes(
         cls,
         *,
-        eigenstates: Sequence[str],
+        eigenstates: Sequence[Eigenstate],
         amplitudes: Mapping[str, complex],
     ) -> tuple[MPS, Mapping[str, complex]]:
         """

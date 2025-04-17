@@ -442,7 +442,6 @@ def test_correlation_matrix_random():
 )
 def test_to_abstr_repr(eig, ampl) -> None:
     initial_state = MPS.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
-
     abstr = initial_state._to_abstract_repr()
 
     assert ampl == abstr["amplitudes"]

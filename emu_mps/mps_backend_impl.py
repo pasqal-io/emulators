@@ -208,6 +208,7 @@ class MPSBackendImpl:
             [f.clone().detach() for f in initial_state.factors],
             config=self.config,
             num_gpus_to_use=self.config.num_gpus_to_use,
+            eigenstates=initial_state.eigenstates,
         )
         initial_state.truncate()
         initial_state *= 1 / initial_state.norm()
@@ -496,13 +497,15 @@ class MPSBackendImpl:
                     )
                     full_state = MPS(
                         extended_mps_factors(
-                            normalized_state.factors, self.well_prepared_qubits_filter
+                            normalized_state.factors,
+                            self.well_prepared_qubits_filter,
                         ),
                         num_gpus_to_use=None,  # Keep the already assigned devices.
                         orthogonality_center=get_extended_site_index(
                             self.well_prepared_qubits_filter,
                             normalized_state.orthogonality_center,
                         ),
+                        eigenstates=normalized_state.eigenstates,
                     )
 
                 callback(self.config, fractional_time, full_state, full_mpo, self.results)

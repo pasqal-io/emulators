@@ -83,7 +83,7 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
             other.factors,
             config=other.config,
         )
-        return MPS(factors, orthogonality_center=0)
+        return MPS(factors, orthogonality_center=0, eigenstates=other.eigenstates)
 
     def __add__(self, other: MPO) -> MPO:
         """
