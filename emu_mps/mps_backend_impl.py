@@ -151,9 +151,7 @@ class MPSBackendImpl:
     def __getstate__(self) -> dict:
         for obs in self.config.observables:
             obs.apply = MethodType(type(obs).apply, obs)  # type: ignore[method-assign]
-        d = {}
-        for key, val in self.__dict__.items():
-            d[key] = val
+        d = self.__dict__.copy()
         # mypy thinks the method below is an attribute, because of the __getattr__ override
         d["results"] = self.results._to_abstract_repr()  # type: ignore[operator]
         return d
