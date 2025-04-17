@@ -47,7 +47,10 @@ def test_init():
         [[[0], [0]], [[0], [0]], [[0], [0]], [[1], [0]], [[0], [0]]],
         dtype=torch.complex128,
     )
-    state = MPS([factor1, factor2, factor3])
+    state = MPS(
+        [factor1, factor2, factor3],
+        eigenstates=("0", "1"),
+    )
     state.truncate()
     for factor in state.factors:
         assert factor.shape == (1, 2, 1)
@@ -69,7 +72,11 @@ def test_init():
         assert abs(torch.tensordot(factor, factor, dims=3)) - 1 < 1e-8
 
     # Check that no copy or move is performed when num_gpus_to_use=None
-    no_device_reassignment = MPS([factor1, factor2, factor3], num_gpus_to_use=None)
+    no_device_reassignment = MPS(
+        [factor1, factor2, factor3],
+        num_gpus_to_use=None,
+        eigenstates=("0", "1"),
+    )
     assert no_device_reassignment.factors[0] is factor1
     assert no_device_reassignment.factors[1] is factor2
     assert no_device_reassignment.factors[2] is factor3
@@ -91,8 +98,14 @@ def test_inner():
         dtype=torch.complex128,
     )
 
-    ones = MPS([r_factor] * n_qubits)  # 111
-    bell = MPS([l_factor1, l_factor2, l_factor3])  # 000 + i111
+    ones = MPS(
+        [r_factor] * n_qubits,
+        eigenstates=("0", "1"),
+    )  # 111
+    bell = MPS(
+        [l_factor1, l_factor2, l_factor3],
+        eigenstates=("0", "1"),
+    )  # 000 + i111
     assert abs(inner(bell, ones) + 1j) < 1e-10
     assert abs(inner(ones, bell) - 1j) < 1e-10
     assert abs(inner(ones, ones) - 1) < 1e-10
@@ -100,7 +113,10 @@ def test_inner():
 
 
 def test_maxbondim():
-    bell_state = MPS(ghz_state_factors(3))
+    bell_state = MPS(
+        ghz_state_factors(3),
+        eigenstates=("0", "1"),
+    )
     assert 2 == bell_state.get_max_bond_dim()
 
 
@@ -118,15 +134,29 @@ def test_wrong_external_links():
     good_right_factor = torch.rand(5, 2, 1)
     wrong_right_factor = torch.rand(5, 2, 5)
 
-    MPS([good_left_factor, factor1, factor2, good_right_factor])
+    factors = [good_left_factor, factor1, factor2, good_right_factor]
+
+    MPS(
+        factors,
+        eigenstates=("0", "1"),
+    )
 
     with pytest.raises(AssertionError) as ve:
-        MPS([wrong_left_factor, factor1, factor2, good_right_factor])
+        factors[0] = wrong_left_factor
+        MPS(
+            factors,
+            eigenstates=("0", "1"),
+        )
     msg = "The dimension of the left (right) link of the first (last) tensor should be 1"
     assert str(ve.value) == msg
 
     with pytest.raises(AssertionError) as ve:
-        MPS([good_left_factor, factor1, factor2, wrong_right_factor])
+        factors[0] = good_left_factor
+        factors[-1] = wrong_right_factor
+        MPS(
+            factors,
+            eigenstates=("0", "1"),
+        )
     msg = "The dimension of the left (right) link of the first (last) tensor should be 1"
     assert str(ve.value) == msg
 
@@ -152,8 +182,14 @@ def get_bitstring_coeff(mps: MPS, bitstring: int) -> float | complex:
 
 def test_add_to_make_ghz_state():
     num_sites = 5  # number of sites
-    mps_down = MPS([down for _ in range(num_sites)])
-    mps_up = MPS([up for _ in range(num_sites)])
+    mps_down = MPS(
+        [down for _ in range(num_sites)],
+        eigenstates=("0", "1"),
+    )
+    mps_up = MPS(
+        [up for _ in range(num_sites)],
+        eigenstates=("0", "1"),
+    )
 
     # make a |000〉+ |111〉state
     mps_sum = mps_down + mps_up
@@ -177,7 +213,12 @@ def test_add_to_make_w_state():
     states = []
     for i in range(num_sites):
         factors = [up if (j == i) else down for j in range(num_sites)]
-        states.append(MPS(factors))
+        states.append(
+            MPS(
+                factors,
+                eigenstates=("0", "1"),
+            )
+        )
 
     # make a |100...〉+ |010...〉+ ... + |...001〉 state
     mps_sum = sum(states[1:], start=states[0])
@@ -198,7 +239,10 @@ def test_add_to_make_w_state():
 def test_rmul():
     num_sites = 5
     # this test should work for all states
-    mps = MPS([up for _ in range(num_sites)])
+    mps = MPS(
+        [up for _ in range(num_sites)],
+        eigenstates=("0", "1"),
+    )
     for scale in [3.0, 2j, -1 / 4]:
         scaled_mps = scale * mps
         assert inner(mps, scaled_mps) == pytest.approx(scale, tol)
@@ -211,7 +255,10 @@ def test_rmul():
 
 def test_catch_err_when_lmul():
     num_sites = 3
-    mps = MPS([down for _ in range(num_sites)])
+    mps = MPS(
+        [down for _ in range(num_sites)],
+        eigenstates=("0", "1"),
+    )
     with pytest.raises(TypeError) as ve:
         mps * 3.0
     msg = "unsupported operand type(s) for *: 'MPS' and 'float'"
@@ -221,7 +268,12 @@ def test_catch_err_when_lmul():
 def test_mps_algebra():
     num_sites = 5
     # this test should work for all states
-    mps = MPS([up for _ in range(num_sites)], orthogonality_center=0, num_gpus_to_use=0)
+    mps = MPS(
+        [up for _ in range(num_sites)],
+        orthogonality_center=0,
+        num_gpus_to_use=0,
+        eigenstates=("0", "1"),
+    )
     mps_sum = mps + mps + 0.5 * mps + (1 / 3) * mps
     mps_rmul = (1 + 1 + 0.5 + 1 / 3) * mps
     mps_rmul.orthogonalize(0)
@@ -296,7 +348,10 @@ def test_orthogonalize():
     f2 = torch.rand(2, 2, 3, dtype=torch.complex128)
     f3 = torch.rand(3, 2, 1, dtype=torch.complex128)
 
-    state = MPS([f1, f2, f3])
+    state = MPS(
+        [f1, f2, f3],
+        eigenstates=("0", "1"),
+    )
 
     state.orthogonalize(1)
     check_orthogonality_center(state, 1)
@@ -313,7 +368,10 @@ def test_norm():
     f2 = torch.rand(2, 2, 3, dtype=torch.complex128)
     f3 = torch.rand(3, 2, 1, dtype=torch.complex128)
 
-    state = MPS([f1, f2, f3])
+    state = MPS(
+        [f1, f2, f3],
+        eigenstates=("0", "1"),
+    )
 
     assert state.norm() == pytest.approx(math.sqrt(inner(state, state).real))
 
@@ -325,7 +383,10 @@ def test_expect_batch():
     f2 = torch.rand(2, 2, 3, dtype=torch.complex128)
     f3 = torch.rand(3, 2, 1, dtype=torch.complex128)
 
-    state = MPS([f1, f2, f3])
+    state = MPS(
+        [f1, f2, f3],
+        eigenstates=("0", "1"),
+    )
 
     op0 = torch.rand(2, 2, dtype=torch.complex128)
     op1 = torch.rand(2, 2, dtype=torch.complex128)
@@ -394,7 +455,8 @@ def test_correlation_matrix_random():
             torch.rand(5, 2, 12, dtype=torch.complex128),
             torch.rand(12, 2, 2, dtype=torch.complex128),
             torch.rand(2, 2, 1, dtype=torch.complex128),
-        ]
+        ],
+        eigenstates=("r", "g"),
     )
 
     correlation_matrix_nn = state.get_correlation_matrix()

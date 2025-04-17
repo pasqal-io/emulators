@@ -115,7 +115,8 @@ def test_expect():
             return (10,) + (2,) * size + (10,)
 
     state = MPS(
-        [torch.randn(*shape(i, 1), dtype=torch.complex128) for i in range(nqubits)]
+        [torch.randn(*shape(i, 1), dtype=torch.complex128) for i in range(nqubits)],
+        eigenstates=("0", "1"),
     )
     op = MPO([torch.randn(*shape(i, 2), dtype=torch.complex128) for i in range(nqubits)])
     assert op.expect(state) == pytest.approx(state.inner(op.apply_to(state)))
@@ -146,6 +147,7 @@ def test_add_expectation_values():
             torch.rand(2, 2, 6, dtype=dtype),
             torch.rand(6, 2, 1, dtype=dtype),
         ],
+        eigenstates=("0", "1"),
     )
 
     # compute 〈Ψ|O|Ψ〉= Σi〈Ψ|Oi|Ψ〉
@@ -166,6 +168,7 @@ def test_matmul():
             torch.rand(6, 2, 5, dtype=dtype),
             torch.rand(5, 2, 1, dtype=dtype),
         ],
+        eigenstates=("0", "1"),
     )
     # normalize
     mps = (1 / mps.norm()) * mps
@@ -220,6 +223,7 @@ def test_rmul():
             torch.rand(6, 2, 5, dtype=dtype),
             torch.rand(5, 2, 1, dtype=dtype),
         ],
+        eigenstates=("0", "1"),
     )
     # normalize
     mps = (1 / mps.norm()) * mps

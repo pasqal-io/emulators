@@ -409,7 +409,6 @@ class MPS(State[complex, torch.Tensor]):
         Returns:
             The resulting MPS representation of the state.s
         """
-        nqubits = cls._validate_amplitudes(amplitudes, eigenstates)
         basis = set(eigenstates)
         if basis == {"r", "g"}:
             one = "r"
@@ -417,6 +416,8 @@ class MPS(State[complex, torch.Tensor]):
             one = "1"
         else:
             raise ValueError("Unsupported basis provided")
+
+        nqubits = cls._validate_amplitudes(amplitudes, eigenstates)
 
         basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)  # ground state
         basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state
