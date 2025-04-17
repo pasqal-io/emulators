@@ -429,3 +429,27 @@ def test_correlation_matrix_random():
             assert correlation_matrix_zz[i][j].item() == pytest.approx(
                 zz(i, j).expect(state)
             )
+
+
+def test_to_abstr_repr() -> None:
+    num_qubits = 4
+    # errors for basis {r,g}
+    ampl = {num_qubits*'1': 1.0}
+    eig = ("0", "1")
+    initial_state = MPS.from_state_amplitudes(
+        eigenstates=eig, amplitudes=ampl
+    )
+
+    abstr = initial_state._to_abstract_repr()
+
+    assert ampl == abstr["amplitudes"]
+    assert eig == abstr["eigenstates"]
+
+
+@pytest.mark.xfail(reason="Known bug: default crt only knows basis {0,1}")
+def test_to_abstr_repr_basis_rg() -> None:
+    # MPS constructor doesn't update eigenstates
+    initial_state = MPS.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={4*'r': 1.0}
+    )
+    abstr = initial_state._to_abstract_repr()

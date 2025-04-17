@@ -302,7 +302,7 @@ def test_end_to_end_domain_wall_ring(
     )
 
     initial_state = emu_mps.MPS.from_state_amplitudes(
-        eigenstates=("r", "g"), amplitudes={(num_qubits//2)*"r"+(num_qubits//2)*"g": 1.0}
+        eigenstates=("0", "1"), amplitudes={(num_qubits//2)*"1"+(num_qubits//2)*"0": 1.0}
     )
 
     eval_times = [1/32, 1]  # 1/32 is 1 dt step with total duration 32
