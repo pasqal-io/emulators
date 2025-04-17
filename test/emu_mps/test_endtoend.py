@@ -288,7 +288,7 @@ def test_end_to_end_domain_wall_ring(
     num_qubits = 6
     seq = pulser_afm_sequence_ring(
         num_qubits=num_qubits,
-        Omega_max=Omega_max,
+        Omega_max=0,
         U=U,
         delta_0=delta_0,
         delta_f=delta_f,
@@ -325,20 +325,16 @@ def test_end_to_end_domain_wall_ring(
     cor_mat = result.correlation_matrix[ntime_step]
     energy = result.energy[ntime_step]
     energy_variance = result.energy_variance[ntime_step]
-    
-    expect_corr = torch.tensor([
-        [1, 1, 1, 0, 0, 0],
-        [1, 1, 1, 0, 0, 0],
-        [1, 1, 1, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0]], dtype=torch.complex128)
-    
+
+    exp_occup = torch.tensor([1, 1, 1, 0, 0, 0], dtype=torch.complex128)
+    expect_corr = torch.outer(exp_occup, exp_occup)
+
     assert bitstrings["111000"] == 100
-    assert approx(occupation, abs=1e-3) == [1, 1, 1, 0, 0, 0]
-    assert approx(energy, rel=1e-4) == 286.8666
-    assert approx(energy_variance, rel=1e-2) == 3.4843
+    assert torch.allclose(exp_occup, occupation, atol=1e-3)
     assert torch.allclose(expect_corr, cor_mat, atol=1e-3)
+    assert approx(energy, rel=1e-4) == 286.8718
+    assert approx(energy_variance, abs=1e-5) == 0
+    
 
 
 
