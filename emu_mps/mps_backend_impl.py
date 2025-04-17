@@ -151,14 +151,14 @@ class MPSBackendImpl:
     def __getstate__(self) -> dict:
         for obs in self.config.observables:
             obs.apply = MethodType(type(obs).apply, obs)  # type: ignore[method-assign]
-        d = self.__dict__
+        d = self.__dict__.copy()
         # mypy thinks the method below is an attribute, because of the __getattr__ override
         d["results"] = self.results._to_abstract_repr()  # type: ignore[operator]
         return d
 
     def __setstate__(self, d: dict) -> None:
-        d["results"] = Results._from_abstract_repr(d["results"])  # type: ignore [attr-defined]
         self.__dict__ = d
+        self.results = Results._from_abstract_repr(d["results"])  # type: ignore [attr-defined]
         self.config.monkeypatch_observables()
 
     @staticmethod
@@ -444,7 +444,6 @@ class MPSBackendImpl:
         basename = self.autosave_file
         with open(basename.with_suffix(".new"), "wb") as file_handle:
             pickle.dump(self, file_handle)
-
         if basename.is_file():
             os.rename(basename, basename.with_suffix(".bak"))
 
