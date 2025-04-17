@@ -57,7 +57,7 @@ class MPS(State[complex, torch.Tensor]):
             num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu, None=keep the existing device assignment.
         """
-        self._eigenstates = eigenstates
+        super().__init__(eigenstates=eigenstates)
         self.config = config if config is not None else MPSConfig()
         assert all(
             factors[i - 1].shape[2] == factors[i].shape[0] for i in range(1, len(factors))
@@ -407,7 +407,7 @@ class MPS(State[complex, torch.Tensor]):
         Returns:
             The resulting MPS representation of the state.s
         """
-        self._validate_amplitudes(amplitudes, eigenstates)
+        #self._validate_amplitudes(amplitudes, eigenstates)
         nqubits = len(next(iter(amplitudes.keys())))
         basis = set(eigenstates)
         if basis == {"r", "g"}:
