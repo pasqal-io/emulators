@@ -322,13 +322,24 @@ def test_end_to_end_domain_wall_ring(
     ntime_step = 0
     bitstrings = result.bitstrings[ntime_step]
     occupation = result.occupation[ntime_step]
+    cor_mat = result.correlation_matrix[ntime_step]
     energy = result.energy[ntime_step]
     energy_variance = result.energy_variance[ntime_step]
-
+    
+    expect_corr = torch.tensor([
+        [1, 1, 1, 0, 0, 0],
+        [1, 1, 1, 0, 0, 0],
+        [1, 1, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0]], dtype=torch.complex128)
+    
     assert bitstrings["111000"] == 100
     assert approx(occupation, abs=1e-3) == [1, 1, 1, 0, 0, 0]
     assert approx(energy, rel=1e-4) == 286.8666
     assert approx(energy_variance, rel=1e-2) == 3.4843
+    assert torch.allclose(expect_corr, cor_mat, atol=1e-3)
+
 
 
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
