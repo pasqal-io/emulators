@@ -407,8 +407,8 @@ class MPS(State[complex, torch.Tensor]):
         Returns:
             The resulting MPS representation of the state.s
         """
-        #self._validate_amplitudes(amplitudes, eigenstates)
-        nqubits = len(next(iter(amplitudes.keys())))
+        nqubits = cls._validate_amplitudes(amplitudes, eigenstates)
+        #nqubits = len(next(iter(amplitudes.keys())))
         basis = set(eigenstates)
         if basis == {"r", "g"}:
             one = "r"

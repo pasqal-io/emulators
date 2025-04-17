@@ -457,7 +457,7 @@ def test_to_abstr_repr(eig, ampl) -> None:
         ],
     )
 def test_constructor(eig, ampl) -> None:
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ValueError):
         MPS.from_state_amplitudes(
             eigenstates=eig, amplitudes=ampl
             )
