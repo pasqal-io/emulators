@@ -34,6 +34,7 @@ def test_forward_no_phase(N: int, krylov_tolerance: float) -> None:
         *ham_params,
         state,
         krylov_tolerance,
+        linblad_ops=None,
     )
     assert torch.allclose(ed, krylov, atol=krylov_tolerance)
 
@@ -59,5 +60,6 @@ def test_forward_with_phase(N: int, krylov_tolerance: float) -> None:
         *ham_params,
         state,
         krylov_tolerance,
+        linblad_ops=None,
     )
     assert torch.allclose(ed, krylov, atol=krylov_tolerance)

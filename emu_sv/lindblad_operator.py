@@ -1,6 +1,7 @@
 import torch
+from emu_base.lindblad_operators import compute_noise_from_lindbladians
 
-# from emu_sv.state_vector import StateVector
+
 dtype = torch.complex128
 
 
@@ -57,7 +58,8 @@ class LindbladOperator:
             # flip reverses the order along dimension j,  swaps 0 and 1.
             h_rho_term = torch.flip(rho_view, dims=[j])
             # Accumulate the contribution
-            accum.add_(omega_j * h_rho_term)  # in place opperation
+            accum.add_(omega_j * h_rho_term)  # in place opperation,
+            # NOTE: use this index_add for efficiency
 
         # return the resulting tensor in its original 2^n x 2^n matrix shape.
         return accum.view(2**self.nqubits, 2**self.nqubits)
@@ -78,10 +80,11 @@ class LindbladOperator:
         ket_perm = [p + self.nqubits for p in perm]
         total_perm = bra_perm + ket_perm
         rho = rho.permute(total_perm)
+        # NOTE: broadcasting trick
 
         # reshape to a 2-index tensor: (2, 2^(n-1)* 2* 2^(n-1)) in order to multiply with local_op.
         # the first index is the target qubit, the second index is the rest of the qubits.
-        rho = rho.contiguous().view(2, 2 ** (2 * self.nqubits - 1))
+        rho = rho.contiguous().view(2, 2 ** (2 * self.nqubits - 1))  # note
 
         # apply local_op to the bra index.
         # contract local_op (indices 'ab') with the first index of rho ('b') giving new index 'a'.
@@ -101,25 +104,37 @@ class LindbladOperator:
         return rho.contiguous().view(2**self.nqubits, 2**self.nqubits)
 
     def __matmul__(self, densi_matrix: torch.Tensor) -> torch.Tensor:
-        # Constructing Hₑ = H 𝜌 −0.5∑ₖ L^† L 𝜌
+        # Constructing Hₑ = -i H 𝜌 −0.5∑ₖ L^† L 𝜌
 
         # Applying ∑ᵢ 𝛺 /2 𝜎ₓ terms in H
         densi_matrix_sum_x = self.apply_sum_sigma_x_i_to_density(densi_matrix)
 
         # -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ in H
+        # NOTE: get rid of for loop
+        # use broadcasting to apply the diagonal term, reshape the diag tensor
+        # look at torch bracasting rules
         storage = torch.zeros_like(densi_matrix, dtype=dtype)
         shape = densi_matrix.shape[0]
         for i in range(shape):
             diag_result = self.diag * densi_matrix[:, i]
             storage[:, i] = diag_result
-        # Add the diagonal result to the densi_matrix
-        densi_matrix = densi_matrix_sum_x + storage
+        # add the diagonal result to the densi_matrix
+        h_densi_matrix = densi_matrix_sum_x + storage
 
-        # Applying the Lindblad operators
-        for i, pulser_linblad in enumerate(self.pulser_linblads):
-            storage_lindblads = self.apply_local_operator_to_density_matrix(
-                densi_matrix, pulser_linblad.conj().T @ pulser_linblad, i
+        # Applying the Lindblad operators -0.5*i*∑ₖ Lₖ^† Lₖ 𝜌
+        sum_lindblas = compute_noise_from_lindbladians(
+            self.pulser_linblads
+        )  # result 2x2 matrix
+
+        storage_linbdlads = torch.zeros_like(densi_matrix, dtype=dtype)
+        for qubit in range(self.nqubits):
+            pre_storage_lindblads = self.apply_local_operator_to_density_matrix(
+                densi_matrix, sum_lindblas, qubit
             )
-            densi_matrix -= 0.5 * storage_lindblads
+            storage_linbdlads += pre_storage_lindblads
+        # NOTE: add all the lindblad operators first, then
+        # NOTE: fucntion that sums all the lindblads copute_noise_from_linbladian
+        # check noise.py, -1j at the begging of the functions
 
+        densi_matrix = h_densi_matrix - storage_linbdlads
         return densi_matrix
