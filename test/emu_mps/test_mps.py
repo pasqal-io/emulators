@@ -432,17 +432,16 @@ def test_correlation_matrix_random():
 
 
 @pytest.mark.parametrize(
-    "eig, ampl", [
-        (("0", "1"), {4*'1': 1.0}),
-        (("0", "1"), {4*'0': 1.0}),
-        (("r", "g"), {4*'r': 1.0}),
-        (("r", "g"), {4*'g': 1.0}),
-        ],
-    )
+    "eig, ampl",
+    [
+        (("0", "1"), {4 * "1": 1.0}),
+        (("0", "1"), {4 * "0": 1.0}),
+        (("r", "g"), {4 * "r": 1.0}),
+        (("r", "g"), {4 * "g": 1.0}),
+    ],
+)
 def test_to_abstr_repr(eig, ampl) -> None:
-    initial_state = MPS.from_state_amplitudes(
-        eigenstates=eig, amplitudes=ampl
-    )
+    initial_state = MPS.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
 
     abstr = initial_state._to_abstract_repr()
 
@@ -451,13 +450,12 @@ def test_to_abstr_repr(eig, ampl) -> None:
 
 
 @pytest.mark.parametrize(
-    "eig, ampl", [
-        (("0", "1"), {4*'r': 1.0}),
-        (("r", "g"), {4*'1': 1.0}),
-        ],
-    )
+    "eig, ampl",
+    [
+        (("0", "1"), {4 * "r": 1.0}),
+        (("r", "g"), {4 * "1": 1.0}),
+    ],
+)
 def test_constructor(eig, ampl) -> None:
     with pytest.raises(ValueError):
-        MPS.from_state_amplitudes(
-            eigenstates=eig, amplitudes=ampl
-            )
+        MPS.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
