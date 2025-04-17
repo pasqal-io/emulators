@@ -33,6 +33,9 @@ from emu_mps.utils import (
     get_extended_site_index,
     new_left_bath,
 )
+
+import emu_mps.optimatrix as optimatrix
+
 from enum import Enum, auto
 
 
@@ -118,8 +121,12 @@ class MPSBackendImpl:
         self.timestep_count: int = self.omega.shape[0]
         self.has_lindblad_noise = pulser_data.has_lindblad_noise
         self.lindblad_noise = torch.zeros(2, 2, dtype=torch.complex128)
-        self.full_interaction_matrix = pulser_data.full_interaction_matrix
-        self.masked_interaction_matrix = pulser_data.masked_interaction_matrix
+        self.optimise_int_mat: bool = mps_config.optimise_interaction_matrix
+        self._optimise_interaction_matrix(
+            pulser_data.full_interaction_matrix,
+            pulser_data.masked_interaction_matrix,
+            self.optimise_int_mat,
+        )
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.slm_end_time = pulser_data.slm_end_time
         self.is_masked = self.slm_end_time > 0.0
@@ -165,6 +172,25 @@ class MPSBackendImpl:
     def _get_autosave_filepath(autosave_prefix: str) -> pathlib.Path:
         return pathlib.Path(os.getcwd()) / (autosave_prefix + str(uuid.uuid1()) + ".dat")
 
+    def _optimise_interaction_matrix(
+        self, f_mat: torch.Tensor, m_mat: torch.Tensor, optimise: bool = True
+    ) -> None:
+        if not optimise:
+            self.full_interaction_matrix = f_mat
+            self.masked_interaction_matrix = m_mat
+            return
+
+        f_mat_numpy = f_mat.numpy()
+        m_mat_numpy = m_mat.numpy()
+        self.opt_perm = optimatrix.minimize_bandwidth(f_mat_numpy)
+        self.inv_opt_perm = optimatrix.invert_permutation(self.opt_perm)
+
+        f_mat_numpy = optimatrix.permute_array(f_mat_numpy, self.opt_perm)
+        m_mat_numpy = optimatrix.permute_array(m_mat_numpy, self.opt_perm)
+
+        self.full_interaction_matrix = torch.tensor(f_mat_numpy)
+        self.masked_interaction_matrix = torch.tensor(m_mat_numpy)
+
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
         if self.config.noise_model.state_prep_error > 0.0:
@@ -195,6 +221,17 @@ class MPSBackendImpl:
                 num_gpus_to_use=self.config.num_gpus_to_use,
             )
             return
+        elif self.optimise_int_mat and isinstance(initial_state, MPS):
+            abstr_repr = initial_state._to_abstract_repr()
+            ampl = abstr_repr["amplitudes"]
+            eig = abstr_repr["eigenstates"]
+            ampl = {
+                optimatrix.permute_string(bstr, self.opt_perm): amp for bstr, amp in ampl.items()
+                }
+            initial_state = MPS.from_state_amplitudes(
+                eigenstates=eig,
+                amplitudes=ampl
+                )
 
         if self.well_prepared_qubits_filter is not None:
             raise NotImplementedError(

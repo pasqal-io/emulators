@@ -1,7 +1,7 @@
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import reverse_cuthill_mckee
 import numpy as np
-from emu_mps.optimatrix.permutations import permute_matrix, permute_list
+from emu_mps.optimatrix.permutations import permute_2D_array, permute_list
 import itertools
 
 
@@ -128,7 +128,7 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     )
 
     opt_permutation = min(
-        permutations, key=lambda perm: matrix_bandwidth(permute_matrix(mat, list(perm)))
+        permutations, key=lambda perm: matrix_bandwidth(permute_2D_array(mat, list(perm)))
     )
     return list(opt_permutation)  # opt_permutation is np.ndarray
 
@@ -178,7 +178,7 @@ def minimize_bandwidth_impl(
     ([0, 1, 2, 3, 4], 1.0)
     """
     if initial_perm != list(range(matrix.shape[0])):
-        matrix = permute_matrix(matrix, initial_perm)
+        matrix = permute_2D_array(matrix, initial_perm)
     bandwidth = matrix_bandwidth(matrix)
     acc_permutation = initial_perm
 
@@ -191,7 +191,7 @@ def minimize_bandwidth_impl(
             )
 
         optimal_perm = minimize_bandwidth_global(matrix)
-        test_mat = permute_matrix(matrix, optimal_perm)
+        test_mat = permute_2D_array(matrix, optimal_perm)
         new_bandwidth = matrix_bandwidth(test_mat)
 
         if bandwidth <= new_bandwidth:

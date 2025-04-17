@@ -6,7 +6,16 @@ from pulser.devices import AnalogDevice
 
 
 # emu_mps backend, confing and observables
-from emu_mps import MPS, MPSConfig, MPSBackend, StateResult, BitStrings, Fidelity
+from emu_mps import (
+    MPS,
+    MPSConfig,
+    MPSBackend,
+    StateResult,
+    BitStrings,
+    Fidelity,
+    Occupation,
+    CorrelationMatrix,
+)
 
 # interaction matrix for 5 atoms
 interaction_matrix = [
@@ -57,7 +66,7 @@ seq.add(fall, "ising_global")
 dt = 100  # time step for discretization, by the default: dt =10
 
 # information for the observables
-times = [1.0]  # final step for an observable to be measure
+times = [0.5, 1.0]  # final step for an observable to be measure
 
 # As an example, we are going to create an antiferromagnetic (afm) state (mps) and
 # a suporpostion of afm states in order to calculate the
@@ -91,12 +100,15 @@ fidelity_another_state = Fidelity(
     evaluation_times=times, state=another_afm_mps, tag_suffix="bell_afm"
 )  # fidelity number 2
 
+occup = Occupation(evaluation_times=times)
+corr = CorrelationMatrix(evaluation_times=times)
 
 # we give the configuration of the backend and the observables
 mpsconfig = MPSConfig(
     dt=dt,
-    observables=[bitstrings, fidelity, fidelity_another_state],
+    observables=[bitstrings, fidelity, fidelity_another_state, occup, corr],
     interaction_matrix=interaction_matrix,
+    optimise_interaction_matrix=True,
 )
 
 # we initialize a Backend instance
