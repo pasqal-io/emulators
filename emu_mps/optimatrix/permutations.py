@@ -16,7 +16,7 @@ def permute_string(input_str: str, perm: torch.Tensor) -> str:
         The permuted string.
     Example
     -------
-    >>> permute_string('abc', torch.tensor([2, 0, 1]))
+    >>> permute_string("abc", torch.tensor([2, 0, 1]))
     'cab'
     """
     char_list = list(input_str)
@@ -24,37 +24,9 @@ def permute_string(input_str: str, perm: torch.Tensor) -> str:
     return "".join(permuted)
 
 
-def permute_list(input_list: list, perm: torch.Tensor) -> list:
+def inv_permutation(permutation: torch.Tensor) -> torch.Tensor:
     """
-    Permutes the input list according to the given permutation.
-
-    Parameters
-    -------
-    input_list :
-        A list to permute.
-    permutation :
-        A list of indices representing the new order.
-
-    Returns
-    -------
-        The permuted list.
-
-    Example
-    -------
-    >>> permutation = torch.tensor([2, 0, 1])
-    >>> permute_list(['a', 'b', 'c'], permutation)
-    ['c', 'a', 'b']
-    """
-    return [input_list[i] for i in perm.tolist()]
-    #permuted_list = [None] * len(input_list)
-    #for i, p in enumerate(permutation):
-    #    permuted_list[i] = input_list[p]
-    #return permuted_list
-
-
-def invert_permutation(permutation: list[int]) -> list[int]:
-    """
-    invert_permutation(permutation) -> inv_permutation
+    inv_permutation(permutation) -> inverted_perm
 
     Inverts the input permutation list.
 
@@ -69,13 +41,12 @@ def invert_permutation(permutation: list[int]) -> list[int]:
 
     Example:
     -------
-    >>> invert_permutation([2, 0, 1])
-    [1, 2, 0]
+    >>> inv_permutation(torch.tensor([2, 0, 1]))
+    tensor([1, 2, 0])
     """
-
-    inv_perm = np.empty_like(permutation)
-    inv_perm[permutation] = np.arange(len(permutation))
-    return list(inv_perm)
+    inv_perm = torch.empty_like(permutation)
+    inv_perm[permutation] = torch.arange(len(permutation))
+    return inv_perm
 
 
 def permute_matrix(mat: np.ndarray, permutation: list[int]) -> np.ndarray:

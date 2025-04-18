@@ -1,13 +1,10 @@
-import random
-
 import pytest
 import numpy as np
 import torch
 
 from emu_mps.optimatrix.permutations import (
     permute_string,
-    permute_list,
-    invert_permutation,
+    inv_permutation,
     permute_matrix,
 )
 
@@ -27,39 +24,18 @@ def test_permute_string() -> None:
     assert permute_string(input_str, torch.tensor([2, 1, 0])) == "cba"
 
 
-@pytest.mark.parametrize("N", [10, 20, 30])
-def test_permute_list_implementation(N: int) -> None:
-    input_list = np.random.permutation(N)
-    perm = np.random.permutation(N)
-
-    numpy_expected = list(input_list[perm])  # numpy implementation of permutations
-    optimatrix_imp = permute_list(list(input_list), list(perm))
-    assert optimatrix_imp == numpy_expected
-
-
 def test_invert_permutation() -> None:
     # basic tests
-    assert invert_permutation([0, 1, 2]) == [0, 1, 2]
-    assert invert_permutation([0, 2, 1]) == [0, 2, 1]
-    assert invert_permutation([1, 0, 2]) == [1, 0, 2]
-    assert invert_permutation([1, 2, 0]) == [2, 0, 1]
-    assert invert_permutation([2, 0, 1]) == [1, 2, 0]
-    assert invert_permutation([2, 1, 0]) == [2, 1, 0]
+    assert torch.all(inv_permutation(torch.tensor([0, 1, 2])) == torch.tensor([0, 1, 2]))
+    assert torch.all(inv_permutation(torch.tensor([0, 2, 1])) == torch.tensor([0, 2, 1]))
+    assert torch.all(inv_permutation(torch.tensor([1, 0, 2])) == torch.tensor([1, 0, 2]))
+    assert torch.all(inv_permutation(torch.tensor([1, 2, 0])) == torch.tensor([2, 0, 1]))
+    assert torch.all(inv_permutation(torch.tensor([2, 0, 1])) == torch.tensor([1, 2, 0]))
+    assert torch.all(inv_permutation(torch.tensor([2, 1, 0])) == torch.tensor([2, 1, 0]))
 
-    assert invert_permutation([2, 1, 3, 0]) == [3, 1, 0, 2]
-
-
-@pytest.mark.parametrize("N", [10, 20, 30])
-def test_invert_permutation_random(N: int) -> None:
-    # inverse of arbitrary permutation gives the initial list
-    perm_random = random.sample(list(range(N)), N)
-    inv_perm = invert_permutation(perm_random)
-
-    initial_list = list(range(N))
-    random.shuffle(initial_list)
-    permuted_list = permute_list(initial_list, perm_random)
-    permuted_back = permute_list(permuted_list, inv_perm)
-    assert initial_list == permuted_back
+    assert torch.all(
+        inv_permutation(torch.tensor([2, 1, 3, 0])) == torch.tensor([3, 1, 0, 2])
+    )
 
 
 @pytest.mark.parametrize("N", [10, 20, 30])
