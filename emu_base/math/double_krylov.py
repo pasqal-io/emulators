@@ -50,17 +50,18 @@ def double_krylov(
         gives us the desired matrix dS such that
             dU(op, |a❭❬b|) = Vaᵗ @ dS @ Vb*
     """
-    lanczos_vectors_state, Ts = lanczos(op, state, tolerance)
-    lanczos_vectors_grad, Tg = lanczos(op, grad, tolerance)
+    Vs, Ts = lanczos(op, state, tolerance)
+    Vg, Tg = lanczos(op, grad, tolerance)
 
-    size_Ts = Ts.shape[0]
-    size_Tg = Tg.shape[0]
+    size_s = len(Vs)
+    size_g = len(Vg)
 
     big_mat = torch.block_diag(Ts, Tg)
-    big_mat[0, size_Ts] = state.norm() * grad.norm()
-    dS = torch.matrix_exp(big_mat)[:size_Ts, size_Tg:]
+    # Only one element in the top-=right corner
+    big_mat[0, size_s] = state.norm() * grad.norm()
+    dS = torch.matrix_exp(big_mat)[:size_s, size_g:]
 
-    return lanczos_vectors_state, dS, lanczos_vectors_grad
+    return Vs, dS, Vg
 
 
 def lanczos(
