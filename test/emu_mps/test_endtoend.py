@@ -128,7 +128,7 @@ def get_proba(state: MPS, bitstring: str):
 
     factors = [one if bitstring[i] == "1" else zero for i in range(state.num_sites)]
 
-    return abs(state.inner(MPS(factors)).item()) ** 2
+    return abs(state.inner(MPS(factors, eigenstates=("0", "1"))).item()) ** 2
 
 
 Omega_max = 4 * 2 * torch.pi
