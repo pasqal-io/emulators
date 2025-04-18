@@ -78,7 +78,7 @@ def apply_effective_Hamiltonian(
     return state
 
 
-_TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
+_TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
 
 
 def evolve_pair(
