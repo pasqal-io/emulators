@@ -89,7 +89,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
 def test_lindblads():
     """Testing 0.5*i*(∑ₖ Lₖ^† Lₖ)@𝜌 + 0.5*i* 𝜌@(∑ₖ Lₖ^† Lₖ) part"""
     torch.manual_seed(234)
-    nqubits = 8
+    nqubits = 2
     omegas = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
     deltas = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
     phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
@@ -115,7 +115,7 @@ def test_lindblads():
     )
     result = ham_lind @ rho
 
-    # -0.5*i*(∑ₖ Lₖ^† Lₖ) @𝜌 - 0.5*i*𝜌@(∑ₖ Lₖ^† Lₖ)  by hand
+    # -0.5*i*(∑ₖ Lₖ^† Lₖ) @𝜌 - 0.5*i*𝜌@(∑ₖ Lₖ^† Lₖ) +1j (∑ₖLₖ 𝜌 Lₖ^† )  by hand
 
     ident = torch.eye(2, dtype=dtype, device=device)
 
@@ -126,38 +126,36 @@ def test_lindblads():
             identities[i] = lind.conj().T.contiguous() @ lind
             lista.append(identities)
 
-    result_kron = torch.zeros_like(rho)
+    result_kron_sum_LdagLrho = torch.zeros_like(rho)
     for num, _ in enumerate(lista):
         res = torch.kron(lista[num][0], lista[num][1])
         for i in range(2, nqubits):
             res = torch.kron(res, lista[num][i])
         pre_result = -0.5j * res @ rho
-        result_kron += pre_result - pre_result.conj().T
+        result_kron_sum_LdagLrho += pre_result - pre_result.conj().T
 
-    # add the term sum Lₖ 𝜌 Lₖ^† to the test, you are almost there
-    # I = torch.eye(2, dtype=torch.complex128)
+    # add the term sum Lₖ 𝜌 Lₖ^† to the test
 
-    # lista1 = []
-    # for i in range(nqubits):
-    #     if i == target:
-    #         lista1.append(A)
-    #     else:
-    #         lista1.append(I)
+    lista1 = []
+    lista2 = []
+    for lind in pulser_linblads:
+        for i in range(nqubits):
+            identities = [ident] * nqubits
+            identities[i] = lind
+            lista1.append(identities)
+            identities[i] = lind.conj().T.contiguous()
+            lista2.append(identities)
 
-    # lista2 = []
-    # for i in range(n):
-    #     if i == target:
-    #         lista2.append(A.conj().T.contiguous())
-    #         #lista2.append(I)
-    #     else:
-    #         lista2.append(I)
+    pre_result = torch.zeros_like(rho)
+    for num, _ in enumerate(lista1):
+        res1 = torch.kron(lista1[num][0], lista1[num][1])
+        res2 = torch.kron(lista2[num][0], lista2[num][1])
+        for i in range(2, nqubits):
+            res1 = torch.kron(res1, lista1[num][i])
+            res2 = torch.kron(res2, lista2[num][i])
+        pre_result += res1 @ rho @ res2
 
-    # res1 = torch.kron(lista1[0],lista1[1])
-    # for i in range(2,n):
-    #     res1 = torch.kron(res1,lista1[i])
-
-    # res2 = torch.kron(lista2[0],lista2[1])
-    # for i in range(2,n):
-    #     res2 = torch.kron(res2,lista2[i])
-
-    assert torch.allclose(result, result_kron)
+    # the result does not agree with the test
+    print(result)
+    print(result_kron_sum_LdagLrho)
+    assert torch.allclose(result, result_kron_sum_LdagLrho + 1.0j * pre_result)

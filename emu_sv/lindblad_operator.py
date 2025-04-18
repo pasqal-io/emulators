@@ -174,5 +174,6 @@ class LindbladOperator:
             - h_densi_matrix.conj().T
             + storage_linbdlads  # already has a -0.5i
             - storage_linbdlads.conj().T
+            + 1.0j * storage_LrhoLdag
         )
         return result  # I expect this to be multiplied by -1.0j
