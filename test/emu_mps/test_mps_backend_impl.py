@@ -286,8 +286,22 @@ def test_init_initial_state_provided_normalized():
 
     up = torch.tensor([[[0], [1]]], dtype=torch.complex128)
     down = torch.tensor([[[1], [0]]], dtype=torch.complex128)
-    victim.init_initial_state(0.123 * MPS([up, up, down, up, down]))
-    assert cmath.isclose(victim.state.inner(MPS([up, up, down, up, down])), 1)
+    victim.init_initial_state(
+        0.123
+        * MPS(
+            [up, up, down, up, down],
+            eigenstates=("0", "1"),
+        )
+    )
+    assert cmath.isclose(
+        victim.state.inner(
+            MPS(
+                [up, up, down, up, down],
+                eigenstates=("0", "1"),
+            )
+        ),
+        1,
+    )
 
 
 @patch("emu_mps.mps_backend_impl.make_H")
