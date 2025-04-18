@@ -1,26 +1,30 @@
+import random
+
 import pytest
 import numpy as np
+import torch
+
 from emu_mps.optimatrix.permutations import (
+    permute_string,
     permute_list,
     invert_permutation,
     permute_matrix,
 )
-import random
 
 
-def test_permute_list() -> None:
-    perm = [1, 0]
-    input_list = ["a", "b"]
-    assert permute_list(input_list, perm) == ["b", "a"]
+def test_permute_string() -> None:
+    perm = torch.tensor([1, 0])
+    input_str = "ab"
+    assert permute_string(input_str, perm) == "ba"
 
-    # 6 permutations of [a, b, c]
-    input_list = ["a", "b", "c"]
-    assert permute_list(input_list, [0, 1, 2]) == ["a", "b", "c"]
-    assert permute_list(input_list, [0, 2, 1]) == ["a", "c", "b"]
-    assert permute_list(input_list, [1, 0, 2]) == ["b", "a", "c"]
-    assert permute_list(input_list, [1, 2, 0]) == ["b", "c", "a"]
-    assert permute_list(input_list, [2, 0, 1]) == ["c", "a", "b"]
-    assert permute_list(input_list, [2, 1, 0]) == ["c", "b", "a"]
+    # 6 permutations of abs
+    input_str = "abc"
+    assert permute_string(input_str, torch.tensor([0, 1, 2])) == "abc"
+    assert permute_string(input_str, torch.tensor([0, 2, 1])) == "acb"
+    assert permute_string(input_str, torch.tensor([1, 0, 2])) == "bac"
+    assert permute_string(input_str, torch.tensor([1, 2, 0])) == "bca"
+    assert permute_string(input_str, torch.tensor([2, 0, 1])) == "cab"
+    assert permute_string(input_str, torch.tensor([2, 1, 0])) == "cba"
 
 
 @pytest.mark.parametrize("N", [10, 20, 30])

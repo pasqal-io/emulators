@@ -1,7 +1,30 @@
 import numpy as np
+import torch
 
 
-def permute_list(input_list: list, permutation: list[int]) -> list:
+def permute_string(input_str: str, perm: torch.Tensor) -> str:
+    """
+    Permutes the input string according to the given permutation.
+    Parameters
+    -------
+    input_string :
+        A string to permute.
+    permutation :
+        A list of indices representing the new order.
+    Returns
+    -------
+        The permuted string.
+    Example
+    -------
+    >>> permute_string('abc', torch.tensor([2, 0, 1]))
+    'cab'
+    """
+    char_list = list(input_str)
+    permuted = [char_list[i] for i in perm.tolist()]
+    return "".join(permuted)
+
+
+def permute_list(input_list: list, perm: torch.Tensor) -> list:
     """
     Permutes the input list according to the given permutation.
 
@@ -18,14 +41,15 @@ def permute_list(input_list: list, permutation: list[int]) -> list:
 
     Example
     -------
-    >>> permute_list(['a', 'b', 'c'], [2, 0, 1])
+    >>> permutation = torch.tensor([2, 0, 1])
+    >>> permute_list(['a', 'b', 'c'], permutation)
     ['c', 'a', 'b']
     """
-
-    permuted_list = [None] * len(input_list)
-    for i, p in enumerate(permutation):
-        permuted_list[i] = input_list[p]
-    return permuted_list
+    return [input_list[i] for i in perm.tolist()]
+    #permuted_list = [None] * len(input_list)
+    #for i, p in enumerate(permutation):
+    #    permuted_list[i] = input_list[p]
+    #return permuted_list
 
 
 def invert_permutation(permutation: list[int]) -> list[int]:
