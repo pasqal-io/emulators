@@ -52,15 +52,12 @@ def double_krylov(
     """
     Vs, Ts = lanczos(op, state, tolerance)
     Vg, Tg = lanczos(op, grad, tolerance)
-
     size_s = len(Vs)
     size_g = len(Vg)
-
     big_mat = torch.block_diag(Ts, Tg)
-    # Only one element in the top-=right corner
+    # Only one element in the top-right corner
     big_mat[0, size_s] = state.norm() * grad.norm()
     dS = torch.matrix_exp(big_mat)[:size_s, size_g:]
-
     return Vs, dS, Vg
 
 
@@ -69,6 +66,12 @@ def lanczos(
     v: torch.Tensor,
     tolerance: float,
 ) -> tuple[list[torch.Tensor], torch.Tensor]:
+    """
+        Copy of the code in krylov_exp
+        To decide
+         1. refactor this
+         2. allow krylov results to store lanczos_vectors and T
+    """
     lanczos_vectors = [v / v.norm()]
     T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
 
