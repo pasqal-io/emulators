@@ -142,11 +142,11 @@ def test_to_abstr_repr(eig, ampl) -> None:
 
 def test_constructor() -> None:
     with pytest.raises(ValueError):
-       eig = ("r", "g")
-       ampl = {4 * "1": 1.0}
-       StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
+        eig = ("r", "g")
+        ampl = {4 * "1": 1.0}
+        StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
 
     with pytest.raises(NotImplementedError):
-       eig = ("0", "1")
-       ampl = {4 * "1": 1.0}
-       StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
+        eig = ("0", "1")
+        ampl = {4 * "1": 1.0}
+        StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
