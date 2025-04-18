@@ -11,7 +11,7 @@ def is_symmetric(matrix: torch.Tensor, tol: float = 1e-8) -> bool:
     return torch.allclose(matrix, matrix.T, atol=tol)
 
 
-def matrix_bandwidth(mat: torch.Tensor) -> torch.Tensor:
+def matrix_bandwidth(mat: torch.Tensor) -> float:
     """matrix_bandwidth(matrix: torch.tensor) -> torch.Tensor
 
     Computes bandwidth as max weighted distance between columns of
@@ -48,7 +48,7 @@ def matrix_bandwidth(mat: torch.Tensor) -> torch.Tensor:
     ...     [-15.0, 20.0, 1.0]
     ... ])
     >>> matrix_bandwidth(matrix)  # because abs(-15 * (0 - 2)) = 30.0
-    tensor(30.)
+    30.0
     """
 
     n = mat.shape[0]
@@ -57,7 +57,7 @@ def matrix_bandwidth(mat: torch.Tensor) -> torch.Tensor:
     j_arr = torch.arange(n).view(1, -1)  # shape (1, n)
 
     weighted = torch.abs(mat * (j_arr - i_arr))
-    return torch.max(weighted).to(mat.dtype)
+    return torch.max(weighted).to(mat.dtype).item()
 
 
 def minimize_bandwidth_above_threshold(
@@ -143,7 +143,7 @@ def minimize_bandwidth_global(mat: torch.Tensor) -> torch.Tensor:
 
 def minimize_bandwidth_impl(
     matrix: torch.Tensor, initial_perm: torch.Tensor
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, float]:
     """
     minimize_bandwidth_impl(matrix, initial_perm) -> (optimal_perm, bandwidth)
 
@@ -173,7 +173,7 @@ def minimize_bandwidth_impl(
     ...    [1, 0, 0, 1, 0]], dtype=torch.float32)
     >>> id_perm = torch.arange(matrix.shape[0])
     >>> minimize_bandwidth_impl(matrix, id_perm) # [3, 2, 4, 1, 0] does zig-zag
-    (tensor([3, 2, 4, 1, 0]), tensor(2.))
+    (tensor([3, 2, 4, 1, 0]), 2.0)
 
     Simple 1D chain. Cannot be optimised further
     >>> matrix = torch.tensor([
@@ -184,7 +184,7 @@ def minimize_bandwidth_impl(
     ...    [0, 0, 0, 1, 0]], dtype=torch.float32)
     >>> id_perm = torch.arange(matrix.shape[0])
     >>> minimize_bandwidth_impl(matrix, id_perm)
-    (tensor([0, 1, 2, 3, 4]), tensor(1.))
+    (tensor([0, 1, 2, 3, 4]), 1.0)
     """
     L = matrix.shape[0]
     if not torch.equal(initial_perm, torch.arange(L)):
