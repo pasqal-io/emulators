@@ -49,6 +49,54 @@ def inv_permutation(permutation: torch.Tensor) -> torch.Tensor:
     return inv_perm
 
 
+def permute_tensor(tensor: torch.Tensor, perm: torch.Tensor) -> torch.Tensor:
+    """
+    Permute a 1D or square 2D torch tensor using the given permutation indices.
+    For 1D tensors, applies the permutation to the elements.
+    For 2D square tensors, applies the same permutation to both rows and columns.
+
+    Parameters
+    ----------
+    tensor : torch.Tensor
+        A 1D or 2D square tensor to be permuted.
+    perm : torch.Tensor
+        A 1D tensor of indices specifying the permutation order.
+
+    Returns
+    -------
+    torch.Tensor
+        A new tensor with elements (1D) or rows and columns (2D) permuted according to `perm`.
+
+    Raises
+    ------
+    ValueError
+        If tensor is not 1D or square 2D.
+
+    Examples
+    --------
+    >>> vector = torch.tensor([10, 20, 30])
+    >>> perm = torch.tensor([2, 0, 1])
+    >>> permute_tensor(vector, perm)
+    tensor([30, 10, 20])
+
+    >>> matrix = torch.tensor([
+    ...     [1, 2, 3],
+    ...     [4, 5, 6],
+    ...     [7, 8, 9]])
+    >>> perm = torch.tensor([1, 0, 2])
+    >>> permute_tensor(matrix, perm)
+    tensor([[5, 4, 6],
+            [2, 1, 3],
+            [8, 7, 9]])
+    """
+    if tensor.ndim == 1:
+        return tensor[perm]
+    elif tensor.ndim == 2 and tensor.shape[0] == tensor.shape[1]:
+        return tensor[perm][:, perm]
+    else:
+        raise ValueError("Only 1D tensors or square 2D tensors are supported.")
+
+
 def permute_matrix(mat: np.ndarray, permutation: list[int]) -> np.ndarray:
     """
     permute_matrix(matrix, permutation_list) -> permuted_matrix

@@ -1,11 +1,10 @@
 import pytest
-import numpy as np
 import torch
 
 from emu_mps.optimatrix.permutations import (
     permute_string,
     inv_permutation,
-    permute_matrix,
+    permute_tensor,
 )
 
 
@@ -38,47 +37,24 @@ def test_invert_permutation() -> None:
     )
 
 
-@pytest.mark.parametrize("N", [10, 20, 30])
-def test_implementation_permute_matrix(N: int) -> None:
-    perm = np.random.permutation(N)
-    rnd_matrix = np.random.rand(N, N)
-    rnd_permuted = permute_matrix(rnd_matrix, list(perm))
+def test_implementation_permute_tensor_1D() -> None:
+    vector = torch.tensor([10, 20, 30])
+    perm = torch.tensor([2, 0, 1])
 
-    assert np.array_equal(rnd_matrix[perm, :][:, perm], rnd_permuted)  # implementation 1
-    assert np.array_equal(rnd_matrix[:, perm][perm, :], rnd_permuted)  # implementation 2
-
-    P = np.eye(N)[perm, :]
-    assert np.array_equal(P @ rnd_matrix @ P.T, rnd_permuted)  # implementation 3
-
-    P2 = np.eye(N)[:, perm]
-    assert np.array_equal(P2.T @ rnd_matrix @ P2, rnd_permuted)  # implementation 4
+    expected = torch.tensor([30, 10, 20])
+    assert torch.all(permute_tensor(vector, perm) == expected)
 
 
-@pytest.mark.parametrize("N", [10, 20, 30])
-def test_permute_matrix(N: int) -> None:
-    mat012 = np.array(
-        [
-            [1, 2, 3],
-            [4, 5, 6],
-            [7, 8, 9],
-        ]
-    )
+def test_implementation_permute_tensor_2D() -> None:
+    matrix = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    perm = torch.tensor([1, 0, 2])
 
-    assert np.array_equal(
-        mat012, permute_matrix(mat012, [0, 1, 2])
-    )  # identity permutation
+    expected = torch.tensor([[5, 4, 6], [2, 1, 3], [8, 7, 9]])
+    assert torch.all(permute_tensor(matrix, perm) == expected)
 
-    rnd_matrix = np.random.rand(N, N)
-    assert np.array_equal(
-        rnd_matrix, permute_matrix(rnd_matrix, list(range(N)))
-    )  # identity permutation for large matrices
 
-    # composition of permutations == permutation
-    perm1 = np.random.permutation(N)
-    perm2 = np.random.permutation(N)
-    double_perm = [perm1[i] for i in perm2]
-
-    mat_single_perm = permute_matrix(rnd_matrix, list(perm1))
-    mat_double_perm = permute_matrix(mat_single_perm, list(perm2))
-
-    assert np.array_equal(mat_double_perm, permute_matrix(rnd_matrix, double_perm))
+def test_implementation_permute_tensor_ND() -> None:
+    tensor_3d = torch.tensor([[[42]]])
+    err_msg = "Only 1D tensors or square 2D tensors are supported."
+    with pytest.raises(ValueError, match=err_msg):
+        permute_tensor(tensor_3d, torch.tensor([0]))
