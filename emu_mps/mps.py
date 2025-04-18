@@ -353,6 +353,9 @@ class MPS(State[complex, torch.Tensor]):
             the summed state
         """
         assert isinstance(other, MPS), "Other state also needs to be an MPS"
+        assert (
+            self.eigenstates == other.eigenstates
+        ), f"`Other` state has basis {other.eigenstates} != {self.eigenstates}"
         new_tt = add_factors(self.factors, other.factors)
         result = MPS(
             new_tt,
