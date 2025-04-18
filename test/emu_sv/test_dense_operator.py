@@ -108,7 +108,7 @@ def test_applyto_expect_DenseOperator(zero: str, one: str) -> None:
 
     state = {one + one + one: -1.0, zero + zero + zero: 1.0}
     from_string = StateVector.from_state_amplitudes(
-        eigenstates={one, zero}, amplitudes=state
+        eigenstates=(one, zero), amplitudes=state
     )
     result = operator.apply_to(from_string)  # testing apply_to
 

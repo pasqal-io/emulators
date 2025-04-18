@@ -38,7 +38,7 @@ class MPS(State[complex, torch.Tensor]):
         orthogonality_center: Optional[int] = None,
         config: Optional[MPSConfig] = None,
         num_gpus_to_use: Optional[int] = DEVICE_COUNT,
-        eigenstates: Sequence[Eigenstate],
+        eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
         """
         This constructor creates a MPS directly from a list of tensors. It is for internal use only.

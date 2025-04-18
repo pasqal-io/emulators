@@ -123,3 +123,30 @@ def test_from_amplitudes() -> None:
     result = state.overlap(expected_state)
     assert math.isclose(result.real, 1.0, rel_tol=1e-5)
     assert math.isclose(result.imag, 0.0, rel_tol=1e-5)
+
+
+@pytest.mark.parametrize(
+    "eig, ampl",
+    [
+        (("r", "g"), {4 * "r": 1.0}),
+        (("r", "g"), {4 * "g": 1.0}),
+    ],
+)
+def test_to_abstr_repr(eig, ampl) -> None:
+    initial_state = StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
+    abstr = initial_state._to_abstract_repr()
+
+    assert ampl == abstr["amplitudes"]
+    assert eig == abstr["eigenstates"]
+
+
+# @pytest.mark.parametrize(
+#    "eig, ampl",
+#    [
+#        (("0", "1"), {4 * "r": 1.0}),
+#        (("r", "g"), {4 * "1": 1.0}),
+#    ],
+# )
+# def test_constructor(eig, ampl) -> None:
+#    with pytest.raises(ValueError):
+#        MPS.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
