@@ -140,13 +140,13 @@ def test_to_abstr_repr(eig, ampl) -> None:
     assert eig == abstr["eigenstates"]
 
 
-# @pytest.mark.parametrize(
-#    "eig, ampl",
-#    [
-#        (("0", "1"), {4 * "r": 1.0}),
-#        (("r", "g"), {4 * "1": 1.0}),
-#    ],
-# )
-# def test_constructor(eig, ampl) -> None:
-#    with pytest.raises(ValueError):
-#        MPS.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
+def test_constructor() -> None:
+    with pytest.raises(ValueError):
+       eig = ("r", "g")
+       ampl = {4 * "1": 1.0}
+       StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
+
+    with pytest.raises(NotImplementedError):
+       eig = ("0", "1")
+       ampl = {4 * "1": 1.0}
+       StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
