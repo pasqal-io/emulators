@@ -47,16 +47,16 @@ def test_double_krylov(N, tolerance):
     )
 
     op = lambda x: -1j * dt * (ham * x)
-    lanczos_vectors_state, lanczos_vectors_grad, dU = double_krylov(
-        op, grad, state, tolerance
+    lanczos_vectors_state, dS, lanczos_vectors_grad = double_krylov(
+        op, state, grad, tolerance
     )
 
     state_block = torch.stack(lanczos_vectors_state)
     grad_block = torch.stack(lanczos_vectors_grad)
-    L = state_block.mT @ dU @ grad_block.conj()
+    dU = state_block.mT @ dS @ grad_block.conj()
 
     Hsv = dense_rydberg_hamiltonian(omegas, deltas, phis, interactions)
     E = state.unsqueeze(-1) @ grad.conj().unsqueeze(0)
-    expected_L = frechet_exp(-1j * dt * Hsv, E)
+    expected_dU = frechet_exp(-1j * dt * Hsv, E)
 
-    assert torch.allclose(L, expected_L, atol=tolerance)
+    assert torch.allclose(dU, expected_dU, atol=tolerance)

@@ -8,28 +8,47 @@ max_krylov_dim = DEFAULT_MAX_KRYLOV_DIM
 
 def double_krylov(
     op: Callable,
-    grad: torch.Tensor,
     state: torch.Tensor,
+    grad: torch.Tensor,
     tolerance: float,
-) -> tuple[list, list, torch.Tensor]:
+) -> tuple[list[torch.Tensor], torch.Tensor, list[torch.Tensor]]:
     """
-    Decomposition of the Fréchet derivative of the exponential map along the
-    direction |state❭❬grad|, such that, with U=exp(op),
-        dU(op, |state❭❬grad|) = V_even * H * V_odd^-1
+    Returns a Lanczos decomposition of the Fréchet derivative of the exponential
+    map U=exp(op) along the direction |state❭❬grad|.
+    The decomposition is represented by the tuple (Vs, dS, Vg) such that,
+        dU(op, |state❭❬grad|) = Vsᵗ @ dS @ Vg*
 
     Args:
-        op (Callable): linear map to exponentiate, op(|x❭) = H|x❭.
-        grad (torch.Tensor):
+        op (Callable): linear map to exponentiate, e.g. op(|ψ❭) = H|ψ❭.
         state (torch.Tensor):
+        grad (torch.Tensor):
         tolerance (float): tolerance of the returned derivative.
 
-    Notes:
+    Returns:
+        Vstate (list): Lanczos basis of state
+        dS (torch.Tensor): matrix representing the derivative in the new basis
+        Vgrad (list): Lanczos basis of grad
 
-            |op |state❭❬grad||
-    let h = |0        op     |
-    Then this computes
-    V = Gram-Scmidt(grad,state,op(grad),op(state),op^2(grad),op^2(state),...)
-    and e^T = V^-1 exp(h) V
+    Notes:
+        Fréchet derivative dU(op,|a❭❬b|) being defined as:
+            exp|op |a❭❬b|| = |exp(op) dU(op,|a❭❬b|)|
+               |0   op   |   |0       exp(op)      |
+
+        The function computes two Lanczos decomposition
+        up to the given tolerance
+            Va = Lanczos(|a❭,op(|a❭),op^2(|a❭),...)
+            Vb = Lanczos(|b❭,op(|b❭),op^2(|b❭),...)
+        such that,
+            op = Vaᵗ @ Ta @ Va*
+            op = Vbᵗ @ Tb @ Vb*
+
+        In the new basis Va, Vb
+            |op |a❭❬b|| -> |Ta  ab|0❭❬0||
+            |0   op   |    |0   Tb      |
+        where the top-right block only has one nonzero element.
+        Exponentiating such matrix and selecting the top-right block
+        gives us the desired matrix dS such that
+            dU(op, |a❭❬b|) = Vaᵗ @ dS @ Vb*
     """
     lanczos_vectors_state, Ts = lanczos(op, state, tolerance)
     lanczos_vectors_grad, Tg = lanczos(op, grad, tolerance)
@@ -39,16 +58,16 @@ def double_krylov(
 
     big_mat = torch.block_diag(Ts, Tg)
     big_mat[0, size_Ts] = state.norm() * grad.norm()
-    dU = torch.matrix_exp(big_mat)[:size_Ts, size_Tg:]
+    dS = torch.matrix_exp(big_mat)[:size_Ts, size_Tg:]
 
-    return lanczos_vectors_state, lanczos_vectors_grad, dU
+    return lanczos_vectors_state, dS, lanczos_vectors_grad
 
 
 def lanczos(
     op: Callable,
     v: torch.Tensor,
     tolerance: float,
-) -> tuple[list, torch.Tensor]:
+) -> tuple[list[torch.Tensor], torch.Tensor]:
     lanczos_vectors = [v / v.norm()]
     T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
 
