@@ -33,8 +33,8 @@ def test_ham_matmul_density():
     ham = dense_rydberg_hamiltonian(
         omegas=omegas, deltas=deltas, phis=phis, interaction_matrix=interaction_matrix
     )
-    h_rho = ham @ rho
-
+    h_rho_left = ham @ rho
+    h_rho = h_rho_left - h_rho_left.conj().T
     assert torch.allclose(result, h_rho)
 
 
@@ -66,7 +66,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
     rho = torch.randn(2**nqubits, 2**nqubits, dtype=dtype, device=device)
 
     # Apply the local operator
-    updated_rho = ham_lind.apply_local_operator_to_density_matrix(
+    updated_rho = ham_lind.apply_local_operator_to_density_matrix_to_local_op(
         density_matrix=rho, local_op=lindblad_op, target_qubit=target
     )
 
@@ -87,7 +87,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
 
 
 def test_lindblads():
-    """Testing 0.5*i*(∑ₖ Lₖ^† Lₖ) 𝜌 part"""
+    """Testing 0.5*i*(∑ₖ Lₖ^† Lₖ)@𝜌 + 0.5*i* 𝜌@(∑ₖ Lₖ^† Lₖ) part"""
     torch.manual_seed(234)
     nqubits = 8
     omegas = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
@@ -115,7 +115,7 @@ def test_lindblads():
     )
     result = ham_lind @ rho
 
-    # 0.5*i*(∑ₖ Lₖ^† Lₖ) 𝜌 by hand
+    # -0.5*i*(∑ₖ Lₖ^† Lₖ) @𝜌 - 0.5*i*𝜌@(∑ₖ Lₖ^† Lₖ)  by hand
 
     ident = torch.eye(2, dtype=dtype, device=device)
 
@@ -131,6 +131,33 @@ def test_lindblads():
         res = torch.kron(lista[num][0], lista[num][1])
         for i in range(2, nqubits):
             res = torch.kron(res, lista[num][i])
-        result_kron += 0.5j * res @ rho
+        pre_result = -0.5j * res @ rho
+        result_kron += pre_result - pre_result.conj().T
+
+    # add the term sum Lₖ 𝜌 Lₖ^† to the test, you are almost there
+    # I = torch.eye(2, dtype=torch.complex128)
+
+    # lista1 = []
+    # for i in range(nqubits):
+    #     if i == target:
+    #         lista1.append(A)
+    #     else:
+    #         lista1.append(I)
+
+    # lista2 = []
+    # for i in range(n):
+    #     if i == target:
+    #         lista2.append(A.conj().T.contiguous())
+    #         #lista2.append(I)
+    #     else:
+    #         lista2.append(I)
+
+    # res1 = torch.kron(lista1[0],lista1[1])
+    # for i in range(2,n):
+    #     res1 = torch.kron(res1,lista1[i])
+
+    # res2 = torch.kron(lista2[0],lista2[1])
+    # for i in range(2,n):
+    #     res2 = torch.kron(res2,lista2[i])
 
     assert torch.allclose(result, result_kron)
