@@ -67,10 +67,10 @@ def lanczos(
     tolerance: float,
 ) -> tuple[list[torch.Tensor], torch.Tensor]:
     """
-        Copy of the code in krylov_exp
-        To decide
-         1. refactor this
-         2. allow krylov results to store lanczos_vectors and T
+    Copy of the code in krylov_exp
+    To decide
+     1. refactor this
+     2. allow krylov results to store lanczos_vectors and T
     """
     lanczos_vectors = [v / v.norm()]
     T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
