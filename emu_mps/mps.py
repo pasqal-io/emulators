@@ -359,7 +359,7 @@ class MPS(State[complex, torch.Tensor]):
             config=self.config,
             num_gpus_to_use=None,
             orthogonality_center=None,  # Orthogonality is lost.
-            eigenstates=self._eigenstates,
+            eigenstates=self.eigenstates,
         )
         result.truncate()
         return result
@@ -385,7 +385,7 @@ class MPS(State[complex, torch.Tensor]):
             config=self.config,
             num_gpus_to_use=None,
             orthogonality_center=self.orthogonality_center,
-            eigenstates=self._eigenstates,
+            eigenstates=self.eigenstates,
         )
 
     def __imul__(self, scalar: complex) -> MPS:
