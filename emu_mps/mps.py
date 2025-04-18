@@ -7,12 +7,10 @@ from typing import List, Optional, Sequence, TypeVar, Mapping
 import torch
 
 from pulser.backend.state import State, Eigenstate
-from emu_base import DEVICE_COUNT
 from emu_mps import MPSConfig
 from emu_mps.algebra import add_factors, scale_factors
 from emu_mps.utils import (
     apply_measurement_errors,
-    assign_devices,
     truncate_impl,
     tensor_trace,
     n_operator,
@@ -37,7 +35,6 @@ class MPS(State[complex, torch.Tensor]):
         *,
         orthogonality_center: Optional[int] = None,
         config: Optional[MPSConfig] = None,
-        num_gpus_to_use: Optional[int] = DEVICE_COUNT,
         eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
         """
@@ -54,8 +51,6 @@ class MPS(State[complex, torch.Tensor]):
             orthogonality_center: the orthogonality center of the MPS, or None (in which case
                 it will be orthogonalized when needed)
             config: the emu-mps config object passed to the run method
-            num_gpus_to_use: distribute the factors over this many GPUs
-                0=all factors to cpu, None=keep the existing device assignment.
         """
         super().__init__(eigenstates=eigenstates)
         self.config = config if config is not None else MPSConfig()
@@ -75,9 +70,6 @@ class MPS(State[complex, torch.Tensor]):
         ), "Invalid orthogonality center provided"
         self.orthogonality_center = orthogonality_center
 
-        if num_gpus_to_use is not None:
-            assign_devices(self.factors, min(DEVICE_COUNT, num_gpus_to_use))
-
     @property
     def n_qudits(self) -> int:
         """The number of qudits in the state."""
@@ -88,7 +80,6 @@ class MPS(State[complex, torch.Tensor]):
         cls,
         num_sites: int,
         config: Optional[MPSConfig] = None,
-        num_gpus_to_use: int = DEVICE_COUNT,
         eigenstates: Sequence[Eigenstate] = ["0", "1"],
     ) -> MPS:
         """
@@ -97,8 +88,6 @@ class MPS(State[complex, torch.Tensor]):
         Args:
             num_sites: the number of qubits
             config: the MPSConfig
-            num_gpus_to_use: distribute the factors over this many GPUs
-                0=all factors to cpu
         """
         config = config if config is not None else MPSConfig()
 
@@ -111,7 +100,6 @@ class MPS(State[complex, torch.Tensor]):
                 for _ in range(num_sites)
             ],
             config=config,
-            num_gpus_to_use=num_gpus_to_use,
             orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
             eigenstates=eigenstates,
         )
@@ -360,7 +348,6 @@ class MPS(State[complex, torch.Tensor]):
         result = MPS(
             new_tt,
             config=self.config,
-            num_gpus_to_use=None,
             orthogonality_center=None,  # Orthogonality is lost.
             eigenstates=self.eigenstates,
         )
@@ -386,7 +373,6 @@ class MPS(State[complex, torch.Tensor]):
         return MPS(
             factors,
             config=self.config,
-            num_gpus_to_use=None,
             orthogonality_center=self.orthogonality_center,
             eigenstates=self.eigenstates,
         )

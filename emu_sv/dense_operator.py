@@ -7,7 +7,6 @@ import torch
 
 from typing import Sequence, Type
 
-from emu_base import DEVICE_COUNT
 from emu_sv.state_vector import StateVector
 
 from pulser.backend import (
@@ -48,7 +47,7 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
         *,
         gpu: bool = True,
     ):
-        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
+        device = "cuda" if gpu and torch.cuda.is_available() else "cpu"
         self.matrix = matrix.to(dtype=dtype, device=device)
 
     def __repr__(self) -> str:
