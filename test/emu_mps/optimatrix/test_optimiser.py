@@ -1,5 +1,4 @@
 import pytest
-
 import torch
 import emu_mps.optimatrix.optimiser as opt
 

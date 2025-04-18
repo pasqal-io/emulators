@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 
 
@@ -95,40 +94,6 @@ def permute_tensor(tensor: torch.Tensor, perm: torch.Tensor) -> torch.Tensor:
         return tensor[perm][:, perm]
     else:
         raise ValueError("Only 1D tensors or square 2D tensors are supported.")
-
-
-def permute_matrix(mat: np.ndarray, permutation: list[int]) -> np.ndarray:
-    """
-    permute_matrix(matrix, permutation_list) -> permuted_matrix
-
-    Simultaneously permutes columns and rows according to a permutation list.
-
-    Parameters
-    -------
-    matrix :
-        square matrix nxn
-    permutation :
-        permutation list
-
-    Returns
-    -------
-        matrix with permuted columns and rows
-
-    Example:
-    -------
-    >>> matrix = np.array([
-    ...    [1, 2, 3],
-    ...    [4, 5, 6],
-    ...    [7, 8, 9]])
-    >>> permutation = [1, 0, 2]
-    >>> permute_matrix(matrix, permutation)
-    array([[5, 4, 6],
-           [2, 1, 3],
-           [8, 7, 9]])
-    """
-
-    perm = np.array(permutation)
-    return mat[perm, :][:, perm]
 
 
 if __name__ == "__main__":
