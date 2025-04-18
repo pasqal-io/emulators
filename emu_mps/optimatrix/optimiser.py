@@ -60,7 +60,9 @@ def matrix_bandwidth(mat: torch.Tensor) -> torch.Tensor:
     return torch.max(weighted).to(mat.dtype)
 
 
-def minimize_bandwidth_above_threshold(mat: torch.Tensor, threshold: float) -> torch.Tensor:
+def minimize_bandwidth_above_threshold(
+    mat: torch.Tensor, threshold: float
+) -> torch.Tensor:
     """
     minimize_bandwidth_above_threshold(matrix, trunc) -> permutation_lists
 
@@ -133,16 +135,14 @@ def minimize_bandwidth_global(mat: torch.Tensor) -> torch.Tensor:
     )
 
     opt_permutation = min(
-        permutations,
-        key=lambda perm: matrix_bandwidth(permute_tensor(mat, perm))
+        permutations, key=lambda perm: matrix_bandwidth(permute_tensor(mat, perm))
     )
 
     return opt_permutation
 
 
 def minimize_bandwidth_impl(
-    matrix: torch.Tensor,
-    initial_perm: torch.Tensor
+    matrix: torch.Tensor, initial_perm: torch.Tensor
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     minimize_bandwidth_impl(matrix, initial_perm) -> (optimal_perm, bandwidth)
@@ -222,7 +222,7 @@ def minimize_bandwidth(input_matrix: torch.Tensor, samples: int = 100) -> torch.
     L = input_mat.shape[0]
     rnd_permutations = itertools.chain(
         [torch.arange(L)],  # identity permutation
-        [torch.randperm(L) for _ in range(samples)]  # list of random permutations
+        [torch.randperm(L) for _ in range(samples)],  # list of random permutations
     )
 
     opt_permutations_and_opt_bandwidth = (

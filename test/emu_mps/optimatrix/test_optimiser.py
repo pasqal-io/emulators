@@ -75,7 +75,9 @@ def test_PBC_minimize_bandwidth(N: int) -> None:
     initial_mat = upper + lower
     initial_mat[N - 1, 0] = initial_mat[0, N - 1] = 1
 
-    expected_mat = torch.diag(torch.ones(N - 2), diagonal=2) + torch.diag(torch.ones(N - 2), diagonal=-2)
+    expected_mat = torch.diag(torch.ones(N - 2), diagonal=2) + torch.diag(
+        torch.ones(N - 2), diagonal=-2
+    )
     expected_mat[1, 0] = expected_mat[0, 1] = 1
     expected_mat[N - 1, N - 2] = expected_mat[N - 2, N - 1] = 1
 
