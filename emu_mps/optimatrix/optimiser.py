@@ -1,8 +1,10 @@
+import itertools
+
+import numpy as np
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import reverse_cuthill_mckee
-import numpy as np
+
 from emu_mps.optimatrix.permutations import permute_matrix, permute_list
-import itertools
 
 
 def is_symmetric(mat: np.ndarray) -> bool:
