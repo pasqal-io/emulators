@@ -47,15 +47,13 @@ def test_double_krylov(N, tolerance):
     )
 
     op = lambda x: -1j * dt * (ham * x)
-    lanczos_vectors_even, lanczos_vectors_odd, eT = double_krylov(
+    lanczos_vectors_state, lanczos_vectors_grad, dU = double_krylov(
         op, grad, state, tolerance
     )
 
-    odd_block = torch.stack(lanczos_vectors_odd)
-    even_block = torch.stack(lanczos_vectors_even)
-    Hess_L = eT[1 : 2 * odd_block.shape[0] : 2, : 2 * even_block.shape[0] : 2]
-    # L = V_odd @ Hess_L @ V_even*
-    L = odd_block.mT @ Hess_L @ even_block.conj()
+    state_block = torch.stack(lanczos_vectors_state)
+    grad_block = torch.stack(lanczos_vectors_grad)
+    L = state_block.mT @ dU @ grad_block.conj()
 
     Hsv = dense_rydberg_hamiltonian(omegas, deltas, phis, interactions)
     E = state.unsqueeze(-1) @ grad.conj().unsqueeze(0)

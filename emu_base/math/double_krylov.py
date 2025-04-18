@@ -31,21 +31,17 @@ def double_krylov(
     V = Gram-Scmidt(grad,state,op(grad),op(state),op^2(grad),op^2(state),...)
     and e^T = V^-1 exp(h) V
     """
-    lanczos_vectors_odd, T_odd = lanczos(op, state, tolerance)
-    lanczos_vectors_even, T_even = lanczos(op, grad, tolerance)
+    lanczos_vectors_state, Ts = lanczos(op, state, tolerance)
+    lanczos_vectors_grad, Tg = lanczos(op, grad, tolerance)
 
-    size_odd = T_odd.shape[0]
-    size_even = T_even.shape[0]
-    size = 2 * max(size_even, size_odd)
+    size_Ts = Ts.shape[0]
+    size_Tg = Tg.shape[0]
 
-    Tb = torch.zeros(size, size, dtype=state.dtype)
-    # the A matrix in the top left overlaps these two vectors, and nothing else
-    Tb[1, 0] = grad.norm() * state.norm()
-    Tb[1 : (2 * size_odd) : 2, 1 : (2 * size_odd) : 2] = T_odd
-    Tb[: (2 * size_even) : 2, : (2 * size_even) : 2] = T_even
-    expd = torch.linalg.matrix_exp(Tb[:size, :size])
+    big_mat = torch.block_diag(Ts, Tg)
+    big_mat[0, size_Ts] = state.norm() * grad.norm()
+    dU = torch.matrix_exp(big_mat)[:size_Ts, size_Tg:]
 
-    return lanczos_vectors_even, lanczos_vectors_odd, expd
+    return lanczos_vectors_state, lanczos_vectors_grad, dU
 
 
 def lanczos(
