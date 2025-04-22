@@ -71,7 +71,7 @@ class LindbladOperator:
         target_qubit: int,
         op_conj_T: bool = False,
     ) -> torch.Tensor:
-        """Apply a local operator (e.g., A) acting on one qubit to a density matrix.
+        """Apply a local operator A, acting on one qubit to a density matrix.
         if op_conj_T= True, Lₖ 𝜌 Lₖ^† else Lₖ 𝜌
         Parameters:
             density_matrix: torch.Tensor of shape [2**n, 2**n]
@@ -110,7 +110,7 @@ class LindbladOperator:
         # resulting in L_k@ \rho@ L_k^†
         if op_conj_T:
             rho = torch.einsum("aijc,jd->aidc", rho, local_op.conj().T)
-        else:  # if not apply the idenity instead Lk@ \rho@ Identity
+        else:  # if not, apply the identity instead Lk@ \rho@ Identity
             ident = torch.eye(2, dtype=dtype)
             rho = torch.einsum("aijc,jd->aidc", rho, ident)
 
@@ -181,6 +181,6 @@ class LindbladOperator:
                 storage_linbdlads += 1.0j * storage_LrhoLdag
 
         # final density matrix
-        result = h_densi_matrix - h_densi_matrix.conj().T + storage_linbdlads
-
-        return result  # I expect this to be multiplied by -1.0j
+        return (
+            h_densi_matrix - h_densi_matrix.conj().T + storage_linbdlads
+        )  # I expect this to be multiplied by -1.0j
