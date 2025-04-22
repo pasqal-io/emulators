@@ -38,11 +38,10 @@ def test_ham_matmul_density():
     assert torch.allclose(result, h_rho)
 
 
-@pytest.mark.parametrize(
-    "target_qubit",
-    [0, 1, 2, 3, 4, 5, 6, 7],
-)
+@pytest.mark.parametrize("target_qubit", range(8))
 def test_apply_local_operator_on_target_qubit(target_qubit):
+    """Testing the application of a local operator on a target qubit"""
+    torch.manual_seed(234)
     nqubits = 8  # Total number of qubits
     target = target_qubit  # Qubit on which the lindblad_op acts
 
@@ -61,7 +60,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
         device=device,
     )
 
-    # Define a random 2x2 complex matrix
+    # Define a random 2x2 linblad operator
     lindblad_op = torch.randn(2, 2, dtype=dtype, device=device)
     rho = torch.randn(2**nqubits, 2**nqubits, dtype=dtype, device=device)
 
@@ -85,11 +84,31 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
 
     assert torch.allclose(updated_rho, res @ rho)
 
+    # apply the local operator to rho and then apply the conjugate transpose
+    updated_lk_rho_lkdag = ham_lind.apply_local_operator_to_density_matrix_to_local_op(
+        density_matrix=rho, local_op=lindblad_op, target_qubit=target, op_conj_T=True
+    )
+
+    listb = []
+    for i in range(nqubits):
+        if i == target:
+            listb.append(lindblad_op.conj().T.contiguous())
+        else:
+            listb.append(ident)
+
+    resa = torch.kron(lista[0], lista[1])
+    resb = torch.kron(listb[0], listb[1])
+    for i in range(2, nqubits):
+        resa = torch.kron(resa, lista[i])
+        resb = torch.kron(resb, listb[i])
+
+    assert torch.allclose(updated_lk_rho_lkdag, resa @ rho @ resb)
+
 
 def test_lindblads():
     """Testing 0.5*i*(∑ₖ Lₖ^† Lₖ)@𝜌 + 0.5*i* 𝜌@(∑ₖ Lₖ^† Lₖ) part"""
     torch.manual_seed(234)
-    nqubits = 2
+    nqubits = 8
     omegas = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
     deltas = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
     phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
@@ -104,6 +123,7 @@ def test_lindblads():
     interaction_matrix = torch.zeros(nqubits, nqubits, dtype=dtype, device=device)
 
     rho = torch.rand(2**nqubits, 2**nqubits, dtype=dtype, device=device)
+    rho = rho + rho.conj().T
 
     ham_lind = LindbladOperator(
         omegas=omegas,
@@ -113,7 +133,7 @@ def test_lindblads():
         interaction_matrix=interaction_matrix,
         device=device,
     )
-    result = ham_lind @ rho
+    result_ham = ham_lind @ rho
 
     # -0.5*i*(∑ₖ Lₖ^† Lₖ) @𝜌 - 0.5*i*𝜌@(∑ₖ Lₖ^† Lₖ) +1j (∑ₖLₖ 𝜌 Lₖ^† )  by hand
 
@@ -142,7 +162,7 @@ def test_lindblads():
         for i in range(nqubits):
             identities = [ident] * nqubits
             identities[i] = lind
-            lista1.append(identities)
+            lista1.append(identities.copy())
             identities[i] = lind.conj().T.contiguous()
             lista2.append(identities)
 
@@ -153,9 +173,8 @@ def test_lindblads():
         for i in range(2, nqubits):
             res1 = torch.kron(res1, lista1[num][i])
             res2 = torch.kron(res2, lista2[num][i])
-        pre_result += res1 @ rho @ res2
+        pre_result += 1.0j * res1 @ rho @ res2
 
-    # the result does not agree with the test
-    print(result)
-    print(result_kron_sum_LdagLrho)
-    assert torch.allclose(result, result_kron_sum_LdagLrho + 1.0j * pre_result)
+    assert torch.allclose(result_ham, result_kron_sum_LdagLrho + pre_result, atol=1e-6)
+
+    # write an end_to_end test

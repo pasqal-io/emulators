@@ -71,23 +71,24 @@ class LindbladOperator:
         target_qubit: int,
         op_conj_T: bool = False,
     ) -> torch.Tensor:
-        """Apply a local operator (e.g., A) acting on one qubit to a full density matrix.
+        """Apply a local operator (e.g., A) acting on one qubit to a density matrix.
         if op_conj_T= True, Lₖ 𝜌 Lₖ^† else Lₖ 𝜌
         Parameters:
             density_matrix: torch.Tensor of shape [2**n, 2**n]
-            local_op: torch.Tensor of shape [2, 2] (complex)
+            local_op: torch.Tensor of shape [2, 2], can be complex
             target_qubit: int in [0, n_qubits - 1], the qubit that A acts on
             n_qubits: int, total number of qubits
-            op_conj_t: bool, if True apply A† to the ket index (L_k 𝜌 L_k^†)
+            op_conj_t: bool, if True it gets L_k 𝜌 L_k^†
 
         Returns:
             Updated density matrix: torch.Tensor of shape [2**n, 2**n]
         """
-        # Reshape density matrix to a 2n-way tensor of shape (2,...,2) x (2,...,2)
+        # reshape density matrix to a 2n-way tensor of shape (2,...,2) x (2,...,2)
         rho = density_matrix.view([2] * (self.nqubits * 2))
 
         # permutes: target qubit comes first in both bra and ket spaces.
-        # determine new ordering for the bra (first n_qubits) and for ket (next n_qubits) indices.
+        # determine new ordering for the bra (first n_qubits)
+        # and for ket (next n_qubits) indices.
         perm = list(range(self.nqubits))
         perm.remove(target_qubit)
         perm = [target_qubit] + perm  # target now in the first position
@@ -106,15 +107,17 @@ class LindbladOperator:
 
         # if op_conj= True: apply A† to the ket index.
         # Contract along the third index (the original ket index) of rho with A†:
-        # resulting in L_k \rho L_k^†
+        # resulting in L_k@ \rho@ L_k^†
         if op_conj_T:
             rho = torch.einsum("aijc,jd->aidc", rho, local_op.conj().T)
-        else:  # if not apply the idenity instead Lk \rho
+        else:  # if not apply the idenity instead Lk@ \rho@ Identity
             ident = torch.eye(2, dtype=dtype)
             rho = torch.einsum("aijc,jd->aidc", rho, ident)
 
         # reshape back to a 2n-way tensor.
-        rho = rho.contiguous().view([2] * (2 * self.nqubits))
+        rho = rho.contiguous().view(
+            [2] * (2 * self.nqubits)
+        )  # check the contiguos, this should be deleted
 
         # invert the permutation to return the indices to their original order.
         inv_perm = [0] * (self.nqubits * 2)
@@ -125,6 +128,11 @@ class LindbladOperator:
         # reshape back to the full density matrix shape [2**n, 2**n].
         return rho.contiguous().view(2**self.nqubits, 2**self.nqubits)
 
+    # Hₑ =  Hd 𝜌  +0.5i∑ₖ L^† L 𝜌,
+    # h_res = Hₑ +Hₑ&\dagger + add sigmax terms to
+    # NOTE: sum diag term + single qubit terms in the local opt, then at the end do
+    # the hermitian conjugate and then sum Lk rho Lk^† term
+    # take care of the i factor in the sum
     def __matmul__(self, densi_matrix: torch.Tensor) -> torch.Tensor:
         # Constructing Hₑ =  H 𝜌 -𝜌  H  +0.5i∑ₖ L^† L 𝜌+0.5i 𝜌 ∑ₖ L^† L
 
@@ -143,12 +151,14 @@ class LindbladOperator:
         # add the diagonal result to the densi_matrix
         h_densi_matrix = densi_matrix_sum_x + storage
 
-        # Applying the Lindblad operators -0.5*i*∑ₖ Lₖ^† Lₖ 𝜌
+        # applying the Lindblad operators -0.5*i*∑ₖ Lₖ^† Lₖ 𝜌
         sum_lindblas = compute_noise_from_lindbladians(
             self.pulser_linblads
         )  # result 2x2 matrix
 
+        # applying the Lindblad operators 0.5*i*𝜌 ∑ₖ Lₖ^† Lₖ
         storage_linbdlads = torch.zeros_like(densi_matrix, dtype=dtype)
+
         for qubit in range(self.nqubits):
             pre_storage_lindblads = (
                 self.apply_local_operator_to_density_matrix_to_local_op(
@@ -157,23 +167,20 @@ class LindbladOperator:
             )
             storage_linbdlads += pre_storage_lindblads
 
-        # i∑ₖ Lₖ 𝜌  Lₖ^†
-        storage_LrhoLdag = torch.zeros_like(densi_matrix, dtype=dtype)
-        for j in range(len(self.pulser_linblads)):
-            for i in range(self.nqubits):
-                pre_storage_LrhoLdag = (
+        storage_linbdlads -= storage_linbdlads.conj().T
+
+        # applying i∑ₖ Lₖ 𝜌  Lₖ^†
+
+        for lindi in range(len(self.pulser_linblads)):
+            for qubitj in range(self.nqubits):
+                storage_LrhoLdag = (
                     self.apply_local_operator_to_density_matrix_to_local_op(
-                        densi_matrix, self.pulser_linblads[j], i, op_conj_T=True
+                        densi_matrix, self.pulser_linblads[lindi], qubitj, op_conj_T=True
                     )
                 )
-                storage_LrhoLdag += pre_storage_LrhoLdag
+                storage_linbdlads += 1.0j * storage_LrhoLdag
 
         # final density matrix
-        result = (
-            h_densi_matrix
-            - h_densi_matrix.conj().T
-            + storage_linbdlads  # already has a -0.5i
-            - storage_linbdlads.conj().T
-            + 1.0j * storage_LrhoLdag
-        )
+        result = h_densi_matrix - h_densi_matrix.conj().T + storage_linbdlads
+
         return result  # I expect this to be multiplied by -1.0j
