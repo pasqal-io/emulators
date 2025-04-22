@@ -7,12 +7,10 @@ def reciprocal_dist_matrix(reg: pulser.Register) -> torch.Tensor:
     """
     Matrix 1/r_{ij}. Behaves similarly as 1/r_{ij}^6
     """
-    positions = torch.tensor([
-        q.tolist() for q in reg.qubits.values()
-        ])
+    positions = torch.tensor([q.tolist() for q in reg.qubits.values()])
 
     diff = positions.unsqueeze(1) - positions.unsqueeze(0)
-    dist = (diff ** 2).sum(-1).pow(0.5)
+    dist = (diff**2).sum(-1).pow(0.5)
 
     mask = dist != 0
     dist_inv = torch.zeros_like(dist)
@@ -35,5 +33,7 @@ def permute_sequence_registers(
 ) -> pulser.Register:
     values = list(reg.qubits.values())
 
-    new_register = pulser.Register({i: values[permutation[i]] for i in range(len(values))})
+    new_register = pulser.Register(
+        {i: values[permutation[i]] for i in range(len(values))}
+    )
     return new_register
