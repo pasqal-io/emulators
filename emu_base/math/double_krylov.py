@@ -53,11 +53,10 @@ def double_krylov(
     Vs, Ts = lanczos(op, state, tolerance)
     Vg, Tg = lanczos(op, grad, tolerance)
     size_s = len(Vs)
-    size_g = len(Vg)
     big_mat = torch.block_diag(Ts, Tg)
     # Only one element in the top-right corner
     big_mat[0, size_s] = state.norm() * grad.norm()
-    dS = torch.matrix_exp(big_mat)[:size_s, size_g:]
+    dS = torch.matrix_exp(big_mat)[:size_s, size_s:]
     return Vs, dS, Vg
 
 
