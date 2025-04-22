@@ -1,23 +1,29 @@
 import pulser
 import numpy as np
-
+import torch
 import matplotlib.pyplot as plt
 import emu_mps.optimatrix as optimatrix
 
 
-def reciprocal_dist_matrix(reg: pulser.Register) -> np.ndarray:
+def reciprocal_dist_matrix(reg: pulser.Register) -> torch.Tensor:
+    """
+    Matrix 1/r_{ij}. Behaves similarly as 1/r_{ij}^6
+    """
     qubit_positions = list(reg.qubits.values())
-    num_qubits = len(qubit_positions)
-    distances = np.zeros((num_qubits, num_qubits))
 
-    for i in range(len(qubit_positions)):
-        for j in range(i + 1, len(qubit_positions)):
+    num_qubits = len(qubit_positions)
+    distances = torch.zeros((num_qubits, num_qubits))
+
+    for i in range(num_qubits):
+        for j in range(i + 1, num_qubits):
             x0, y0 = qubit_positions[i]
             x1, y1 = qubit_positions[j]
             value = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (-1)
 
-            distances[i][j] = value
-            distances[j][i] = value
+            # pulser internal type AbstractArray
+            val_num = value.as_tensor().item()
+            distances[i, j] = val_num
+            distances[j, i] = val_num
 
     return distances
 
