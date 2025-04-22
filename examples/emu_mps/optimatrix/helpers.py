@@ -7,10 +7,9 @@ def reciprocal_dist_matrix(reg: pulser.Register) -> torch.Tensor:
     """
     Matrix 1/r_{ij}. Behaves similarly as 1/r_{ij}^6
     """
-    positions = torch.stack(
-        [q.as_tensor() for q in reg.qubits.values()],
-        dim=0,
-        )
+    positions = torch.tensor([
+        q.tolist() for q in reg.qubits.values()
+        ])
 
     diff = positions.unsqueeze(1) - positions.unsqueeze(0)
     dist = (diff ** 2).sum(-1).pow(0.5)
