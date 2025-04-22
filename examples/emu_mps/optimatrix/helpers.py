@@ -7,23 +7,19 @@ def reciprocal_dist_matrix(reg: pulser.Register) -> torch.Tensor:
     """
     Matrix 1/r_{ij}. Behaves similarly as 1/r_{ij}^6
     """
-    qubit_positions = list(reg.qubits.values())
+    positions = torch.stack(
+        [q.as_tensor() for q in reg.qubits.values()],
+        dim=0,
+        )
 
-    num_qubits = len(qubit_positions)
-    distances = torch.zeros((num_qubits, num_qubits))
+    diff = positions.unsqueeze(1) - positions.unsqueeze(0)
+    dist = (diff ** 2).sum(-1).pow(0.5)
 
-    for i in range(num_qubits):
-        for j in range(i + 1, num_qubits):
-            x0, y0 = qubit_positions[i]
-            x1, y1 = qubit_positions[j]
-            value = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** (-1)
+    mask = dist != 0
+    dist_inv = torch.zeros_like(dist)
+    dist_inv[mask] = 1.0 / dist[mask]
 
-            # pulser internal type AbstractArray
-            val_num = value.as_tensor().item()
-            distances[i, j] = val_num
-            distances[j, i] = val_num
-
-    return distances
+    return dist_inv
 
 
 def shuffle_qubits(reg: pulser.Register) -> pulser.Register:
@@ -40,9 +36,5 @@ def permute_sequence_registers(
 ) -> pulser.Register:
     values = list(reg.qubits.values())
 
-    permuted_reg = [None] * len(values)
-    for i, p in enumerate(permutation):
-        permuted_reg[i] = values[p]
-
-    new_register = pulser.Register(dict(enumerate(permuted_reg)))
+    new_register = pulser.Register({i: values[permutation[i]] for i in range(len(values))})
     return new_register
