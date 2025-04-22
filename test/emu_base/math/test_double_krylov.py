@@ -24,7 +24,7 @@ def frechet_exp(A: torch.Tensor, E: torch.Tensor):
 
 @mark.parametrize(
     "N, tolerance",
-    [(n, tol) for n in [4, 5, 7] for tol in [1e-8, 1e-10, 1e-12]],
+    [(n, tol) for n in [3, 4, 5, 7] for tol in [1e-8, 1e-10, 1e-12]],
 )
 def test_double_krylov(N, tolerance):
     torch.manual_seed(1337)
