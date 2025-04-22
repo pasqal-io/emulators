@@ -13,9 +13,9 @@ def test_ham_matmul_density():
     """H @ 𝜌, with out lindblad operators"""
     torch.manual_seed(234)
     nqubits = 10
-    omegas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
-    deltas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
-    phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
+    omegas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
+    deltas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
+    phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
     pulser_linblad = [torch.zeros(2, 2, dtype=dtype, device=device)]
     interaction_matrix = nn_interaction_matrix(nqubits)
 
@@ -47,9 +47,9 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
     torch.manual_seed(234)
     nqubits = test_atoms
 
-    omegas = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
-    deltas = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
-    phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(torch.complex128)
+    omegas = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
+    deltas = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
+    phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
     pulser_linblad = torch.zeros(2**nqubits, dtype=dtype, device=device)
     interaction_matrix = torch.zeros(nqubits, nqubits)
 
