@@ -1,21 +1,18 @@
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import reverse_cuthill_mckee
-import numpy as np
-from emu_mps.optimatrix.permutations import permute_matrix, permute_list
 import itertools
 
+import torch
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import reverse_cuthill_mckee
 
-def is_symmetric(mat: np.ndarray) -> bool:
-    if mat.shape[0] != mat.shape[1]:
-        return False
-    if not np.allclose(mat, mat.T, atol=1e-8):
-        return False
-
-    return True
+from emu_mps.optimatrix.permutations import permute_tensor
 
 
-def matrix_bandwidth(mat: np.ndarray) -> float:
-    """matrix_bandwidth(matrix: np.ndarray) -> float
+def is_symmetric(matrix: torch.Tensor, tol: float = 1e-8) -> bool:
+    return torch.allclose(matrix, matrix.T, atol=tol)
+
+
+def matrix_bandwidth(mat: torch.Tensor) -> float:
+    """matrix_bandwidth(matrix: torch.tensor) -> torch.Tensor
 
     Computes bandwidth as max weighted distance between columns of
     a square matrix as `max (abs(matrix[i, j] * (j - i))`.
@@ -45,19 +42,27 @@ def matrix_bandwidth(mat: np.ndarray) -> float:
 
     Example:
     -------
-    >>> matrix = np.array([
-    ...    [  1, -17, 2.4],
-    ...    [  9,   1, -10],
-    ...    [-15,  20,   1],])
-    >>> matrix_bandwidth(matrix) # 30.0 because abs(-15 * (2-0) == 30)
+    >>> matrix = torch.tensor([
+    ...     [1.0, -17.0, 2.4],
+    ...     [9.0, 1.0, -10.0],
+    ...     [-15.0, 20.0, 1.0]
+    ... ])
+    >>> matrix_bandwidth(matrix)  # because abs(-15 * (0 - 2)) = 30.0
     30.0
     """
 
-    bandwidth = max(abs(el * (index[0] - index[1])) for index, el in np.ndenumerate(mat))
-    return float(bandwidth)
+    n = mat.shape[0]
+
+    i_arr = torch.arange(n).view(-1, 1)  # shape (n, 1)
+    j_arr = torch.arange(n).view(1, -1)  # shape (1, n)
+
+    weighted = torch.abs(mat * (j_arr - i_arr))
+    return torch.max(weighted).to(mat.dtype).item()
 
 
-def minimize_bandwidth_above_threshold(mat: np.ndarray, threshold: float) -> np.ndarray:
+def minimize_bandwidth_above_threshold(
+    mat: torch.Tensor, threshold: float
+) -> torch.Tensor:
     """
     minimize_bandwidth_above_threshold(matrix, trunc) -> permutation_lists
 
@@ -78,24 +83,25 @@ def minimize_bandwidth_above_threshold(mat: np.ndarray, threshold: float) -> np.
 
     Example:
     -------
-    >>> matrix = np.array([
-    ...    [1, 2, 3],
-    ...    [2, 5, 6],
-    ...    [3, 6, 9]])
+    >>> matrix = torch.tensor([
+    ...     [1, 2, 3],
+    ...     [2, 5, 6],
+    ...     [3, 6, 9]
+    ... ], dtype=torch.float32)
     >>> threshold = 3
     >>> minimize_bandwidth_above_threshold(matrix, threshold)
-    array([1, 2, 0], dtype=int32)
+    tensor([1, 2, 0], dtype=torch.int32)
     """
 
-    matrix_truncated = mat.copy()
-    matrix_truncated[mat < threshold] = 0
-    rcm_permutation = reverse_cuthill_mckee(
-        csr_matrix(matrix_truncated), symmetric_mode=True
-    )
-    return np.array(rcm_permutation)
+    m_trunc = mat.clone()
+    m_trunc[mat < threshold] = 0.0
+
+    matrix_np = csr_matrix(m_trunc.numpy())  # SciPy's RCM compatibility
+    rcm_perm = reverse_cuthill_mckee(matrix_np, symmetric_mode=True)
+    return torch.from_numpy(rcm_perm.copy())  # translation requires copy
 
 
-def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
+def minimize_bandwidth_global(mat: torch.Tensor) -> torch.Tensor:
     """
     minimize_bandwidth_global(matrix) -> list
 
@@ -111,74 +117,78 @@ def minimize_bandwidth_global(mat: np.ndarray) -> list[int]:
     -------
         permutation order that minimizes matrix bandwidth
 
-    Example:
+    Example
     -------
-    >>> matrix = np.array([
-    ...    [1, 2, 3],
-    ...    [2, 5, 6],
-    ...    [3, 6, 9]])
+    >>> matrix = torch.tensor([
+    ...     [1, 2, 3],
+    ...     [2, 5, 6],
+    ...     [3, 6, 9]
+    ... ], dtype=torch.float32)
     >>> minimize_bandwidth_global(matrix)
-    [2, 1, 0]
+    tensor([2, 1, 0], dtype=torch.int32)
     """
-    mat_amplitude = np.max(np.abs(mat))
-    # Search from 1.0 to 0.1 doesn't change result
+    mat_amplitude = torch.max(torch.abs(mat))
+
     permutations = (
-        minimize_bandwidth_above_threshold(mat, trunc * mat_amplitude)
-        for trunc in np.arange(start=0.1, stop=1.0, step=0.01)
+        minimize_bandwidth_above_threshold(mat, trunc.item() * mat_amplitude)
+        for trunc in torch.arange(0.1, 1.0, 0.01)
     )
 
     opt_permutation = min(
-        permutations, key=lambda perm: matrix_bandwidth(permute_matrix(mat, list(perm)))
+        permutations, key=lambda perm: matrix_bandwidth(permute_tensor(mat, perm))
     )
-    return list(opt_permutation)  # opt_permutation is np.ndarray
+
+    return opt_permutation
 
 
 def minimize_bandwidth_impl(
-    matrix: np.ndarray, initial_perm: list[int]
-) -> tuple[list[int], float]:
+    matrix: torch.Tensor, initial_perm: torch.Tensor
+) -> tuple[torch.Tensor, float]:
     """
-    minimize_bandwidth_impl(matrix, initial_perm) -> list
+    minimize_bandwidth_impl(matrix, initial_perm) -> (optimal_perm, bandwidth)
 
     Applies initial_perm to a matrix and
-    finds the permutation list for a symmetric matrix that iteratively minimizes matrix bandwidth.
+    finds the permutation list for a symmetric matrix
+    that iteratively minimizes matrix bandwidth.
 
     Parameters
     -------
     matrix :
         symmetric square matrix
-    initial_perm: list of integers
+    initial_perm: torch list of integers
 
 
     Returns
     -------
-        permutation order that minimizes matrix bandwidth
+        optimal permutation and optimal matrix bandwidth
 
     Example:
     -------
     Periodic 1D chain
-    >>> matrix = np.array([
+    >>> matrix = torch.tensor([
     ...    [0, 1, 0, 0, 1],
     ...    [1, 0, 1, 0, 0],
     ...    [0, 1, 0, 1, 0],
     ...    [0, 0, 1, 0, 1],
-    ...    [1, 0, 0, 1, 0]])
-    >>> id_perm = list(range(matrix.shape[0]))
+    ...    [1, 0, 0, 1, 0]], dtype=torch.float32)
+    >>> id_perm = torch.arange(matrix.shape[0])
     >>> minimize_bandwidth_impl(matrix, id_perm) # [3, 2, 4, 1, 0] does zig-zag
-    ([3, 2, 4, 1, 0], 2.0)
+    (tensor([3, 2, 4, 1, 0]), 2.0)
 
     Simple 1D chain. Cannot be optimised further
-    >>> matrix = np.array([
+    >>> matrix = torch.tensor([
     ...    [0, 1, 0, 0, 0],
     ...    [1, 0, 1, 0, 0],
     ...    [0, 1, 0, 1, 0],
     ...    [0, 0, 1, 0, 1],
-    ...    [0, 0, 0, 1, 0]])
-    >>> id_perm = list(range(matrix.shape[0]))
+    ...    [0, 0, 0, 1, 0]], dtype=torch.float32)
+    >>> id_perm = torch.arange(matrix.shape[0])
     >>> minimize_bandwidth_impl(matrix, id_perm)
-    ([0, 1, 2, 3, 4], 1.0)
+    (tensor([0, 1, 2, 3, 4]), 1.0)
     """
-    if initial_perm != list(range(matrix.shape[0])):
-        matrix = permute_matrix(matrix, initial_perm)
+    L = matrix.shape[0]
+    if not torch.equal(initial_perm, torch.arange(L)):
+        matrix = permute_tensor(matrix, initial_perm)
     bandwidth = matrix_bandwidth(matrix)
     acc_permutation = initial_perm
 
@@ -191,28 +201,28 @@ def minimize_bandwidth_impl(
             )
 
         optimal_perm = minimize_bandwidth_global(matrix)
-        test_mat = permute_matrix(matrix, optimal_perm)
+        test_mat = permute_tensor(matrix, optimal_perm)
         new_bandwidth = matrix_bandwidth(test_mat)
 
         if bandwidth <= new_bandwidth:
             break
 
         matrix = test_mat
-        acc_permutation = permute_list(acc_permutation, optimal_perm)
+        acc_permutation = permute_tensor(acc_permutation, optimal_perm)
         bandwidth = new_bandwidth
 
     return acc_permutation, bandwidth
 
 
-def minimize_bandwidth(input_matrix: np.ndarray, samples: int = 100) -> list[int]:
+def minimize_bandwidth(input_matrix: torch.Tensor, samples: int = 100) -> torch.Tensor:
     assert is_symmetric(input_matrix), "Input matrix is not symmetric"
-    input_mat = abs(input_matrix)
+    input_mat = torch.abs(input_matrix)
     # We are interested in strength of the interaction, not sign
 
     L = input_mat.shape[0]
-    rnd_permutations: itertools.chain[list[int]] = itertools.chain(
-        [list(range(L))],  # First element is always the identity list
-        (np.random.permutation(L).tolist() for _ in range(samples)),  # type: ignore[misc]
+    rnd_permutations = itertools.chain(
+        [torch.arange(L)],  # identity permutation
+        [torch.randperm(L) for _ in range(samples)],  # list of random permutations
     )
 
     opt_permutations_and_opt_bandwidth = (
