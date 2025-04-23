@@ -16,7 +16,11 @@ QUBIT_COUNT = 5
 
 
 def _create_victim(constructor, dt, noise_model):
-    config = MPSConfig(dt=dt, noise_model=noise_model)
+    config = MPSConfig(
+        dt=dt,
+        noise_model=noise_model,
+        # no optimisation for Mock; full_interaction_matrix doesn't exist
+        optimise_interaction_matrix=False)
     mock_pulser_data = MagicMock()
     mock_pulser_data.qubit_count = QUBIT_COUNT
     mock_pulser_data.slm_end_time = 10.0

@@ -222,6 +222,70 @@ def test_XY_3atomswith_slm() -> None:
 
 
 @pytest.mark.parametrize(
+    "optimize_order",
+    [
+        False,
+        True,
+    ],
+)
+def test_end_to_end_domain_wall_ring(
+    optimize_order: bool,
+) -> None:
+    torch.manual_seed(seed)
+
+    num_qubits = 6
+    seq = pulser_afm_sequence_ring(
+        num_qubits=num_qubits,
+        Omega_max=0,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=1300,
+        t_fall=1400,
+    )
+
+    initial_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("0", "1"),
+        amplitudes={(num_qubits // 2) * "1" + (num_qubits // 2) * "0": 1.0},
+    )
+
+    eval_times = [1 / 44, 1]  # 1/44 is 1 dt step
+    mps_config = MPSConfig(
+        initial_state=initial_state,
+        dt=100,
+        precision=1e-5,
+        observables=[
+            BitStrings(evaluation_times=eval_times, num_shots=100),
+            # Fidelity(evaluation_times=eval_times, state=fidelity_state, tag_suffix="1"),
+            Occupation(evaluation_times=eval_times),
+            Energy(evaluation_times=eval_times),
+            EnergyVariance(evaluation_times=eval_times),
+            CorrelationMatrix(evaluation_times=eval_times),
+        ],
+        optimize_qubit_ordering=optimize_order,
+    )
+
+    backend = MPSBackend(seq, config=mps_config)
+    result = backend.run()
+
+    ntime_step = 0
+    bitstrings = result.bitstrings[ntime_step]
+    occupation = result.occupation[ntime_step]
+    cor_mat = result.correlation_matrix[ntime_step]
+    energy = result.energy[ntime_step]
+    energy_variance = result.energy_variance[ntime_step]
+
+    expect_occup = torch.tensor([1, 1, 1, 0, 0, 0], dtype=torch.float64)
+    expect_corr = torch.outer(expect_occup, expect_occup).to(torch.complex128)
+
+    assert bitstrings["111000"] == 100
+    assert torch.allclose(expect_occup, occupation, atol=1e-3)
+    assert torch.allclose(expect_corr, cor_mat, atol=1e-3)
+    assert approx(energy, rel=1e-4) == 286.8718
+    assert approx(energy_variance, abs=1e-5) == 0
+
+
+@pytest.mark.parametrize(
     "optimize_order, bs_count",
     [
         (False, [129, 135]),
