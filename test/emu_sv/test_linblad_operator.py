@@ -29,7 +29,6 @@ def test_ham_matmul_density():
         device=device,
     )
     result = ham_lind @ rho
-
     ham = dense_rydberg_hamiltonian(
         omegas=omegas, deltas=deltas, phis=phis, interaction_matrix=interaction_matrix
     )

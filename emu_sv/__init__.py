@@ -15,6 +15,7 @@ from pulser.backend import (
 from .dense_operator import DenseOperator
 from .sv_backend import SVBackend, SVConfig
 from .state_vector import StateVector, inner
+from .lindblad_operator import LindbladOperator
 
 __all__ = [
     "__version__",
@@ -33,6 +34,7 @@ __all__ = [
     "StateResult",
     "StateVector",
     "inner",
+    "LindbladOperator",
 ]
 
 __version__ = "2.0.0"

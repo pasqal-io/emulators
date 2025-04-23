@@ -15,7 +15,7 @@ class LindbladOperator:
         interaction_matrix: torch.Tensor,
         device: torch.device,
     ):
-        self.nqubits: int = len(omegas)
+        self.nqubits: int = omegas.shape[0]
         self.omegas: torch.Tensor = omegas / 2.0
         self.deltas: torch.Tensor = deltas
         self.phis: torch.Tensor = phis
@@ -132,7 +132,7 @@ class LindbladOperator:
     # h_res = Hₑ +Hₑ&\dagger + add sigmax terms to
     # NOTE: sum diag term + single qubit terms in the local opt, then at the end do
     # the hermitian conjugate and then sum Lk rho Lk^† term
-    # take care of the i factor in the sum
+
     def __matmul__(self, densi_matrix: torch.Tensor) -> torch.Tensor:
         # Constructing Hₑ =  H 𝜌 -𝜌  H  +0.5i∑ₖ L^† L 𝜌+0.5i 𝜌 ∑ₖ L^† L
 
