@@ -82,11 +82,11 @@ class MPSBackend(EmulatorBackend):
 def permute_bitstrings(perm: torch.Tensor, results: Results) -> None:
     if "bitstrings" not in results.get_result_tags():
         return
-    uuid_bitstrings = results._find_uuid("bitstrings")
+    uuid_bs = results._find_uuid("bitstrings")
 
-    results._results[uuid_bitstrings] = [
+    results._results[uuid_bs] = [
         Counter({optimat.permute_string(bstr, perm): c for bstr, c in bs_counter.items()})
-        for bs_counter in results._results[uuid_bitstrings]
+        for bs_counter in results._results[uuid_bs]
     ]
 
 
