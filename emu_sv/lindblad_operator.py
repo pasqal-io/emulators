@@ -3,6 +3,8 @@ from emu_base.lindblad_operators import compute_noise_from_lindbladians
 
 
 dtype = torch.complex128
+sigmax = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
+n_op = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
 
 
 class LindbladOperator:
@@ -15,7 +17,7 @@ class LindbladOperator:
         interaction_matrix: torch.Tensor,
         device: torch.device,
     ):
-        self.nqubits: int = omegas.shape[0]
+        self.nqubits: int = len(omegas)
         self.omegas: torch.Tensor = omegas / 2.0
         self.deltas: torch.Tensor = deltas
         self.phis: torch.Tensor = phis
@@ -36,33 +38,13 @@ class LindbladOperator:
         for i in range(self.nqubits):
             diag = diag.view(2**i, 2, -1)
             i_fixed = diag[:, 1, :]
-            i_fixed -= self.deltas[i]
+            # i_fixed -= self.deltas[i]
             for j in range(i + 1, self.nqubits):
                 i_fixed = i_fixed.view(2**i, 2 ** (j - i - 1), 2, -1)
                 # replacing i_j_fixed by i_fixed breaks the code :)
                 i_j_fixed = i_fixed[:, :, 1, :]
                 i_j_fixed += self.interaction_matrix[i, j]
         return diag.view(-1)
-
-    def apply_sum_sigma_x_i_to_density(self, rho: torch.Tensor) -> torch.Tensor:
-        # convert rho to a tensor with shape (2,)* (2*nqubits),
-        # where the first nqubits dimensions are for the row indices.
-        full_shape = (2,) * (2 * self.nqubits)
-        rho_view = rho.view(full_shape)
-
-        # create an accumulator tensor with the same shape and data type as rho_view.
-        accum = torch.zeros_like(rho_view)
-
-        # loop over each qubit j and apply the Pauli X  along the row index j
-        for j, omega_j in enumerate(self.omegas):
-            # flip reverses the order along dimension j,  swaps 0 and 1.
-            h_rho_term = torch.flip(rho_view, dims=[j])
-            # Accumulate the contribution
-            accum.add_(omega_j * h_rho_term)  # in place opperation,
-            # NOTE: use this index_add for efficiency
-
-        # return the resulting tensor in its original 2^n x 2^n matrix shape.
-        return accum.view(2**self.nqubits, 2**self.nqubits)
 
     def apply_local_operator_to_density_matrix_to_local_op(
         self,
@@ -110,9 +92,7 @@ class LindbladOperator:
         # resulting in L_k@ \rho@ L_k^†
         if op_conj_T:
             rho = torch.einsum("aijc,jd->aidc", rho, local_op.conj().T)
-        else:  # if not, apply the identity instead Lk@ \rho@ Identity
-            ident = torch.eye(2, dtype=dtype)
-            rho = torch.einsum("aijc,jd->aidc", rho, ident)
+        # else case:  # if not, apply the identity instead Lk@ \rho@ Identity, already done
 
         # reshape back to a 2n-way tensor.
         rho = rho.contiguous().view(
@@ -136,8 +116,26 @@ class LindbladOperator:
     def __matmul__(self, densi_matrix: torch.Tensor) -> torch.Tensor:
         # Constructing Hₑ =  H 𝜌 -𝜌  H  +0.5i∑ₖ L^† L 𝜌+0.5i 𝜌 ∑ₖ L^† L
 
-        # Applying ∑ᵢ 𝛺 /2 𝜎ₓ terms in H
-        densi_matrix_sum_x = self.apply_sum_sigma_x_i_to_density(densi_matrix)
+        # applying the Lindblad operators -0.5*i*∑ₖ Lₖ^† Lₖ 𝜌
+        sum_lindblas = compute_noise_from_lindbladians(
+            self.pulser_linblads
+        )  # result 2x2 matrix
+
+        # applying the Lindblad operators 0.5*i*𝜌 ∑ₖ Lₖ^† Lₖ
+        storage_local_terms = torch.zeros_like(densi_matrix, dtype=dtype)
+        for qubit in range(self.nqubits):
+            storage_local_terms += (
+                self.apply_local_operator_to_density_matrix_to_local_op(
+                    densi_matrix, sum_lindblas, qubit
+                )
+            )
+
+        # Applying ∑ᵢ 𝛺 /2 𝜎ₓ - ∑ᵢ 𝛿ᵢ nᵢ terms in H
+        store_local_oper = torch.zeros_like(densi_matrix, dtype=dtype)
+        for qubiti, (omega, delta) in enumerate(zip(self.omegas, self.deltas)):
+            store_local_oper += self.apply_local_operator_to_density_matrix_to_local_op(
+                densi_matrix, omega * sigmax - delta * n_op, qubiti
+            )
 
         # -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ in H
         # NOTE: get rid of the for loop
@@ -149,38 +147,23 @@ class LindbladOperator:
             diag_result = self.diag * densi_matrix[:, i]
             storage[:, i] = diag_result
         # add the diagonal result to the densi_matrix
-        h_densi_matrix = densi_matrix_sum_x + storage
-
-        # applying the Lindblad operators -0.5*i*∑ₖ Lₖ^† Lₖ 𝜌
-        sum_lindblas = compute_noise_from_lindbladians(
-            self.pulser_linblads
-        )  # result 2x2 matrix
-
-        # applying the Lindblad operators 0.5*i*𝜌 ∑ₖ Lₖ^† Lₖ
-        storage_linbdlads = torch.zeros_like(densi_matrix, dtype=dtype)
-
-        for qubit in range(self.nqubits):
-            pre_storage_lindblads = (
-                self.apply_local_operator_to_density_matrix_to_local_op(
-                    densi_matrix, sum_lindblas, qubit
-                )
-            )
-            storage_linbdlads += pre_storage_lindblads
-
-        storage_linbdlads -= storage_linbdlads.conj().T
+        h_densi_matrix = store_local_oper + storage
 
         # applying i∑ₖ Lₖ 𝜌  Lₖ^†
-
-        for lindi in range(len(self.pulser_linblads)):
-            for qubitj in range(self.nqubits):
-                storage_LrhoLdag = (
+        storage_L_rho_ldag = torch.zeros_like(densi_matrix, dtype=dtype)
+        for qubitj in range(self.nqubits):
+            for lindi in range(len(self.pulser_linblads)):
+                storage_L_rho_ldag += (
                     self.apply_local_operator_to_density_matrix_to_local_op(
                         densi_matrix, self.pulser_linblads[lindi], qubitj, op_conj_T=True
                     )
                 )
-                storage_linbdlads += 1.0j * storage_LrhoLdag
 
+        storage_L_rho_ldag = 1.0j * storage_L_rho_ldag
+
+        storage_local_terms -= storage_local_terms.conj().T
+        h_densi_matrix -= h_densi_matrix.conj().T
         # final density matrix
         return (
-            h_densi_matrix - h_densi_matrix.conj().T + storage_linbdlads
+            h_densi_matrix + storage_local_terms + storage_L_rho_ldag
         )  # I expect this to be multiplied by -1.0j

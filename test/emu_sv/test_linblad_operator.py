@@ -37,7 +37,7 @@ def test_ham_matmul_density():
     assert torch.allclose(result, h_rho)
 
 
-test_atoms = 8
+test_atoms = 10
 
 
 @pytest.mark.parametrize("target_qubit", range(test_atoms))
@@ -113,7 +113,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
 def test_matmul_linblad_class():
     """Testing 0.5*i*(∑ₖ Lₖ^† Lₖ)@𝜌 + 0.5*i* 𝜌@(∑ₖ Lₖ^† Lₖ) part"""
     torch.manual_seed(234)
-    nqubits = 9
+    nqubits = 10
     omegas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     deltas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
