@@ -217,14 +217,14 @@ class MPSBackendImpl:
         if not torch.equal(
             self.qubit_permutation, optimat.eye_permutation(self.qubit_count)
         ):
+            # permute the initial state with the Hamiltonian
             abstr_repr = initial_state._to_abstract_repr()
+            eigs = abstr_repr["eigenstates"]
             ampl = {
                 optimat.permute_string(bstr, self.qubit_permutation): amp
                 for bstr, amp in abstr_repr["amplitudes"].items()
             }
-            initial_state = MPS.from_state_amplitudes(
-                eigenstates=abstr_repr["eigenstates"], amplitudes=ampl
-            )
+            initial_state = MPS.from_state_amplitudes(eigenstates=eigs, amplitudes=ampl)
 
         initial_state = MPS(
             # Deep copy of every tensor of the initial state.

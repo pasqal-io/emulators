@@ -6,6 +6,9 @@ import os
 import time
 import logging
 import pathlib
+import emu_mps.optimatrix as optimat
+import torch
+from collections import Counter
 
 
 class MPSBackend(EmulatorBackend):
@@ -55,7 +58,15 @@ class MPSBackend(EmulatorBackend):
         impl = create_impl(self._sequence, self._config)
         impl.init()  # This is separate from the constructor for testing purposes.
 
-        return self._run(impl)
+        results = self._run(impl)
+        if not self._config.optimize_qubit_ordering:
+            return results
+
+        inv_perm = optimat.inv_permutation(impl.qubit_permutation)
+        permute_bitstrings(inv_perm, results)
+        permute_correlations(inv_perm, results)
+
+        return results
 
     @staticmethod
     def _run(impl: MPSBackendImpl) -> Results:
@@ -66,3 +77,28 @@ class MPSBackend(EmulatorBackend):
             os.remove(impl.autosave_file)
 
         return impl.results
+
+
+def permute_bitstrings(perm: list[int], results: Results) -> None:
+    if "bitstrings" not in results.get_result_tags():
+        return
+    uuid_bitstrings = results._find_uuid("bitstrings")
+    counter_time_slices = results._results[uuid_bitstrings]
+    for t in range(len(counter_time_slices)):
+        old_time_slice = counter_time_slices[t]
+        new_time_slice = Counter(
+            {optimat.permute_string(bstr, perm): c for bstr, c in old_time_slice.items()}
+        )
+        counter_time_slices[t] = new_time_slice
+
+
+def permute_correlations(perm: torch.Tensor, results: Results) -> None:
+    for corr in ["occupation", "correlation_matrix"]:
+        if corr not in results.get_result_tags():
+            return
+
+        uuid_corr = results._find_uuid(corr)
+        corrs = results._results[uuid_corr]
+        results._results[uuid_corr] = [
+            optimat.permute_tensor(corr, perm) for corr in corrs
+        ]
