@@ -59,4 +59,4 @@ def test_double_krylov(N, tolerance):
     E = state.unsqueeze(-1) @ grad.conj().unsqueeze(0)
     expected_dU = frechet_exp(-1j * dt * Hsv, E)
 
-    assert torch.allclose(dU, expected_dU, atol=tolerance)
+    assert torch.allclose(dU, expected_dU, atol=tolerance, rtol=0)
