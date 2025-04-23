@@ -3,9 +3,14 @@ import torch
 
 from emu_mps.optimatrix.permutations import (
     permute_string,
+    eye_permutation,
     inv_permutation,
     permute_tensor,
 )
+
+
+def test_eye_permutation() -> None:
+    assert torch.equal(eye_permutation(5), torch.tensor([0, 1, 2, 3, 4]))
 
 
 def test_permute_string() -> None:

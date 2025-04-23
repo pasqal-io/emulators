@@ -1,6 +1,13 @@
 import torch
 
 
+def eye_permutation(n: int) -> torch.Tensor:
+    """
+    Returns toch.tensor([0, 1, 2, .., n-1])
+    """
+    return torch.arange(n)
+
+
 def permute_string(input_str: str, perm: torch.Tensor) -> str:
     """
     Permutes the input string according to the given permutation.
