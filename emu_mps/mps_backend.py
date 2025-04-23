@@ -79,17 +79,18 @@ class MPSBackend(EmulatorBackend):
         return impl.results
 
 
-def permute_bitstrings(perm: list[int], results: Results) -> None:
+def permute_bitstrings(perm: torch.Tensor, results: Results) -> None:
     if "bitstrings" not in results.get_result_tags():
         return
     uuid_bitstrings = results._find_uuid("bitstrings")
-    counter_time_slices = results._results[uuid_bitstrings]
-    for t in range(len(counter_time_slices)):
-        old_time_slice = counter_time_slices[t]
-        new_time_slice = Counter(
-            {optimat.permute_string(bstr, perm): c for bstr, c in old_time_slice.items()}
-        )
-        counter_time_slices[t] = new_time_slice
+
+    results._results[uuid_bitstrings] = [
+        Counter(
+            {
+                optimat.permute_string(bstr, perm): c
+                for bstr, c in bs_counter.items()
+            }
+        ) for bs_counter in results._results[uuid_bitstrings]]
 
 
 def permute_correlations(perm: torch.Tensor, results: Results) -> None:
