@@ -66,11 +66,12 @@ def lanczos(
     tolerance: float,
 ) -> tuple[list[torch.Tensor], torch.Tensor]:
     """
-    Copy of the code in krylov_exp
+    Copy of the code in krylov_exp to do Laczos iteration
     To decide
      1. refactor this
      2. allow krylov results to store lanczos_vectors and T
     """
+    converged = False
     lanczos_vectors = [v / v.norm()]
     T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
 
@@ -86,6 +87,7 @@ def lanczos(
         T[j + 1, j] = n2
 
         if n2 < tolerance:
+            converged = True
             break
 
         lanczos_vectors.append(w / n2)
@@ -99,7 +101,12 @@ def lanczos(
 
         err = err1 if err1 < err2 else (err1 * err2 / (err1 - err2))
         if err < tolerance:
+            converged = True
             break
 
+    if not converged:
+        raise RecursionError(
+            "Lanczos iteration did not converge to precision in allotted number of steps."
+        )
     size = len(lanczos_vectors)
     return lanczos_vectors, T[:size, :size]
