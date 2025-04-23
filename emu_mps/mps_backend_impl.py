@@ -35,6 +35,8 @@ from emu_mps.utils import (
 )
 from enum import Enum, auto
 
+import emu_mps.optimatrix as optimat
+
 
 class Statistics(Observable):
     def __init__(
@@ -118,8 +120,17 @@ class MPSBackendImpl:
         self.timestep_count: int = self.omega.shape[0]
         self.has_lindblad_noise = pulser_data.has_lindblad_noise
         self.lindblad_noise = torch.zeros(2, 2, dtype=torch.complex128)
-        self.full_interaction_matrix = pulser_data.full_interaction_matrix
-        self.masked_interaction_matrix = pulser_data.masked_interaction_matrix
+        self.qubit_permutation = (
+            optimat.minimize_bandwidth(pulser_data.full_interaction_matrix)
+            if self.config.optimize_qubit_ordering
+            else optimat.eye_permutation(self.qubit_count)
+        )
+        self.full_interaction_matrix = optimat.permute_tensor(
+            pulser_data.full_interaction_matrix, self.qubit_permutation
+        )
+        self.masked_interaction_matrix = optimat.permute_tensor(
+            pulser_data.masked_interaction_matrix, self.qubit_permutation
+        )
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.slm_end_time = pulser_data.slm_end_time
         self.is_masked = self.slm_end_time > 0.0
@@ -203,6 +214,18 @@ class MPSBackendImpl:
             )
 
         assert isinstance(initial_state, MPS)
+        if not torch.equal(
+            self.qubit_permutation, optimat.eye_permutation(self.qubit_count)
+        ):
+            abstr_repr = initial_state._to_abstract_repr()
+            ampl = {
+                optimat.permute_string(bstr, self.qubit_permutation): amp
+                for bstr, amp in abstr_repr["amplitudes"].items()
+            }
+            initial_state = MPS.from_state_amplitudes(
+                eigenstates=abstr_repr["eigenstates"], amplitudes=ampl
+            )
+
         initial_state = MPS(
             # Deep copy of every tensor of the initial state.
             [f.clone().detach() for f in initial_state.factors],
