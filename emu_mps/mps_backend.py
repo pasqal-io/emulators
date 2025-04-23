@@ -85,12 +85,9 @@ def permute_bitstrings(perm: torch.Tensor, results: Results) -> None:
     uuid_bitstrings = results._find_uuid("bitstrings")
 
     results._results[uuid_bitstrings] = [
-        Counter(
-            {
-                optimat.permute_string(bstr, perm): c
-                for bstr, c in bs_counter.items()
-            }
-        ) for bs_counter in results._results[uuid_bitstrings]]
+        Counter({optimat.permute_string(bstr, perm): c for bstr, c in bs_counter.items()})
+        for bs_counter in results._results[uuid_bitstrings]
+    ]
 
 
 def permute_correlations(perm: torch.Tensor, results: Results) -> None:
