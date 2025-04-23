@@ -245,10 +245,11 @@ def test_end_to_end_domain_wall_ring(
     )
 
     initial_state = emu_mps.MPS.from_state_amplitudes(
-        eigenstates=("0", "1"),
-        amplitudes={(num_qubits // 2) * "1" + (num_qubits // 2) * "0": 1.0},
+        eigenstates=("r", "g"),
+        amplitudes={(num_qubits // 2) * "r" + (num_qubits // 2) * "g": 1.0},
     )
 
+    # I want to test permutation results close to the initial state
     eval_times = [1 / 44, 1]  # 1/44 is 1 dt step
     mps_config = MPSConfig(
         initial_state=initial_state,
