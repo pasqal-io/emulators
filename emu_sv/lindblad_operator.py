@@ -30,8 +30,9 @@ class LindbladOperator:
     def _create_diagonal(self) -> torch.Tensor:
         """
         Return the diagonal elements of the Rydberg Hamiltonian matrix
+        concerning the interaction
 
-            H.diag = -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
+            H.diag =  ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
         """
         diag = torch.zeros(2**self.nqubits, dtype=dtype, device=self.device)
 
@@ -53,117 +54,80 @@ class LindbladOperator:
         target_qubit: int,
         op_conj_T: bool = False,
     ) -> torch.Tensor:
-        """Apply a local operator A, acting on one qubit to a density matrix.
-        if op_conj_T= True, Lₖ 𝜌 Lₖ^† else Lₖ 𝜌
-        Parameters:
-            density_matrix: torch.Tensor of shape [2**n, 2**n]
-            local_op: torch.Tensor of shape [2, 2], can be complex
-            target_qubit: int in [0, n_qubits - 1], the qubit that A acts on
-            n_qubits: int, total number of qubits
-            op_conj_t: bool, if True it gets L_k 𝜌 L_k^†
-
-        Returns:
-            Updated density matrix: torch.Tensor of shape [2**n, 2**n]
         """
-        # reshape density matrix to a 2n-way tensor of shape (2,...,2) x (2,...,2)
-        rho = density_matrix.view([2] * (self.nqubits * 2))
+        Apply a local operator A (2x2) matrix to a density matrix.
+        If op_conj_T = True: L ρ L†
+        Else: L ρ
+        """
+        nqubits = self.nqubits
+        dim = 2 ** (nqubits - 1)
 
-        # permutes: target qubit comes first in both bra and ket spaces.
-        # determine new ordering for the bra (first n_qubits)
-        # and for ket (next n_qubits) indices.
-        perm = list(range(self.nqubits))
+        # reshape density matrix to 2n-dimensional tensor
+        rho = density_matrix.view([2] * 2 * nqubits)
+
+        # permute to bring target_qubit to front in both bra and ket indices
+        perm = list(range(nqubits))
         perm.remove(target_qubit)
-        perm = [target_qubit] + perm  # target now in the first position
-        bra_perm = perm
-        ket_perm = [p + self.nqubits for p in perm]
-        total_perm = bra_perm + ket_perm
-        rho = rho.permute(total_perm)
+        bra_perm = [target_qubit] + perm
+        ket_perm = [x + nqubits for x in bra_perm]
+        rho = rho.permute(bra_perm + ket_perm)
 
-        rho = rho.contiguous().view(
-            2, 2 ** (self.nqubits - 1), 2, 2 ** (self.nqubits - 1)
-        )
+        # reshape and contiguous is needed here
+        rho = rho.contiguous().view(2, -1)  # (2, dim*2*dim)
 
-        # apply A to the bra index.
-        # contract A (indices 'ab') with the first index of rho ('b')
-        rho = torch.einsum("ab,bijc->aijc", local_op, rho)
+        # apply local_op to bra (left multiply)
+        # A (2x2) @ rho (2, -1) -> (2, dim*2*dim)
+        rho = local_op @ rho
+        rho = rho.view(2, dim, 2, dim)
 
-        # if op_conj= True: apply A† to the ket index.
-        # Contract along the third index (the original ket index) of rho with A†:
-        # resulting in L_k@ \rho@ L_k^†
+        # if op_conj_T apply local_op† to ket (right multiply)
         if op_conj_T:
-            rho = torch.einsum("aijc,jd->aidc", rho, local_op.conj().T)
-        # else case:  # if not, apply the identity instead Lk@ \rho@ Identity, already done
+            # transpose (complex conjugate) and move 3rd axis to front for multiplication
+            rho = rho.permute(0, 1, 3, 2).contiguous()  # (2, dim, dim, 2)
+            rho = rho.view(-1, 2) @ local_op.conj().T  # (2*dim*dim, 2)
+            rho = rho.view(2, dim, dim, 2).permute(0, 1, 3, 2)  # (2, dim, 2, dim)
 
-        # reshape back to a 2n-way tensor.
-        rho = rho.contiguous().view(
-            [2] * (2 * self.nqubits)
-        )  # check the contiguos, this should be deleted
-
-        # invert the permutation to return the indices to their original order.
-        inv_perm = [0] * (self.nqubits * 2)
-        for i, p in enumerate(total_perm):
+        # reshape back
+        rho = rho.view([2] * 2 * nqubits)
+        inv_perm = [0] * (2 * nqubits)
+        for i, p in enumerate(bra_perm + ket_perm):
             inv_perm[p] = i
         rho = rho.permute(inv_perm)
 
-        # reshape back to the full density matrix shape [2**n, 2**n].
-        return rho.contiguous().view(2**self.nqubits, 2**self.nqubits)
+        return rho.contiguous().view(2**nqubits, 2**nqubits)
 
-    # Hₑ =  Hd 𝜌  +0.5i∑ₖ L^† L 𝜌,
-    # h_res = Hₑ +Hₑ&\dagger + add sigmax terms to
-    # NOTE: sum diag term + single qubit terms in the local opt, then at the end do
-    # the hermitian conjugate and then sum Lk rho Lk^† term
+    def __matmul__(self, density_matrix: torch.Tensor) -> torch.Tensor:
+        """Apply the i*Lindblad operator :
+         (Hρ - ρH) -0.5i ∑ₖ Lₖ† Lₖ ρ - ρ * 0.5i ∑ₖ Lₖ† Lₖ   + i*∑ₖ Lₖ ρ Lₖ†
 
-    def __matmul__(self, densi_matrix: torch.Tensor) -> torch.Tensor:
-        # Constructing Hₑ =  H 𝜌 -𝜌  H  +0.5i∑ₖ L^† L 𝜌+0.5i 𝜌 ∑ₖ L^† L
+        to the density matrix ρ
+        """
 
-        # applying the Lindblad operators -0.5*i*∑ₖ Lₖ^† Lₖ 𝜌
-        sum_lindblas = compute_noise_from_lindbladians(
-            self.pulser_linblads
-        )  # result 2x2 matrix
+        # compute -0.5i ∑ₖ Lₖ† Lₖ (taken from the Lindblad class)
+        sum_lindblad_local = compute_noise_from_lindbladians(self.pulser_linblads)
 
-        # applying the Lindblad operators 0.5*i*𝜌 ∑ₖ Lₖ^† Lₖ
-        storage_local_terms = torch.zeros_like(densi_matrix, dtype=dtype)
-        for qubit in range(self.nqubits):
-            storage_local_terms += (
-                self.apply_local_operator_to_density_matrix_to_local_op(
-                    densi_matrix, sum_lindblas, qubit
-                )
+        # apply local Hamiltonian terms (Ω σₓ - δ n - 0.5i ∑ₖ Lₖ† Lₖ) to each qubit
+        H_local_rho = torch.zeros_like(density_matrix, dtype=dtype)
+        for qubit, (omega, delta) in enumerate(zip(self.omegas, self.deltas)):
+            H_q = omega * sigmax - delta * n_op + sum_lindblad_local
+            H_local_rho += self.apply_local_operator_to_density_matrix_to_local_op(
+                density_matrix, H_q, qubit
             )
 
-        # Applying ∑ᵢ 𝛺 /2 𝜎ₓ - ∑ᵢ 𝛿ᵢ nᵢ terms in H
-        store_local_oper = torch.zeros_like(densi_matrix, dtype=dtype)
-        for qubiti, (omega, delta) in enumerate(zip(self.omegas, self.deltas)):
-            store_local_oper += self.apply_local_operator_to_density_matrix_to_local_op(
-                densi_matrix, omega * sigmax - delta * n_op, qubiti
+        # apply diagonal interaction  ∑ᵢⱼ Uᵢⱼ nᵢ nⱼ
+        diag_term = self.diag.view(-1, 1) * density_matrix  # elementwise column scaling
+        H_rho = H_local_rho + diag_term
+
+        # compute [H, ρ] - 0.5i ∑ₖ Lₖ† Lₖρ - ρ 0.5i ∑ₖ Lₖ† Lₖρ
+        commutator = H_rho - H_rho.conj().T
+
+        # compute ∑ₖ Lₖ ρ Lₖ† the last part of the Lindblad operator
+        L_rho_Ldag = sum(
+            self.apply_local_operator_to_density_matrix_to_local_op(
+                density_matrix, L, qubit, op_conj_T=True
             )
+            for qubit in range(self.nqubits)
+            for L in self.pulser_linblads
+        )
 
-        # -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ in H
-        # NOTE: get rid of the for loop
-        # use broadcasting to apply the diagonal term, reshape the diag tensor
-        # look at torch bracasting rules
-        storage = torch.zeros_like(densi_matrix, dtype=dtype)
-        shape = densi_matrix.shape[0]
-        for i in range(shape):
-            diag_result = self.diag * densi_matrix[:, i]
-            storage[:, i] = diag_result
-        # add the diagonal result to the densi_matrix
-        h_densi_matrix = store_local_oper + storage
-
-        # applying i∑ₖ Lₖ 𝜌  Lₖ^†
-        storage_L_rho_ldag = torch.zeros_like(densi_matrix, dtype=dtype)
-        for qubitj in range(self.nqubits):
-            for lindi in range(len(self.pulser_linblads)):
-                storage_L_rho_ldag += (
-                    self.apply_local_operator_to_density_matrix_to_local_op(
-                        densi_matrix, self.pulser_linblads[lindi], qubitj, op_conj_T=True
-                    )
-                )
-
-        storage_L_rho_ldag = 1.0j * storage_L_rho_ldag
-
-        storage_local_terms -= storage_local_terms.conj().T
-        h_densi_matrix -= h_densi_matrix.conj().T
-        # final density matrix
-        return (
-            h_densi_matrix + storage_local_terms + storage_L_rho_ldag
-        )  # I expect this to be multiplied by -1.0j
+        return commutator + 1.0j * L_rho_Ldag

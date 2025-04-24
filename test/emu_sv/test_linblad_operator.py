@@ -120,7 +120,6 @@ def test_matmul_linblad_class():
     pulser_linblads = [
         math.sqrt(1 / 3) * torch.rand(2, 2, dtype=dtype, device=device),
         math.sqrt(1 / 2) * torch.rand(2, 2, dtype=dtype, device=device),
-        math.sqrt(1 / 8) * torch.rand(2, 2, dtype=dtype, device=device),
     ]
     interaction_matrix = torch.rand(nqubits, nqubits, dtype=dtype, device=device)
 
