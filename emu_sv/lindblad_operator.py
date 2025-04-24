@@ -39,7 +39,6 @@ class LindbladOperator:
         for i in range(self.nqubits):
             diag = diag.view(2**i, 2, -1)
             i_fixed = diag[:, 1, :]
-            # i_fixed -= self.deltas[i]
             for j in range(i + 1, self.nqubits):
                 i_fixed = i_fixed.view(2**i, 2 ** (j - i - 1), 2, -1)
                 # replacing i_j_fixed by i_fixed breaks the code :)
@@ -107,9 +106,13 @@ class LindbladOperator:
         sum_lindblad_local = compute_noise_from_lindbladians(self.pulser_linblads)
 
         # apply local Hamiltonian terms (Ω σₓ - δ n - 0.5i ∑ₖ Lₖ† Lₖ) to each qubit
-        H_local_rho = torch.zeros_like(density_matrix, dtype=dtype)
+        H_local_rho = torch.zeros_like(density_matrix, dtype=dtype, device=self.device)
         for qubit, (omega, delta) in enumerate(zip(self.omegas, self.deltas)):
-            H_q = omega * sigmax - delta * n_op + sum_lindblad_local
+            H_q = (
+                omega * sigmax.to(device=self.device)
+                - delta * n_op.to(device=self.device)
+                + sum_lindblad_local
+            )
             H_local_rho += self.apply_local_operator_to_density_matrix_to_local_op(
                 density_matrix, H_q, qubit
             )

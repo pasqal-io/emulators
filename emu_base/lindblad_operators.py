@@ -61,6 +61,8 @@ def compute_noise_from_lindbladians(lindbladians: list[torch.Tensor]) -> torch.T
         / 2.0
         * sum(
             (lindbladian.T.conj() @ lindbladian for lindbladian in lindbladians),
-            start=torch.zeros(2, 2, dtype=torch.complex128),
+            start=torch.zeros(
+                2, 2, device=lindbladians[0].device, dtype=lindbladians[0].dtype
+            ),
         )
     )
