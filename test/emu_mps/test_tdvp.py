@@ -20,7 +20,7 @@ def test_right_baths_bell():
     # Hamiltonian X1*X2*X3
     mpo_factor = torch.tensor([[[[0], [1]], [[1], [0]]]], dtype=torch.complex128)
 
-    state = MPS([mps_factor1, mps_factor2, mps_factor3])
+    state = MPS([mps_factor1, mps_factor2, mps_factor3], eigenstates=("0", "1"))
     obs = MPO([mpo_factor] * 3)
     for i, b in enumerate(right_baths(state, obs, 1)):
         # Because the Hamiltonian flips all the spins, the baths have shape
@@ -54,7 +54,7 @@ def test_right_baths_total_magnetization():
     # state |111>
     mps_factor = torch.tensor([[[0], [1]]], dtype=torch.complex128)
 
-    state = MPS([mps_factor] * 3)
+    state = MPS([mps_factor] * 3, eigenstates=("0", "1"))
     obs = MPO([mpo_factor1, mpo_factor2, mpo_factor3])
     baths = right_baths(state, obs, 1)
     # The baths carry the information of the magnetization, so the baths have shape

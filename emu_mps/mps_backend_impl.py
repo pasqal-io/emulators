@@ -152,14 +152,14 @@ class MPSBackendImpl:
     def __getstate__(self) -> dict:
         for obs in self.config.observables:
             obs.apply = MethodType(type(obs).apply, obs)  # type: ignore[method-assign]
-        d = self.__dict__
+        d = self.__dict__.copy()
         # mypy thinks the method below is an attribute, because of the __getattr__ override
         d["results"] = self.results._to_abstract_repr()  # type: ignore[operator]
         return d
 
     def __setstate__(self, d: dict) -> None:
-        d["results"] = Results._from_abstract_repr(d["results"])  # type: ignore [attr-defined]
         self.__dict__ = d
+        self.results = Results._from_abstract_repr(d["results"])  # type: ignore [attr-defined]
         self.config.monkeypatch_observables()
 
     @staticmethod
@@ -209,6 +209,7 @@ class MPSBackendImpl:
             [f.clone().detach() for f in initial_state.factors],
             config=self.config,
             num_gpus_to_use=self.config.num_gpus_to_use,
+            eigenstates=initial_state.eigenstates,
         )
         initial_state.truncate()
         initial_state *= 1 / initial_state.norm()
@@ -445,7 +446,6 @@ class MPSBackendImpl:
         basename = self.autosave_file
         with open(basename.with_suffix(".new"), "wb") as file_handle:
             pickle.dump(self, file_handle)
-
         if basename.is_file():
             os.rename(basename, basename.with_suffix(".bak"))
 
@@ -498,13 +498,15 @@ class MPSBackendImpl:
                     )
                     full_state = MPS(
                         extended_mps_factors(
-                            normalized_state.factors, self.well_prepared_qubits_filter
+                            normalized_state.factors,
+                            self.well_prepared_qubits_filter,
                         ),
                         num_gpus_to_use=None,  # Keep the already assigned devices.
                         orthogonality_center=get_extended_site_index(
                             self.well_prepared_qubits_filter,
                             normalized_state.orthogonality_center,
                         ),
+                        eigenstates=normalized_state.eigenstates,
                     )
 
                 callback(self.config, fractional_time, full_state, full_mpo, self.results)

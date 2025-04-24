@@ -38,6 +38,7 @@ class MPS(State[complex, torch.Tensor]):
         orthogonality_center: Optional[int] = None,
         config: Optional[MPSConfig] = None,
         num_gpus_to_use: Optional[int] = DEVICE_COUNT,
+        eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
         """
         This constructor creates a MPS directly from a list of tensors. It is for internal use only.
@@ -56,7 +57,7 @@ class MPS(State[complex, torch.Tensor]):
             num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu, None=keep the existing device assignment.
         """
-        self._eigenstates = ["0", "1"]
+        super().__init__(eigenstates=eigenstates)
         self.config = config if config is not None else MPSConfig()
         assert all(
             factors[i - 1].shape[2] == factors[i].shape[0] for i in range(1, len(factors))
@@ -88,6 +89,7 @@ class MPS(State[complex, torch.Tensor]):
         num_sites: int,
         config: Optional[MPSConfig] = None,
         num_gpus_to_use: int = DEVICE_COUNT,
+        eigenstates: Sequence[Eigenstate] = ["0", "1"],
     ) -> MPS:
         """
         Returns a MPS in ground state |000..0>.
@@ -111,6 +113,7 @@ class MPS(State[complex, torch.Tensor]):
             config=config,
             num_gpus_to_use=num_gpus_to_use,
             orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
+            eigenstates=eigenstates,
         )
 
     def __repr__(self) -> str:
@@ -307,6 +310,25 @@ class MPS(State[complex, torch.Tensor]):
         """
         return torch.abs(self.inner(other)) ** 2  # type: ignore[no-any-return]
 
+    def entanglement_entropy(self, mps_site: int) -> torch.Tensor:
+        """
+        Returns
+        the Von Neumann entanglement entropy of the state `mps` at the bond between sites b and b+1
+        S = -Σᵢsᵢ² log(sᵢ²)),
+        where sᵢ are the singular values at the chosen bond.
+        """
+        self.orthogonalize(mps_site)
+
+        # perform svd on reshaped matrix at site b
+        matrix = self.factors[mps_site].flatten(end_dim=1)
+        s = torch.linalg.svdvals(matrix)
+
+        s_e = torch.Tensor(torch.special.entr(s**2))
+        s_e = torch.sum(s_e)
+
+        self.orthogonalize(0)
+        return s_e.cpu()
+
     def get_memory_footprint(self) -> float:
         """
         Returns the number of MBs of memory occupied to store the state
@@ -331,12 +353,16 @@ class MPS(State[complex, torch.Tensor]):
             the summed state
         """
         assert isinstance(other, MPS), "Other state also needs to be an MPS"
+        assert (
+            self.eigenstates == other.eigenstates
+        ), f"`Other` state has basis {other.eigenstates} != {self.eigenstates}"
         new_tt = add_factors(self.factors, other.factors)
         result = MPS(
             new_tt,
             config=self.config,
             num_gpus_to_use=None,
             orthogonality_center=None,  # Orthogonality is lost.
+            eigenstates=self.eigenstates,
         )
         result.truncate()
         return result
@@ -362,6 +388,7 @@ class MPS(State[complex, torch.Tensor]):
             config=self.config,
             num_gpus_to_use=None,
             orthogonality_center=self.orthogonality_center,
+            eigenstates=self.eigenstates,
         )
 
     def __imul__(self, scalar: complex) -> MPS:
@@ -371,7 +398,7 @@ class MPS(State[complex, torch.Tensor]):
     def _from_state_amplitudes(
         cls,
         *,
-        eigenstates: Sequence[str],
+        eigenstates: Sequence[Eigenstate],
         amplitudes: Mapping[str, complex],
     ) -> tuple[MPS, Mapping[str, complex]]:
         """
@@ -385,8 +412,6 @@ class MPS(State[complex, torch.Tensor]):
         Returns:
             The resulting MPS representation of the state.s
         """
-
-        nqubits = len(next(iter(amplitudes.keys())))
         basis = set(eigenstates)
         if basis == {"r", "g"}:
             one = "r"
@@ -395,17 +420,20 @@ class MPS(State[complex, torch.Tensor]):
         else:
             raise ValueError("Unsupported basis provided")
 
+        nqubits = cls._validate_amplitudes(amplitudes, eigenstates)
+
         basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)  # ground state
         basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state
 
         accum_mps = MPS(
             [torch.zeros((1, 2, 1), dtype=torch.complex128)] * nqubits,
             orthogonality_center=0,
+            eigenstates=eigenstates,
         )
 
         for state, amplitude in amplitudes.items():
             factors = [basis_1 if ch == one else basis_0 for ch in state]
-            accum_mps += amplitude * MPS(factors)
+            accum_mps += amplitude * MPS(factors, eigenstates=eigenstates)
         norm = accum_mps.norm()
         if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
             print("\nThe state is not normalized, normalizing it for you.")
