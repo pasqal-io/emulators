@@ -103,7 +103,9 @@ class LindbladOperator:
         """
 
         # compute -0.5i ∑ₖ Lₖ† Lₖ (taken from the Lindblad class)
-        sum_lindblad_local = compute_noise_from_lindbladians(self.pulser_linblads)
+        sum_lindblad_local = compute_noise_from_lindbladians(self.pulser_linblads).to(
+            self.device
+        )
 
         # apply local Hamiltonian terms (Ω σₓ - δ n - 0.5i ∑ₖ Lₖ† Lₖ) to each qubit
         H_local_rho = torch.zeros_like(density_matrix, dtype=dtype, device=self.device)
