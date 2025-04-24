@@ -87,7 +87,6 @@ class EvolveStateVector(torch.autograd.Function):
             is_hermitian=True,
         )
         ctx.save_for_backward(omegas, deltas, phis, interaction_matrix, state)
-        ctx.mark_non_differentiable(ham)
         ctx.dt = dt
         ctx.tolerance = krylov_tolerance
         return res, ham
@@ -228,33 +227,5 @@ class EvolveStateVector(torch.autograd.Function):
             op = lambda x: (1j * dt) * (ham @ x)
             grad_state_in = krylov_exp(op, grad_state_out, tolerance, tolerance)
 
-        # TODO: fix grdient respect tho phases
+        # TODO: fix gradient respect tho phases
         return None, grad_omegas, grad_deltas, grad_phis, None, grad_state_in, None
-
-
-def do_time_step(
-    dt: float,
-    omegas: torch.Tensor,
-    deltas: torch.Tensor,
-    phis: torch.Tensor,
-    full_interaction_matrix: torch.Tensor,
-    state_vector: torch.Tensor,
-    krylov_tolerance: float,
-) -> tuple[torch.Tensor, RydbergHamiltonian]:
-    ham = RydbergHamiltonian(
-        omegas=omegas,
-        deltas=deltas,
-        phis=phis,
-        interaction_matrix=full_interaction_matrix,
-        device=state_vector.device,
-    )
-    op = lambda x: -1j * dt * (ham * x)
-    return (
-        krylov_exp(
-            op,
-            state_vector,
-            norm_tolerance=krylov_tolerance,
-            exp_tolerance=krylov_tolerance,
-        ),
-        ham,
-    )

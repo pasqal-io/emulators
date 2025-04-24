@@ -5,7 +5,7 @@ from test.utils_testing import (
     nn_interaction_matrix,
     randn_interaction_matrix,
 )
-from emu_sv.time_evolution import do_time_step
+from emu_sv.time_evolution import EvolveStateVector
 
 dtype = torch.complex128
 device = "cpu"
@@ -29,7 +29,7 @@ def test_forward_no_phase(N: int, krylov_tolerance: float) -> None:
     H = dense_rydberg_hamiltonian(*ham_params).to(device)
     dt = 1.0  # 1 μs big time step
     ed = torch.linalg.matrix_exp(-1j * dt * H) @ state
-    krylov, _ = do_time_step(
+    krylov, _ = EvolveStateVector.apply(
         dt,
         *ham_params,
         state,
@@ -54,7 +54,7 @@ def test_forward_with_phase(N: int, krylov_tolerance: float) -> None:
     H = dense_rydberg_hamiltonian(*ham_params).to(device)
     dt = 1.0  # 1 μs big time step
     ed = torch.linalg.matrix_exp(-1j * dt * H) @ state
-    krylov, _ = do_time_step(
+    krylov, _ = EvolveStateVector.apply(
         dt,
         *ham_params,
         state,
