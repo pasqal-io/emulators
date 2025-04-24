@@ -1,5 +1,5 @@
 import torch
-from typing import Any
+from typing import Any, no_type_check
 from emu_base.math.krylov_exp import krylov_exp
 from emu_base.math.double_krylov import double_krylov
 from emu_sv.hamiltonian import RydbergHamiltonian
@@ -92,13 +92,14 @@ class EvolveStateVector(torch.autograd.Function):
         ctx.tolerance = krylov_tolerance
         return res, ham
 
+    @no_type_check  # mypy complains and I don't know why
     @staticmethod
-    def backward(ctx: Any, *grad_outputs: tuple[torch.Tensor, Any]) -> tuple[
+    def backward(ctx: Any, grad_state_out: torch.Tensor, gham: None) -> tuple[
         None,
         torch.Tensor | None,
         torch.Tensor | None,
         torch.Tensor | None,
-        None,
+        torch.Tensor | None,
         torch.Tensor | None,
         None,
     ]:
@@ -169,7 +170,6 @@ class EvolveStateVector(torch.autograd.Function):
 
 
         """
-        grad_state_out = grad_outputs[0][0]
         omegas, deltas, phis, interaction_matrix, state = ctx.saved_tensors
         dt = ctx.dt
         tolerance = 100.0 * ctx.tolerance / abs(dt)
