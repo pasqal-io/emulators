@@ -4,6 +4,7 @@ from .permutations import (
     inv_permutation,
     permute_string,
     eye_permutation,
+    permute_list,
 )
 
 
@@ -13,4 +14,5 @@ __all__ = [
     "permute_string",
     "permute_tensor",
     "inv_permutation",
+    "permute_list",
 ]

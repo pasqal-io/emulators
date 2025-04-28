@@ -64,7 +64,7 @@ class MPSBackend(EmulatorBackend):
 
         inv_perm = optimat.inv_permutation(impl.qubit_permutation)
         permute_bitstrings(inv_perm, results)
-        permute_correlations(inv_perm, results)
+        permute_occupations_and_correlations(inv_perm, results)
 
         return results
 
@@ -90,7 +90,7 @@ def permute_bitstrings(perm: torch.Tensor, results: Results) -> None:
     ]
 
 
-def permute_correlations(perm: torch.Tensor, results: Results) -> None:
+def permute_occupations_and_correlations(perm: torch.Tensor, results: Results) -> None:
     for corr in ["occupation", "correlation_matrix"]:
         if corr not in results.get_result_tags():
             return

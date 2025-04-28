@@ -139,7 +139,12 @@ class MPSBackendImpl:
         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
         self.tdvp_index = 0
         self.timestep_index = 0
-        self.results = Results(atom_order=(), total_duration=self.target_times[-1])
+        self.results = Results(
+            atom_order=tuple(
+                optimat.permute_list(list(pulser_data.qubit_ids), self.qubit_permutation)
+            ),
+            total_duration=self.target_times[-1],
+        )
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
             data=[],
