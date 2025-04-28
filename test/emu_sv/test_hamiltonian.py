@@ -1,14 +1,20 @@
 import torch
 import pytest
+from unittest.mock import patch
 from test.utils_testing import (
     dense_rydberg_hamiltonian,
     nn_interaction_matrix,
     randn_interaction_matrix,
 )
+from emu_sv.state_vector import StateVector
 from emu_sv.hamiltonian import RydbergHamiltonian
 
 dtype = torch.complex128
 device = "cpu"
+
+
+def mock_apply_sigma_operators(result, vec):
+    pass
 
 
 @pytest.mark.parametrize("N", [3, 5, 7, 8])
@@ -81,26 +87,36 @@ def test_call_sigma_real_complex() -> None:
     omegas = torch.randn(N)
     deltas = torch.randn(N)
     interaction_matrix = torch.randn(N, N)
+    state = StateVector.make(N)
 
-    ham_w_phase = RydbergHamiltonian(
-        omegas=omegas,
-        deltas=deltas,
-        phis=torch.randn(2),
-        interaction_matrix=interaction_matrix,
-        device=device,
-    )
-    assert (
-        ham_w_phase._apply_sigma_operators == ham_w_phase._apply_sigma_operators_complex
-    )
+    with patch.object(
+        RydbergHamiltonian,
+        "_apply_sigma_operators_complex",
+        side_effect=mock_apply_sigma_operators,
+    ):
+        ham_w_phase = RydbergHamiltonian(
+            omegas=omegas,
+            deltas=deltas,
+            phis=torch.randn(2),
+            interaction_matrix=interaction_matrix,
+            device=state.vector.device,
+        )
+        ham_w_phase * state.vector
+        assert ham_w_phase.complex
+        assert ham_w_phase._apply_sigma_operators_complex.called_once()
 
-    ham_zero_phase = RydbergHamiltonian(
-        omegas=omegas,
-        deltas=deltas,
-        phis=torch.zeros(2),
-        interaction_matrix=interaction_matrix,
-        device=device,
-    )
-    assert (
-        ham_zero_phase._apply_sigma_operators
-        == ham_zero_phase._apply_sigma_operators_real
-    )
+    with patch.object(
+        RydbergHamiltonian,
+        "_apply_sigma_operators_real",
+        side_effect=mock_apply_sigma_operators,
+    ):
+        ham_zero_phase = RydbergHamiltonian(
+            omegas=omegas,
+            deltas=deltas,
+            phis=torch.zeros(2),
+            interaction_matrix=interaction_matrix,
+            device=state.vector.device,
+        )
+        ham_zero_phase * state.vector
+        assert not ham_zero_phase.complex
+        assert ham_zero_phase._apply_sigma_operators_real.called_once()
