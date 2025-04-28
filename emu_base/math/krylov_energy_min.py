@@ -87,13 +87,15 @@ def krylov_energy_minimization_impl(
         else:
 
             if beta > norm_tolerance:
-
-                prev_eigen_vec = prev_eigen_vec.view(-1, 1)  # (n-1,1) or smaller
+                # The guessed state must have the same shape as T_truncated
+                # use previous eigenvec and append one element as new guessed state
+                prev_eigen_vec = prev_eigen_vec.view(-1, 1)
                 zero = torch.zeros((1, 1), dtype=dtype, device=device)
-                guessed_state = torch.cat([prev_eigen_vec, zero], dim=0)  # now (n,1)
+                guessed_state = torch.cat([prev_eigen_vec, zero], dim=0)
 
         if beta < norm_tolerance:
             happy_breakdown = True
+            # use guessed state from previous iteration, when beta > norm_tolerance
             eigvals, eigvecs = _eigen_pair(T_truncated, guessed_state, residual_tolerance)
             ground_energy = eigvals[0].real
             ground_eigenvector = eigvecs[:, 0]
