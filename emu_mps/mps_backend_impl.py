@@ -538,7 +538,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
 
     def set_jump_threshold(self, bound: float) -> None:
         self.jump_threshold = random.uniform(0.0, bound)
-        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+        self.norm_gap_before_jump = self.state.norm().item() ** 2 - self.jump_threshold
 
     def init(self) -> None:
         self.init_lindblad_noise()
@@ -549,7 +549,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         previous_time = self.current_time
         self.current_time = self.target_time
         previous_norm_gap_before_jump = self.norm_gap_before_jump
-        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+        self.norm_gap_before_jump = self.state.norm().item() ** 2 - self.jump_threshold
 
         if self.root_finder is None:
             # No quantum jump location finding in progress
@@ -569,7 +569,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
 
             return
 
-        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+        self.norm_gap_before_jump = self.state.norm().item() ** 2 - self.jump_threshold
         self.root_finder.provide_ordinate(self.current_time, self.norm_gap_before_jump)
 
         if self.root_finder.is_converged(tolerance=1):
@@ -595,7 +595,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         self.state *= 1 / self.state.norm()
         self.init_baths()
 
-        norm_after_normalizing = self.state.norm()
+        norm_after_normalizing = self.state.norm().item()
         assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
         self.set_jump_threshold(norm_after_normalizing**2)
 
