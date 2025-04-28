@@ -103,7 +103,7 @@ def test_call_sigma_real_complex() -> None:
         )
         ham_w_phase * state.vector
         assert ham_w_phase.complex
-        assert ham_w_phase._apply_sigma_operators_complex.called_once()
+        ham_w_phase._apply_sigma_operators_complex.assert_called_once()
 
     with patch.object(
         RydbergHamiltonian,
@@ -119,4 +119,4 @@ def test_call_sigma_real_complex() -> None:
         )
         ham_zero_phase * state.vector
         assert not ham_zero_phase.complex
-        assert ham_zero_phase._apply_sigma_operators_real.called_once()
+        ham_zero_phase._apply_sigma_operators_real.assert_called_once()
