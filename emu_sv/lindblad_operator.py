@@ -46,7 +46,7 @@ class LindbladOperator:
                 i_j_fixed += self.interaction_matrix[i, j]
         return diag.view(-1)
 
-    def apply_local_operator_to_density_matrix_to_local_op(
+    def apply_local_op_to_density_matrix(
         self,
         density_matrix: torch.Tensor,
         local_op: torch.Tensor,
@@ -95,7 +95,7 @@ class LindbladOperator:
                 - delta * n_op.to(device=self.device)
                 + sum_lindblad_local
             )
-            H_local_den_matrix += self.apply_local_operator_to_density_matrix_to_local_op(
+            H_local_den_matrix += self.apply_local_op_to_density_matrix(
                 density_matrix, H_q, qubit
             )
 
@@ -108,7 +108,7 @@ class LindbladOperator:
 
         # compute ∑ₖ Lₖ ρ Lₖ† the last part of the Lindblad operator
         L_den_matrix_Ldag = sum(
-            self.apply_local_operator_to_density_matrix_to_local_op(
+            self.apply_local_op_to_density_matrix(
                 density_matrix, L, qubit, op_conj_T=True
             )
             for qubit in range(self.nqubits)
