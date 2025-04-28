@@ -58,42 +58,18 @@ class LindbladOperator:
         If op_conj_T = True: L ρ L†
         Else: L ρ
         """
-        nqubits = self.nqubits
-        dim = 2 ** (nqubits - 1)
 
-        # reshape density matrix to 2n-dimensional tensor
-        rho = density_matrix.view([2] * 2 * nqubits)
-
-        # permute to bring target_qubit to front in both bra and ket indices
-        perm = list(range(nqubits))
-        perm.remove(target_qubit)
-        bra_perm = [target_qubit] + perm
-        ket_perm = [x + nqubits for x in bra_perm]
-        rho = rho.permute(bra_perm + ket_perm)
-
-        # reshape and contiguous is needed here
-        rho = rho.contiguous().view(2, -1)  # (2, dim*2*dim)
-
-        # apply local_op to bra (left multiply)
-        # A (2x2) @ rho (2, -1) -> (2, dim*2*dim)
+        orignal_shape = density_matrix.shape
+        rho = density_matrix.view(2**target_qubit, 2, -1)
         rho = local_op @ rho
-        rho = rho.view(2, dim, 2, dim)
+        rho = rho.view(orignal_shape)
 
-        # if op_conj_T apply local_op† to ket (right multiply)
         if op_conj_T:
-            # transpose (complex conjugate) and move 3rd axis to front for multiplication
-            rho = rho.permute(0, 1, 3, 2).contiguous()  # (2, dim, dim, 2)
-            rho = rho.view(-1, 2) @ local_op.conj().T  # (2*dim*dim, 2)
-            rho = rho.view(2, dim, dim, 2).permute(0, 1, 3, 2)  # (2, dim, 2, dim)
+            rho = rho.view(2 ** (target_qubit + self.nqubits), 2, -1)
+            rho = local_op.conj() @ rho
+            rho = rho.view(orignal_shape)
 
-        # reshape back
-        rho = rho.view([2] * 2 * nqubits)
-        inv_perm = [0] * (2 * nqubits)
-        for i, p in enumerate(bra_perm + ket_perm):
-            inv_perm[p] = i
-        rho = rho.permute(inv_perm)
-
-        return rho.contiguous().view(2**nqubits, 2**nqubits)
+        return rho
 
     def __matmul__(self, density_matrix: torch.Tensor) -> torch.Tensor:
         """Apply the i*Lindblad operator :
@@ -102,7 +78,7 @@ class LindbladOperator:
         to the density matrix ρ
         """
 
-        # compute -0.5i ∑ₖ Lₖ† Lₖ (taken from the Lindblad class)
+        # compute -0.5i ∑ₖ Lₖ† Lₖ
         sum_lindblad_local = compute_noise_from_lindbladians(self.pulser_linblads).to(
             self.device
         )

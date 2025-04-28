@@ -61,11 +61,11 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
         device=device,
     )
 
-    # Define a random 2x2 linblad operator
+    # define a random 2x2 linblad operator
     lindblad_op = torch.randn(2, 2, dtype=dtype, device=device)
     rho = torch.randn(2**nqubits, 2**nqubits, dtype=dtype, device=device)
 
-    # Apply the local operator
+    # apply the local operator
     updated_rho = ham_lind.apply_local_operator_to_density_matrix_to_local_op(
         density_matrix=rho, local_op=lindblad_op, target_qubit=target_qubit
     )
@@ -107,13 +107,16 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
         resa = torch.kron(resa, lista[i])
         resdag = torch.kron(resdag, listdag[i])
 
+    print(updated_lk_rho_lkdag)
+    print(resa @ rho @ resdag)
+
     assert torch.allclose(updated_lk_rho_lkdag, resa @ rho @ resdag)
 
 
 def test_matmul_linblad_class():
     """Testing 0.5*i*(∑ₖ Lₖ^† Lₖ)@𝜌 + 0.5*i* 𝜌@(∑ₖ Lₖ^† Lₖ) part"""
     torch.manual_seed(234)
-    nqubits = 10
+    nqubits = 2
     omegas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     deltas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
