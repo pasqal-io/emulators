@@ -16,7 +16,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.11">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.12">
     
     
       
@@ -24,7 +24,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.4af4bdda.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.2afb09e1.min.css">
       
         
         <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
@@ -2559,7 +2559,7 @@ seq.draw("input")</div>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [6]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy for="cell-5">
@@ -2575,18 +2575,12 @@ seq.draw("input")</div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">dt</span> <span class="o">=</span> <span class="mi">100</span>
 <span class="n">eval_times</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">]</span>
 
-<span class="n">basis</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">"r"</span><span class="p">,</span>
-    <span class="s2">"g"</span><span class="p">,</span>
-<span class="p">}</span>
+<span class="n">basis</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"r"</span><span class="p">,</span><span class="s2">"g"</span><span class="p">)</span>
 </pre></div>
 <div class="clipboard-copy-txt" id="cell-5">dt = 100
 eval_times = [1.0]
 
-basis = {
-    "r",
-    "g",
-}</div>
+basis = ("r","g")</div>
 </div>
 </div>
 </div>
@@ -2654,7 +2648,7 @@ bitstrings = BitStrings(evaluation_times=eval_times, num_shots=sampling_times)</
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [8]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
 <clipboard-copy for="cell-7">
@@ -2669,7 +2663,7 @@ bitstrings = BitStrings(evaluation_times=eval_times, num_shots=sampling_times)</
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">nqubits</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="o">.</span><span class="n">register</span><span class="o">.</span><span class="n">qubit_ids</span><span class="p">)</span>
 
-<span class="n">afm_string_pure</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"rgrgrgrg"</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+<span class="n">afm_string_pure</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"rgrgrgrg"</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">}</span>
 
 <span class="n">afm_mps_state</span> <span class="o">=</span> <span class="n">MPS</span><span class="o">.</span><span class="n">from_state_amplitudes</span><span class="p">(</span>
     <span class="n">eigenstates</span><span class="o">=</span><span class="n">basis</span><span class="p">,</span> <span class="n">amplitudes</span><span class="o">=</span><span class="n">afm_string_pure</span>
@@ -2678,7 +2672,7 @@ bitstrings = BitStrings(evaluation_times=eval_times, num_shots=sampling_times)</
 </pre></div>
 <div class="clipboard-copy-txt" id="cell-7">nqubits = len(seq.register.qubit_ids)
 
-afm_string_pure = {"rgrgrgrg": 1}
+afm_string_pure = {"rgrgrgrg": 1.0}
 
 afm_mps_state = MPS.from_state_amplitudes(
     eigenstates=basis, amplitudes=afm_string_pure
