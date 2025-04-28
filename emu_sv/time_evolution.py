@@ -118,6 +118,7 @@ class EvolveStateVector(torch.autograd.Function):
         Return:
             grad_omegas (torch.Tensor): 1D tensor of gradients with respect to Ωⱼ for each qubit.
             grad_deltas (torch.Tensor): 1D tensor of gradients with respect to Δⱼ for each qubit.
+            grad_phis (torch.Tensor): 1D tensor of gradients with respect to φⱼ for each qubit.
             grad_state_in (torch.Tensor): 1D tensor gradient with respect to the input state.
 
         Notes:
@@ -143,9 +144,9 @@ class EvolveStateVector(torch.autograd.Function):
 
         - The Fréchet derivative is computed in a Arnoldi-Gram-Schmidt
         decomposition in the `double_krylov` method:
-            dU(H,|a〉〈b|) = V_odd @ ? @ V_even*
+            dU(H,|a〉〈b|) = Va @ dS @ Vb*
         where V_odd and V_even are orthogonal Krylov basis associated
-        with |a〉 and |b〉respectively.
+        with |a〉and |b〉respectively.
 
         - The action of the derivatives of the Hamiltonian with
         respect to the input parameters are implemented separately in
@@ -171,7 +172,7 @@ class EvolveStateVector(torch.autograd.Function):
         """
         omegas, deltas, phis, interaction_matrix, state = ctx.saved_tensors
         dt = ctx.dt
-        tolerance = 100.0 * ctx.tolerance / abs(dt)
+        tolerance = ctx.tolerance
         ham = RydbergHamiltonian(
             omegas=omegas,
             deltas=deltas,
@@ -179,34 +180,27 @@ class EvolveStateVector(torch.autograd.Function):
             interaction_matrix=interaction_matrix,
             device=state.device,
         )
+
         if ctx.needs_input_grad[1] or ctx.needs_input_grad[2] or ctx.needs_input_grad[3]:
-            op = lambda x: -1j * dt * (ham @ x)
-            lanczos_vectors_even, eT, lanczos_vectors_odd = double_krylov(
-                op, grad_state_out, state, tolerance
+            op = lambda x: -1j * dt * (ham * x)
+            lanczos_vectors_even, dS, lanczos_vectors_odd = double_krylov(
+                op, state, grad_state_out, tolerance
             )
             even_block = torch.stack(lanczos_vectors_even)
             odd_block = torch.stack(lanczos_vectors_odd)
-
-            e_l = torch.tensordot(
-                eT[1 : 2 * odd_block.shape[0] : 2, : 2 * even_block.shape[0] : 2].to(
-                    odd_block.device
-                ),
-                odd_block,
-                dims=([0], [0]),
-            )
-            del odd_block
+            e_l = torch.tensordot(dS, even_block, dims=([0], [0]))
 
         grad_omegas, grad_deltas, grad_phis, grad_state_in = None, None, None, None
 
         if ctx.needs_input_grad[1]:
-            grad_omegas = torch.zeros(omegas.shape, dtype=omegas.dtype)
+            grad_omegas = torch.zeros_like(omegas)
             for i in range(omegas.shape[-1]):
                 # dh as per the docstring
                 dho = DHDOmegaSparse(dt, i, e_l.device, omegas.shape[-1])
                 # compute the trace
                 v = dho @ e_l
                 grad_omegas[i] = torch.tensordot(
-                    even_block.conj(), v, dims=([0, 1], [0, 1])
+                    odd_block.conj(), v, dims=([0, 1], [0, 1])
                 ).real
 
         if ctx.needs_input_grad[2]:
@@ -217,15 +211,14 @@ class EvolveStateVector(torch.autograd.Function):
                 # compute the trace
                 v = dhd @ e_l
                 grad_deltas[i] = torch.tensordot(
-                    even_block.conj(), v, dims=([0, 1], [0, 1])
+                    odd_block.conj(), v, dims=([0, 1], [0, 1])
                 ).real
 
         if ctx.needs_input_grad[3]:
             grad_phis = torch.zeros(phis.shape, dtype=phis.dtype)
 
         if ctx.needs_input_grad[5]:
-            op = lambda x: (1j * dt) * (ham @ x)
+            op = lambda x: (1j * dt) * (ham * x)
             grad_state_in = krylov_exp(op, grad_state_out, tolerance, tolerance)
 
-        # TODO: fix gradient respect tho phases
         return None, grad_omegas, grad_deltas, grad_phis, None, grad_state_in, None
