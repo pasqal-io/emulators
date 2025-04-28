@@ -24,17 +24,6 @@ def do_time_step(
     )
     op = lambda x: -1j * dt * (ham * x)
 
-    def op_noise(x: torch.Tensor) -> torch.Tensor:
-        ham_eff: torch.Tensor = ham * (x * -1.0j)
-        return dt * (ham_eff + ham_eff.T.conj())
-
-    # for the noise, something like this
-    # def op(x):
-    #    num_qubits = int(math.log2(len(x)))
-    #    ham_eff = -1.0j * const * sigma_x @ x - 0.5 * l1dag @ l1 @ x
-    #
-    #    return 10*(ham_eff + ham_eff.T.conj() + l1 @ x @ l1dag)
-
     return (
         krylov_exp(
             op,

@@ -35,8 +35,6 @@ class SVBackend(EmulatorBackend):
             sequence=self._sequence, config=self._config, dt=self._config.dt
         )
         self.target_times = pulser_data.target_times
-        # list_lindblad_op = pulser_data.lindblad_ops  # reading lindblad operators
-
         self.time = time.time()
         omega, delta, phi = pulser_data.omega, pulser_data.delta, pulser_data.phi
 
