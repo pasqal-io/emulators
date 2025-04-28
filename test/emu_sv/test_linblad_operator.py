@@ -66,7 +66,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
     rho = torch.randn(2**nqubits, 2**nqubits, dtype=dtype, device=device)
 
     # apply the local operator
-    updated_rho = ham_lind.apply_local_operator_to_density_matrix_to_local_op(
+    updated_rho = ham_lind.apply_local_op_to_density_matrix(
         density_matrix=rho, local_op=lindblad_op, target_qubit=target_qubit
     )
 
@@ -87,7 +87,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
 
     # apply the local A operator to rho and then apply the
     # conjugate transpose A^\dagger
-    updated_lk_rho_lkdag = ham_lind.apply_local_operator_to_density_matrix_to_local_op(
+    updated_lk_rho_lkdag = ham_lind.apply_local_op_to_density_matrix(
         density_matrix=rho,
         local_op=lindblad_op,
         target_qubit=target_qubit,
