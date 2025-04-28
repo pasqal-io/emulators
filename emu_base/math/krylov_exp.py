@@ -67,7 +67,8 @@ def krylov_exp_impl(
                 result=result, converged=True, happy_breakdown=True, iteration_count=j + 1
             )
 
-        lanczos_vectors.append(w / n2)
+        w = w / n2
+        lanczos_vectors.append(w)
 
         # Compute exponential of extended T matrix
         T[j + 2, j + 1] = 1
