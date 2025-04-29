@@ -7,34 +7,73 @@ from emu_sv.hamiltonian import RydbergHamiltonian
 
 class DHDOmegaSparse:
     """Implementation of derivative of the Rydberg Hamiltonian respect to Omega
-    following the RydbergHamiltonian sparse format. At the end we are doing,
-    - i dt dH/dΩₖ =− i dt 1/2 σₓᵏ"""
+    following the RydbergHamiltonian sparse format:
+
+        ∂H/∂Ωₖ = 0.5[cos(ϕₖ)σˣₖ + sin(ϕₖ)σʸₖ]"""
 
     def __init__(self, dt: int, index: int, device: str, nqubits: int):
         self.index = index
-        self.nqubits = nqubits
         self.dt = dt
+        self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
         self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
 
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
-        vec = vec.reshape(
-            vec.shape[0], 2**self.index, 2, 2 ** (self.nqubits - self.index - 1)
-        )  # add batch dimension
+        vec = vec.reshape(vec.shape[0], *self.shape)  # add batch dimension
         result = torch.zeros_like(vec)
         result.index_add_(2, self.inds, vec, alpha=-0.5j * self.dt)
         return result.reshape(vec.shape[0], -1)
 
 
+class DHDPhiSparse:
+    """Implementation of derivative of the Rydberg Hamiltonian respect to Phi
+    following the RydbergHamiltonian sparse format
+
+        ∂H/∂φₖ = 0.5Ωₖ[cos(ϕₖ+π/2)σˣₖ + sin(ϕₖ+π/2)σʸₖ]"""
+
+    def __init__(
+        self,
+        index: int,
+        device: str,
+        nqubits: int,
+        omega: torch.Tensor,
+        phi: torch.Tensor,
+    ):
+        self.index = index
+        self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
+        self.omega_c = 0.5 * omega * torch.exp(1j * (phi + torch.pi / 2))
+        self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
+
+    def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
+        vec = vec.view(vec.shape[0], *self.shape)  # add batch dimension
+        result = torch.zeros_like(vec)
+        result.index_add_(
+            2, self.inds[0], vec[:, :, 0, :].unsqueeze(1), alpha=self.omega_c.item()
+        )
+        result.index_add_(
+            2,
+            self.inds[1],
+            vec[:, :, 1, :].unsqueeze(1),
+            alpha=self.omega_c.conj().item(),
+        )
+        return result.view(vec.shape[0], -1)
+
+
 class DHDDeltaSparse:
     """Implementation of derivative of the Rydberg Hamiltonian respect to Delta
-    following the RydbergHamiltonian sparse format. At the end we are doing,
-    - i dt dH/dΔₖ =− i dt nₖ"""
+    following the RydbergHamiltonian sparse format:
+
+    - i dt dH/dΔₖ = i dt nₖ"""
 
     def __init__(self, dt: int, index: int, device: str, nqubits: int):
         self.index = index
-        self.nqubits = nqubits
-        diag = torch.zeros((2,) * nqubits, dtype=torch.complex128, device=device)
-        i_fixed = diag.select(index, 1)
+        self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
+
+        diag = torch.zeros(
+            *self.shape,
+            dtype=torch.complex128,
+            device=device,
+        )
+        i_fixed = diag.select(1, 1)
         i_fixed += 1j * dt  # add the delta term for this qubit
         self.diag = diag.reshape(-1)
 
@@ -108,8 +147,8 @@ class EvolveStateVector(torch.autograd.Function):
         In the backward pass we receive a Tensor containing the gradient of the loss L
         with respect to the output
             |gψ(t+dt)〉= ∂L/∂|ψ(t+dt)〉,
-        and return the gradients of the loss with respect to the input tensors
-            - gΩⱼ = ∂L/∂Ωⱼ =〈gψ(t+dt)|DU(H,∂H/∂Ωⱼ)|ψ(t)〉
+        and return the gradients of the loss with respect to the input tensors parameters
+            - gΩⱼ = ∂L/∂Ωⱼ =〈gψ(t+dt)|dU(H,∂H/∂Ωⱼ)|ψ(t)〉
             - gΔⱼ = ∂L/∂Δⱼ =  ...
             - |gψ(t)〉= ∂L/∂|ψ(t)〉= exp(i dt H)|gψ(t+dt)〉
 
@@ -129,10 +168,10 @@ class EvolveStateVector(torch.autograd.Function):
 
         For the exponential map U = exp(-i dt H), differentiating reads:
             d|ψ(t+dt)〉= dU|ψ(t)〉+ Ud|ψ(t)〉
-            dU = ∑ⱼdU(H,∂H/∂Δⱼ) + ∑ⱼdU(H,∂H/∂Ωⱼ)                        (2)
+            dU = ∑ⱼdU(H,∂H/∂Δⱼ) + ∑ⱼdU(H,∂H/∂Ωⱼ) + ∑ⱼdU(H,∂H/∂φⱼ)                      (2)
 
-        where dU(H,dH) is the Fréchet derivative of the exponential map
-        along the direction dH
+        where dU(H,E) is the Fréchet derivative of the exponential map
+        along the direction E:
         - https://eprints.maths.manchester.ac.uk/1218/1/covered/MIMS_ep2008_26.pdf
         - https://en.wikipedia.org/wiki/Derivative_of_the_exponential_map
 
@@ -141,7 +180,7 @@ class EvolveStateVector(torch.autograd.Function):
 
         Variations with respect to the Hamiltonian parameters are computed as
             gΩ = 〈gψ(t+dt)|dU(H,∂H/∂Ω)|ψ(t)〉
-               = Tr( ∂H/∂Ω @ dU(H,|ψ(t)〉〈gψ(t+dt)|) ),
+               = Tr( -i dt ∂H/∂Ω @ dU(H,|ψ(t)〉〈gψ(t+dt)|) ),
         where under the trace sign, ∂H/∂Ω and |ψ(t)〉〈gψ(t+dt)| can be switched.
 
         - The Fréchet derivative is computed in a Arnoldi-Gram-Schmidt
@@ -155,6 +194,9 @@ class EvolveStateVector(torch.autograd.Function):
             - ∂H/∂Ω: `DHDOmegaSparse`
             - ∂H/∂Δ: `DHDDeltaSparse`
             - ∂H/∂φ: `DHDPhiSparse`
+
+        Then, the resulting gradient respect to a generic parameter reads:
+            gΩ = Tr( -i dt ∂H/∂Ω @ Vs @ dS @ Vg* )
         """
         omegas, deltas, phis, interaction_matrix, state = ctx.saved_tensors
         dt = ctx.dt
@@ -174,7 +216,8 @@ class EvolveStateVector(torch.autograd.Function):
             )
             Vs = torch.stack(lanczos_vectors_state)
             Vg = torch.stack(lanczos_vectors_grad)
-            e_l = torch.tensordot(dS, Vs, dims=([0], [0]))
+            del lanczos_vectors_state, lanczos_vectors_grad
+            e_l = dS.mT @ Vs
 
         grad_omegas, grad_deltas, grad_phis, grad_state_in = None, None, None, None
 
