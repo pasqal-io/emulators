@@ -540,11 +540,8 @@ class MPSBackendImpl:
 
                 callback(self.config, fractional_time, full_state, full_mpo, self.results)
 
-    def permute_results(self, results: Results) -> Results:
-        # TODO change this. if the perm is [...3,2,1] will not work
-        if not torch.equal(
-            self.qubit_permutation, optimat.eye_permutation(self.qubit_count)
-        ):
+    def permute_results(self, results: Results, permute: bool) -> Results:
+        if permute:
             inv_perm = optimat.inv_permutation(self.qubit_permutation)
             permute_bitstrings(results, inv_perm)
             permute_occupations_and_correlations(results, inv_perm)
