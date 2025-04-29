@@ -58,7 +58,7 @@ class MPSBackend(EmulatorBackend):
         results = self._run(impl)
 
         if self._config.optimize_qubit_ordering:
-            return impl.permute_results(results)
+            return impl.permute_results()
 
         return results
 

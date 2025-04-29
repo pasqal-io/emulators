@@ -24,6 +24,7 @@ def _create_victim(constructor, dt, noise_model):
     )
     mock_pulser_data = MagicMock()
     mock_pulser_data.qubit_count = QUBIT_COUNT
+    mock_pulser_data.qubit_ids = tuple([i for i in range(QUBIT_COUNT)])
     mock_pulser_data.full_interaction_matrix = torch.eye(QUBIT_COUNT)
     mock_pulser_data.masked_interaction_matrix = torch.eye(QUBIT_COUNT)
     mock_pulser_data.slm_end_time = 10.0

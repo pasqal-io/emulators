@@ -540,35 +540,12 @@ class MPSBackendImpl:
 
                 callback(self.config, fractional_time, full_state, full_mpo, self.results)
 
-    def permute_results(self, results: Results) -> Results:
-        allowed_permutable_obs = set(
-            [
-                "bitstrings",
-                "occupation",
-                "correlation_matrix",
-                "statistics",
-                "energy",
-                "energy_variance",
-                "energy_second_moment",
-            ]
-        )
-
-        actual_obs = set(results.get_result_tags())
-
-        if not actual_obs.issubset(allowed_permutable_obs):
-            raise TypeError(
-                "Current implementation of optimatrix "
-                f"allows only {allowed_permutable_obs} observables. "
-                "To use other other observables, please set "
-                "`optimize_qubit_ordering = False` in `MPSConfig()`."
-            )
-
+    def permute_results(self) -> Results:
         inv_perm = optimat.inv_permutation(self.qubit_permutation)
-        permute_bitstrings(results, inv_perm)
-        permute_occupations_and_correlations(results, inv_perm)
-        permute_atom_order(results, inv_perm)
-
-        return results
+        permute_bitstrings(self.results, inv_perm)
+        permute_occupations_and_correlations(self.results, inv_perm)
+        permute_atom_order(self.results, inv_perm)
+        return self.results
 
 
 def permute_bitstrings(results: Results, perm: torch.Tensor) -> None:
