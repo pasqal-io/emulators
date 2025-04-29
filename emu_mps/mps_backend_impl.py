@@ -541,13 +541,11 @@ class MPSBackendImpl:
                 callback(self.config, fractional_time, full_state, full_mpo, self.results)
 
     def permute_results(self, results: Results) -> Results:
-        if torch.equal(self.qubit_permutation, optimat.eye_permutation(self.qubit_count)):
-            return results
-
-        inv_perm = optimat.inv_permutation(self.qubit_permutation)
-        permute_bitstrings(results, inv_perm)
-        permute_occupations_and_correlations(results, inv_perm)
-        permute_atom_order(results, inv_perm)
+        if not torch.equal(self.qubit_permutation, optimat.eye_permutation(self.qubit_count)):
+            inv_perm = optimat.inv_permutation(self.qubit_permutation)
+            permute_bitstrings(results, inv_perm)
+            permute_occupations_and_correlations(results, inv_perm)
+            permute_atom_order(results, inv_perm)
         return results
 
 
