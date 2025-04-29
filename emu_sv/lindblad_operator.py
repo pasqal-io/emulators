@@ -88,9 +88,7 @@ class LindbladOperator:
         )
 
         # apply local Hamiltonian terms (Ω σₓ - δ n - 0.5i ∑ₖ Lₖ† Lₖ) to each qubit
-        H_local_den_matrix = torch.zeros_like(
-            density_matrix, dtype=dtype, device=self.device
-        )
+        H_den_matrix = torch.zeros_like(density_matrix, dtype=dtype, device=self.device)
 
         if not self.complex:
             for qubit, (omega, delta) in enumerate(zip(self.omegas, self.deltas)):
@@ -99,7 +97,7 @@ class LindbladOperator:
                     - delta * n_op.to(device=self.device)
                     + sum_lindblad_local
                 )
-                H_local_den_matrix += self.apply_local_op_to_density_matrix(
+                H_den_matrix += self.apply_local_op_to_density_matrix(
                     density_matrix, H_q, qubit
                 )
         else:
@@ -117,16 +115,16 @@ class LindbladOperator:
                     - delta * n_op.to(device=self.device)
                     + sum_lindblad_local
                 )
-                H_local_den_matrix += self.apply_local_op_to_density_matrix(
+                H_den_matrix += self.apply_local_op_to_density_matrix(
                     density_matrix, H_q, qubit
                 )
 
         # apply diagonal interaction  ∑ᵢⱼ Uᵢⱼ nᵢ nⱼ
-        diag_term = self.diag.view(-1, 1) * density_matrix  # elementwise column scaling
-        H_den_matrix = H_local_den_matrix + diag_term
+        diag_term = self.diag.view(-1, 1) * density_matrix
+        H_den_matrix += diag_term
 
         # compute [H, ρ] - 0.5i ∑ₖ Lₖ† Lₖρ - ρ 0.5i ∑ₖ Lₖ† Lₖρ
-        commutator = H_den_matrix - H_den_matrix.conj().T
+        H_den_matrix = H_den_matrix - H_den_matrix.conj().T
 
         # compute ∑ₖ Lₖ ρ Lₖ† the last part of the Lindblad operator
         L_den_matrix_Ldag = sum(
@@ -137,4 +135,4 @@ class LindbladOperator:
             for L in self.pulser_linblads
         )
 
-        return commutator + 1.0j * L_den_matrix_Ldag
+        return H_den_matrix + 1.0j * L_den_matrix_Ldag
