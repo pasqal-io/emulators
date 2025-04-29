@@ -64,16 +64,14 @@ class LindbladOperator:
         orignal_shape = density_matrix.shape
         density_matrix = density_matrix.view(2**target_qubit, 2, -1)
         density_matrix = local_op @ density_matrix
-        density_matrix = density_matrix.view(orignal_shape)
 
         if op_conj_T:
             density_matrix = density_matrix.view(
                 2 ** (target_qubit + self.nqubits), 2, -1
             )
             density_matrix = local_op.conj() @ density_matrix
-            density_matrix = density_matrix.view(orignal_shape)
 
-        return density_matrix
+        return density_matrix.view(orignal_shape)
 
     def __matmul__(self, density_matrix: torch.Tensor) -> torch.Tensor:
         """Apply the i*Lindblad operator :

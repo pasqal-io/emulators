@@ -6,7 +6,7 @@ from test.utils_testing import dense_rydberg_hamiltonian, nn_interaction_matrix
 
 dtype = torch.complex128
 dtype_adp = torch.float64
-device = "cpu"  # torch.device("cpu")
+device = "cpu"
 
 
 def test_ham_matmul_density():
