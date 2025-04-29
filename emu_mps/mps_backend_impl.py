@@ -1,29 +1,34 @@
 import math
+import os
 import pathlib
+import pickle
 import random
+import time
+import typing
 import uuid
 
+from collections import Counter
+from enum import Enum, auto
 from resource import RUSAGE_SELF, getrusage
-from typing import Optional, Any
-import typing
-import pickle
-import os
-import torch
-import time
-from pulser import Sequence
 from types import MethodType
+from typing import Any, Optional
 
-from pulser.backend import State, Observable, EmulationConfig, Results
-from emu_base import PulserData, DEVICE_COUNT
+import torch
+from pulser import Sequence
+from pulser.backend import EmulationConfig, Observable, Results, State
+
+from emu_base import DEVICE_COUNT, PulserData
 from emu_base.math.brents_root_finding import BrentsRootFinder
+
 from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
 from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
+import emu_mps.optimatrix as optimat
 from emu_mps.tdvp import (
-    evolve_single,
     evolve_pair,
+    evolve_single,
     new_right_bath,
     right_baths,
 )
@@ -33,9 +38,6 @@ from emu_mps.utils import (
     get_extended_site_index,
     new_left_bath,
 )
-from enum import Enum, auto
-
-import emu_mps.optimatrix as optimat
 
 
 class Statistics(Observable):
@@ -537,6 +539,65 @@ class MPSBackendImpl:
                     )
 
                 callback(self.config, fractional_time, full_state, full_mpo, self.results)
+
+    def permute_results(self, results: Results) -> Results:
+        allowed_permutable_obs = set(
+            [
+                "bitstrings",
+                "occupation",
+                "correlation_matrix",
+                "statistics",
+                "energy",
+                "energy_variance",
+                "energy_second_moment",
+            ]
+        )
+
+        actual_obs = set(results.get_result_tags())
+
+        if not actual_obs.issubset(allowed_permutable_obs):
+            raise TypeError(
+                "Current implementation of optimatrix "
+                f"allows only {allowed_permutable_obs} observables. "
+                "To use other other observables, please set "
+                "`optimize_qubit_ordering = False` in `MPSConfig()`."
+            )
+
+        inv_perm = optimat.inv_permutation(self.qubit_permutation)
+        permute_bitstrings(results, inv_perm)
+        permute_occupations_and_correlations(results, inv_perm)
+        permute_atom_order(results, inv_perm)
+
+        return results
+
+
+def permute_bitstrings(results: Results, perm: torch.Tensor) -> None:
+    if "bitstrings" not in results.get_result_tags():
+        return
+    uuid_bs = results._find_uuid("bitstrings")
+
+    results._results[uuid_bs] = [
+        Counter({optimat.permute_string(bstr, perm): c for bstr, c in bs_counter.items()})
+        for bs_counter in results._results[uuid_bs]
+    ]
+
+
+def permute_occupations_and_correlations(results: Results, perm: torch.Tensor) -> None:
+    for corr in ["occupation", "correlation_matrix"]:
+        if corr not in results.get_result_tags():
+            return
+
+        uuid_corr = results._find_uuid(corr)
+        corrs = results._results[uuid_corr]
+        results._results[uuid_corr] = [
+            optimat.permute_tensor(corr, perm) for corr in corrs
+        ]
+
+
+def permute_atom_order(results: Results, perm: torch.Tensor) -> None:
+    at_ord = list(results.atom_order)
+    at_ord = optimat.permute_list(at_ord, perm)
+    results.atom_order = tuple(at_ord)
 
 
 class NoisyMPSBackendImpl(MPSBackendImpl):

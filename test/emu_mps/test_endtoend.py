@@ -86,20 +86,27 @@ def simulate(
         if noise_model is None:
             noise_model = pulser.noise_model.NoiseModel()
 
+    list_of_obs = [
+        Occupation(evaluation_times=eval_times),
+        BitStrings(evaluation_times=eval_times, num_shots=n_shots),
+        Energy(evaluation_times=eval_times),
+        EnergyVariance(evaluation_times=eval_times),
+        EnergySecondMoment(evaluation_times=eval_times),
+        CorrelationMatrix(evaluation_times=eval_times),
+        # StateResult(evaluation_times=eval_times),
+        # Fidelity(evaluation_times=eval_times, state=fidelity_state, tag_suffix="1"),
+    ]
+    if given_fidelity_state:
+        list_of_obs.append(
+            Fidelity(evaluation_times=eval_times, state=fidelity_state, tag_suffix="1"),
+        )
+    # list_of_obs.append(StateResult(evaluation_times=eval_times))
+
     mps_config = MPSConfig(
         initial_state=initial_state,
         dt=dt,
         precision=1e-5,
-        observables=[
-            StateResult(evaluation_times=eval_times),
-            BitStrings(evaluation_times=eval_times, num_shots=n_shots),
-            Fidelity(evaluation_times=eval_times, state=fidelity_state, tag_suffix="1"),
-            Occupation(evaluation_times=eval_times),
-            Energy(evaluation_times=eval_times),
-            EnergyVariance(evaluation_times=eval_times),
-            EnergySecondMoment(evaluation_times=eval_times),
-            CorrelationMatrix(evaluation_times=eval_times),
-        ],
+        observables=list_of_obs,
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
         optimize_qubit_ordering=optimize_qubit_ordering,
@@ -257,7 +264,6 @@ def test_end_to_end_domain_wall_ring(
         precision=1e-5,
         observables=[
             BitStrings(evaluation_times=eval_times, num_shots=100),
-            # Fidelity(evaluation_times=eval_times, state=fidelity_state, tag_suffix="1"),
             Occupation(evaluation_times=eval_times),
             Energy(evaluation_times=eval_times),
             EnergyVariance(evaluation_times=eval_times),
@@ -279,6 +285,7 @@ def test_end_to_end_domain_wall_ring(
     expect_occup = torch.tensor([1, 1, 1, 0, 0, 0], dtype=torch.float64)
     expect_corr = torch.outer(expect_occup, expect_occup).to(torch.complex128)
 
+    assert result.atom_order == seq.register.qubit_ids
     assert bitstrings["111000"] == 100
     assert torch.allclose(expect_occup, occupation, atol=1e-3)
     assert torch.allclose(expect_corr, cor_mat, atol=1e-3)
@@ -314,19 +321,21 @@ def test_end_to_end_afm_ring(
 
     final_time = -1
     bitstrings = result.bitstrings[final_time]
-    state_fin = result.state[final_time]
-    fidelity_fin = result.fidelity_1[final_time]
-    max_bond_dim = state_fin.get_max_bond_dim()
-    fidelity_st = create_antiferromagnetic_mps(num_qubits)
     occupation = result.occupation[final_time]
     energy = result.energy[final_time]
     energy_variance = result.energy_variance[final_time]
     second_moment_energy = result.energy_second_moment[final_time]
 
+    if not optimize_order:
+        state_fin = result.state[final_time]
+        fidelity_fin = result.fidelity_1[final_time]
+        max_bond_dim = state_fin.get_max_bond_dim()
+        fidelity_st = create_antiferromagnetic_mps(num_qubits)
+        assert max_bond_dim == 29
+
     assert bitstrings["1010101010"] == bs_count[0]
     assert bitstrings["0101010101"] == bs_count[1]
     assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
-    assert max_bond_dim == 29
 
     # Comparing against EMU-SV -- state vector emulator
     assert approx(occupation, abs=1e-3) == [0.5782] * 10
