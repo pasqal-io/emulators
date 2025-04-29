@@ -229,6 +229,7 @@ def test_XY_3atomswith_slm() -> None:
 def test_end_to_end_domain_wall_ring(
     optimize_order: bool,
 ) -> None:
+    # This setup is sensitive to the permutation order in contrast to AFM state preparation
     torch.manual_seed(seed)
 
     num_qubits = 6
