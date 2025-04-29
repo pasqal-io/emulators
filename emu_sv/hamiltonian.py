@@ -107,7 +107,7 @@ class RydbergHamiltonian:
         Returns:
             the resulting state vector.
         """
-        c_omegas = self.omegas * torch.exp(1j * self.phis)
+        c_omegas = self.omegas * torch.exp(1.0j * self.phis)
 
         dim_to_act = 1
         for n, c_omega_n in enumerate(c_omegas):

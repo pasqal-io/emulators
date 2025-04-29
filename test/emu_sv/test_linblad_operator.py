@@ -6,7 +6,7 @@ from test.utils_testing import dense_rydberg_hamiltonian, nn_interaction_matrix
 
 dtype = torch.complex128
 dtype_adp = torch.float64
-device = torch.device("cpu")
+device = "cuda"  # torch.device("cpu")
 
 
 def test_ham_matmul_density():
@@ -16,7 +16,7 @@ def test_ham_matmul_density():
     omegas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     deltas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
-    pulser_linblad = [torch.zeros(2, 2, dtype=dtype, device=device)]
+    pulser_linblad = [torch.zeros(2, 2, dtype=dtype, device="cpu")]  # always on cpu
     interaction_matrix = nn_interaction_matrix(nqubits)
 
     rho = torch.rand(2**nqubits, 2**nqubits, dtype=dtype, device=device)
@@ -49,7 +49,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
     omegas = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
     deltas = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
     phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
-    pulser_linblad = torch.zeros(2**nqubits, dtype=dtype, device=device)
+    pulser_linblad = torch.zeros(2**nqubits, dtype=dtype, device="cpu")  # always on cpu
     interaction_matrix = torch.zeros(nqubits, nqubits)
 
     ham_lind = LindbladOperator(
@@ -113,6 +113,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
     assert torch.allclose(updated_lk_rho_lkdag, resa @ rho @ resdag)
 
 
+# always on cpu
 def test_matmul_linblad_class():
     """Testing 0.5*i*(∑ₖ Lₖ^† Lₖ)@𝜌 + 0.5*i* 𝜌@(∑ₖ Lₖ^† Lₖ) part"""
     torch.manual_seed(234)
@@ -121,8 +122,8 @@ def test_matmul_linblad_class():
     deltas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
     pulser_linblads = [
-        math.sqrt(1 / 3) * torch.rand(2, 2, dtype=dtype, device=device),
-        math.sqrt(1 / 2) * torch.rand(2, 2, dtype=dtype, device=device),
+        math.sqrt(1 / 3) * torch.rand(2, 2, dtype=dtype, device="cpu"),  # always on cpu
+        math.sqrt(1 / 2) * torch.rand(2, 2, dtype=dtype, device="cpu"),  # always on cpu
     ]
     interaction_matrix = torch.rand(nqubits, nqubits, dtype=dtype, device=device)
 
@@ -152,14 +153,15 @@ def test_matmul_linblad_class():
     for lind in pulser_linblads:
         for i in range(nqubits):
             identities = [ident] * nqubits
+            lind = lind.to(device)
             identities[i] = lind.conj().T.contiguous() @ lind
             lista.append(identities)
 
     result_kron_sum_LdagLrho = torch.zeros_like(rho)
     for num, _ in enumerate(lista):
-        res = torch.kron(lista[num][0], lista[num][1])
+        res = torch.kron(lista[num][0].to(device), lista[num][1].to(device))
         for i in range(2, nqubits):
-            res = torch.kron(res, lista[num][i])
+            res = torch.kron(res, lista[num][i].to(device))
         pre_result = -0.5j * res @ rho
         result_kron_sum_LdagLrho += pre_result - pre_result.conj().T
 
@@ -177,11 +179,11 @@ def test_matmul_linblad_class():
 
     pre_result = torch.zeros_like(rho)
     for num, _ in enumerate(lista1):
-        res1 = torch.kron(lista1[num][0], lista1[num][1])
-        res2 = torch.kron(lista2[num][0], lista2[num][1])
+        res1 = torch.kron(lista1[num][0].to(device), lista1[num][1].to(device))
+        res2 = torch.kron(lista2[num][0].to(device), lista2[num][1].to(device))
         for i in range(2, nqubits):
-            res1 = torch.kron(res1, lista1[num][i])
-            res2 = torch.kron(res2, lista2[num][i])
+            res1 = torch.kron(res1, lista1[num][i].to(device))
+            res2 = torch.kron(res2, lista2[num][i].to(device))
         pre_result += 1.0j * res1 @ rho @ res2
 
     assert torch.allclose(result_ham, h_rho + result_kron_sum_LdagLrho + pre_result)

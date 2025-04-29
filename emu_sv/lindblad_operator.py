@@ -4,6 +4,7 @@ from emu_base.lindblad_operators import compute_noise_from_lindbladians
 
 dtype = torch.complex128
 sigmax = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
+sigmay = torch.tensor([[0.0, -1.0j], [1.0j, 0.0]], dtype=dtype)
 n_op = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
 
 
@@ -24,13 +25,14 @@ class LindbladOperator:
         self.interaction_matrix: torch.Tensor = interaction_matrix
         self.pulser_linblads: list[torch.Tensor] = pulser_linblads
         self.device: torch.device = device
+        self.complex = self.phis.any()
 
         self.diag: torch.Tensor = self._create_diagonal()
 
     def _create_diagonal(self) -> torch.Tensor:
         """
         Return the diagonal elements of the Rydberg Hamiltonian matrix
-        concerning the interaction
+        concerning only the interaction
 
             H.diag =  ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
         """
@@ -89,15 +91,35 @@ class LindbladOperator:
         H_local_den_matrix = torch.zeros_like(
             density_matrix, dtype=dtype, device=self.device
         )
-        for qubit, (omega, delta) in enumerate(zip(self.omegas, self.deltas)):
-            H_q = (
-                omega * sigmax.to(device=self.device)
-                - delta * n_op.to(device=self.device)
-                + sum_lindblad_local
-            )
-            H_local_den_matrix += self.apply_local_op_to_density_matrix(
-                density_matrix, H_q, qubit
-            )
+
+        if not self.complex:
+            for qubit, (omega, delta) in enumerate(zip(self.omegas, self.deltas)):
+                H_q = (
+                    omega * sigmax.to(device=self.device)
+                    - delta * n_op.to(device=self.device)
+                    + sum_lindblad_local
+                )
+                H_local_den_matrix += self.apply_local_op_to_density_matrix(
+                    density_matrix, H_q, qubit
+                )
+        else:
+            for qubit, (omega, delta, phi) in enumerate(
+                zip(self.omegas, self.deltas, self.phis)
+            ):
+                H_q = (
+                    omega
+                    * (
+                        (
+                            torch.cos(phi) * sigmax.to(device=self.device)
+                            + torch.sin(phi) * sigmay.to(device=self.device)
+                        )
+                    )
+                    - delta * n_op.to(device=self.device)
+                    + sum_lindblad_local
+                )
+                H_local_den_matrix += self.apply_local_op_to_density_matrix(
+                    density_matrix, H_q, qubit
+                )
 
         # apply diagonal interaction  ∑ᵢⱼ Uᵢⱼ nᵢ nⱼ
         diag_term = self.diag.view(-1, 1) * density_matrix  # elementwise column scaling
@@ -109,7 +131,7 @@ class LindbladOperator:
         # compute ∑ₖ Lₖ ρ Lₖ† the last part of the Lindblad operator
         L_den_matrix_Ldag = sum(
             self.apply_local_op_to_density_matrix(
-                density_matrix, L, qubit, op_conj_T=True
+                density_matrix, L.to(self.device), qubit, op_conj_T=True
             )
             for qubit in range(self.nqubits)
             for L in self.pulser_linblads
