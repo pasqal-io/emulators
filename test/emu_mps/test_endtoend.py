@@ -61,8 +61,6 @@ def simulate(
     given_fidelity_state: bool = True,
     interaction_cutoff: float = 0,
     eval_times: list[float] = [1.0],
-    n_shots: int = 1000,
-    optimize_qubit_ordering: bool = False,
 ) -> Results:
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
@@ -92,7 +90,7 @@ def simulate(
         precision=1e-5,
         observables=[
             Occupation(evaluation_times=eval_times),
-            BitStrings(evaluation_times=eval_times, num_shots=n_shots),
+            BitStrings(evaluation_times=eval_times, num_shots=1000),
             Energy(evaluation_times=eval_times),
             EnergyVariance(evaluation_times=eval_times),
             EnergySecondMoment(evaluation_times=eval_times),
@@ -102,7 +100,7 @@ def simulate(
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
-        optimize_qubit_ordering=optimize_qubit_ordering,
+        optimize_qubit_ordering=False,
     )
 
     backend = MPSBackend(seq, config=mps_config)
