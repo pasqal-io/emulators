@@ -96,7 +96,7 @@ def test_krylov_on_diagonal():
 
     expected_energy = 1.0
     assert torch.isclose(
-        energy, torch.tensor(expected_energy, dtype=energy.dtype)
+        torch.tensor(energy), torch.tensor(expected_energy)
     ), f"The Expected energy is {expected_energy}, here it gives {energy}"
 
     assert torch.isclose(

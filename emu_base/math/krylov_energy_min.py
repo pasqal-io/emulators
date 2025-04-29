@@ -6,13 +6,13 @@ DEFAULT_MAX_KRYLOV_DIM: int = 100
 
 def _eigen_pair(
     T_trunc: torch.Tensor,
-    guess: torch.Tensor,
+    guessed_state: torch.Tensor,
     residual_tolerance: float,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Return the smallest eigenpair of T_trunc.
+    Return the smallest (k = 1) eigenpair of T_trunc.
     If T_trunc is too small for LOBPCG (n < 3), do a full eigh;
-    otherwise call lobpcg with the given initial guess.
+    otherwise call lobpcg with the given initial guessed state.
     """
     n = T_trunc.size(0)
     if n < 3:
@@ -21,11 +21,23 @@ def _eigen_pair(
         eigvals, eigvecs = torch.lobpcg(
             T_trunc,
             k=1,
-            X=guess,
+            X=guessed_state,
             tol=residual_tolerance,
             largest=False,
         )
     return eigvals, eigvecs
+
+
+def extend_initial_state(
+    prev_eigen_vec: torch.Tensor, dtype: torch.dtype, device: torch.device
+) -> torch.Tensor:
+    """
+    Extend the previous eigenvector guess by one zero element to match the
+    increased size of T_truncated .
+    """
+    prev_eigen_vec = prev_eigen_vec.view(-1, 1)
+    zero = torch.zeros((1, 1), dtype=dtype, device=device)
+    return torch.cat([prev_eigen_vec, zero], dim=0)
 
 
 class KrylovEnergyResult:
@@ -76,9 +88,11 @@ def krylov_energy_minimization_impl(
         T[j, j + 1] = beta
 
         effective_dim = len(lanczos_vectors)
-        size = len(lanczos_vectors) + (0 if beta < norm_tolerance else 1)
+        # increase size of T_truncated only when there is no happy breakdown
+        size = effective_dim + (0 if beta < norm_tolerance else 1)
         T_truncated = T[:size, :size]
 
+        # create an initial guessed state for the eigensolver
         if prev_eigen_vec is None:
             guessed_state = torch.zeros(
                 T_truncated.size(0), 1, dtype=dtype, device=device
@@ -87,11 +101,7 @@ def krylov_energy_minimization_impl(
         else:
 
             if beta > norm_tolerance:
-                # The guessed state must have the same shape as T_truncated
-                # use previous eigenvec and append one element as new guessed state
-                prev_eigen_vec = prev_eigen_vec.view(-1, 1)
-                zero = torch.zeros((1, 1), dtype=dtype, device=device)
-                guessed_state = torch.cat([prev_eigen_vec, zero], dim=0)
+                guessed_state = extend_initial_state(prev_eigen_vec, dtype, device)
 
         if beta < norm_tolerance:
             happy_breakdown = True
