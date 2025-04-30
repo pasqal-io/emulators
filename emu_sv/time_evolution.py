@@ -6,29 +6,45 @@ from emu_sv.hamiltonian import RydbergHamiltonian
 
 
 class DHDOmegaSparse:
-    """Implementation of derivative of the Rydberg Hamiltonian respect to Omega
-    following the RydbergHamiltonian sparse format:
+    """Derivative of the RydbergHamiltonian respect to Omega.
 
-        ∂H/∂Ωₖ = 0.5[cos(ϕₖ)σˣₖ + sin(ϕₖ)σʸₖ]"""
+    ∂H/∂Ωₖ = 0.5[cos(ϕₖ)σˣₖ + sin(ϕₖ)σʸₖ]
+    """
 
-    def __init__(self, dt: int, index: int, device: str, nqubits: int):
+    def __init__(self, dt: int, index: int, device: str, nqubits: int, phi: torch.Tensor):
         self.index = index
         self.dt = dt
         self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
-        self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
+        self.inds = torch.tensor([1, 0], device=device)
+        self.alpha = 0.5 * torch.exp(1j * phi).item()
+        if phi != 0:
+            self._apply_sigmas = self._apply_omega_complex
+        else:
+            self._apply_sigmas = self._apply_omega_real
 
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
-        vec = vec.reshape(vec.shape[0], *self.shape)  # add batch dimension
+        vec = vec.view(vec.shape[0], *self.shape)  # add batch dimension
         result = torch.zeros_like(vec)
-        result.index_add_(2, self.inds, vec, alpha=-0.5j * self.dt)
-        return result.reshape(vec.shape[0], -1)
+        self._apply_sigmas(result, vec)
+        return result.view(vec.shape[0], -1)
+
+    def _apply_omega_real(self, result: torch.Tensor, vec: torch.Tensor) -> None:
+        result.index_add_(2, self.inds, vec, alpha=-1j * self.dt * self.alpha)
+
+    def _apply_omega_complex(self, result: torch.Tensor, vec: torch.Tensor) -> None:
+        result.index_add_(2, self.inds[0], vec[:, :, 0, :].unsqueeze(1), alpha=self.alpha)
+        result.index_add_(
+            2,
+            self.inds[1],
+            vec[:, :, 1, :].unsqueeze(1),
+            alpha=self.alpha.conjugate(),
+        )
 
 
 class DHDPhiSparse:
-    """Implementation of derivative of the Rydberg Hamiltonian respect to Phi
-    following the RydbergHamiltonian sparse format
+    """Derivative of the RydbergHamiltonian respect to Phi.
 
-        ∂H/∂φₖ = 0.5Ωₖ[cos(ϕₖ+π/2)σˣₖ + sin(ϕₖ+π/2)σʸₖ]"""
+    ∂H/∂φₖ = 0.5Ωₖ[cos(ϕₖ+π/2)σˣₖ + sin(ϕₖ+π/2)σʸₖ]"""
 
     def __init__(
         self,
@@ -40,29 +56,26 @@ class DHDPhiSparse:
     ):
         self.index = index
         self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
-        self.omega_c = 0.5 * omega * torch.exp(1j * (phi + torch.pi / 2))
+        self.alpha = 0.5 * (omega * torch.exp(1j * (phi + torch.pi / 2))).item()
         self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
 
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
         vec = vec.view(vec.shape[0], *self.shape)  # add batch dimension
         result = torch.zeros_like(vec)
-        result.index_add_(
-            2, self.inds[0], vec[:, :, 0, :].unsqueeze(1), alpha=self.omega_c.item()
-        )
+        result.index_add_(2, self.inds[0], vec[:, :, 0, :].unsqueeze(1), alpha=self.alpha)
         result.index_add_(
             2,
             self.inds[1],
             vec[:, :, 1, :].unsqueeze(1),
-            alpha=self.omega_c.conj().item(),
+            alpha=self.alpha.conjugate(),
         )
         return result.view(vec.shape[0], -1)
 
 
 class DHDDeltaSparse:
-    """Implementation of derivative of the Rydberg Hamiltonian respect to Delta
-    following the RydbergHamiltonian sparse format:
+    """Derivative of the Rydberg Hamiltonian respect to Delta:
 
-    - i dt dH/dΔₖ = i dt nₖ"""
+    ∂H/∂Δₖ = -nₖ"""
 
     def __init__(self, dt: int, index: int, device: str, nqubits: int):
         self.index = index
@@ -225,7 +238,7 @@ class EvolveStateVector(torch.autograd.Function):
             grad_omegas = torch.zeros_like(omegas)
             for i in range(omegas.shape[-1]):
                 # dh as per the docstring
-                dho = DHDOmegaSparse(dt, i, e_l.device, omegas.shape[-1])
+                dho = DHDOmegaSparse(dt, i, e_l.device, omegas.shape[-1], phis[i])
                 # compute the trace
                 v = dho @ e_l
                 grad_omegas[i] = torch.tensordot(Vg.conj(), v, dims=([0, 1], [0, 1])).real
