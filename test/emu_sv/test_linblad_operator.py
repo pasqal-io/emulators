@@ -1,7 +1,7 @@
 import math
 import pytest
 import torch
-from emu_sv.lindblad_operator import LindbladOperator
+from emu_sv.lindblad_operator import RydbergLindbladian
 from test.utils_testing import dense_rydberg_hamiltonian, nn_interaction_matrix
 
 dtype = torch.complex128
@@ -20,7 +20,7 @@ def test_ham_matmul_density():
     interaction_matrix = nn_interaction_matrix(nqubits)
 
     rho = torch.rand(2**nqubits, 2**nqubits, dtype=dtype, device=device)
-    ham_lind = LindbladOperator(
+    ham_lind = RydbergLindbladian(
         omegas=omegas,
         deltas=deltas,
         phis=phis,
@@ -52,7 +52,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
     pulser_linblad = torch.zeros(2**nqubits, dtype=dtype, device="cpu")  # always on cpu
     interaction_matrix = torch.zeros(nqubits, nqubits)
 
-    ham_lind = LindbladOperator(
+    ham_lind = RydbergLindbladian(
         omegas=omegas,
         deltas=deltas,
         phis=phis,
@@ -131,7 +131,7 @@ def test_matmul_linblad_class():
 
     rho = torch.rand(2**nqubits, 2**nqubits, dtype=dtype, device=device)
 
-    ham_lind = LindbladOperator(
+    ham_lind = RydbergLindbladian(
         omegas=omegas,
         deltas=deltas,
         phis=phis,

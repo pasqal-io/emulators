@@ -8,7 +8,41 @@ sigmay = torch.tensor([[0.0, -1.0j], [1.0j, 0.0]], dtype=dtype)
 n_op = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
 
 
-class LindbladOperator:
+class RydbergLindbladian:
+    """
+    Apply the Lindblad superoperator ℒ to a density matrix 𝜌,  ℒ(𝜌).
+
+    This class implements
+    H @𝜌- H @ 𝜌 + i ∑ₖ − 1/2 Aₖ† Aₖ 𝜌 − 1/2 𝜌 Aₖ^† Aₖ + Aₖ 𝜌 Aₖ^†,
+    where A_k is a jump operator and H is the Rydberg Hamiltonian.
+    The complex -𝑖, will be multiplied in the evolution.
+
+    Attributes:
+        nqubits (int): number of qubits in the system.
+        omegas (torch.Tensor): amplited frequencies  Ωⱼ for each qubit, divided by 2.
+        deltas (torch.Tensor): detunings 𝛿ᵢ for each qubit.
+        phis (torch.Tensor): phases 𝜙ᵢ for each qubit.
+        interaction_matrix (torch.Tensor): interaction_matrix (torch.Tensor): matrix Uᵢⱼ
+            representing pairwise Rydberg interaction strengths between qubits.
+        pulser_linblads (list[torch.Tensor]): List of 2x2 local Lindblad (jump)
+            operators acting on each qubit.
+        device (torch.device): device on which tensors are allocated. cpu or gpu: cuda.
+        complex (bool): flag indicating whether any drive phase is nonzero
+            (i.e., complex Hamiltonian terms).
+        diag (torch.Tensor): precomputed diagonal interaction term for the density matrix evolution.
+
+    Methods:
+        apply_local_op_to_density_matrix(density_matrix, local_op, target_qubit):
+            Applies a local operator to the density matrix from the left: L @ ρ.
+
+        apply_density_matrix_to_local_op_T(density_matrix, local_op, target_qubit):
+            Applies a daggered local operator to the density matrix from the right: ρ @ L†.
+
+        __matmul__(density_matrix):
+            Applies the full Lindbladian superoperator to the input density matrix,
+            including coherent evolution and all dissipation channels.
+    """
+
     def __init__(
         self,
         omegas: torch.Tensor,
@@ -64,12 +98,6 @@ class LindbladOperator:
         density_matrix = density_matrix.view(2**target_qubit, 2, -1)
         density_matrix = local_op @ density_matrix
 
-        # if op_conj_T:
-        #    density_matrix = density_matrix.view(
-        #        2 ** (target_qubit + self.nqubits), 2, -1
-        #    )
-        #    density_matrix = local_op.conj() @ density_matrix
-
         return density_matrix.view(orignal_shape)
 
     def apply_density_matrix_to_local_op_T(
@@ -93,10 +121,12 @@ class LindbladOperator:
         return density_matrix.view(orignal_shape)
 
     def __matmul__(self, density_matrix: torch.Tensor) -> torch.Tensor:
-        """Apply the i*Lindblad operator :
-         (Hρ - ρH) -0.5i ∑ₖ Lₖ† Lₖ ρ - ρ * 0.5i ∑ₖ Lₖ† Lₖ   + i*∑ₖ Lₖ ρ Lₖ†
-
-        to the density matrix ρ
+        """Apply the i*RydbergLindbladian operator to the density matrix ρ
+        in the following way:
+        Define and effective Hamiltonian
+        Heff = Hρ  -0.5i ∑ₖ Lₖ† Lₖ ρ    + i*∑ₖ Lₖ ρ Lₖ†
+        Then,
+        Heff @ ρ = Heff - Heff^†+i*∑ₖ Lₖ ρ Lₖ†
         """
 
         # compute -0.5i ∑ₖ Lₖ† Lₖ
@@ -104,7 +134,7 @@ class LindbladOperator:
             self.device
         )
 
-        # apply local Hamiltonian terms (Ω σₓ - δ n - 0.5i ∑ₖ Lₖ† Lₖ) to each qubit
+        # apply all local terms (Ωⱼ σₓ - δⱼ n - 0.5i ∑ₖ Lₖ† Lₖ) to each qubit
         H_den_matrix = torch.zeros_like(density_matrix, dtype=dtype, device=self.device)
 
         if not self.complex:
@@ -136,14 +166,14 @@ class LindbladOperator:
                     density_matrix, H_q, qubit
                 )
 
-        # apply diagonal interaction  ∑ᵢⱼ Uᵢⱼ nᵢ nⱼ
+        # apply the interaction terms  ∑ᵢⱼ Uᵢⱼ nᵢ nⱼ
         diag_term = self.diag.view(-1, 1) * density_matrix
         H_den_matrix += diag_term
 
-        # compute [H, ρ] - 0.5i ∑ₖ Lₖ† Lₖρ - ρ 0.5i ∑ₖ Lₖ† Lₖρ
+        # Heff - Heff^†=  [H, ρ] - 0.5i ∑ₖ Lₖ† Lₖρ - ρ 0.5i ∑ₖ Lₖ† Lₖρ
         H_den_matrix = H_den_matrix - H_den_matrix.conj().T
 
-        # compute ∑ₖ Lₖ ρ Lₖ† the last part of the Lindblad operator
+        # compute ∑ₖ Lₖ ρ Lₖ†, last part of the Lindblad operator
         L_den_matrix_Ldag = sum(
             self.apply_density_matrix_to_local_op_T(
                 self.apply_local_op_to_density_matrix(
