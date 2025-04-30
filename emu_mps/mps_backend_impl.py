@@ -21,7 +21,7 @@ from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
 from emu_mps.noise import pick_well_prepared_qubits
-from emu_base.lindblad_operators import compute_noise_from_lindbladians
+from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 from emu_mps.tdvp import (
     evolve_single,
     evolve_pair,

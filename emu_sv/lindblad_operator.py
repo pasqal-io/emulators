@@ -1,5 +1,5 @@
 import torch
-from emu_base.lindblad_operators import compute_noise_from_lindbladians
+from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 
 
 dtype = torch.complex128

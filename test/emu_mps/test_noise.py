@@ -4,7 +4,7 @@ import pytest
 import torch
 
 from emu_mps.noise import pick_well_prepared_qubits
-from emu_base.lindblad_operators import compute_noise_from_lindbladians
+from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 
 
 def test_compute_noise_from_lindbladians_empty():
