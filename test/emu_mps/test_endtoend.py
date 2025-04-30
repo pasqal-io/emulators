@@ -203,7 +203,7 @@ def test_XY_3atomswith_slm() -> None:
             -1.7551e-15 + 2.5736e-15j,
             2.6618e-15 + 5.4529e-16j,
         ],
-        device=final_state.factors[0].device,
+        device="cpu",
         dtype=torch.complex128,
     )
     # pulser magnetization: [0.22572457283642877,0.21208108307887844,0.06213666344288577
@@ -456,9 +456,10 @@ def test_end_to_end_spontaneous_emission() -> None:
             impl.state,
             impl.hamiltonian,
             final_qubit=impl.state.num_sites - len(impl.right_baths) + 1,
+            compute_device="cpu",
         )
         assert all(
-            torch.allclose(actual, expected)
+            torch.allclose(actual.to("cpu"), expected)
             for actual, expected in zip(impl.right_baths, expected_right_baths)
         )
 

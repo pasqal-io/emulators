@@ -6,7 +6,7 @@ from test.utils_testing.utils_testing import random_density_matrix
 
 dtype = torch.complex128
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-gpu = False if device == "cpu" else True
+gpu = torch.cuda.is_available()
 
 seed = 1337
 
