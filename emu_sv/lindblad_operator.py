@@ -125,8 +125,8 @@ class RydbergLindbladian:
         in the following way:
         Define and effective Hamiltonian
         Heff = Hρ  -0.5i ∑ₖ Lₖ† Lₖ ρ    + i*∑ₖ Lₖ ρ Lₖ†
-        Then,
-        Heff @ ρ = Heff - Heff^†+i*∑ₖ Lₖ ρ Lₖ†
+        Then, the Lindblad operator applying to ρ is giving by
+         ℒ(𝜌) = Heff - Heff^†+i*∑ₖ Lₖ ρ Lₖ†
         """
 
         # compute -0.5i ∑ₖ Lₖ† Lₖ
