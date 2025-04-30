@@ -6,14 +6,13 @@ from emu_sv.hamiltonian import RydbergHamiltonian
 
 
 class DHDOmegaSparse:
-    """Derivative of the RydbergHamiltonian respect to Omega.
-
-    ∂H/∂Ωₖ = 0.5[cos(ϕₖ)σˣₖ + sin(ϕₖ)σʸₖ]
+    """
+    Derivative of the RydbergHamiltonian respect to Omega.
+        ∂H/∂Ωₖ = 0.5[cos(ϕₖ)σˣₖ + sin(ϕₖ)σʸₖ]
     """
 
-    def __init__(self, dt: int, index: int, device: str, nqubits: int, phi: torch.Tensor):
+    def __init__(self, index: int, device: str, nqubits: int, phi: torch.Tensor):
         self.index = index
-        self.dt = dt
         self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
         self.inds = torch.tensor([1, 0], device=device)
         self.alpha = 0.5 * torch.exp(1j * phi).item()
@@ -29,22 +28,23 @@ class DHDOmegaSparse:
         return result.view(vec.shape[0], -1)
 
     def _apply_omega_real(self, result: torch.Tensor, vec: torch.Tensor) -> None:
-        result.index_add_(2, self.inds, vec, alpha=-1j * self.dt * self.alpha)
+        result.index_add_(2, self.inds, vec, alpha=self.alpha)
 
     def _apply_omega_complex(self, result: torch.Tensor, vec: torch.Tensor) -> None:
-        result.index_add_(2, self.inds[0], vec[:, :, 0, :].unsqueeze(1), alpha=self.alpha)
+        result.index_add_(2, self.inds[0], vec[:, :, 0, :].unsqueeze(2), alpha=self.alpha)
         result.index_add_(
             2,
             self.inds[1],
-            vec[:, :, 1, :].unsqueeze(1),
+            vec[:, :, 1, :].unsqueeze(2),
             alpha=self.alpha.conjugate(),
         )
 
 
 class DHDPhiSparse:
-    """Derivative of the RydbergHamiltonian respect to Phi.
-
-    ∂H/∂φₖ = 0.5Ωₖ[cos(ϕₖ+π/2)σˣₖ + sin(ϕₖ+π/2)σʸₖ]"""
+    """
+    Derivative of the RydbergHamiltonian respect to Phi.
+        ∂H/∂ϕₖ = 0.5Ωₖ[cos(ϕₖ+π/2)σˣₖ + sin(ϕₖ+π/2)σʸₖ]
+    """
 
     def __init__(
         self,
@@ -62,32 +62,31 @@ class DHDPhiSparse:
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
         vec = vec.view(vec.shape[0], *self.shape)  # add batch dimension
         result = torch.zeros_like(vec)
-        result.index_add_(2, self.inds[0], vec[:, :, 0, :].unsqueeze(1), alpha=self.alpha)
+        result.index_add_(2, self.inds[0], vec[:, :, 0, :].unsqueeze(2), alpha=self.alpha)
         result.index_add_(
             2,
             self.inds[1],
-            vec[:, :, 1, :].unsqueeze(1),
+            vec[:, :, 1, :].unsqueeze(2),
             alpha=self.alpha.conjugate(),
         )
         return result.view(vec.shape[0], -1)
 
 
 class DHDDeltaSparse:
-    """Derivative of the Rydberg Hamiltonian respect to Delta:
+    """
+    Derivative of the Rydberg Hamiltonian respect to Delta:
+        ∂H/∂Δₖ = -nₖ
+    """
 
-    ∂H/∂Δₖ = -nₖ"""
-
-    def __init__(self, dt: int, index: int, device: str, nqubits: int):
+    def __init__(self, index: int, device: str, nqubits: int):
         self.index = index
         self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
-
         diag = torch.zeros(
             *self.shape,
             dtype=torch.complex128,
             device=device,
         )
-        i_fixed = diag.select(1, 1)
-        i_fixed += 1j * dt  # add the delta term for this qubit
+        diag[:, 1, :] = -1.0
         self.diag = diag.reshape(-1)
 
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
@@ -214,6 +213,8 @@ class EvolveStateVector(torch.autograd.Function):
         omegas, deltas, phis, interaction_matrix, state = ctx.saved_tensors
         dt = ctx.dt
         tolerance = ctx.tolerance
+        nqubits = len(omegas)
+
         ham = RydbergHamiltonian(
             omegas=omegas,
             deltas=deltas,
@@ -227,33 +228,45 @@ class EvolveStateVector(torch.autograd.Function):
             lanczos_vectors_state, dS, lanczos_vectors_grad = double_krylov(
                 op, state, grad_state_out, tolerance
             )
+            # TODO: explore returning directly the basis in matrix form
             Vs = torch.stack(lanczos_vectors_state)
+            del lanczos_vectors_state
             Vg = torch.stack(lanczos_vectors_grad)
-            del lanczos_vectors_state, lanczos_vectors_grad
+            del lanczos_vectors_grad
             e_l = dS.mT @ Vs
 
         grad_omegas, grad_deltas, grad_phis, grad_state_in = None, None, None, None
 
         if ctx.needs_input_grad[1]:
             grad_omegas = torch.zeros_like(omegas)
-            for i in range(omegas.shape[-1]):
+            for i in range(nqubits):
                 # dh as per the docstring
-                dho = DHDOmegaSparse(dt, i, e_l.device, omegas.shape[-1], phis[i])
+                dho = DHDOmegaSparse(i, e_l.device, nqubits, phis[i])
                 # compute the trace
                 v = dho @ e_l
-                grad_omegas[i] = torch.tensordot(Vg.conj(), v, dims=([0, 1], [0, 1])).real
+                grad_omegas[i] = (
+                    -1j * dt * torch.tensordot(Vg.conj(), v, dims=([0, 1], [0, 1]))
+                ).real
 
         if ctx.needs_input_grad[2]:
-            grad_deltas = torch.zeros(deltas.shape, dtype=deltas.dtype)
-            for i in range(deltas.shape[-1]):
+            grad_deltas = torch.zeros_like(deltas)
+            for i in range(nqubits):
                 # dh as per the docstring
-                dhd = DHDDeltaSparse(dt, i, e_l.device, deltas.shape[-1])
+                dhd = DHDDeltaSparse(i, e_l.device, nqubits)
                 # compute the trace
                 v = dhd @ e_l
-                grad_deltas[i] = torch.tensordot(Vg.conj(), v, dims=([0, 1], [0, 1])).real
+                grad_deltas[i] = (
+                    -1j * dt * torch.tensordot(Vg.conj(), v, dims=([0, 1], [0, 1]))
+                ).real
 
         if ctx.needs_input_grad[3]:
-            grad_phis = torch.zeros(phis.shape, dtype=phis.dtype)
+            grad_phis = torch.zeros_like(phis)
+            for i in range(nqubits):
+                dhp = DHDPhiSparse(i, e_l.device, nqubits, omegas[i], phis[i])
+                v = dhp @ e_l
+                grad_phis[i] = (
+                    -1j * dt * torch.tensordot(Vg.conj(), v, dims=([0, 1], [0, 1]))
+                ).real
 
         if ctx.needs_input_grad[5]:
             op = lambda x: (1j * dt) * (ham * x)

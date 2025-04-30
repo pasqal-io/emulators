@@ -141,3 +141,41 @@ def test_backward_Op(N, krylov_tolerance):
     expected_grad_tolerance = 100 * krylov_tolerance / abs(dt)
     for grad, ed_grad in zip(grads, ed_grads):
         assert torch.allclose(grad, ed_grad, atol=expected_grad_tolerance)
+
+
+@pytest.mark.parametrize(
+    "N, krylov_tolerance",
+    [(n, tol) for n in [3] for tol in [1e-8]],
+)
+def test_backward_with_phase(N, krylov_tolerance):
+    torch.manual_seed(1337)
+    omegas = torch.randn(N, dtype=dtype_params, requires_grad=True)
+    deltas = torch.randn(N, dtype=dtype_params, requires_grad=True)
+    phis = torch.ones(N, dtype=dtype_params, requires_grad=True)
+    interactions = torch.zeros(N, N, dtype=dtype_params)
+    for i in range(N - 1):
+        interactions[i, i + 1] = 1
+        interactions[i + 1, i] = 1
+
+    ham_params = (omegas, deltas, phis, interactions)
+
+    state = torch.randn(2**N, dtype=dtype, requires_grad=True)
+    state = state / state.norm()
+    r = torch.randn(2**N, dtype=dtype)
+    r /= r.norm()
+
+    dt = 1.0  # big timestep 1 μs
+
+    krylov, _ = EvolveStateVector.apply(dt, *ham_params, state, krylov_tolerance)
+    scalar = torch.abs(r @ krylov)
+    grads = torch.autograd.grad(scalar, (omegas, deltas, phis, state), retain_graph=True)
+
+    h = dense_rydberg_hamiltonian(*ham_params).to(device)
+    ed = torch.linalg.matrix_exp(-1j * dt * h) @ state
+    ed_scalar = torch.abs(r @ ed)
+    ed_grads = torch.autograd.grad(
+        ed_scalar, (omegas, deltas, phis, state), retain_graph=True
+    )
+
+    for grad, ed_grad in zip(grads, ed_grads):
+        assert torch.allclose(grad, ed_grad, atol=krylov_tolerance)
