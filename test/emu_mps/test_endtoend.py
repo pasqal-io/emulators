@@ -60,6 +60,7 @@ def simulate(
     initial_state: Any | None = None,
     given_fidelity_state: bool = True,
     interaction_cutoff: float = 0,
+    eval_times: list[float] = [1.0],
 ) -> Results:
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
@@ -82,23 +83,24 @@ def simulate(
     else:
         if noise_model is None:
             noise_model = pulser.noise_model.NoiseModel()
-    times = [1.0]
+
     mps_config = MPSConfig(
         initial_state=initial_state,
         dt=dt,
         precision=1e-5,
         observables=[
-            StateResult(evaluation_times=times),
-            BitStrings(evaluation_times=times, num_shots=1000),
-            Fidelity(evaluation_times=times, state=fidelity_state, tag_suffix="1"),
-            Occupation(evaluation_times=times),
-            Energy(evaluation_times=times),
-            EnergyVariance(evaluation_times=times),
-            EnergySecondMoment(evaluation_times=times),
-            CorrelationMatrix(evaluation_times=times),
+            Occupation(evaluation_times=eval_times),
+            BitStrings(evaluation_times=eval_times, num_shots=1000),
+            Energy(evaluation_times=eval_times),
+            EnergyVariance(evaluation_times=eval_times),
+            EnergySecondMoment(evaluation_times=eval_times),
+            CorrelationMatrix(evaluation_times=eval_times),
+            StateResult(evaluation_times=eval_times),
+            Fidelity(evaluation_times=eval_times, state=fidelity_state, tag_suffix="1"),
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
+        optimize_qubit_ordering=False,
     )
 
     backend = MPSBackend(seq, config=mps_config)
@@ -217,6 +219,72 @@ def test_XY_3atomswith_slm() -> None:
     )  # todo, compare against pulser results
 
 
+@pytest.mark.parametrize(
+    "optimize_order",
+    [
+        False,
+        True,
+    ],
+)
+def test_end_to_end_domain_wall_ring(
+    optimize_order: bool,
+) -> None:
+    # This setup is sensitive to the permutation order in contrast to AFM state preparation
+    torch.manual_seed(seed)
+
+    num_qubits = 6
+    seq = pulser_afm_sequence_ring(
+        num_qubits=num_qubits,
+        Omega_max=0,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=1300,
+        t_fall=1400,
+    )
+
+    initial_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"),
+        amplitudes={(num_qubits // 2) * "r" + (num_qubits // 2) * "g": 1.0},
+    )
+
+    # I want to test permutation results close to the initial state
+    eval_times = [1 / 44, 1]  # 1/44 is 1 dt step
+    mps_config = MPSConfig(
+        initial_state=initial_state,
+        dt=100,
+        precision=1e-5,
+        observables=[
+            BitStrings(evaluation_times=eval_times, num_shots=100),
+            Occupation(evaluation_times=eval_times),
+            Energy(evaluation_times=eval_times),
+            EnergyVariance(evaluation_times=eval_times),
+            CorrelationMatrix(evaluation_times=eval_times),
+        ],
+        optimize_qubit_ordering=optimize_order,
+    )
+
+    backend = MPSBackend(seq, config=mps_config)
+    result = backend.run()
+
+    ntime_step = 0
+    bitstrings = result.bitstrings[ntime_step]
+    occupation = result.occupation[ntime_step]
+    cor_mat = result.correlation_matrix[ntime_step]
+    energy = result.energy[ntime_step]
+    energy_variance = result.energy_variance[ntime_step]
+
+    expect_occup = torch.tensor([1, 1, 1, 0, 0, 0], dtype=torch.float64)
+    expect_corr = torch.outer(expect_occup, expect_occup).to(torch.complex128)
+
+    assert result.atom_order == seq.register.qubit_ids
+    assert bitstrings["111000"] == 100
+    assert torch.allclose(expect_occup, occupation, atol=1e-3)
+    assert torch.allclose(expect_corr, cor_mat, atol=1e-3)
+    assert approx(energy, rel=1e-4) == 286.8718
+    assert approx(energy_variance, abs=1e-5) == 0
+
+
 def test_end_to_end_afm_ring() -> None:
     torch.manual_seed(seed)
 
@@ -233,31 +301,34 @@ def test_end_to_end_afm_ring() -> None:
 
     result = simulate(seq)
 
-    bitstrings = result.bitstrings[-1]
-    final_state = result.state[-1]
-    final_fidelity = result.fidelity_1[-1]
-    max_bond_dim = final_state.get_max_bond_dim()
-    fidelity_state = create_antiferromagnetic_mps(num_qubits)
-
-    assert bitstrings["1010101010"] == 129  # -> fidelity as samples increase
-    assert bitstrings["0101010101"] == 135
-    assert fidelity_state.overlap(final_state) == approx(final_fidelity, abs=1e-10)
+    final_time = -1
+    bitstrings = result.bitstrings[final_time]
+    occupation = result.occupation[final_time]
+    energy = result.energy[final_time]
+    energy_variance = result.energy_variance[final_time]
+    second_moment_energy = result.energy_second_moment[final_time]
+    state_fin = result.state[final_time]
+    fidelity_fin = result.fidelity_1[final_time]
+    max_bond_dim = state_fin.get_max_bond_dim()
+    fidelity_st = create_antiferromagnetic_mps(num_qubits)
     assert max_bond_dim == 29
+    assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
 
-    q_density = result.occupation[-1]
-    assert approx(q_density, 1e-3) == [0.578] * 10
+    assert bitstrings["1010101010"] == 129
+    assert bitstrings["0101010101"] == 135
 
-    energy = result.energy[-1]
-    assert approx(energy, 1e-8) == -115.34370829396005
+    # Comparing against EMU-SV -- state vector emulator
+    assert approx(occupation, abs=1e-3) == [0.5782] * 10
+    assert approx(occupation, rel=1e-3) == [0.5782] * 10
 
-    energy_variance = result.energy_variance[-1]
-    assert approx(energy_variance, 1e-6) == 45.905980469959104
+    assert approx(energy, abs=1e-2) == -115.3455
+    assert approx(energy, rel=1e-4) == -115.3455
 
-    second_moment_energy = result.energy_second_moment[-1]
-    assert approx(second_moment_energy, 1e-6) == 13350.07680148
+    assert approx(energy_variance, abs=1e-1) == 45.91
+    assert approx(energy_variance, rel=1e-2) == 45.911
 
-    correlation_matrix = result.correlation_matrix[-1]
-    print(correlation_matrix)
+    assert approx(second_moment_energy, abs=0.45) == 13350.5
+    assert approx(second_moment_energy, rel=1e-4) == 13350.5
 
 
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
