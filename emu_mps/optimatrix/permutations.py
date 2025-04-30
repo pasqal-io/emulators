@@ -28,6 +28,27 @@ def permute_list(input_list: list, perm: torch.Tensor) -> list:
     return [input_list[i] for i in perm.tolist()]
 
 
+def permute_tuple(input_tuple: tuple, perm: torch.Tensor) -> tuple:
+    """
+    Permutes the input tuple according to the given permutation.
+    Parameters
+    -------
+    input_tuple :
+        A tuple to permute.
+    permutation :
+        A tuple of indices representing the new order.
+    Returns
+    -------
+        The permuted tuple.
+    Example
+    -------
+    >>> permute_tuple(('a','b','c'), torch.tensor([2, 0, 1]))
+    ('c', 'a', 'b')
+    """
+    lst_elem = list(input_tuple)
+    return tuple(permute_list(lst_elem, perm))
+
+
 def permute_string(input_str: str, perm: torch.Tensor) -> str:
     """
     Permutes the input string according to the given permutation.

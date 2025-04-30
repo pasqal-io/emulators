@@ -7,6 +7,7 @@ from emu_mps.optimatrix.permutations import (
     inv_permutation,
     permute_tensor,
     permute_list,
+    permute_tuple,
 )
 
 
@@ -27,6 +28,21 @@ def test_permute_list() -> None:
     assert permute_list(input_list, torch.tensor([1, 2, 0])) == ["b", "c", "a"]
     assert permute_list(input_list, torch.tensor([2, 0, 1])) == ["c", "a", "b"]
     assert permute_list(input_list, torch.tensor([2, 1, 0])) == ["c", "b", "a"]
+
+
+def test_permute_tuple() -> None:
+    perm = torch.tensor([1, 0])
+    input_tuple = ("a", "b")
+    assert permute_tuple(input_tuple, perm) == ("b", "a")
+
+    # 6 permutations of [a, b, c]
+    input_tuple: tuple = ("a", "b", "c")
+    assert permute_tuple(input_tuple, torch.tensor([0, 1, 2])) == ("a", "b", "c")
+    assert permute_tuple(input_tuple, torch.tensor([0, 2, 1])) == ("a", "c", "b")
+    assert permute_tuple(input_tuple, torch.tensor([1, 0, 2])) == ("b", "a", "c")
+    assert permute_tuple(input_tuple, torch.tensor([1, 2, 0])) == ("b", "c", "a")
+    assert permute_tuple(input_tuple, torch.tensor([2, 0, 1])) == ("c", "a", "b")
+    assert permute_tuple(input_tuple, torch.tensor([2, 1, 0])) == ("c", "b", "a")
 
 
 def test_permute_string() -> None:

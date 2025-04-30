@@ -142,8 +142,8 @@ class MPSBackendImpl:
         self.tdvp_index = 0
         self.timestep_index = 0
         self.results = Results(
-            atom_order=tuple(
-                optimat.permute_list(list(pulser_data.qubit_ids), self.qubit_permutation)
+            atom_order=optimat.permute_tuple(
+                pulser_data.qubit_ids, self.qubit_permutation
             ),
             total_duration=self.target_times[-1],
         )
