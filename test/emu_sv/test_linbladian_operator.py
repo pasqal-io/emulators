@@ -2,7 +2,12 @@ import math
 import pytest
 import torch
 from emu_sv.lindblad_operator import RydbergLindbladian
-from test.utils_testing import dense_rydberg_hamiltonian, nn_interaction_matrix
+from test.utils_testing import (
+    dense_rydberg_hamiltonian,
+    nn_interaction_matrix,
+    list_2_kron,
+)
+
 
 dtype = torch.complex128
 dtype_adp = torch.float64
@@ -37,7 +42,7 @@ def test_ham_matmul_density():
     assert torch.allclose(result, h_rho)
 
 
-test_atoms = 5
+test_atoms = 10
 
 
 @pytest.mark.parametrize("target_qubit", range(test_atoms))
@@ -79,9 +84,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
         else:
             lista.append(ident)
 
-    res = torch.kron(lista[0], lista[1])
-    for i in range(2, nqubits):
-        res = torch.kron(res, lista[i])
+    res = list_2_kron(lista, nqubits)
 
     assert torch.allclose(updated_rho, res @ rho)
 
@@ -106,16 +109,11 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
         else:
             listdag.append(ident)
 
-    resa = torch.kron(lista[0], lista[1])
-    resdag = torch.kron(listdag[0], listdag[1])
-    for i in range(2, nqubits):
-        resa = torch.kron(resa, lista[i])
-        resdag = torch.kron(resdag, listdag[i])
+    resdag = list_2_kron(listdag, nqubits)
 
-    assert torch.allclose(updated_lk_rho_lkdag, resa @ rho @ resdag)
+    assert torch.allclose(updated_lk_rho_lkdag, res @ rho @ resdag)
 
 
-# always on cpu
 def test_matmul_linblad_class():
     """Testing 0.5*i*(∑ₖ Lₖ^† Lₖ)@𝜌 + 0.5*i* 𝜌@(∑ₖ Lₖ^† Lₖ) part"""
     torch.manual_seed(234)
@@ -174,18 +172,15 @@ def test_matmul_linblad_class():
     for lind in pulser_linblads:
         for i in range(nqubits):
             identities = [ident] * nqubits
-            identities[i] = lind
+            identities[i] = lind.to(device)
             lista1.append(identities.copy())
-            identities[i] = lind.conj().T.contiguous()
+            identities[i] = (lind.conj().T.contiguous()).to(device)
             lista2.append(identities)
 
     pre_result = torch.zeros_like(rho)
     for num, _ in enumerate(lista1):
-        res1 = torch.kron(lista1[num][0].to(device), lista1[num][1].to(device))
-        res2 = torch.kron(lista2[num][0].to(device), lista2[num][1].to(device))
-        for i in range(2, nqubits):
-            res1 = torch.kron(res1, lista1[num][i].to(device))
-            res2 = torch.kron(res2, lista2[num][i].to(device))
+        res1 = list_2_kron(lista1[num], nqubits)
+        res2 = list_2_kron(lista2[num], nqubits)
         pre_result += 1.0j * res1 @ rho @ res2
 
     assert torch.allclose(result_ham, h_rho + result_kron_sum_LdagLrho + pre_result)

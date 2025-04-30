@@ -236,3 +236,16 @@ def random_density_matrix(num_qubits: int):
 
     # Normalize the matrix
     return state / torch.trace(state)
+
+
+def list_2_kron(list_tensors: list[torch.Tensor], nqubits: int):
+    """Given a list of local torch tensor operators (nxn): [A1,A2,A3,...,An]
+
+    convert to a matrix using the Kroneker product ⊗.
+
+    Result: A1 ⊗ A2 ⊗ A3 ⊗ ... ⊗ An
+    """
+    res = torch.kron(list_tensors[0], list_tensors[1])
+    for i in range(2, nqubits):
+        res = torch.kron(res, list_tensors[i])
+    return res
