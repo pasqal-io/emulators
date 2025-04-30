@@ -124,7 +124,7 @@ class RydbergLindbladian:
         """Apply the i*RydbergLindbladian operator to the density matrix ρ
         in the following way:
         Define and effective Hamiltonian
-        Heff = Hρ  -0.5i ∑ₖ Lₖ† Lₖ ρ    + i*∑ₖ Lₖ ρ Lₖ†
+        Heff = Hρ  -0.5i ∑ₖ Lₖ† Lₖ ρ
         Then, the Lindblad operator applying to ρ is giving by
          ℒ(𝜌) = Heff - Heff^†+i*∑ₖ Lₖ ρ Lₖ†
         """
@@ -134,7 +134,7 @@ class RydbergLindbladian:
             self.device
         )
 
-        # apply all local terms (Ωⱼ σₓ - δⱼ n - 0.5i ∑ₖ Lₖ† Lₖ) to each qubit
+        # apply all local terms:  Ωⱼ σₓ - δⱼ n - 0.5i (∑ₖ Lₖ† Lₖ) to each qubit
         H_den_matrix = torch.zeros_like(density_matrix, dtype=dtype, device=self.device)
 
         if not self.complex:
