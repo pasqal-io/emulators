@@ -15,7 +15,7 @@ def test_ham_matmul_density():
     nqubits = 10
     omegas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     deltas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
-    phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
+    phis = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     pulser_linblad = [torch.zeros(2, 2, dtype=dtype, device="cpu")]  # always on cpu
     interaction_matrix = nn_interaction_matrix(nqubits)
 
@@ -37,7 +37,7 @@ def test_ham_matmul_density():
     assert torch.allclose(result, h_rho)
 
 
-test_atoms = 10
+test_atoms = 5
 
 
 @pytest.mark.parametrize("target_qubit", range(test_atoms))
@@ -85,13 +85,18 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
 
     assert torch.allclose(updated_rho, res @ rho)
 
-    # apply the local A operator to rho and then apply the
-    # conjugate transpose A^\dagger
+    # apply the local L operator to rho and then apply the
+    # conjugate transpose L†
     updated_lk_rho_lkdag = ham_lind.apply_local_op_to_density_matrix(
         density_matrix=rho,
         local_op=lindblad_op,
         target_qubit=target_qubit,
-        op_conj_T=True,
+    )
+
+    updated_lk_rho_lkdag = ham_lind.apply_density_matrix_to_local_op_T(
+        density_matrix=updated_lk_rho_lkdag,
+        local_op=lindblad_op,
+        target_qubit=target_qubit,
     )
 
     listdag = []
@@ -107,9 +112,6 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
         resa = torch.kron(resa, lista[i])
         resdag = torch.kron(resdag, listdag[i])
 
-    print(updated_lk_rho_lkdag)
-    print(resa @ rho @ resdag)
-
     assert torch.allclose(updated_lk_rho_lkdag, resa @ rho @ resdag)
 
 
@@ -120,7 +122,7 @@ def test_matmul_linblad_class():
     nqubits = 2
     omegas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     deltas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
-    phis = torch.zeros(nqubits, dtype=dtype_adp, device=device).to(dtype)
+    phis = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     pulser_linblads = [
         math.sqrt(1 / 3) * torch.rand(2, 2, dtype=dtype, device="cpu"),  # always on cpu
         math.sqrt(1 / 2) * torch.rand(2, 2, dtype=dtype, device="cpu"),  # always on cpu

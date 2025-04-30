@@ -53,23 +53,42 @@ class LindbladOperator:
         density_matrix: torch.Tensor,
         local_op: torch.Tensor,
         target_qubit: int,
-        op_conj_T: bool = False,
     ) -> torch.Tensor:
         """
-        Apply a local operator A (2x2) matrix to a density matrix.
-        If op_conj_T = True: L ρ L†
-        Else: L ρ
+        Calculate a local operator (2x2) L being multiplied by a density matrix ρ
+        from the left
+        Return L @ ρ
         """
 
         orignal_shape = density_matrix.shape
         density_matrix = density_matrix.view(2**target_qubit, 2, -1)
         density_matrix = local_op @ density_matrix
 
-        if op_conj_T:
-            density_matrix = density_matrix.view(
-                2 ** (target_qubit + self.nqubits), 2, -1
-            )
-            density_matrix = local_op.conj() @ density_matrix
+        # if op_conj_T:
+        #    density_matrix = density_matrix.view(
+        #        2 ** (target_qubit + self.nqubits), 2, -1
+        #    )
+        #    density_matrix = local_op.conj() @ density_matrix
+
+        return density_matrix.view(orignal_shape)
+
+    def apply_density_matrix_to_local_op_T(
+        self,
+        density_matrix: torch.Tensor,
+        local_op: torch.Tensor,
+        target_qubit: int,
+    ) -> torch.Tensor:
+        """
+        Calculates a density matrix ρ being multiplied by a daggered local (2x2)
+          operator L† from the right,
+
+        return:  ρ @L†
+        """
+
+        orignal_shape = density_matrix.shape
+
+        density_matrix = density_matrix.view(2 ** (target_qubit + self.nqubits), 2, -1)
+        density_matrix = local_op.conj() @ density_matrix
 
         return density_matrix.view(orignal_shape)
 
@@ -126,8 +145,12 @@ class LindbladOperator:
 
         # compute ∑ₖ Lₖ ρ Lₖ† the last part of the Lindblad operator
         L_den_matrix_Ldag = sum(
-            self.apply_local_op_to_density_matrix(
-                density_matrix, L.to(self.device), qubit, op_conj_T=True
+            self.apply_density_matrix_to_local_op_T(
+                self.apply_local_op_to_density_matrix(
+                    density_matrix, L.to(self.device), qubit
+                ),
+                L.to(self.device),
+                qubit,
             )
             for qubit in range(self.nqubits)
             for L in self.pulser_linblads
