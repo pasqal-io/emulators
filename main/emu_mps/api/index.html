@@ -2300,7 +2300,9 @@ Unpickling of untrusted data is not safe.</p>
 <span class="normal"><a href="#__codelineno-0-55">55</a></span>
 <span class="normal"><a href="#__codelineno-0-56">56</a></span>
 <span class="normal"><a href="#__codelineno-0-57">57</a></span>
-<span class="normal"><a href="#__codelineno-0-58">58</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-46" name="__codelineno-0-46"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Results</span><span class="p">:</span>
+<span class="normal"><a href="#__codelineno-0-58">58</a></span>
+<span class="normal"><a href="#__codelineno-0-59">59</a></span>
+<span class="normal"><a href="#__codelineno-0-60">60</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-46" name="__codelineno-0-46"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Results</span><span class="p">:</span>
 <a id="__codelineno-0-47" name="__codelineno-0-47"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <a id="__codelineno-0-48" name="__codelineno-0-48"></a><span class="sd">    Emulates the given sequence.</span>
 <a id="__codelineno-0-49" name="__codelineno-0-49"></a>
@@ -2312,7 +2314,9 @@ Unpickling of untrusted data is not safe.</p>
 <a id="__codelineno-0-55" name="__codelineno-0-55"></a>    <span class="n">impl</span> <span class="o">=</span> <span class="n">create_impl</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sequence</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="p">)</span>
 <a id="__codelineno-0-56" name="__codelineno-0-56"></a>    <span class="n">impl</span><span class="o">.</span><span class="n">init</span><span class="p">()</span>  <span class="c1"># This is separate from the constructor for testing purposes.</span>
 <a id="__codelineno-0-57" name="__codelineno-0-57"></a>
-<a id="__codelineno-0-58" name="__codelineno-0-58"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run</span><span class="p">(</span><span class="n">impl</span><span class="p">)</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58"></a>    <span class="n">results</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run</span><span class="p">(</span><span class="n">impl</span><span class="p">)</span>
+<a id="__codelineno-0-59" name="__codelineno-0-59"></a>
+<a id="__codelineno-0-60" name="__codelineno-0-60"></a>    <span class="k">return</span> <span class="n">impl</span><span class="o">.</span><span class="n">permute_results</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">optimize_qubit_ordering</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2622,7 +2626,11 @@ therefore this interval is only a lower bound.</p>
 <span class="normal"><a href="#__codelineno-0-126">126</a></span>
 <span class="normal"><a href="#__codelineno-0-127">127</a></span>
 <span class="normal"><a href="#__codelineno-0-128">128</a></span>
-<span class="normal"><a href="#__codelineno-0-129">129</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+<span class="normal"><a href="#__codelineno-0-129">129</a></span>
+<span class="normal"><a href="#__codelineno-0-130">130</a></span>
+<span class="normal"><a href="#__codelineno-0-131">131</a></span>
+<span class="normal"><a href="#__codelineno-0-132">132</a></span>
+<span class="normal"><a href="#__codelineno-0-133">133</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
 <a id="__codelineno-0-64" name="__codelineno-0-64"></a>    <span class="bp">self</span><span class="p">,</span>
 <a id="__codelineno-0-65" name="__codelineno-0-65"></a>    <span class="o">*</span><span class="p">,</span>
 <a id="__codelineno-0-66" name="__codelineno-0-66"></a>    <span class="n">dt</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
@@ -2631,64 +2639,68 @@ therefore this interval is only a lower bound.</p>
 <a id="__codelineno-0-69" name="__codelineno-0-69"></a>    <span class="n">max_krylov_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
 <a id="__codelineno-0-70" name="__codelineno-0-70"></a>    <span class="n">extra_krylov_tolerance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-3</span><span class="p">,</span>
 <a id="__codelineno-0-71" name="__codelineno-0-71"></a>    <span class="n">num_gpus_to_use</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEVICE_COUNT</span><span class="p">,</span>
-<a id="__codelineno-0-72" name="__codelineno-0-72"></a>    <span class="n">interaction_cutoff</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
-<a id="__codelineno-0-73" name="__codelineno-0-73"></a>    <span class="n">log_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
-<a id="__codelineno-0-74" name="__codelineno-0-74"></a>    <span class="n">log_file</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-75" name="__codelineno-0-75"></a>    <span class="n">autosave_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;emu_mps_save_&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-76" name="__codelineno-0-76"></a>    <span class="n">autosave_dt</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">600</span><span class="p">,</span>  <span class="c1"># 10 minutes</span>
-<a id="__codelineno-0-77" name="__codelineno-0-77"></a>    <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-78" name="__codelineno-0-78"></a><span class="p">):</span>
-<a id="__codelineno-0-79" name="__codelineno-0-79"></a>    <span class="n">kwargs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;observables&quot;</span><span class="p">,</span> <span class="p">[</span><span class="n">BitStrings</span><span class="p">(</span><span class="n">evaluation_times</span><span class="o">=</span><span class="p">[</span><span class="mf">1.0</span><span class="p">])])</span>
-<a id="__codelineno-0-80" name="__codelineno-0-80"></a>    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
-<a id="__codelineno-0-81" name="__codelineno-0-81"></a>        <span class="n">dt</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span>
-<a id="__codelineno-0-82" name="__codelineno-0-82"></a>        <span class="n">precision</span><span class="o">=</span><span class="n">precision</span><span class="p">,</span>
-<a id="__codelineno-0-83" name="__codelineno-0-83"></a>        <span class="n">max_bond_dim</span><span class="o">=</span><span class="n">max_bond_dim</span><span class="p">,</span>
-<a id="__codelineno-0-84" name="__codelineno-0-84"></a>        <span class="n">max_krylov_dim</span><span class="o">=</span><span class="n">max_krylov_dim</span><span class="p">,</span>
-<a id="__codelineno-0-85" name="__codelineno-0-85"></a>        <span class="n">extra_krylov_tolerance</span><span class="o">=</span><span class="n">extra_krylov_tolerance</span><span class="p">,</span>
-<a id="__codelineno-0-86" name="__codelineno-0-86"></a>        <span class="n">num_gpus_to_use</span><span class="o">=</span><span class="n">num_gpus_to_use</span><span class="p">,</span>
-<a id="__codelineno-0-87" name="__codelineno-0-87"></a>        <span class="n">interaction_cutoff</span><span class="o">=</span><span class="n">interaction_cutoff</span><span class="p">,</span>
-<a id="__codelineno-0-88" name="__codelineno-0-88"></a>        <span class="n">log_level</span><span class="o">=</span><span class="n">log_level</span><span class="p">,</span>
-<a id="__codelineno-0-89" name="__codelineno-0-89"></a>        <span class="n">log_file</span><span class="o">=</span><span class="n">log_file</span><span class="p">,</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90"></a>        <span class="n">autosave_prefix</span><span class="o">=</span><span class="n">autosave_prefix</span><span class="p">,</span>
-<a id="__codelineno-0-91" name="__codelineno-0-91"></a>        <span class="n">autosave_dt</span><span class="o">=</span><span class="n">autosave_dt</span><span class="p">,</span>
-<a id="__codelineno-0-92" name="__codelineno-0-92"></a>        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
-<a id="__codelineno-0-93" name="__codelineno-0-93"></a>    <span class="p">)</span>
-<a id="__codelineno-0-94" name="__codelineno-0-94"></a>
-<a id="__codelineno-0-95" name="__codelineno-0-95"></a>    <span class="k">if</span> <span class="s2">&quot;doppler&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">noise_types</span><span class="p">:</span>
-<a id="__codelineno-0-96" name="__codelineno-0-96"></a>        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Unsupported noise type: doppler&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-97" name="__codelineno-0-97"></a>    <span class="k">if</span> <span class="p">(</span>
-<a id="__codelineno-0-98" name="__codelineno-0-98"></a>        <span class="s2">&quot;amplitude&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">noise_types</span>
-<a id="__codelineno-0-99" name="__codelineno-0-99"></a>        <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">amp_sigma</span> <span class="o">!=</span> <span class="mf">0.0</span>
-<a id="__codelineno-0-100" name="__codelineno-0-100"></a>    <span class="p">):</span>
-<a id="__codelineno-0-101" name="__codelineno-0-101"></a>        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Unsupported noise type: amp_sigma&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-102" name="__codelineno-0-102"></a>
-<a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="n">MIN_AUTOSAVE_DT</span> <span class="o">=</span> <span class="mi">10</span>
-<a id="__codelineno-0-104" name="__codelineno-0-104"></a>    <span class="k">assert</span> <span class="p">(</span>
-<a id="__codelineno-0-105" name="__codelineno-0-105"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">autosave_dt</span> <span class="o">&gt;</span> <span class="n">MIN_AUTOSAVE_DT</span>
-<a id="__codelineno-0-106" name="__codelineno-0-106"></a>    <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;autosave_dt must be larger than </span><span class="si">{</span><span class="n">MIN_AUTOSAVE_DT</span><span class="si">}</span><span class="s2"> seconds&quot;</span>
-<a id="__codelineno-0-107" name="__codelineno-0-107"></a>
-<a id="__codelineno-0-108" name="__codelineno-0-108"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">monkeypatch_observables</span><span class="p">()</span>
-<a id="__codelineno-0-109" name="__codelineno-0-109"></a>
-<a id="__codelineno-0-110" name="__codelineno-0-110"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;global_logger&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-111" name="__codelineno-0-111"></a>    <span class="k">if</span> <span class="n">log_file</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-112" name="__codelineno-0-112"></a>        <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
-<a id="__codelineno-0-113" name="__codelineno-0-113"></a>            <span class="n">level</span><span class="o">=</span><span class="n">log_level</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span>
-<a id="__codelineno-0-114" name="__codelineno-0-114"></a>        <span class="p">)</span>  <span class="c1"># default to stream = sys.stderr</span>
-<a id="__codelineno-0-115" name="__codelineno-0-115"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-72" name="__codelineno-0-72"></a>    <span class="n">optimize_qubit_ordering</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a>    <span class="n">interaction_cutoff</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+<a id="__codelineno-0-74" name="__codelineno-0-74"></a>    <span class="n">log_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75"></a>    <span class="n">log_file</span><span class="p">:</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-76" name="__codelineno-0-76"></a>    <span class="n">autosave_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;emu_mps_save_&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-77" name="__codelineno-0-77"></a>    <span class="n">autosave_dt</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">600</span><span class="p">,</span>  <span class="c1"># 10 minutes</span>
+<a id="__codelineno-0-78" name="__codelineno-0-78"></a>    <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-0-79" name="__codelineno-0-79"></a><span class="p">):</span>
+<a id="__codelineno-0-80" name="__codelineno-0-80"></a>    <span class="n">kwargs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;observables&quot;</span><span class="p">,</span> <span class="p">[</span><span class="n">BitStrings</span><span class="p">(</span><span class="n">evaluation_times</span><span class="o">=</span><span class="p">[</span><span class="mf">1.0</span><span class="p">])])</span>
+<a id="__codelineno-0-81" name="__codelineno-0-81"></a>    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+<a id="__codelineno-0-82" name="__codelineno-0-82"></a>        <span class="n">dt</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span>
+<a id="__codelineno-0-83" name="__codelineno-0-83"></a>        <span class="n">precision</span><span class="o">=</span><span class="n">precision</span><span class="p">,</span>
+<a id="__codelineno-0-84" name="__codelineno-0-84"></a>        <span class="n">max_bond_dim</span><span class="o">=</span><span class="n">max_bond_dim</span><span class="p">,</span>
+<a id="__codelineno-0-85" name="__codelineno-0-85"></a>        <span class="n">max_krylov_dim</span><span class="o">=</span><span class="n">max_krylov_dim</span><span class="p">,</span>
+<a id="__codelineno-0-86" name="__codelineno-0-86"></a>        <span class="n">extra_krylov_tolerance</span><span class="o">=</span><span class="n">extra_krylov_tolerance</span><span class="p">,</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a>        <span class="n">num_gpus_to_use</span><span class="o">=</span><span class="n">num_gpus_to_use</span><span class="p">,</span>
+<a id="__codelineno-0-88" name="__codelineno-0-88"></a>        <span class="n">optimize_qubit_ordering</span><span class="o">=</span><span class="n">optimize_qubit_ordering</span><span class="p">,</span>
+<a id="__codelineno-0-89" name="__codelineno-0-89"></a>        <span class="n">interaction_cutoff</span><span class="o">=</span><span class="n">interaction_cutoff</span><span class="p">,</span>
+<a id="__codelineno-0-90" name="__codelineno-0-90"></a>        <span class="n">log_level</span><span class="o">=</span><span class="n">log_level</span><span class="p">,</span>
+<a id="__codelineno-0-91" name="__codelineno-0-91"></a>        <span class="n">log_file</span><span class="o">=</span><span class="n">log_file</span><span class="p">,</span>
+<a id="__codelineno-0-92" name="__codelineno-0-92"></a>        <span class="n">autosave_prefix</span><span class="o">=</span><span class="n">autosave_prefix</span><span class="p">,</span>
+<a id="__codelineno-0-93" name="__codelineno-0-93"></a>        <span class="n">autosave_dt</span><span class="o">=</span><span class="n">autosave_dt</span><span class="p">,</span>
+<a id="__codelineno-0-94" name="__codelineno-0-94"></a>        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<a id="__codelineno-0-95" name="__codelineno-0-95"></a>    <span class="p">)</span>
+<a id="__codelineno-0-96" name="__codelineno-0-96"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">optimize_qubit_ordering</span><span class="p">:</span>
+<a id="__codelineno-0-97" name="__codelineno-0-97"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">check_permutable_observables</span><span class="p">()</span>
+<a id="__codelineno-0-98" name="__codelineno-0-98"></a>
+<a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="k">if</span> <span class="s2">&quot;doppler&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">noise_types</span><span class="p">:</span>
+<a id="__codelineno-0-100" name="__codelineno-0-100"></a>        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Unsupported noise type: doppler&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-101" name="__codelineno-0-101"></a>    <span class="k">if</span> <span class="p">(</span>
+<a id="__codelineno-0-102" name="__codelineno-0-102"></a>        <span class="s2">&quot;amplitude&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">noise_types</span>
+<a id="__codelineno-0-103" name="__codelineno-0-103"></a>        <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">amp_sigma</span> <span class="o">!=</span> <span class="mf">0.0</span>
+<a id="__codelineno-0-104" name="__codelineno-0-104"></a>    <span class="p">):</span>
+<a id="__codelineno-0-105" name="__codelineno-0-105"></a>        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Unsupported noise type: amp_sigma&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-106" name="__codelineno-0-106"></a>
+<a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="n">MIN_AUTOSAVE_DT</span> <span class="o">=</span> <span class="mi">10</span>
+<a id="__codelineno-0-108" name="__codelineno-0-108"></a>    <span class="k">assert</span> <span class="p">(</span>
+<a id="__codelineno-0-109" name="__codelineno-0-109"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">autosave_dt</span> <span class="o">&gt;</span> <span class="n">MIN_AUTOSAVE_DT</span>
+<a id="__codelineno-0-110" name="__codelineno-0-110"></a>    <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;autosave_dt must be larger than </span><span class="si">{</span><span class="n">MIN_AUTOSAVE_DT</span><span class="si">}</span><span class="s2"> seconds&quot;</span>
+<a id="__codelineno-0-111" name="__codelineno-0-111"></a>
+<a id="__codelineno-0-112" name="__codelineno-0-112"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">monkeypatch_observables</span><span class="p">()</span>
+<a id="__codelineno-0-113" name="__codelineno-0-113"></a>
+<a id="__codelineno-0-114" name="__codelineno-0-114"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;global_logger&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-115" name="__codelineno-0-115"></a>    <span class="k">if</span> <span class="n">log_file</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
 <a id="__codelineno-0-116" name="__codelineno-0-116"></a>        <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
-<a id="__codelineno-0-117" name="__codelineno-0-117"></a>            <span class="n">level</span><span class="o">=</span><span class="n">log_level</span><span class="p">,</span>
-<a id="__codelineno-0-118" name="__codelineno-0-118"></a>            <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-119" name="__codelineno-0-119"></a>            <span class="n">filename</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">log_file</span><span class="p">),</span>
-<a id="__codelineno-0-120" name="__codelineno-0-120"></a>            <span class="n">filemode</span><span class="o">=</span><span class="s2">&quot;w&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-121" name="__codelineno-0-121"></a>            <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-0-122" name="__codelineno-0-122"></a>        <span class="p">)</span>
-<a id="__codelineno-0-123" name="__codelineno-0-123"></a>    <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">runs</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">runs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
-<a id="__codelineno-0-124" name="__codelineno-0-124"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">samples_per_run</span> <span class="o">!=</span> <span class="mi">1</span>
-<a id="__codelineno-0-125" name="__codelineno-0-125"></a>        <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">samples_per_run</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-<a id="__codelineno-0-126" name="__codelineno-0-126"></a>    <span class="p">):</span>
-<a id="__codelineno-0-127" name="__codelineno-0-127"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-<a id="__codelineno-0-128" name="__codelineno-0-128"></a>            <span class="s2">&quot;Warning: The runs and samples_per_run values of the NoiseModel are ignored!&quot;</span>
-<a id="__codelineno-0-129" name="__codelineno-0-129"></a>        <span class="p">)</span>
+<a id="__codelineno-0-117" name="__codelineno-0-117"></a>            <span class="n">level</span><span class="o">=</span><span class="n">log_level</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span>
+<a id="__codelineno-0-118" name="__codelineno-0-118"></a>        <span class="p">)</span>  <span class="c1"># default to stream = sys.stderr</span>
+<a id="__codelineno-0-119" name="__codelineno-0-119"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-120" name="__codelineno-0-120"></a>        <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
+<a id="__codelineno-0-121" name="__codelineno-0-121"></a>            <span class="n">level</span><span class="o">=</span><span class="n">log_level</span><span class="p">,</span>
+<a id="__codelineno-0-122" name="__codelineno-0-122"></a>            <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-123" name="__codelineno-0-123"></a>            <span class="n">filename</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">log_file</span><span class="p">),</span>
+<a id="__codelineno-0-124" name="__codelineno-0-124"></a>            <span class="n">filemode</span><span class="o">=</span><span class="s2">&quot;w&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-125" name="__codelineno-0-125"></a>            <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-126" name="__codelineno-0-126"></a>        <span class="p">)</span>
+<a id="__codelineno-0-127" name="__codelineno-0-127"></a>    <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">runs</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">runs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
+<a id="__codelineno-0-128" name="__codelineno-0-128"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">samples_per_run</span> <span class="o">!=</span> <span class="mi">1</span>
+<a id="__codelineno-0-129" name="__codelineno-0-129"></a>        <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_model</span><span class="o">.</span><span class="n">samples_per_run</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<a id="__codelineno-0-130" name="__codelineno-0-130"></a>    <span class="p">):</span>
+<a id="__codelineno-0-131" name="__codelineno-0-131"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+<a id="__codelineno-0-132" name="__codelineno-0-132"></a>            <span class="s2">&quot;Warning: The runs and samples_per_run values of the NoiseModel are ignored!&quot;</span>
+<a id="__codelineno-0-133" name="__codelineno-0-133"></a>        <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
