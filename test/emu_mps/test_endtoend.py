@@ -226,7 +226,15 @@ def test_XY_3atomswith_slm() -> None:
         True,
     ],
 )
+@pytest.mark.parametrize(
+    "occupation",
+    [
+        False,
+        True,
+    ],
+)
 def test_end_to_end_domain_wall_ring(
+    occupation: bool,
     optimize_order: bool,
 ) -> None:
     # This setup is sensitive to the permutation order in contrast to AFM state preparation
@@ -247,20 +255,21 @@ def test_end_to_end_domain_wall_ring(
         eigenstates=("r", "g"),
         amplitudes={(num_qubits // 2) * "r" + (num_qubits // 2) * "g": 1.0},
     )
-
-    # I want to test permutation results close to the initial state
     eval_times = [1 / 44, 1]  # 1/44 is 1 dt step
+    observables = [
+        BitStrings(evaluation_times=eval_times, num_shots=100),
+        Energy(evaluation_times=eval_times),
+        EnergyVariance(evaluation_times=eval_times),
+        CorrelationMatrix(evaluation_times=eval_times),
+    ]
+    if occupation:
+        observables.append(Occupation(evaluation_times=eval_times))
+    # I want to test permutation results close to the initial state
     mps_config = MPSConfig(
         initial_state=initial_state,
         dt=100,
         precision=1e-5,
-        observables=[
-            BitStrings(evaluation_times=eval_times, num_shots=100),
-            Occupation(evaluation_times=eval_times),
-            Energy(evaluation_times=eval_times),
-            EnergyVariance(evaluation_times=eval_times),
-            CorrelationMatrix(evaluation_times=eval_times),
-        ],
+        observables=observables,
         optimize_qubit_ordering=optimize_order,
     )
 
@@ -269,20 +278,20 @@ def test_end_to_end_domain_wall_ring(
 
     ntime_step = 0
     bitstrings = result.bitstrings[ntime_step]
-    occupation = result.occupation[ntime_step]
-    cor_mat = result.correlation_matrix[ntime_step]
     energy = result.energy[ntime_step]
     energy_variance = result.energy_variance[ntime_step]
-
     expect_occup = torch.tensor([1, 1, 1, 0, 0, 0], dtype=torch.float64)
+    correlation_matrix = result.correlation_matrix[ntime_step]
     expect_corr = torch.outer(expect_occup, expect_occup).to(torch.complex128)
 
     assert result.atom_order == seq.register.qubit_ids
     assert bitstrings["111000"] == 100
-    assert torch.allclose(expect_occup, occupation, atol=1e-3)
-    assert torch.allclose(expect_corr, cor_mat, atol=1e-3)
     assert approx(energy, rel=1e-4) == 286.8718
     assert approx(energy_variance, abs=1e-5) == 0
+    assert torch.allclose(expect_corr, correlation_matrix, atol=1e-3)
+    if occupation:
+        occupation = result.occupation[ntime_step]
+        assert torch.allclose(expect_occup, occupation, atol=1e-3)
 
 
 def test_end_to_end_afm_ring() -> None:
