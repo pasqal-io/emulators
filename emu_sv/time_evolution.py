@@ -9,6 +9,8 @@ class DHDOmegaSparse:
     """
     Derivative of the RydbergHamiltonian respect to Omega.
         ∂H/∂Ωₖ = 0.5[cos(ϕₖ)σˣₖ + sin(ϕₖ)σʸₖ]
+
+    If ϕₖ=0, simplifies to ∂H/∂Ωₖ = 0.5σˣₖ
     """
 
     def __init__(self, index: int, device: str, nqubits: int, phi: torch.Tensor):
@@ -18,7 +20,7 @@ class DHDOmegaSparse:
         self.alpha = 0.5 * torch.exp(1j * phi).item()
         if phi != 0:
             self._apply_sigmas = self._apply_omega_complex
-        else:
+        else:  # ∂H/∂Ωₖ = 0.5σˣₖ
             self._apply_sigmas = self._apply_omega_real
 
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
@@ -247,9 +249,7 @@ class EvolveStateVector(torch.autograd.Function):
                 dho = DHDOmegaSparse(i, e_l.device, nqubits, phis[i])
                 # compute the trace
                 v = dho @ e_l
-                grad_omegas[i] = (
-                    -1j * dt * torch.tensordot(Vg.conj(), v, dims=([0, 1], [0, 1]))
-                ).real
+                grad_omegas[i] = (-1j * dt * torch.tensordot(Vg.conj(), v)).real
 
         if ctx.needs_input_grad[2]:
             grad_deltas = torch.zeros_like(deltas)
@@ -258,18 +258,14 @@ class EvolveStateVector(torch.autograd.Function):
                 dhd = DHDDeltaSparse(i, e_l.device, nqubits)
                 # compute the trace
                 v = dhd @ e_l
-                grad_deltas[i] = (
-                    -1j * dt * torch.tensordot(Vg.conj(), v, dims=([0, 1], [0, 1]))
-                ).real
+                grad_deltas[i] = (-1j * dt * torch.tensordot(Vg.conj(), v)).real
 
         if ctx.needs_input_grad[3]:
             grad_phis = torch.zeros_like(phis)
             for i in range(nqubits):
                 dhp = DHDPhiSparse(i, e_l.device, nqubits, omegas[i], phis[i])
                 v = dhp @ e_l
-                grad_phis[i] = (
-                    -1j * dt * torch.tensordot(Vg.conj(), v, dims=([0, 1], [0, 1]))
-                ).real
+                grad_phis[i] = (-1j * dt * torch.tensordot(Vg.conj(), v)).real
 
         if ctx.needs_input_grad[5]:
             op = lambda x: (1j * dt) * (ham * x)
