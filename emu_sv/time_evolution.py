@@ -5,6 +5,32 @@ from emu_base.math.double_krylov import double_krylov
 from emu_sv.hamiltonian import RydbergHamiltonian
 
 
+def _apply_omega_real(
+    result: torch.Tensor,
+    dim: int,
+    inds: torch.Tensor,
+    source: torch.Tensor,
+    alpha: complex,
+) -> None:
+    result.index_add_(dim, inds, source, alpha=alpha)
+
+
+def _apply_omega_complex(
+    result: torch.Tensor,
+    dim: int,
+    inds: torch.Tensor,
+    source: torch.Tensor,
+    alpha: complex,
+) -> None:
+    result.index_add_(dim, inds[0], source[:, :, 0, :].unsqueeze(2), alpha=alpha)
+    result.index_add_(
+        dim,
+        inds[1],
+        source[:, :, 1, :].unsqueeze(2),
+        alpha=alpha.conjugate(),
+    )
+
+
 class DHDOmegaSparse:
     """
     Derivative of the RydbergHamiltonian respect to Omega.
@@ -19,27 +45,15 @@ class DHDOmegaSparse:
         self.inds = torch.tensor([1, 0], device=device)
         self.alpha = 0.5 * torch.exp(1j * phi).item()
         if phi != 0:
-            self._apply_sigmas = self._apply_omega_complex
+            self._apply_sigmas = _apply_omega_complex
         else:  # ∂H/∂Ωₖ = 0.5σˣₖ
-            self._apply_sigmas = self._apply_omega_real
+            self._apply_sigmas = _apply_omega_real
 
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
         vec = vec.view(vec.shape[0], *self.shape)  # add batch dimension
         result = torch.zeros_like(vec)
-        self._apply_sigmas(result, vec)
+        self._apply_sigmas(result, 2, self.inds, vec, alpha=self.alpha)
         return result.view(vec.shape[0], -1)
-
-    def _apply_omega_real(self, result: torch.Tensor, vec: torch.Tensor) -> None:
-        result.index_add_(2, self.inds, vec, alpha=self.alpha)
-
-    def _apply_omega_complex(self, result: torch.Tensor, vec: torch.Tensor) -> None:
-        result.index_add_(2, self.inds[0], vec[:, :, 0, :].unsqueeze(2), alpha=self.alpha)
-        result.index_add_(
-            2,
-            self.inds[1],
-            vec[:, :, 1, :].unsqueeze(2),
-            alpha=self.alpha.conjugate(),
-        )
 
 
 class DHDPhiSparse:
@@ -218,9 +232,6 @@ class EvolveStateVector(torch.autograd.Function):
         nqubits = len(omegas)
 
         grad_omegas, grad_deltas, grad_phis, grad_state_in = None, None, None, None
-
-        if grad_state_out.norm() < tolerance:
-            return None, None, None, None, None, None, None
 
         ham = RydbergHamiltonian(
             omegas=omegas,
