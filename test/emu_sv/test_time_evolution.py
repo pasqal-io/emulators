@@ -75,10 +75,7 @@ def test_backward(N, krylov_tolerance):
     omegas = torch.randn(N, dtype=dtype_params, requires_grad=True)
     deltas = torch.randn(N, dtype=dtype_params, requires_grad=True)
     phis = torch.zeros(N, dtype=dtype_params)
-    interactions = torch.zeros(N, N, dtype=dtype_params)
-    for i in range(N - 1):
-        interactions[i, i + 1] = 1
-        interactions[i + 1, i] = 1
+    interactions = randn_interaction_matrix(N)
 
     ham_params = (omegas, deltas, phis, interactions)
 
@@ -99,9 +96,9 @@ def test_backward(N, krylov_tolerance):
     ed_grads = torch.autograd.grad(ed_scalar, (omegas, deltas, state), retain_graph=True)
 
     # expected tolerance for the gradients is bigger
-    expected_grad_tolerance = 100 * krylov_tolerance / abs(dt)
+    expected_grad_tolerance = krylov_tolerance
     for grad, ed_grad in zip(grads, ed_grads):
-        assert torch.allclose(grad, ed_grad, atol=expected_grad_tolerance)
+        assert torch.allclose(grad, ed_grad, rtol=expected_grad_tolerance)
 
 
 @pytest.mark.parametrize(
@@ -113,10 +110,7 @@ def test_backward_Op(N, krylov_tolerance):
     omegas = torch.randn(N, dtype=dtype_params, requires_grad=True)
     deltas = torch.randn(N, dtype=dtype_params, requires_grad=True)
     phis = torch.zeros(N, dtype=dtype_params)
-    interactions = torch.zeros(N, N, dtype=dtype_params)
-    for i in range(N):
-        for j in range(i + 1, N):
-            interactions[i, j] = 1 / abs(j - i)
+    interactions = randn_interaction_matrix(N)
 
     ham_params = (omegas, deltas, phis, interactions)
 
@@ -126,7 +120,8 @@ def test_backward_Op(N, krylov_tolerance):
     dt = 1.0  # big timestep 1 μs
 
     Op = torch.randn(2**N, 2**N, dtype=dtype)
-    Op += Op.mH  # Hermitian observable
+    Op /= Op.norm()
+    Op = Op @ Op.mH  # Hermitian observable
 
     krylov, _ = EvolveStateVector.apply(dt, *ham_params, state, krylov_tolerance)
     scalar = torch.vdot(krylov, Op @ krylov).real
@@ -137,25 +132,20 @@ def test_backward_Op(N, krylov_tolerance):
     ed_scalar = torch.vdot(ed, Op @ ed).real
     ed_grads = torch.autograd.grad(ed_scalar, (omegas, deltas, state), retain_graph=True)
 
-    # expected tolerance for the gradients is bigger
-    expected_grad_tolerance = 100 * krylov_tolerance / abs(dt)
     for grad, ed_grad in zip(grads, ed_grads):
-        assert torch.allclose(grad, ed_grad, atol=expected_grad_tolerance)
+        assert torch.allclose(grad, ed_grad, rtol=krylov_tolerance)
 
 
 @pytest.mark.parametrize(
     "N, krylov_tolerance",
-    [(n, tol) for n in [3] for tol in [1e-8]],
+    [(n, tol) for n in [4, 6] for tol in [1e-8, 1e-12]],
 )
 def test_backward_with_phase(N, krylov_tolerance):
     torch.manual_seed(1337)
     omegas = torch.randn(N, dtype=dtype_params, requires_grad=True)
     deltas = torch.randn(N, dtype=dtype_params, requires_grad=True)
-    phis = torch.ones(N, dtype=dtype_params, requires_grad=True)
-    interactions = torch.zeros(N, N, dtype=dtype_params)
-    for i in range(N - 1):
-        interactions[i, i + 1] = 1
-        interactions[i + 1, i] = 1
+    phis = torch.randn(N, dtype=dtype_params, requires_grad=True)
+    interactions = randn_interaction_matrix(N)
 
     ham_params = (omegas, deltas, phis, interactions)
 
@@ -178,4 +168,4 @@ def test_backward_with_phase(N, krylov_tolerance):
     )
 
     for grad, ed_grad in zip(grads, ed_grads):
-        assert torch.allclose(grad, ed_grad, atol=krylov_tolerance)
+        assert torch.allclose(grad, ed_grad, rtol=krylov_tolerance)

@@ -88,6 +88,7 @@ def lanczos(
 
         if n2 < tolerance:
             converged = True
+            print("happy")
             break
 
         lanczos_vectors.append(w / n2)

@@ -215,6 +215,11 @@ class EvolveStateVector(torch.autograd.Function):
         tolerance = ctx.tolerance
         nqubits = len(omegas)
 
+        grad_omegas, grad_deltas, grad_phis, grad_state_in = None, None, None, None
+
+        if grad_state_out.norm() < tolerance:
+            return None, None, None, None, None, None, None
+
         ham = RydbergHamiltonian(
             omegas=omegas,
             deltas=deltas,
@@ -234,8 +239,6 @@ class EvolveStateVector(torch.autograd.Function):
             Vg = torch.stack(lanczos_vectors_grad)
             del lanczos_vectors_grad
             e_l = dS.mT @ Vs
-
-        grad_omegas, grad_deltas, grad_phis, grad_state_in = None, None, None, None
 
         if ctx.needs_input_grad[1]:
             grad_omegas = torch.zeros_like(omegas)
