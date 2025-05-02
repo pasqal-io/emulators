@@ -563,7 +563,7 @@ def permute_bitstrings(results: Results, perm: torch.Tensor) -> None:
 def permute_occupations_and_correlations(results: Results, perm: torch.Tensor) -> None:
     for corr in ["occupation", "correlation_matrix"]:
         if corr not in results.get_result_tags():
-            return
+            continue
 
         uuid_corr = results._find_uuid(corr)
         corrs = results._results[uuid_corr]
