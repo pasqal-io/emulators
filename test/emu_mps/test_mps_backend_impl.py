@@ -1,4 +1,9 @@
 from emu_mps.mps_backend_impl import MPSBackendImpl, NoisyMPSBackendImpl
+from emu_mps.mps_backend_impl import (
+    permute_atom_order,
+    permute_bitstrings,
+    permute_occupations_and_correlations,
+)
 from emu_mps.mps_config import MPSConfig
 from pulser import NoiseModel
 import math
@@ -7,6 +12,7 @@ from unittest.mock import MagicMock, patch
 from emu_mps.mps import MPS
 import torch
 import pytest
+from collections import Counter
 
 
 _ATOL = 1e-10
@@ -16,9 +22,17 @@ QUBIT_COUNT = 5
 
 
 def _create_victim(constructor, dt, noise_model):
-    config = MPSConfig(dt=dt, noise_model=noise_model)
+    config = MPSConfig(
+        dt=dt,
+        noise_model=noise_model,
+        # no optimisation for Mock; full_interaction_matrix doesn't exist
+        optimize_qubit_ordering=False,
+    )
     mock_pulser_data = MagicMock()
     mock_pulser_data.qubit_count = QUBIT_COUNT
+    mock_pulser_data.qubit_ids = tuple([i for i in range(QUBIT_COUNT)])
+    mock_pulser_data.full_interaction_matrix = torch.eye(QUBIT_COUNT)
+    mock_pulser_data.masked_interaction_matrix = torch.eye(QUBIT_COUNT)
     mock_pulser_data.slm_end_time = 10.0
     victim = constructor(config, mock_pulser_data)
 
@@ -311,3 +325,47 @@ def test_init_hamiltonian(update_H_mock, make_H_mock):
     victim.init_hamiltonian()
     assert make_H_mock.call_count == 1
     assert update_H_mock.call_count == 1
+
+
+def test_permute_results() -> None:
+    obs = ["bitstrings", "occupation", "correlation_matrix"]
+    # I use list of for obs to mimic [obs_t0 and obs_t1]
+    bitstrings = [Counter({"110": 1, "010": 2}), Counter({"110": 3, "010": 4})]
+    occup = [torch.tensor([0.1, 0.2, 0.3]), torch.tensor([0.4, 0.5, 0.6])]
+    corr = [torch.outer(occup[0], occup[0]), torch.outer(occup[1], occup[1])]
+
+    mock_results = MagicMock()
+    mock_results.atom_order = ("q0", "q1", "q2")
+    mock_results._results = [bitstrings, occup, corr]
+    mock_results.get_result_tags.return_value = set(obs)
+    mock_results._find_uuid.side_effect = lambda key: obs.index(key)
+
+    assert mock_results.get_result_tags() == set(obs)
+    assert mock_results._find_uuid("bitstrings") == 0
+    assert mock_results._find_uuid("occupation") == 1
+    assert mock_results._find_uuid("correlation_matrix") == 2
+
+    perm = torch.tensor([2, 0, 1])  # makes "abc" to "cab"
+
+    permute_atom_order(mock_results, perm)
+    assert mock_results.atom_order == ("q2", "q0", "q1")
+
+    permute_bitstrings(mock_results, perm)
+    expected = [Counter({"001": 2, "011": 1}), Counter({"001": 4, "011": 3})]
+    assert mock_results._results[0] == expected
+
+    permute_occupations_and_correlations(mock_results, perm)
+    expected_occup = [torch.tensor([0.3, 0.1, 0.2]), torch.tensor([0.6, 0.4, 0.5])]
+    assert all(
+        torch.equal(actual, expe)
+        for actual, expe in zip(mock_results._results[1], expected_occup)
+    )
+
+    expected_corr = [
+        torch.outer(expected_occup[0], expected_occup[0]),
+        torch.outer(expected_occup[1], expected_occup[1]),
+    ]
+    assert all(
+        torch.equal(actual, expe)
+        for actual, expe in zip(mock_results._results[2], expected_corr)
+    )

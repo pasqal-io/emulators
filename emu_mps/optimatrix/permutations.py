@@ -1,6 +1,54 @@
 import torch
 
 
+def eye_permutation(n: int) -> torch.Tensor:
+    """
+    Returns toch.tensor([0, 1, 2, .., n-1])
+    """
+    return torch.arange(n)
+
+
+def permute_list(input_list: list, perm: torch.Tensor) -> list:
+    """
+    Permutes the input list according to the given permutation.
+    Parameters
+    -------
+    input_list :
+        A list to permute.
+    permutation :
+        A list of indices representing the new order.
+    Returns
+    -------
+        The permuted list.
+    Example
+    -------
+    >>> permute_list(['a','b','c'], torch.tensor([2, 0, 1]))
+    ['c', 'a', 'b']
+    """
+    return [input_list[i] for i in perm.tolist()]
+
+
+def permute_tuple(input_tuple: tuple, perm: torch.Tensor) -> tuple:
+    """
+    Permutes the input tuple according to the given permutation.
+    Parameters
+    -------
+    input_tuple :
+        A tuple to permute.
+    permutation :
+        A tuple of indices representing the new order.
+    Returns
+    -------
+        The permuted tuple.
+    Example
+    -------
+    >>> permute_tuple(('a','b','c'), torch.tensor([2, 0, 1]))
+    ('c', 'a', 'b')
+    """
+    lst_elem = list(input_tuple)
+    return tuple(permute_list(lst_elem, perm))
+
+
 def permute_string(input_str: str, perm: torch.Tensor) -> str:
     """
     Permutes the input string according to the given permutation.
@@ -18,8 +66,7 @@ def permute_string(input_str: str, perm: torch.Tensor) -> str:
     >>> permute_string("abc", torch.tensor([2, 0, 1]))
     'cab'
     """
-    char_list = list(input_str)
-    permuted = [char_list[i] for i in perm.tolist()]
+    permuted = permute_list(list(input_str), perm)
     return "".join(permuted)
 
 
