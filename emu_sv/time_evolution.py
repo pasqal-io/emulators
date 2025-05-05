@@ -7,26 +7,28 @@ from emu_sv.hamiltonian import RydbergHamiltonian
 
 def _apply_omega_real(
     result: torch.Tensor,
-    dim: int,
+    i: int,
     inds: torch.Tensor,
     source: torch.Tensor,
     alpha: complex,
 ) -> None:
-    result.index_add_(dim, inds, source, alpha=alpha)
+    """Accumulate to `result` the application of ασˣᵢ on `source`"""
+    result.index_add_(i, inds, source, alpha=alpha)
 
 
 def _apply_omega_complex(
     result: torch.Tensor,
-    dim: int,
+    i: int,
     inds: torch.Tensor,
     source: torch.Tensor,
     alpha: complex,
 ) -> None:
-    result.index_add_(dim, inds[0], source[:, :, 0, :].unsqueeze(2), alpha=alpha)
+    """Accumulate to `result` the application of ασ⁺ᵢ + α*σ⁻ᵢ on `source`"""
+    result.index_add_(i, inds[0], source.select(i, 0).unsqueeze(i), alpha=alpha)
     result.index_add_(
-        dim,
+        i,
         inds[1],
-        source[:, :, 1, :].unsqueeze(2),
+        source.select(i, 1).unsqueeze(2),
         alpha=alpha.conjugate(),
     )
 
@@ -42,7 +44,7 @@ class DHDOmegaSparse:
     def __init__(self, index: int, device: str, nqubits: int, phi: torch.Tensor):
         self.index = index
         self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
-        self.inds = torch.tensor([1, 0], device=device)
+        self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
         self.alpha = 0.5 * torch.exp(1j * phi).item()
         if phi != 0:
             self._apply_sigmas = _apply_omega_complex
@@ -78,13 +80,7 @@ class DHDPhiSparse:
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
         vec = vec.view(vec.shape[0], *self.shape)  # add batch dimension
         result = torch.zeros_like(vec)
-        result.index_add_(2, self.inds[0], vec[:, :, 0, :].unsqueeze(2), alpha=self.alpha)
-        result.index_add_(
-            2,
-            self.inds[1],
-            vec[:, :, 1, :].unsqueeze(2),
-            alpha=self.alpha.conjugate(),
-        )
+        _apply_omega_complex(result, 2, self.inds, vec, alpha=self.alpha)
         return result.view(vec.shape[0], -1)
 
 
