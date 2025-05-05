@@ -55,6 +55,6 @@ def compute_noise_from_lindbladians(lindbladians: list[torch.Tensor]) -> torch.T
         lindbladian.shape == (2, 2) for lindbladian in lindbladians
     ), "Only single-qubit lindblad operators are supported"
 
-    zero = torch.zeros(2, 2, dtype=torch.complex128)
+    accum = torch.zeros(2, 2, dtype=torch.complex128)
 
-    return -0.5j * sum((L.mT @ L for L in lindbladians), zero)
+    return -0.5j * sum((L.mH @ L for L in lindbladians), accum)
