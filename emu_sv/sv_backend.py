@@ -65,7 +65,6 @@ class SVBackend(EmulatorBackend):
                 pulser_data.full_interaction_matrix,
                 state.vector,
                 self._config.krylov_tolerance,
-                linblad_ops=[],
             )
 
             # callbacks in observables and self.statistics in H

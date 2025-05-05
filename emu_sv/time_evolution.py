@@ -1,4 +1,3 @@
-from typing import Optional
 import torch
 
 from emu_base.math.krylov_exp import krylov_exp
@@ -13,7 +12,6 @@ def do_time_step(
     full_interaction_matrix: torch.Tensor,
     state_vector: torch.Tensor,
     krylov_tolerance: float,
-    linblad_ops: Optional[list[torch.Tensor]],
 ) -> tuple[torch.Tensor, RydbergHamiltonian]:
     ham = RydbergHamiltonian(
         omegas=omegas,
