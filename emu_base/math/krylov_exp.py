@@ -43,57 +43,90 @@ def krylov_exp_impl(
     lanczos_vectors = [v / initial_norm]
     T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
 
-    for j in range(max_krylov_dim):
-        w = op(lanczos_vectors[-1])
+    j = 0
+    while j < max_krylov_dim:
+        try:
+            w = op(lanczos_vectors[j])
 
-        n = w.norm()
+            n = w.norm()
 
-        k_start = max(0, j - 1) if is_hermitian else 0
-        for k in range(k_start, j + 1):
-            overlap = torch.tensordot(lanczos_vectors[k].conj(), w, dims=w.dim())
-            T[k, j] = overlap
-            w = w - overlap * lanczos_vectors[k]
+            k_start = max(0, j - 1) if is_hermitian else 0
+            for k in range(k_start, j + 1):
+                lanczos_vector = lanczos_vectors[k].to(w.device)
+                overlap = torch.tensordot(
+                    lanczos_vector.conj().to(v.device), w, dims=w.dim()
+                )
+                T[k, j] = overlap
+                w = w - overlap * lanczos_vector  # Here can also OOM
+                del lanczos_vector
 
-        n2 = w.norm()
-        T[j + 1, j] = n2
+            n2 = w.norm()
+            T[j + 1, j] = n2
 
-        if n2 < norm_tolerance:
-            # Happy breakdown
-            expd = torch.linalg.matrix_exp(T[: j + 1, : j + 1])
-            result = initial_norm * sum(
-                a * b for a, b in zip(expd[:, 0], lanczos_vectors)
-            )
-            return KrylovExpResult(
-                result=result, converged=True, happy_breakdown=True, iteration_count=j + 1
-            )
+            if n2 < norm_tolerance:
+                # Happy breakdown
+                expd = torch.linalg.matrix_exp(T[: j + 1, : j + 1])
+                result = initial_norm * sum(
+                    a * b
+                    for a, b in zip(
+                        expd[:, 0], map(lambda x: x.to(v.device), lanczos_vectors)
+                    )
+                )
+                return KrylovExpResult(
+                    result=result,
+                    converged=True,
+                    happy_breakdown=True,
+                    iteration_count=j + 1,
+                )
 
-        w = w / n2
-        lanczos_vectors.append(w)
+            w = w / n2
+            lanczos_vectors.append(w)
 
-        # Compute exponential of extended T matrix
-        T[j + 2, j + 1] = 1
-        expd = torch.linalg.matrix_exp(T[: j + 3, : j + 3])
+            # Compute exponential of extended T matrix
+            T[j + 2, j + 1] = 1
+            expd = torch.linalg.matrix_exp(T[: j + 3, : j + 3])
 
-        # Local truncation error estimation
-        err1 = abs(expd[j + 1, 0])
-        err2 = abs(expd[j + 2, 0] * n)
+            # Local truncation error estimation
+            err1 = abs(expd[j + 1, 0])
+            err2 = abs(expd[j + 2, 0] * n)
 
-        err = err1 if err1 < err2 else (err1 * err2 / (err1 - err2))
+            err = err1 if err1 < err2 else (err1 * err2 / (err1 - err2))
 
-        if err < exp_tolerance:
-            # Converged
-            result = initial_norm * sum(
-                a * b for a, b in zip(expd[: len(lanczos_vectors), 0], lanczos_vectors)
-            )
-            return KrylovExpResult(
-                result=result,
-                converged=True,
-                happy_breakdown=False,
-                iteration_count=j + 1,
-            )
+            if err < exp_tolerance:
+                # Converged
+                result = initial_norm * sum(
+                    a * b
+                    for a, b in zip(
+                        expd[: len(lanczos_vectors), 0],
+                        map(lambda x: x.to(v.device), lanczos_vectors),
+                    )
+                )
+                return KrylovExpResult(
+                    result=result,
+                    converged=True,
+                    happy_breakdown=False,
+                    iteration_count=j + 1,
+                )
+
+            j += 1
+        except torch.OutOfMemoryError as e:
+            if all(not t.is_cuda for t in lanczos_vectors[:j]):
+                raise e
+
+            print("out of memory, moving current lanczos vectors to cpu")
+
+            lanczos_vectors = [
+                lanczos_vectors[i].to("cpu", non_blocking=True) for i in range(j)
+            ] + [lanczos_vectors[j]]
+            # Check if something can be done, otherwise raise
+            continue
 
     result = initial_norm * sum(
-        a * b for a, b in zip(expd[: len(lanczos_vectors), 0], lanczos_vectors)
+        a * b
+        for a, b in zip(
+            expd[: len(lanczos_vectors), 0],
+            map(lambda x: x.to(v.device), lanczos_vectors),
+        )
     )
     return KrylovExpResult(
         result=result,
