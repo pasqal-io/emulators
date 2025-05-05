@@ -52,10 +52,7 @@ class RydbergHamiltonian:
 
         self.diag: torch.Tensor = self._create_diagonal()
         self.inds = torch.tensor([1, 0], device=self.device)  # flips the state, for σˣ
-
-        self._apply_sigma_operators = self._apply_sigma_operators_real
-        if self.phis.any():
-            self._apply_sigma_operators = self._apply_sigma_operators_complex
+        self.complex = self.phis.any()
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
@@ -75,7 +72,10 @@ class RydbergHamiltonian:
         # (-∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ)|ψ❭
         result = self.diag * vec
         # ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ]|ψ❭
-        self._apply_sigma_operators(result, vec)
+        if self.complex:
+            self._apply_sigma_operators_complex(result, vec)
+        else:
+            self._apply_sigma_operators_real(result, vec)
         return result
 
     def _apply_sigma_operators_real(

@@ -69,6 +69,7 @@ class MPSConfig(EmulationConfig):
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
         num_gpus_to_use: int = DEVICE_COUNT,
+        optimize_qubit_ordering: bool = False,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
@@ -84,6 +85,7 @@ class MPSConfig(EmulationConfig):
             max_krylov_dim=max_krylov_dim,
             extra_krylov_tolerance=extra_krylov_tolerance,
             num_gpus_to_use=num_gpus_to_use,
+            optimize_qubit_ordering=optimize_qubit_ordering,
             interaction_cutoff=interaction_cutoff,
             log_level=log_level,
             log_file=log_file,
@@ -91,6 +93,8 @@ class MPSConfig(EmulationConfig):
             autosave_dt=autosave_dt,
             **kwargs,
         )
+        if self.optimize_qubit_ordering:
+            self.check_permutable_observables()
 
         if "doppler" in self.noise_model.noise_types:
             raise NotImplementedError("Unsupported noise type: doppler")
@@ -136,6 +140,7 @@ class MPSConfig(EmulationConfig):
             "max_krylov_dim",
             "extra_krylov_tolerance",
             "num_gpus_to_use",
+            "optimize_qubit_ordering",
             "interaction_cutoff",
             "log_level",
             "log_file",
@@ -182,4 +187,28 @@ class MPSConfig(EmulationConfig):
                 filename=str(self.log_file),
                 filemode="w",
                 force=True,
+            )
+
+    def check_permutable_observables(self) -> None:
+        allowed_permutable_obs = set(
+            [
+                "bitstrings",
+                "occupation",
+                "correlation_matrix",
+                "statistics",
+                "energy",
+                "energy_variance",
+                "energy_second_moment",
+            ]
+        )
+
+        actual_obs = set([obs._base_tag for obs in self.observables])
+        not_allowed = actual_obs.difference(allowed_permutable_obs)
+        if not_allowed:
+            raise ValueError(
+                f"emu-mp allows only {allowed_permutable_obs} observables with"
+                " `optimize_qubit_ordering = True`."
+                f" you provided unsupported {not_allowed}"
+                " To use other observables, please set"
+                " `optimize_qubit_ordering = False` in `MPSConfig()`."
             )

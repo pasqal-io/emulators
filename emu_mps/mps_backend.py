@@ -55,7 +55,9 @@ class MPSBackend(EmulatorBackend):
         impl = create_impl(self._sequence, self._config)
         impl.init()  # This is separate from the constructor for testing purposes.
 
-        return self._run(impl)
+        results = self._run(impl)
+
+        return impl.permute_results(results, self._config.optimize_qubit_ordering)
 
     @staticmethod
     def _run(impl: MPSBackendImpl) -> Results:

@@ -91,6 +91,7 @@ class SVBackend(EmulatorBackend):
                 self.results,
             )
             self.time = time.time()
+            del H
 
         return self.results
 

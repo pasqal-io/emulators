@@ -6,7 +6,8 @@ import pulser
 
 from emu_mps.mps_config import MPSConfig
 from pulser.backend.config import EmulationConfig
-from pulser.backend import BitStrings
+from pulser.backend import BitStrings, StateResult
+from emu_mps.observables import EntanglementEntropy
 
 import pulser.noise_model
 
@@ -107,3 +108,21 @@ def test_default_constructors_for_all_config() -> None:
     # re.escape() avoid interpreting message symbols "{}"", "()","."" as regex
     with pytest.warns(UserWarning, match="^" + re.escape(msg)):
         MPSConfig(blabla=10)
+
+
+def test_optimize_qubit_ordering_unsupported_observables() -> None:
+    eval_times = [1.0]
+    state_res = StateResult(evaluation_times=eval_times)
+    entr = EntanglementEntropy(mps_site=0, evaluation_times=eval_times)
+
+    # Empty constr
+    MPSConfig(
+        optimize_qubit_ordering=True,
+    )
+
+    # Not allowed obs
+    with pytest.raises(ValueError):
+        MPSConfig(
+            observables=[state_res, entr],
+            optimize_qubit_ordering=True,
+        )
