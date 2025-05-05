@@ -5,7 +5,7 @@ from emu_sv.lindblad_operator import RydbergLindbladian
 from test.utils_testing import (
     dense_rydberg_hamiltonian,
     nn_interaction_matrix,
-    list_2_kron,
+    list_to_kron,
 )
 
 
@@ -84,7 +84,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
         else:
             lista.append(ident)
 
-    res = list_2_kron(lista, nqubits)
+    res = list_to_kron(lista)
 
     assert torch.allclose(updated_rho, res @ rho)
 
@@ -109,7 +109,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
         else:
             listdag.append(ident)
 
-    resdag = list_2_kron(listdag, nqubits)
+    resdag = list_to_kron(listdag)
 
     assert torch.allclose(updated_lk_rho_lkdag, res @ rho @ resdag)
 
@@ -179,8 +179,8 @@ def test_matmul_linblad_class():
 
     pre_result = torch.zeros_like(rho)
     for num, _ in enumerate(lista1):
-        res1 = list_2_kron(lista1[num], nqubits)
-        res2 = list_2_kron(lista2[num], nqubits)
+        res1 = list_to_kron(lista1[num])
+        res2 = list_to_kron(lista2[num])
         pre_result += 1.0j * res1 @ rho @ res2
 
     assert torch.allclose(result_ham, h_rho + result_kron_sum_LdagLrho + pre_result)

@@ -167,8 +167,7 @@ class RydbergLindbladian:
                 )
 
         # apply the interaction terms  ∑ᵢⱼ Uᵢⱼ nᵢ nⱼ
-        diag_term = self.diag.view(-1, 1) * density_matrix
-        H_den_matrix += diag_term
+        H_den_matrix += self.diag.view(-1, 1) * density_matrix
 
         # Heff - Heff^†=  [H, ρ] - 0.5i ∑ₖ Lₖ† Lₖρ - ρ 0.5i ∑ₖ Lₖ† Lₖρ
         H_den_matrix = H_den_matrix - H_den_matrix.conj().T

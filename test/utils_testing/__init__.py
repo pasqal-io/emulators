@@ -9,7 +9,7 @@ from .utils_testing import (
 )
 from .utils_interaction_matrix import randn_interaction_matrix, nn_interaction_matrix
 from .utils_dense_hamiltonians import dense_rydberg_hamiltonian
-from .utils_testing import list_2_kron
+from .utils_testing import list_to_kron
 
 __all__ = [
     "pulser_afm_sequence_ring",
@@ -22,5 +22,5 @@ __all__ = [
     "dense_rydberg_hamiltonian",
     "randn_interaction_matrix",
     "nn_interaction_matrix",
-    "list_2_kron",
+    "list_to_kron",
 ]
