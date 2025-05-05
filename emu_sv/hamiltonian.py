@@ -3,34 +3,36 @@ from emu_sv.state_vector import StateVector
 
 
 class RydbergHamiltonian:
-    """
-    Representation of the Rydberg Hamiltonian with light-matter interaction:
+    """Represents the Rydberg Hamiltonian for a system of interacting qubits
+    driven by laser fields, including detuning, phase, and interaction terms.
 
-        H = ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] - ∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
+    The Hamiltonian is defined as:
 
-    The Hamiltonian is parameterized by driving strengths or amplitudes Ωⱼ (`omegas`), detuning
-    values Δⱼ (`deltas`), phases ϕⱼ (`phis`) and interaction terms Uᵢⱼ (`interaction_matrix`).
-    Implements an efficient H*|ψ❭ as custom sparse matrix-vector multiplication.
+        H = ∑ⱼ (Ωⱼ/2)[cos(ϕⱼ) σˣⱼ + sin(ϕⱼ) σʸⱼ] - ∑ⱼ Δⱼ nⱼ + ∑_{i>j} Uᵢⱼ nᵢ nⱼ
+
+    where:
+        - Ωⱼ is the Rabi frequency on qubit j,
+        - Δⱼ is the detuning on qubit j,
+        - ϕⱼ is the laser phase on qubit j,
+        - Uᵢⱼ is the interaction strength between qubits i and j,
+        - nⱼ = |1⟩⟨1| is the number operator on qubit j.
 
     Attributes:
-        omegas (torch.Tensor): driving strength Ωⱼ for each qubit, scaled by a factor 1/2.
-        deltas (torch.Tensor): detuning values Δⱼ for each qubit.
-        phis (torch.Tensor): phase values ϕⱼ for each qubit.
-        interaction_matrix (torch.Tensor): matrix Uᵢⱼ representing pairwise Rydberg
-            interaction strengths between qubits.
+        omegas (torch.Tensor): vector of Rabi frequencies Ωⱼ / 2 for each qubit.
+        deltas (torch.Tensor): vector of detunings Δⱼ for each qubit.
+        phis (torch.Tensor): vector of phases ϕⱼ for each qubit.
+        interaction_matrix (torch.Tensor): matrix Uᵢⱼ for pairwise interactions.
+        device (torch.device): device on which all tensors are allocated.
+        diag (torch.Tensor): diagonal contribution to the Hamiltonian (detuning + interactions).
+        inds (torch.Tensor): index mapping for σˣ operations.
         nqubits (int): number of qubits in the system.
-        diag (torch.Tensor): diagonal elements of the Hamiltonian,
-            calculated based on `deltas` and `interaction_matrix`.
-        inds (torch.Tensor): index tensor used for vector manipulations
-            in matrix-vector multiplications.
 
     Methods:
-        __mul__(vec): implements matrix-vector multiplication with a state vector.
-        _create_diagonal(): constructs the diagonal elements of the Hamiltonian
-            based on `deltas` and `interaction_matrix`.
-        _apply_sigma_operators_complex(): apply all driving sigma operators,
-             with driving strenght `omegas` and phases `phis`.
-        _apply_sigma_operators_real(): only applies ∑ⱼ(Ωⱼ/2)σˣⱼ when all phases are zero (ϕⱼ=0).
+        __mul__(vec): Applies the Hamiltonian H to a state vector |ψ⟩.
+        _apply_sigma_operators_real(): Applies only σˣ terms (ϕⱼ = 0).
+        _apply_sigma_operators_complex(): Applies generalized σˣ/σʸ terms (ϕⱼ ≠ 0).
+        _create_diagonal(): Computes the diagonal part of H from Δⱼ and Uᵢⱼ.
+        expect(state): Computes ⟨ψ|H|ψ⟩ for a given StateVector.
     """
 
     def __init__(
@@ -107,7 +109,7 @@ class RydbergHamiltonian:
         Returns:
             the resulting state vector.
         """
-        c_omegas = self.omegas * torch.exp(1j * self.phis)
+        c_omegas = self.omegas * torch.exp(1.0j * self.phis)
 
         dim_to_act = 1
         for n, c_omega_n in enumerate(c_omegas):

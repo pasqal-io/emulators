@@ -1,3 +1,4 @@
+import functools
 import torch
 
 from typing import List, Optional, Union
@@ -236,3 +237,13 @@ def random_density_matrix(num_qubits: int):
 
     # Normalize the matrix
     return state / torch.trace(state)
+
+
+def list_to_kron(list_tensors: list[torch.Tensor]):
+    """Given a list of local torch tensor operators (nxn): [A1,A2,A3,...,An]
+
+    convert to a matrix using the Kroneker product ⊗.
+
+    Result: A1 ⊗ A2 ⊗ A3 ⊗ ... ⊗ An
+    """
+    return functools.reduce(torch.kron, list_tensors)
