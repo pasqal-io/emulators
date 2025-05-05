@@ -3,7 +3,8 @@ from unittest.mock import patch
 import pytest
 import torch
 
-from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
+from emu_mps.noise import pick_well_prepared_qubits
+from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 
 
 def test_compute_noise_from_lindbladians_empty():

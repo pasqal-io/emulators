@@ -5,7 +5,7 @@ import torch
 
 from emu_mps.hamiltonian import make_H, update_H
 from emu_base.pulser_adapter import HamiltonianType
-from emu_mps.noise import compute_noise_from_lindbladians
+from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 
 
 #########################################

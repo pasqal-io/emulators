@@ -54,10 +54,5 @@ def test_forward_with_phase(N: int, krylov_tolerance: float) -> None:
     H = dense_rydberg_hamiltonian(*ham_params).to(device)
     dt = 1.0  # 1 μs big time step
     ed = torch.linalg.matrix_exp(-1j * dt * H) @ state
-    krylov, _ = do_time_step(
-        dt,
-        *ham_params,
-        state,
-        krylov_tolerance,
-    )
+    krylov, _ = do_time_step(dt, *ham_params, state, krylov_tolerance)
     assert torch.allclose(ed, krylov, atol=krylov_tolerance)

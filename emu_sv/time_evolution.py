@@ -21,6 +21,7 @@ def do_time_step(
         device=state_vector.device,
     )
     op = lambda x: -1j * dt * (ham * x)
+
     return (
         krylov_exp(
             op,
