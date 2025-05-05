@@ -41,12 +41,12 @@ class DHDOmegaSparse:
     If ϕₖ=0, simplifies to ∂H/∂Ωₖ = 0.5σˣₖ
     """
 
-    def __init__(self, index: int, device: str, nqubits: int, phi: torch.Tensor):
+    def __init__(self, index: int, device: torch.device, nqubits: int, phi: torch.Tensor):
         self.index = index
         self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
         self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
         self.alpha = 0.5 * torch.exp(1j * phi).item()
-        if phi != 0:
+        if phi.is_nonzero():
             self._apply_sigmas = _apply_omega_complex
         else:  # ∂H/∂Ωₖ = 0.5σˣₖ
             self._apply_sigmas = _apply_omega_real
@@ -67,7 +67,7 @@ class DHDPhiSparse:
     def __init__(
         self,
         index: int,
-        device: str,
+        device: torch.device,
         nqubits: int,
         omega: torch.Tensor,
         phi: torch.Tensor,
@@ -90,7 +90,7 @@ class DHDDeltaSparse:
         ∂H/∂Δₖ = -nₖ
     """
 
-    def __init__(self, index: int, device: str, nqubits: int):
+    def __init__(self, index: int, device: torch.device, nqubits: int):
         self.index = index
         self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
         diag = torch.zeros(
@@ -156,7 +156,9 @@ class EvolveStateVector(torch.autograd.Function):
         ctx.tolerance = krylov_tolerance
         return res, ham
 
-    @no_type_check  # mypy complains and I don't know why
+    # mypy complains and I don't know why
+    # backward expects same number of gradients as output of forward, gham is unused
+    @no_type_check
     @staticmethod
     def backward(ctx: Any, grad_state_out: torch.Tensor, gham: None) -> tuple[
         None,
