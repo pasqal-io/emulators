@@ -567,9 +567,14 @@ def permute_occupations_and_correlations(results: Results, perm: torch.Tensor) -
 
         uuid_corr = results._find_uuid(corr)
         corrs = results._results[uuid_corr]
-        results._results[uuid_corr] = [
-            optimat.permute_tensor(corr, perm) for corr in corrs
-        ]
+        results._results[uuid_corr] = (
+            [  # vector quantities become lists after results are serialized (e.g. for checkpoints)
+                optimat.permute_tensor(
+                    corr if isinstance(corr, torch.Tensor) else torch.tensor(corr), perm
+                )
+                for corr in corrs
+            ]
+        )
 
 
 def permute_atom_order(results: Results, perm: torch.Tensor) -> None:
