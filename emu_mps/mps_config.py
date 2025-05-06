@@ -206,7 +206,7 @@ class MPSConfig(EmulationConfig):
         not_allowed = actual_obs.difference(allowed_permutable_obs)
         if not_allowed:
             raise ValueError(
-                f"emu-mp allows only {allowed_permutable_obs} observables with"
+                f"emu-mps allows only {allowed_permutable_obs} observables with"
                 " `optimize_qubit_ordering = True`."
                 f" you provided unsupported {not_allowed}"
                 " To use other observables, please set"
