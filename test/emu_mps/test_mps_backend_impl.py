@@ -327,12 +327,23 @@ def test_init_hamiltonian(update_H_mock, make_H_mock):
     assert update_H_mock.call_count == 1
 
 
-def test_permute_results() -> None:
+@pytest.mark.parametrize(
+    "list",
+    [
+        False,
+        True,
+    ],
+)
+def test_permute_results(list: bool) -> None:
     obs = ["bitstrings", "occupation", "correlation_matrix"]
     # I use list of for obs to mimic [obs_t0 and obs_t1]
     bitstrings = [Counter({"110": 1, "010": 2}), Counter({"110": 3, "010": 4})]
     occup = [torch.tensor([0.1, 0.2, 0.3]), torch.tensor([0.4, 0.5, 0.6])]
     corr = [torch.outer(occup[0], occup[0]), torch.outer(occup[1], occup[1])]
+
+    if list:
+        occup = [x.tolist() for x in occup]
+        corr = [x.tolist() for x in corr]
 
     mock_results = MagicMock()
     mock_results.atom_order = ("q0", "q1", "q2")
