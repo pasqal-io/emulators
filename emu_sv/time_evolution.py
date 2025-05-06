@@ -122,7 +122,7 @@ class EvolveStateVector(torch.autograd.Function):
         """
         Returns the time evolved state
             |ψ(t+dt)〉= exp(-i dt H)|ψ(t)〉
-        under the Hamiltonian H built from the input Tensor parameters, omega, delta and
+        under the Hamiltonian H built from the input Tensor parameters, omegas, deltas, phis and
         the interaction matrix.
 
         Args:
