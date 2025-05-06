@@ -38,7 +38,7 @@ def get_randn_ham_params(
     return omegas, deltas, phis, interaction
 
 
-def get_randn_state(nqubits: int, **kwargs):
+def get_randn_state(nqubits: int, **kwargs) -> torch.Tensor:
     state = torch.randn(2**nqubits, **kwargs)
     return state / state.norm()
 
