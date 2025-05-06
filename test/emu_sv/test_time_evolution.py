@@ -81,8 +81,8 @@ def test_backward(N, tolerance):
     dt = 1.0  # big timestep 1 μs
 
     # arbitrary vector to construct a scalar
-    r = torch.randn(2**N, dtype=dtype)
-    r *= torch.randn(1) / r.norm()
+    r = torch.randn(2**N, dtype=dtype, device=device)
+    r *= 0.71 / r.norm()
 
     state_out, _ = EvolveStateVector.apply(dt, *ham_params, state_in, tolerance)
     scalar = torch.vdot(r, state_out).real

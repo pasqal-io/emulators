@@ -7,6 +7,7 @@ from pytest import mark
 
 dtype = torch.complex128
 dtype_params = torch.float64
+device = "cpu"
 
 
 def frechet_exp(A: torch.Tensor, E: torch.Tensor):
@@ -32,10 +33,10 @@ def test_double_krylov(N, tolerance):
     deltas = torch.randn(N, dtype=dtype_params)
     phis = torch.randn(N, dtype=dtype_params)
     interactions = randn_interaction_matrix(N)
-    state = torch.randn(2**N, dtype=dtype)
+    state = torch.randn(2**N, dtype=dtype, device=device)
     state = state / state.norm()
 
-    grad = torch.randn(2**N, dtype=dtype)
+    grad = torch.randn(2**N, dtype=dtype, device=device)
 
     dt = 1.0  # big timestep 1 μs
     ham = RydbergHamiltonian(
@@ -43,7 +44,7 @@ def test_double_krylov(N, tolerance):
         deltas=deltas,
         phis=phis,
         interaction_matrix=interactions,
-        device=state.device,
+        device=device,
     )
 
     op = lambda x: -1j * dt * (ham * x)
@@ -55,7 +56,7 @@ def test_double_krylov(N, tolerance):
     grad_block = torch.stack(lanczos_vectors_grad)
     dU = state_block.mT @ dS @ grad_block.conj()
 
-    Hsv = dense_rydberg_hamiltonian(omegas, deltas, phis, interactions)
+    Hsv = dense_rydberg_hamiltonian(omegas, deltas, phis, interactions).to(device=device)
     E = state.unsqueeze(-1) @ grad.conj().unsqueeze(0)
     expected_dU = frechet_exp(-1j * dt * Hsv, E)
 

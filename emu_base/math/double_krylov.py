@@ -73,7 +73,9 @@ def lanczos(
     """
     converged = False
     lanczos_vectors = [v / v.norm()]
-    T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
+    T = torch.zeros(
+        max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype, device=v.device
+    )
 
     for j in range(max_krylov_dim):
         w = op(lanczos_vectors[-1])
