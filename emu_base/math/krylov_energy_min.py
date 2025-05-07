@@ -1,5 +1,5 @@
 import torch
-from typing import Callable, Tuple
+from typing import Callable, Tuple, cast
 
 DEFAULT_MAX_KRYLOV_DIM: int = 100
 
@@ -16,16 +16,15 @@ def _eigen_pair(
     """
     n = T_trunc.size(0)
     if n < 3:
-        eigvals, eigvecs = torch.linalg.eigh(T_trunc)
-    else:
-        eigvals, eigvecs = torch.lobpcg(
-            T_trunc,
-            k=1,
-            X=guessed_state,
-            tol=residual_tolerance,
-            largest=False,
-        )
-    return eigvals, eigvecs
+        return cast(Tuple[torch.Tensor, torch.Tensor], torch.linalg.eigh(T_trunc))
+
+    return torch.lobpcg(
+        T_trunc,
+        k=1,
+        X=guessed_state,
+        tol=residual_tolerance,
+        largest=False,
+    )
 
 
 def extend_initial_state(
@@ -35,6 +34,8 @@ def extend_initial_state(
     Extend the previous eigenvector guess by one zero element to match the
     increased size of T_truncated .
     """
+    if prev_eigen_vec is None:
+        raise ValueError("prev_eigen_vec cannot be None when extending the guess state.")
     prev_eigen_vec = prev_eigen_vec.view(-1, 1)
     zero = torch.zeros((1, 1), dtype=dtype, device=device)
     return torch.cat([prev_eigen_vec, zero], dim=0)
@@ -61,6 +62,7 @@ def krylov_energy_minimization_impl(
     v: torch.Tensor,
     residual_tolerance: float,
     norm_tolerance: float,
+    is_hermitian: bool,
     max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
 ) -> KrylovEnergyResult:
 
@@ -73,70 +75,66 @@ def krylov_energy_minimization_impl(
 
     converged = False
     happy_breakdown = False
+    iteration_count = 0
     prev_eigen_vec: torch.Tensor | None = None
 
     for j in range(max_krylov_dim):
         w = op(lanczos_vectors[-1])
 
-        for k in range(max(0, j - 1), j + 1):
+        k_start = max(0, j - 1) if is_hermitian else 0
+        for k in range(k_start, j + 1):
             alpha = torch.tensordot(lanczos_vectors[k].conj(), w, dims=w.dim())
             T[k, j] = alpha
             w = w - alpha * lanczos_vectors[k]
 
         beta = w.norm()
         T[j + 1, j] = beta
-        T[j, j + 1] = beta
 
         effective_dim = len(lanczos_vectors)
-        # increase size of T_truncated only when there is no happy breakdown
         size = effective_dim + (0 if beta < norm_tolerance else 1)
         T_truncated = T[:size, :size]
 
-        # create an initial guessed state for the eigensolver
+        # Initial guess state for LOBPCG solver
         if prev_eigen_vec is None:
-            guessed_state = torch.zeros(
-                T_truncated.size(0), 1, dtype=dtype, device=device
-            )
-            guessed_state[0, 0] = 1.0
-        else:
-
-            if beta > norm_tolerance:
-                guessed_state = extend_initial_state(prev_eigen_vec, dtype, device)
-
-        if beta < norm_tolerance:
-            happy_breakdown = True
-            # use guessed state from previous iteration, when beta > norm_tolerance
-            eigvals, eigvecs = _eigen_pair(T_truncated, guessed_state, residual_tolerance)
-            ground_energy = eigvals[0].real
-            ground_eigenvector = eigvecs[:, 0]
-
-            break
-
-        lanczos_vectors.append(w / beta)
+            guessed_state = torch.ones(size, 1, dtype=dtype, device=device)
 
         eigvals, eigvecs = _eigen_pair(T_truncated, guessed_state, residual_tolerance)
         ground_energy = eigvals[0].real
-        ground_eigenvector = eigvecs[:, 0]
-        prev_eigen_vec = ground_eigenvector.clone()
+        ground_eigenvector = eigvecs[:, 0]  # in Krylov subspace
 
-        # Residual convergence check
-        residual_norm = torch.norm(
-            T_truncated @ ground_eigenvector - ground_energy * ground_eigenvector
-        )
-        if residual_norm < residual_tolerance:
+        if beta < norm_tolerance:
+            final_state = sum(
+                c * vec for c, vec in zip(ground_eigenvector, lanczos_vectors)
+            )
+            final_state = final_state / final_state.norm()
+            happy_breakdown = True
             converged = True
+            iteration_count = j + 1
+            break
 
-    # true ground state
-    coeffs = ground_eigenvector
-    psi = sum(c * vec for c, vec in zip(coeffs, lanczos_vectors))
-    psi = psi / psi.norm()
+        lanczos_vectors.append(w / beta)
+        prev_eigen_vec = ground_eigenvector.clone()
+        guessed_state = extend_initial_state(prev_eigen_vec, dtype, device)
+
+        # Reconstruct final state in original Hilbert space
+        final_state = sum(c * vec for c, vec in zip(ground_eigenvector, lanczos_vectors))
+        final_state = final_state / final_state.norm()
+
+        # residual norm ||A v - lambda * v|| convergence check
+        residual_norm = torch.norm(op(final_state) - ground_energy * final_state)
+        if residual_norm < residual_tolerance:
+            happy_breakdown = False
+            converged = True
+            iteration_count = j + 1
+            break
+        iteration_count = j + 1
 
     return KrylovEnergyResult(
-        ground_state=psi,
+        ground_state=final_state,
         ground_energy=ground_energy.item(),
         converged=converged,
         happy_breakdown=happy_breakdown,
-        iteration_count=effective_dim,
+        iteration_count=iteration_count,
     )
 
 
@@ -145,6 +143,7 @@ def krylov_energy_minimization(
     v: torch.Tensor,
     norm_tolerance: float,
     residual_tolerance: float,
+    is_hermitian: bool = True,
     max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
 ) -> Tuple[torch.Tensor, float]:
 
@@ -153,6 +152,7 @@ def krylov_energy_minimization(
         v=v,
         norm_tolerance=norm_tolerance,
         residual_tolerance=residual_tolerance,
+        is_hermitian=is_hermitian,
         max_krylov_dim=max_krylov_dim,
     )
 
