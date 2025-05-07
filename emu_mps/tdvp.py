@@ -1,6 +1,7 @@
 import torch
 
 from emu_base import krylov_exp
+from emu_base.utils import deallocate_tensor
 from emu_mps import MPS, MPO
 from emu_mps.utils import split_tensor
 from emu_mps.mps_config import MPSConfig
@@ -122,6 +123,9 @@ def evolve_pair(
     combined_state_factors = torch.tensordot(
         left_state_factor, right_state_factor.to(left_device), dims=1
     ).reshape(left_bond_dim, 4, right_bond_dim)
+
+    deallocate_tensor(left_state_factor)
+    deallocate_tensor(right_state_factor)
 
     left_ham_factor = left_ham_factor.to(left_device)
     right_ham_factor = right_ham_factor.to(left_device)
