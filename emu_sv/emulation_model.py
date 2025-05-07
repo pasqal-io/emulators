@@ -28,7 +28,6 @@ class EmulationModel(Module):
         super().__init__()
 
         self.config = config
-        self.sim = SVBackend(parametrized_seq, config=config)
 
         if not parametrized_seq.is_parametrized():
             msg = "EmulationModel can only be initialized with a parametrized sequence."
@@ -71,11 +70,13 @@ class EmulationModel(Module):
     def update_sequence(self) -> None:
         """Builds a pulser.Sequence from a dict of updated torch parameters"""
         params_for_sequence = dict(self.trainable_params.items())
-        self.built_seq = self.parametrized_seq.build(**params_for_sequence)
+        built_seq = self.parametrized_seq.build(**params_for_sequence)
+        # only built sequences on Backend
+        self.sim = SVBackend(built_seq, config=self.config)
 
     def run(self) -> Results:
         result = self.sim.run()
-        self.run_stats = result.statistics["steps"]
+        # self.run_stats = result.statistics["steps"]
         return result
 
     def log_epoch(
