@@ -9,7 +9,7 @@ from emu_base import PulserData
 
 from emu_sv.state_vector import StateVector
 from emu_sv.sv_config import SVConfig
-from emu_sv.time_evolution import do_time_step
+from emu_sv.time_evolution import EvolveStateVector
 
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
@@ -54,10 +54,10 @@ class SVBackend(EmulatorBackend):
         else:
             state = StateVector.make(nqubits, gpu=self._config.gpu)
 
+        stepper = EvolveStateVector.apply
         for step in range(nsteps):
             dt = self.target_times[step + 1] - self.target_times[step]
-
-            state.vector, H = do_time_step(
+            state.vector, H = stepper(
                 dt * _TIME_CONVERSION_COEFF,
                 omega[step],
                 delta[step],
