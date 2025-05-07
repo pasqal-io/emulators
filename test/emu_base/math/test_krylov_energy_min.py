@@ -75,7 +75,7 @@ def check(
     assert result.happy_breakdown == expect_happy_breakdown
     assert result.iteration_count in {
         expected_iteration_count,
-        expected_iteration_count - 1,
+        expected_iteration_count + 1,
     }
 
     E_approx = result.ground_energy
