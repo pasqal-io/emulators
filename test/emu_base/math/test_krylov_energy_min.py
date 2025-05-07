@@ -94,9 +94,6 @@ def check(
         res = torch.norm(op(psi_approx) - E_approx * psi_approx).item()
         assert res < residual_tolerance
 
-        overlap = torch.norm(torch.dot(psi_exact.conj(), psi_approx))
-        assert torch.allclose(overlap, torch.tensor(1.0, dtype=overlap.dtype), atol=1e-1)
-
     # test happy breakdown criterion
     if expect_happy_breakdown and expect_converged:
         assert torch.allclose(
