@@ -39,7 +39,7 @@ def check(
 
     result = krylov_exp_impl(
         op,
-        v,
+        v.clone(),
         is_hermitian=is_hermitian,
         exp_tolerance=exp_tolerance,
         norm_tolerance=norm_tolerance,
@@ -203,7 +203,7 @@ def test_krylov_with_matrix():
 
     result = krylov_exp(
         op,
-        MxM,
+        MxM.clone(),
         exp_tolerance=1e-6,
         norm_tolerance=1e-6,
         is_hermitian=False,
@@ -249,7 +249,7 @@ def test_grad_accuracy_vs_matrix_exp():
     def Hcall(x: torch.Tensor) -> torch.Tensor:
         return -dt * 1j * H @ x
 
-    y = krylov_exp(Hcall, x, exp_tolerance=1e-12, norm_tolerance=1e-12)
+    y = krylov_exp(Hcall, x.clone(), exp_tolerance=1e-12, norm_tolerance=1e-12)
     loss = torch.vdot(x, y).real
     grads = torch.autograd.grad(loss, inputs=params, retain_graph=True)
 
@@ -281,7 +281,7 @@ def test_grad_accuracy_vs_analytical():
     M = make_random_hermitian_mat_from_params(dim)
 
     # |Ψt〉= U|Ψ0〉, loss = 〈Ψt|M|Ψt〉
-    psi_t = krylov_exp(Hcall, psi_0, exp_tolerance=1e-12, norm_tolerance=1e-12)
+    psi_t = krylov_exp(Hcall, psi_0.clone(), exp_tolerance=1e-12, norm_tolerance=1e-12)
     loss = torch.vdot(psi_t, M @ psi_t).real
 
     # ∂loss/∂α with automatic differentiation

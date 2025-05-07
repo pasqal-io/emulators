@@ -1,6 +1,8 @@
 from typing import Callable
 import torch
 
+from emu_base.utils import deallocate_tensor
+
 DEFAULT_MAX_KRYLOV_DIM: int = 100
 
 
@@ -39,8 +41,12 @@ def krylov_exp_impl(
     """
 
     initial_norm = v.norm()
+    normalized_v = v / initial_norm
 
-    lanczos_vectors = [v / initial_norm]
+    if not v.requires_grad:
+        deallocate_tensor(v)
+
+    lanczos_vectors = [normalized_v]
     T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
 
     for j in range(max_krylov_dim):
