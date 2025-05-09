@@ -34,7 +34,7 @@ def get_randn_ham_params(
         phis = torch.randn(nqubits, **kwargs)
     else:
         phis = torch.zeros(nqubits)
-    interaction = randn_interaction_matrix(nqubits)
+    interaction = randn_interaction_matrix(nqubits, **kwargs)
     return omegas, deltas, phis, interaction
 
 
@@ -86,16 +86,11 @@ def test_backward(N, tolerance):
 
     state_out, _ = EvolveStateVector.apply(dt, *ham_params, state_in, tolerance)
     scalar = torch.vdot(r, state_out).real
-    omegas, deltas, phis = ham_params[0:3]
-    grads = torch.autograd.grad(
-        scalar, (omegas, deltas, phis, state_in), retain_graph=True
-    )
+    grads = torch.autograd.grad(scalar, (*ham_params, state_in))
 
     expected = do_dense_time_step(dt, *ham_params, state_in)
     expected_scalar = torch.vdot(r, expected).real
-    expected_grads = torch.autograd.grad(
-        expected_scalar, (omegas, deltas, phis, state_in), retain_graph=True
-    )
+    expected_grads = torch.autograd.grad(expected_scalar, (*ham_params, state_in))
 
     for g, eg in zip(grads, expected_grads):
         assert torch.allclose(g, eg, rtol=tolerance)

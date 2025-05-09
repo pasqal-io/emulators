@@ -32,7 +32,7 @@ def test_double_krylov(N, tolerance):
     omegas = torch.randn(N, dtype=dtype_params)
     deltas = torch.randn(N, dtype=dtype_params)
     phis = torch.randn(N, dtype=dtype_params)
-    interactions = randn_interaction_matrix(N)
+    interactions = randn_interaction_matrix(N, dtype=dtype_params)
     state = torch.randn(2**N, dtype=dtype, device=device)
     state = state / state.norm()
 
