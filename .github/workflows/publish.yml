@@ -1,5 +1,5 @@
-name: Publish emu-base
-run-name: Publish emu-base
+name: Publish emulators
+run-name: Publish emulators
 
 on:
   push:
