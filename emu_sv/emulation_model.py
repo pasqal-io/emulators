@@ -3,15 +3,14 @@ from time import time
 from resource import RUSAGE_SELF, getrusage
 import json
 from pathlib import Path
-
+from typing import Mapping
 import torch
-from torch.nn import Module
 from pulser import Sequence
-from emu_sv import SVConfig, SVBackend
+from emu_sv import SVBackend
 from pulser.backend import Results
 
 
-class EmulationModel(Module):
+class EmulationModel:
     """
     Emulation model for torch.optim loops.
 
@@ -21,39 +20,50 @@ class EmulationModel(Module):
     def __init__(
         self,
         parametrized_seq: Sequence,
-        trainable_params: dict[str, torch.Tensor],
-        config: SVConfig,
+        bknd: SVBackend,
+        trainable_params: Mapping,
     ):
-
-        super().__init__()
-
-        self.config = config
+        if not isinstance(bknd, SVBackend):
+            raise AttributeError("`config` must be a SVBackend.")
+        self.bknd = bknd
 
         if not parametrized_seq.is_parametrized():
-            msg = "EmulationModel can only be initialized with a parametrized sequence."
-            raise AttributeError(msg)
+            raise AttributeError(
+                "EmulationModel can only be initialized with parametrized sequences."
+            )
         self.parametrized_seq = parametrized_seq
 
-        # register trainable parameters
-        if trainable_params is not None:
-            self.trainable_params = torch.nn.ParameterDict(
-                {
-                    name: torch.nn.Parameter(val, requires_grad=True)
-                    for name, val in trainable_params.items()
-                }
-            )
-        else:
-            self.trainable_params = torch.nn.ParameterDict(
-                {
-                    name: torch.nn.Parameter(torch.rand(1) + 1.0, requires_grad=True)
-                    for name in parametrized_seq.declared_variables
-                }
-            )
+        if trainable_params is None:
+            raise AttributeError("No trainable parameters were provided.")
+        self.trainable_params = {
+            name: torch.as_tensor(val).requires_grad_(True)
+            for name, val in trainable_params.items()
+        }
 
-        # build sequence from parameterized one
-        self.update_sequence()
+        self.update()
+        self.logger = EmulationModelLogger(self.trainable_params)
 
-        # init logger for stats, loss and parameters
+    def update(self) -> None:
+        """Update the sequence with the new parameters"""
+        built_seq = self.parametrized_seq.build(**self.trainable_params)  # type: ignore
+        self.bknd._sequence = built_seq
+
+    def run(self) -> Results:
+        return self.bknd.run()
+
+    def parameters(self) -> list[torch.Tensor]:
+        return [*self.trainable_params.values()]
+
+    def log_epoch(
+        self, epoch: int, loss: torch.Tensor, expectation: torch.Tensor
+    ) -> None:
+        self.logger._log_epoch_results(loss, expectation)
+        self.logger._log_epoch_stats(epoch)
+        self.logger._print_log(epoch, loss)
+
+
+class EmulationModelLogger:
+    def __init__(self, trainable_params: Mapping[str, torch.Tensor]):
         self.log: dict = {
             "epoch": [],
             "loss": [],
@@ -63,28 +73,10 @@ class EmulationModel(Module):
             "RSScpu": [],
             "timestamp": time(),
         }
+        self.trainable_params = trainable_params
         for name in self.trainable_params:
             self.log[name] = []
             self.log[f"{name}.grad"] = []
-
-    def update_sequence(self) -> None:
-        """Builds a pulser.Sequence from a dict of updated torch parameters"""
-        params_for_sequence = dict(self.trainable_params.items())
-        built_seq = self.parametrized_seq.build(**params_for_sequence)
-        # only built sequences on Backend
-        self.sim = SVBackend(built_seq, config=self.config)
-
-    def run(self) -> Results:
-        result = self.sim.run()
-        # self.run_stats = result.statistics["steps"]
-        return result
-
-    def log_epoch(
-        self, epoch: int, loss: torch.Tensor, expectation: torch.Tensor
-    ) -> None:
-        self._log_epoch_results(loss, expectation)
-        self._log_epoch_stats(epoch)
-        self._print_log(epoch, loss)
 
     def _print_log(self, epoch: int, loss: torch.Tensor) -> None:
         print(f"{epoch})", "loss:", f"{loss.item():>6f}")
@@ -109,9 +101,9 @@ class EmulationModel(Module):
         for name, param in self.trainable_params.items():
             self.log[name].append(param.item())
 
-    def log_grads(self) -> None:
-        for name, param in self.trainable_params.items():
-            self.log[f"{name}.grad"].append(param.grad.item())
+    # def log_grads(self) -> None:
+    #    for name, param in self.trainable_params.items():
+    #        self.log[f"{name}.grad"].append(param.grad.item())
 
     def _log_epoch_stats(self, epoch: int) -> None:
         max_mem_cpu = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
