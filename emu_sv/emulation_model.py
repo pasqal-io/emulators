@@ -21,7 +21,7 @@ class EmulationModel:
         self,
         parametrized_seq: Sequence,
         bknd: SVBackend,
-        trainable_params: Mapping,
+        trainable_params: Mapping[str, torch.Tensor],
     ):
         if not isinstance(bknd, SVBackend):
             raise AttributeError("`config` must be a SVBackend.")
