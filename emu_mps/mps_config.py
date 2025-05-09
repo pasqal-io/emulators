@@ -43,8 +43,14 @@ class MPSConfig(EmulationConfig):
         num_gpus_to_use: during the simulation, distribute the state over this many GPUs
             0=all factors to cpu. As shown in the benchmarks, using multiple GPUs might
             alleviate memory pressure per GPU, but the runtime should be similar.
+        optimize_qubit_ordering: Optimize the register ordering. Improves performance and
+            accuracy, but disables certain features.
+        interaction_cutoff: Set interaction coefficients below this value to `0`.
+            Potentially improves runtime and memory consumption.
+        log_level: How much to log. Set to `logging.WARN` to get rid of the timestep info.
+        log_file: If specified, log to this file rather than stout.
         autosave_prefix: filename prefix for autosaving simulation state to file
-        autosave_dt: minimum time interval in seconds between two autosaves
+        autosave_dt: minimum time interval in seconds between two autosaves.
             Saving the simulation state is only possible at specific times,
             therefore this interval is only a lower bound.
         kwargs: arguments that are passed to the base class
