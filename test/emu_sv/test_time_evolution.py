@@ -28,18 +28,18 @@ def do_dense_time_step(
 def get_randn_ham_params(
     nqubits: int, with_phase: bool = False, **kwargs
 ) -> tuple[torch.Tensor]:
-    omegas = torch.randn(nqubits, **kwargs)
-    deltas = torch.randn(nqubits, **kwargs)
+    omegas = torch.randn(nqubits, dtype=dtype_params, **kwargs)
+    deltas = torch.randn(nqubits, dtype=dtype_params, **kwargs)
     if with_phase:
-        phis = torch.randn(nqubits, **kwargs)
+        phis = torch.randn(nqubits, dtype=dtype_params, **kwargs)
     else:
-        phis = torch.zeros(nqubits)
+        phis = torch.zeros(nqubits, dtype=dtype_params)
     interaction = randn_interaction_matrix(nqubits, **kwargs)
     return omegas, deltas, phis, interaction
 
 
 def get_randn_state(nqubits: int, **kwargs) -> torch.Tensor:
-    state = torch.randn(2**nqubits, **kwargs)
+    state = torch.randn(2**nqubits, dtype=dtype, **kwargs)
     return state / state.norm()
 
 
@@ -54,8 +54,8 @@ def get_randn_state(nqubits: int, **kwargs) -> torch.Tensor:
 )
 def test_forward(N: int, tolerance: float, with_phase: bool) -> None:
     torch.manual_seed(1337)
-    ham_params = get_randn_ham_params(N, with_phase=with_phase, dtype=dtype_params)
-    state_in = get_randn_state(N, dtype=dtype, device=device)
+    ham_params = get_randn_ham_params(N, with_phase=with_phase)
+    state_in = get_randn_state(N, device=device)
     dt = 1.0  # 1 μs big time step
 
     expected = do_dense_time_step(dt, *ham_params, state_in)
@@ -74,14 +74,12 @@ def test_forward(N: int, tolerance: float, with_phase: bool) -> None:
 )
 def test_backward(N, tolerance):
     torch.manual_seed(1337)
-    ham_params = get_randn_ham_params(
-        N, with_phase=True, dtype=dtype_params, requires_grad=True
-    )
-    state_in = get_randn_state(N, dtype=dtype, device=device, requires_grad=True)
+    ham_params = get_randn_ham_params(N, with_phase=True, requires_grad=True)
+    state_in = get_randn_state(N, device=device, requires_grad=True)
     dt = 1.0  # big timestep 1 μs
 
     # arbitrary vector to construct a scalar
-    r = torch.randn(2**N, dtype=dtype, device=device)
+    r = torch.randn(2**N, dtype=state_in.dtype, device=state_in.device)
     r *= 0.71 / r.norm()
 
     state_out, _ = EvolveStateVector.apply(dt, *ham_params, state_in, tolerance)
