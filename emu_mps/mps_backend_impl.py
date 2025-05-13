@@ -7,6 +7,7 @@ import time
 import typing
 import uuid
 
+from copy import deepcopy
 from collections import Counter
 from enum import Enum, auto
 from resource import RUSAGE_SELF, getrusage
@@ -168,9 +169,10 @@ class MPSBackendImpl:
             )
 
     def __getstate__(self) -> dict:
-        for obs in self.config.observables:
-            obs.apply = MethodType(type(obs).apply, obs)  # type: ignore[method-assign]
         d = self.__dict__.copy()
+        self.config = deepcopy(self.config)
+        for obs in d["config"].observables:
+            obs.apply = MethodType(type(obs).apply, obs)  # type: ignore[method-assign]
         # mypy thinks the method below is an attribute, because of the __getattr__ override
         d["results"] = self.results._to_abstract_repr()  # type: ignore[operator]
         return d
