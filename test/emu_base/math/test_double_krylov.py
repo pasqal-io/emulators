@@ -7,6 +7,7 @@ from pytest import mark
 
 dtype = torch.complex128
 dtype_params = torch.float64
+# to test locally on GPU just change device here
 device = "cpu"
 
 
@@ -32,7 +33,7 @@ def test_double_krylov(N, tolerance):
     omegas = torch.randn(N, dtype=dtype_params)
     deltas = torch.randn(N, dtype=dtype_params)
     phis = torch.randn(N, dtype=dtype_params)
-    interactions = randn_interaction_matrix(N, dtype=dtype_params)
+    interactions = randn_interaction_matrix(N)
     state = torch.randn(2**N, dtype=dtype, device=device)
     state = state / state.norm()
 
