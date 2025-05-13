@@ -87,22 +87,19 @@ class DHDPhiSparse:
 class DHDDeltaSparse:
     """
     Derivative of the Rydberg Hamiltonian respect to Delta:
-        ∂H/∂Δₖ = -nₖ
+        ∂H/∂Δᵢ = -nᵢ
     """
 
-    def __init__(self, index: int, device: torch.device, nqubits: int):
-        self.index = index
-        self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
-        diag = torch.zeros(
-            *self.shape,
-            dtype=torch.complex128,
-            device=device,
-        )
-        diag[:, 1] = -1.0
-        self.diag = diag.reshape(-1)
+    def __init__(self, i: int, nqubits: int):
+        self.nqubits = nqubits
+        self.shape = (2**i, 2, 2 ** (nqubits - i - 1))
 
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
-        return vec * self.diag
+        result = vec.clone()
+        result = result.reshape(vec.shape[0], *self.shape)
+        result[:, :, 0] = 0.0
+        result[:, :, 1] *= -1.0
+        return result.reshape(vec.shape[0], 2**self.nqubits)
 
 
 class DHDUSparse:
@@ -111,18 +108,16 @@ class DHDUSparse:
         ∂H/∂Uᵢⱼ = nᵢnⱼ
     """
 
-    def __init__(self, i: int, j: int, device: torch.device, nqubits: int):
+    def __init__(self, i: int, j: int, nqubits: int):
         self.shape = (2**i, 2, 2 ** (j - i - 1), 2, 2 ** (nqubits - j - 1))
-        diag = torch.zeros(
-            *self.shape,
-            dtype=torch.complex128,
-            device=device,
-        )
-        diag[:, 1, :, 1] = 1.0
-        self.diag = diag.reshape(-1)
+        self.nqubits = nqubits
 
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
-        return vec * self.diag
+        result = vec.clone()
+        result = result.reshape(vec.shape[0], *self.shape)
+        result[:, :, 0] = 0.0
+        result[:, :, 1, :, 0] = 0.0
+        return result.reshape(vec.shape[0], 2**self.nqubits)
 
 
 class EvolveStateVector(torch.autograd.Function):
@@ -286,9 +281,7 @@ class EvolveStateVector(torch.autograd.Function):
         if ctx.needs_input_grad[2]:
             grad_deltas = torch.zeros_like(deltas)
             for i in range(nqubits):
-                # dh as per the docstring
-                dhd = DHDDeltaSparse(i, e_l.device, nqubits)
-                # compute the trace
+                dhd = DHDDeltaSparse(i, nqubits)
                 v = dhd @ e_l
                 grad_deltas[i] = (-1j * dt * torch.tensordot(Vg.conj(), v)).real
 
@@ -303,7 +296,7 @@ class EvolveStateVector(torch.autograd.Function):
             grad_int_mat = torch.zeros_like(interaction_matrix)
             for i in range(nqubits):
                 for j in range(i + 1, nqubits):
-                    dhu = DHDUSparse(i, j, e_l.device, nqubits)
+                    dhu = DHDUSparse(i, j, nqubits)
                     v = dhu @ e_l
                     grad_int_mat[i, j] = (-1j * dt * torch.tensordot(Vg.conj(), v)).real
 
