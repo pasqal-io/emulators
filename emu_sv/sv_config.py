@@ -96,6 +96,7 @@ class SVConfig(EmulationConfig):
             self.logger.warning(
                 "Warning: The runs and samples_per_run "
                 "values of the NoiseModel are ignored!"
+                "Only effective noise channels are supported."
             )
 
     def _expected_kwargs(self) -> set[str]:
