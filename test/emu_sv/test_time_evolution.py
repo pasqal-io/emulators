@@ -6,8 +6,7 @@ from test.utils_testing import (
 )
 from emu_sv.time_evolution import EvolveStateVector
 
-dtype = torch.complex128
-dtype_params = torch.float64
+# to test locally on GPU just change device here
 device = "cpu"
 
 
@@ -26,19 +25,21 @@ def do_dense_time_step(
 
 
 def get_randn_ham_params(
-    nqubits: int, with_phase: bool = False, **kwargs
+    nqubits: int, with_phase: bool = False, dtype: torch.dtype = torch.float64, **kwargs
 ) -> tuple[torch.Tensor]:
-    omegas = torch.randn(nqubits, dtype=dtype_params, **kwargs)
-    deltas = torch.randn(nqubits, dtype=dtype_params, **kwargs)
+    omegas = torch.randn(nqubits, dtype=dtype, **kwargs)
+    deltas = torch.randn(nqubits, dtype=dtype, **kwargs)
     if with_phase:
-        phis = torch.randn(nqubits, dtype=dtype_params, **kwargs)
+        phis = torch.randn(nqubits, dtype=dtype, **kwargs)
     else:
-        phis = torch.zeros(nqubits, dtype=dtype_params)
+        phis = torch.zeros(nqubits, dtype=dtype)
     interaction = randn_interaction_matrix(nqubits, **kwargs)
     return omegas, deltas, phis, interaction
 
 
-def get_randn_state(nqubits: int, **kwargs) -> torch.Tensor:
+def get_randn_state(
+    nqubits: int, dtype: torch.dtype = torch.complex128, **kwargs
+) -> torch.Tensor:
     state = torch.randn(2**nqubits, dtype=dtype, **kwargs)
     return state / state.norm()
 
