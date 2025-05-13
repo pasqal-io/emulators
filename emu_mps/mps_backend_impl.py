@@ -18,6 +18,7 @@ from pulser import Sequence
 from pulser.backend import EmulationConfig, Observable, Results, State
 
 from emu_base import DEVICE_COUNT, PulserData
+from emu_base.utils import deallocate_tensor
 from emu_base.math.brents_root_finding import BrentsRootFinder
 
 from emu_mps.hamiltonian import make_H, update_H
@@ -32,6 +33,7 @@ from emu_mps.tdvp import (
     evolve_single,
     new_right_bath,
     right_baths,
+    left_baths,
 )
 from emu_mps.utils import (
     extended_mpo_factors,
@@ -380,6 +382,7 @@ class MPSBackendImpl:
                     self.hamiltonian.factors[self.tdvp_index],
                 ).to(self.state.factors[self.tdvp_index + 1].device)
             )
+            deallocate_tensor(self.left_baths[-2])
             self._evolve(self.tdvp_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
             self.tdvp_index += 1
@@ -396,6 +399,9 @@ class MPSBackendImpl:
                 orth_center_right=False,
             )
             self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+            self.left_baths = left_baths(
+                self.state, self.hamiltonian, final_qubit=self.qubit_count - 3
+            )
 
         elif (
             1 <= self.tdvp_index and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
@@ -411,7 +417,7 @@ class MPSBackendImpl:
             )
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
-                self.right_baths[-2] = torch.zeros(0)
+                deallocate_tensor(self.right_baths[-2])
 
             self._evolve(self.tdvp_index, dt=-delta_time / 2)
             self.left_baths.pop()

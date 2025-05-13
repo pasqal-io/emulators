@@ -3,7 +3,7 @@ import torch
 from emu_base import krylov_exp
 from emu_base.utils import deallocate_tensor
 from emu_mps import MPS, MPO
-from emu_mps.utils import split_tensor
+from emu_mps.utils import split_tensor, new_left_bath
 from emu_mps.mps_config import MPSConfig
 
 
@@ -35,6 +35,29 @@ def right_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
     for i in range(len(state.factors) - 1, final_qubit - 1, -1):
         bath = new_right_bath(bath, state.factors[i], op.factors[i])
         bath = bath.to(state.factors[i - 1].device)
+        baths.append(bath)
+    return baths
+
+
+"""
+function to compute the left baths. The three indices in the bath are as follows:
+(bond of state conj, bond of operator, bond of state)
+The baths have shape
+xx-
+xx-
+xx-
+with the index ordering (top, middle, bottom)
+bath tensors are put on the device of the factor to the right
+"""
+
+
+def left_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
+    state_factor = state.factors[0]
+    bath = torch.ones(1, 1, 1, device=state_factor.device, dtype=state_factor.dtype)
+    baths = [bath]
+    for i in range(final_qubit + 1):
+        bath = new_left_bath(bath, state.factors[i], op.factors[i])
+        bath = bath.to(state.factors[i + 1].device)
         baths.append(bath)
     return baths
 
