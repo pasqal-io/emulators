@@ -98,8 +98,7 @@ class DHDDeltaSparse:
         result = vec.clone()
         result = result.reshape(vec.shape[0], *self.shape)
         result[:, :, 0] = 0.0
-        result[:, :, 1] *= -1.0
-        return result.reshape(vec.shape[0], 2**self.nqubits)
+        return -result.reshape(vec.shape[0], 2**self.nqubits)
 
 
 class DHDUSparse:
