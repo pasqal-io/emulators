@@ -107,7 +107,7 @@ class DHDDeltaSparse:
 
 class DHDUSparse:
     """
-    Derivative of the Rydberg Hamiltonian respect to Delta:
+    Derivative of the Rydberg Hamiltonian respect to the interaction matrix:
         ∂H/∂Uᵢⱼ = nᵢnⱼ
     """
 
@@ -237,9 +237,10 @@ class EvolveStateVector(torch.autograd.Function):
 
         - The action of the derivatives of the Hamiltonian with
         respect to the input parameters are implemented separately in
-            - ∂H/∂Ω: `DHDOmegaSparse`
-            - ∂H/∂Δ: `DHDDeltaSparse`
-            - ∂H/∂φ: `DHDPhiSparse`
+            - ∂H/∂Ω:  `DHDOmegaSparse`
+            - ∂H/∂Δ:  `DHDDeltaSparse`
+            - ∂H/∂φ:  `DHDPhiSparse`
+            - ∂H/∂Uᵢⱼ `DHDUSparse`
 
         Then, the resulting gradient respect to a generic parameter reads:
             gΩ = Tr( -i dt ∂H/∂Ω @ Vs @ dS @ Vg* )
