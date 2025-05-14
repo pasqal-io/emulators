@@ -65,7 +65,7 @@ def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     for i in range(nqubits):
         for j in range(i + 1, nqubits):
             rij = qubit_positions[i] - qubit_positions[j]
-            cosine = torch.dot(rij, mag_field) #/ rij.norm()
+            cosine = torch.dot(rij, mag_field)  # / rij.norm()
             interaction_matrix[i, j] = (
                 c3 * (1 - 3 * cosine**2) / dist3(qubit_positions[i], qubit_positions[j])
             )
