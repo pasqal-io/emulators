@@ -7,10 +7,12 @@ name = "emu-base"
 description = "Pasqal base classes for emulators"
 readme = "../../README.md"
 authors = [
-    { name = "Anton Quelle", email = "anton.quelle@pasqal.com"},
-    { name = "Mauro Mendizabal", email="mauro.mendizabal-pico@pasqal.com" },
+    { name = "Kemal Bidzhiev", email="kemal.bidzhiev@pasqal.com" }
     { name = "Stefano Grava", email="stefano.grava@pasqal.com" },
     { name = "Pablo Le Henaff", email="pablo.le-henaff@pasqal.com" }
+    { name = "Mauro Mendizabal", email="mauro.mendizabal-pico@pasqal.com" },
+    { name = "Elie Merhej", email="elie.merhej@pasqal.com" }
+    { name = "Anton Quelle", email = "anton.quelle@pasqal.com"},
 ]
 requires-python = ">=3.10"
 license = {file = "../../LICENSE"}
