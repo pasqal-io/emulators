@@ -24,7 +24,6 @@ def _get_qubit_positions(
     Each element will be given as [Rx,Ry,Rz]"""
 
     positions = [position.as_tensor() for position in register.qubits.values()]
-
     if len(positions[0]) == 2:
         return [torch.cat((position, torch.zeros(1))) for position in positions]
     return positions
@@ -33,57 +32,44 @@ def _get_qubit_positions(
 def _rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     """
     Returns the Rydberg interaction matrix from the qubit positions.
-        Uᵢⱼ=C₆/|rᵢ-rⱼ|⁶ (nᵢ⊗ nⱼ)
+        Uᵢⱼ=C₆/|rᵢ-rⱼ|⁶
     """
 
-    num_qubits = len(sequence.register.qubit_ids)
-
+    nqubits = len(sequence.register.qubit_ids)
     c6 = sequence.device.interaction_coeff
-
     qubit_positions = _get_qubit_positions(sequence.register)
-    interaction_matrix = torch.zeros(num_qubits, num_qubits)
 
-    for numi in range(len(qubit_positions)):
-        for numj in range(numi + 1, len(qubit_positions)):
-            interaction_matrix[numi][numj] = (
-                c6 / dist2(qubit_positions[numi], qubit_positions[numj]) ** 3
+    interaction_matrix = torch.zeros(nqubits, nqubits)
+    for i in range(nqubits):
+        for j in range(i + 1, nqubits):
+            interaction_matrix[i, j] = (
+                c6 / dist2(qubit_positions[i], qubit_positions[j]) ** 3
             )
-            interaction_matrix[numj, numi] = interaction_matrix[numi, numj]
+            interaction_matrix[j, i] = interaction_matrix[i, j]
     return interaction_matrix
 
 
 def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     """
     Computes the XY interaction matrix from the qubit positions.
-    C₃ (1−3 cos(𝜃ᵢⱼ)²)/ Rᵢⱼ³ (𝜎ᵢ⁺ 𝜎ⱼ⁻ +  𝜎ᵢ⁻ 𝜎ⱼ⁺)
+        Uᵢⱼ=C₃(1−3cos(𝜃ᵢⱼ)²)/|rᵢ-rⱼ|³
     """
-    num_qubits = len(sequence.register.qubit_ids)
-
+    nqubits = len(sequence.register.qubit_ids)
     c3 = sequence.device.interaction_coeff_xy
-
     qubit_positions = _get_qubit_positions(sequence.register)
-    interaction_matrix = torch.zeros(num_qubits, num_qubits)
-    mag_field = torch.tensor(sequence.magnetic_field)  # by default [0.0,0.0,30.0]
-    mag_norm = torch.linalg.norm(mag_field)
+    mag_field = torch.tensor(sequence.magnetic_field, dtype=torch.float64)
+    print(mag_field)
+    mag_field /= mag_field.norm()
 
-    for numi in range(len(qubit_positions)):
-        for numj in range(numi + 1, len(qubit_positions)):
-            cosine = 0
-            if mag_norm >= 1e-8:  # selected by hand
-                cosine = torch.dot(
-                    (qubit_positions[numi] - qubit_positions[numj]), mag_field
-                ) / (
-                    torch.linalg.norm(qubit_positions[numi] - qubit_positions[numj])
-                    * mag_norm
-                )
-
-            interaction_matrix[numi][numj] = (
-                c3  # check this value with pulser people
-                * (1 - 3 * cosine**2)
-                / dist3(qubit_positions[numi], qubit_positions[numj])
+    interaction_matrix = torch.zeros(nqubits, nqubits)
+    for i in range(nqubits):
+        for j in range(i + 1, nqubits):
+            rij = qubit_positions[i] - qubit_positions[j]
+            cosine = torch.dot(rij, mag_field) #/ rij.norm()
+            interaction_matrix[i, j] = (
+                c3 * (1 - 3 * cosine**2) / dist3(qubit_positions[i], qubit_positions[j])
             )
-            interaction_matrix[numj, numi] = interaction_matrix[numi, numj]
-
+            interaction_matrix[j, i] = interaction_matrix[i, j]
     return interaction_matrix
 
 
