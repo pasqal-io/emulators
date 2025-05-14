@@ -7,6 +7,7 @@ from pytest import mark
 
 dtype = torch.complex128
 dtype_params = torch.float64
+# to test locally on GPU just change device here
 device = "cpu"
 
 
@@ -36,7 +37,7 @@ def test_double_krylov(N, tolerance):
     state = torch.randn(2**N, dtype=dtype, device=device)
     state = state / state.norm()
 
-    grad = torch.randn(2**N, dtype=dtype, device=device)
+    grad = torch.randn(2**N, dtype=state.dtype, device=state.device)
 
     dt = 1.0  # big timestep 1 μs
     ham = RydbergHamiltonian(
@@ -57,6 +58,7 @@ def test_double_krylov(N, tolerance):
     dU = state_block.mT @ dS @ grad_block.conj()
 
     Hsv = dense_rydberg_hamiltonian(omegas, deltas, phis, interactions).to(device=device)
+    # build E = |state❭❬grad|
     E = state.unsqueeze(-1) @ grad.conj().unsqueeze(0)
     expected_dU = frechet_exp(-1j * dt * Hsv, E)
 
