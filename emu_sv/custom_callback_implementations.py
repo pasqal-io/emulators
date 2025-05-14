@@ -8,7 +8,7 @@ from pulser.backend import (
     Occupation,
     Energy,
 )
-
+from emu_sv.density_matrix_state import DensityMatrix
 from emu_sv.state_vector import StateVector
 from emu_sv.dense_operator import DenseOperator
 from emu_sv.hamiltonian import RydbergHamiltonian
@@ -28,6 +28,26 @@ def qubit_occupation_sv_impl(
     occupation = torch.zeros(nqubits, dtype=torch.float64, device=state.vector.device)
     for i in range(nqubits):
         state_tensor = state.vector.view(2**i, 2, -1)
+        # nᵢ is a projector and therefore nᵢ == nᵢnᵢ
+        # ❬ψ|nᵢ|ψ❭ == ❬ψ|nᵢnᵢ|ψ❭ == ❬ψ|nᵢ * nᵢ|ψ❭ == ❬ϕ|ϕ❭ == |ϕ|**2
+        occupation[i] = torch.linalg.vector_norm(state_tensor[:, 1]) ** 2
+    return occupation.cpu()
+
+
+def qubit_occupation_sv_den_mat_impl(
+    self: Occupation,
+    *,
+    config: EmulationConfig,
+    state: DensityMatrix,
+    hamiltonian: DenseOperator,
+) -> torch.Tensor:
+    """
+    Custom implementation of the occupation ❬ψ|nᵢ|ψ❭ for the state vector solver.
+    """
+    nqubits = state.n_qudits
+    occupation = torch.zeros(nqubits, dtype=torch.float64, device=state.matrix.device)
+    for i in range(nqubits):
+        state_tensor = state.matrix.view(2**i, 2, -1)
         # nᵢ is a projector and therefore nᵢ == nᵢnᵢ
         # ❬ψ|nᵢ|ψ❭ == ❬ψ|nᵢnᵢ|ψ❭ == ❬ψ|nᵢ * nᵢ|ψ❭ == ❬ϕ|ϕ❭ == |ϕ|**2
         occupation[i] = torch.linalg.vector_norm(state_tensor[:, 1]) ** 2

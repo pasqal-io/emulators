@@ -156,7 +156,7 @@ class MPSConfig(EmulationConfig):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     qubit_occupation_mps_impl, obs_copy
                 )
-            elif isinstance(obs, EnergyVariance):
+            if isinstance(obs, EnergyVariance):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     energy_variance_mps_impl, obs_copy
                 )

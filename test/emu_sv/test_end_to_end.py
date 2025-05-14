@@ -151,7 +151,7 @@ def simulate_with_den_matrix(
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=1000),
             Fidelity(evaluation_times=times, state=fidelity_state, tag_suffix="1"),
-            # Occupation(evaluation_times=times),
+            Occupation(evaluation_times=times),
             # Energy(evaluation_times=times),
             # EnergyVariance(evaluation_times=times),
             # EnergySecondMoment(evaluation_times=times),
@@ -199,7 +199,7 @@ def test_end_to_end_afm_ring() -> None:
     occupation = result.occupation[final_time]
 
     assert torch.allclose(
-        torch.tensor([0.578] * 10, dtype=torch.float64), occupation, atol=1e-3
+        torch.tensor([0.578] * num_qubits, dtype=torch.float64), occupation, atol=1e-3
     )
 
     energy = result.energy[final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
@@ -247,6 +247,12 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     assert bitstrings["010101"] == 168
 
     assert torch.allclose(fidelity_state.overlap(final_state), final_fidelity, atol=1e-10)
+
+    occupation = result.occupation[final_time]
+    print(occupation)
+    assert torch.allclose(
+        torch.tensor([0.0456] * num_qubits, dtype=torch.float64), occupation, atol=1e-3
+    )
 
 
 def test_end_to_end_pi_half_pulse() -> None:

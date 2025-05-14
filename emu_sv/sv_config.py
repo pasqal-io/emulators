@@ -10,6 +10,7 @@ from emu_sv.custom_callback_implementations import (
     energy_second_moment_sv_impl,
     energy_variance_sv_impl,
     qubit_occupation_sv_impl,
+    qubit_occupation_sv_den_mat_impl,
 )
 
 from pulser.backend import (
@@ -112,13 +113,20 @@ class SVConfig(EmulationConfig):
 
     def monkeypatch_observables(self) -> None:
         obs_list = []
+
         for _, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
+
             if isinstance(obs, Occupation):
-                obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    qubit_occupation_sv_impl, obs_copy
-                )
-            elif isinstance(obs, EnergyVariance):
+                if self.noise_model.noise_types == ():
+                    obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                        qubit_occupation_sv_impl, obs_copy
+                    )
+                else:
+                    obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                        qubit_occupation_sv_den_mat_impl, obs_copy
+                    )
+            if isinstance(obs, EnergyVariance):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     energy_variance_sv_impl, obs_copy
                 )
