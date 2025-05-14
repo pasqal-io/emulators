@@ -32,8 +32,8 @@ def _get_qubit_positions(
 
 def _rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     """
-    Computes the Ising interaction matrix from the qubit positions.
-    Hᵢⱼ=C₆/R⁶ᵢⱼ (nᵢ⊗ nⱼ)
+    Returns the Rydberg interaction matrix from the qubit positions.
+        Uᵢⱼ=C₆/|rᵢ-rⱼ|⁶ (nᵢ⊗ nⱼ)
     """
 
     num_qubits = len(sequence.register.qubit_ids)
