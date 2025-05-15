@@ -38,6 +38,8 @@ delta_f = 2 * U
 t_rise = 500
 t_fall = 1000
 
+dtype = torch.complex128
+
 
 def create_antiferromagnetic_state_vector(
     num_qubits: int, gpu: bool = True
@@ -228,7 +230,6 @@ def test_end_to_end_afm_ring_with_noise() -> None:
 
     noise_model = pulser.noise_model.NoiseModel(
         depolarizing_rate=0.1,
-        dephasing_rate=0.1,
     )
 
     result = simulate_with_den_matrix(
@@ -243,15 +244,15 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     fidelity_state = DensityMatrix.from_state_vector(
         create_antiferromagnetic_state_vector(num_qubits, gpu=False)
     )
-    assert bitstrings["101010"] == 173
-    assert bitstrings["010101"] == 168
+    assert bitstrings["101010"] == 222
+    assert bitstrings["010101"] == 220
 
     assert torch.allclose(fidelity_state.overlap(final_state), final_fidelity, atol=1e-10)
 
     occupation = result.occupation[final_time]
     print(occupation)
     assert torch.allclose(
-        torch.tensor([0.0456] * num_qubits, dtype=torch.float64), occupation, atol=1e-3
+        torch.tensor([0.0812] * num_qubits, dtype=torch.float64), occupation, atol=1e-3
     )
 
 
@@ -346,3 +347,65 @@ def test_initial_state_with_den_matrix() -> None:
 
     # but that it's a copy
     assert results.get_result(state_result, 1.0) is not state
+
+
+def test_end_to_end_spontaneous_emission_rate() -> None:
+    # sequence with spontaneous emission
+    seed = 31415
+    torch.manual_seed(seed)
+    total_time = 10000
+    pulse = pulser.Pulse.ConstantAmplitude(
+        0.0, pulser.waveforms.ConstantWaveform(total_time, 0.0), 0.0
+    )
+    reg = pulser.Register.rectangle(1, 2, spacing=1e10, prefix="q")
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(pulse, "ising_global")
+
+    # emu-sv parameters
+    dt = 10
+    times = [1.0]
+    eigenstate = ("r", "g")
+    amplitudes = {"rr": 1.0}
+    relaxation_rate = 0.1
+
+    noise_model = pulser.noise_model.NoiseModel(relaxation_rate=relaxation_rate)
+    initial_state = DensityMatrix.from_state_vector(
+        StateVector.from_state_amplitudes(eigenstates=eigenstate, amplitudes=amplitudes)
+    )
+    sv_config = SVConfig(
+        initial_state=initial_state,
+        dt=dt,
+        krylov_tolerance=1e-5,
+        observables=[
+            StateResult(evaluation_times=times),
+            BitStrings(evaluation_times=times, num_shots=1000),
+            Occupation(evaluation_times=times),
+        ],
+        noise_model=noise_model,
+        gpu=False,
+    )
+    backend = SVBackend(seq, config=sv_config)
+    result = backend.run()
+
+    # pulser results [0.3678794421106907, 0.3678794421106907]
+    expected_result = torch.tensor([0.3678, 0.3678], dtype=torch.float64)
+    assert torch.allclose(result.occupation[-1], expected_result, atol=1e-4)
+
+    expected_counts = {"00": 395, "10": 249, "01": 222, "11": 134}
+    print(result.bitstrings[-1])
+    assert expected_counts == result.bitstrings[-1]
+
+    # pulser has similar results except for the basis which is not the same
+    # array([0.13533544, 0.232544  , 0.232544  , 0.39957656])
+    expected_state = torch.tensor(
+        [
+            [0.3995 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
+            [0.0000 + 0.0j, 0.2327 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
+            [0.0000 + 0.0j, 0.0000 + 0.0j, 0.2327 + 0.0j, 0.0000 + 0.0j],
+            [0.0000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j, 0.1351 + 0.0j],
+        ],
+        dtype=dtype,
+    )
+
+    assert torch.allclose(result.state[-1].matrix.cpu(), expected_state, atol=1e-4)

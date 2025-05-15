@@ -47,10 +47,16 @@ def qubit_occupation_sv_den_mat_impl(
     nqubits = state.n_qudits
     occupation = torch.zeros(nqubits, dtype=torch.float64, device=state.matrix.device)
     for i in range(nqubits):
-        state_tensor = state.matrix.view(2**i, 2, -1)
+        state_tensor = (
+            state.matrix.view(
+                2**i, 2, 2 ** (nqubits - i - 1), 2**i, 2, 2 ** (nqubits - i - 1)
+            )[:, 1, :, :, 1, :]
+            .contiguous()
+            .view(2 ** (nqubits - 1), 2 ** (nqubits - 1))
+        )
         # nᵢ is a projector and therefore nᵢ == nᵢnᵢ
         # ❬ψ|nᵢ|ψ❭ == ❬ψ|nᵢnᵢ|ψ❭ == ❬ψ|nᵢ * nᵢ|ψ❭ == ❬ϕ|ϕ❭ == |ϕ|**2
-        occupation[i] = torch.linalg.vector_norm(state_tensor[:, 1]) ** 2
+        occupation[i] = state_tensor.trace().real
     return occupation.cpu()
 
 
