@@ -395,7 +395,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     expected_counts = {"00": 395, "10": 249, "01": 222, "11": 134}
     assert expected_counts == result.bitstrings[-1]
 
-    # pulser has similar results except for the basis which is not the same
+    # pulser has similar results except upto a basis change
     # diagonal elements: array([0.13533544, 0.232544  , 0.232544  , 0.39957656])
     expected_state = torch.tensor(
         [
