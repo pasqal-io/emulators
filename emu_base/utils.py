@@ -1,14 +1,6 @@
 import torch
 
 
-def dist2(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
-    return torch.dist(left, right) ** 2
-
-
-def dist3(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
-    return torch.dist(left, right) ** 3
-
-
 def deallocate_tensor(t: torch.Tensor) -> None:
     """
     Free the memory used by a tensor. This is done regardless of the
