@@ -218,6 +218,7 @@ def test_interaction_coefficient(mock_sequence, hamiltonian_type):
     # only MagicMock supports XY interaction
     mock_device = MagicMock(interaction_coeff=TEST_C6, interaction_coeff_xy=TEST_C3)
     mock_sequence.device = mock_device
+    mock_sequence.magnetic_field = [0.0, 0.0, 30.0]
 
     mock_register = MagicMock()
 
@@ -244,6 +245,7 @@ def test_interaction_coefficient(mock_sequence, hamiltonian_type):
         interaction_matrix = _xy_interaction(mock_sequence)
 
     dev = interaction_matrix.device
+    dtype = interaction_matrix.dtype
 
     if hamiltonian_type == HamiltonianType.Rydberg:
         expected_interaction_matrix = torch.tensor(
@@ -251,12 +253,16 @@ def test_interaction_coefficient(mock_sequence, hamiltonian_type):
                 [0.0000, 5.4202, 5.4202 / 64],
                 [5.4202, 0.0000, 5.4202],
                 [5.4202 / 64, 5.4202, 0.0000],
-            ]
-        ).to(dev)
+            ],
+            dtype=dtype,
+            device=dev,
+        )
     else:
         expected_interaction_matrix = torch.tensor(
-            [[0.0, 3.7, 3.7 / 8], [3.7, 0.0, 3.7], [3.7 / 8, 3.7, 0.0]]
-        ).to(dev)
+            [[0.0, 3.7, 3.7 / 8], [3.7, 0.0, 3.7], [3.7 / 8, 3.7, 0.0]],
+            dtype=dtype,
+            device=dev,
+        )
 
     assert torch.allclose(
         interaction_matrix,

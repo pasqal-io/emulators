@@ -1,15 +1,12 @@
-import pulser
 from typing import Tuple, Sequence
+from enum import Enum
 import torch
 import math
+import pulser
 from pulser.noise_model import NoiseModel
 from pulser.register.base_register import BaseRegister, QubitId
-from enum import Enum
-
 from pulser.backend.config import EmulationConfig
-
 from emu_base.jump_lindblad_operators import get_lindblad_operators
-from emu_base.utils import dist2, dist3
 
 
 class HamiltonianType(Enum):
@@ -23,7 +20,10 @@ def _get_qubit_positions(
     """Conversion from pulser Register to emu-mps register (torch type).
     Each element will be given as [Rx,Ry,Rz]"""
 
-    positions = [position.as_tensor() for position in register.qubits.values()]
+    positions = [
+        position.as_tensor().to(dtype=torch.float64)
+        for position in register.qubits.values()
+    ]
     if len(positions[0]) == 2:
         return [torch.cat((position, torch.zeros(1))) for position in positions]
     return positions
@@ -39,13 +39,11 @@ def _rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     c6 = sequence.device.interaction_coeff
     qubit_positions = _get_qubit_positions(sequence.register)
 
-    interaction_matrix = torch.zeros(nqubits, nqubits)
+    interaction_matrix = torch.zeros(nqubits, nqubits, dtype=torch.float64)
     for i in range(nqubits):
         for j in range(i + 1, nqubits):
-            interaction_matrix[i, j] = (
-                c6 / dist2(qubit_positions[i], qubit_positions[j]) ** 3
-            )
-            interaction_matrix[j, i] = interaction_matrix[i, j]
+            coeff = c6 / torch.dist(qubit_positions[i], qubit_positions[j]) ** 6
+            interaction_matrix[[i, j], [j, i]] = coeff
     return interaction_matrix
 
 
@@ -53,23 +51,23 @@ def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     """
     Computes the XY interaction matrix from the qubit positions.
         Uᵢⱼ=C₃(1−3cos(𝜃ᵢⱼ)²)/|rᵢ-rⱼ|³
+    with
+        cos(𝜃ᵢⱼ) = (rᵢ-rⱼ)·m/|m||rᵢ-rⱼ|
     """
+
     nqubits = len(sequence.register.qubit_ids)
     c3 = sequence.device.interaction_coeff_xy
-    qubit_positions = _get_qubit_positions(sequence.register)
     mag_field = torch.tensor(sequence.magnetic_field, dtype=torch.float64)
-    print(mag_field)
     mag_field /= mag_field.norm()
+    qubit_positions = _get_qubit_positions(sequence.register)
 
-    interaction_matrix = torch.zeros(nqubits, nqubits)
+    interaction_matrix = torch.zeros(nqubits, nqubits, dtype=torch.float64)
     for i in range(nqubits):
         for j in range(i + 1, nqubits):
             rij = qubit_positions[i] - qubit_positions[j]
-            cosine = torch.dot(rij, mag_field)  # / rij.norm()
-            interaction_matrix[i, j] = (
-                c3 * (1 - 3 * cosine**2) / dist3(qubit_positions[i], qubit_positions[j])
-            )
-            interaction_matrix[j, i] = interaction_matrix[i, j]
+            cosine = torch.dot(rij, mag_field) / rij.norm()
+            coeff = c3 * (1 - 3 * cosine**2) / rij.norm() ** 3
+            interaction_matrix[[i, j], [j, i]] = coeff
     return interaction_matrix
 
 
@@ -109,7 +107,7 @@ def _extract_omega_delta_phi(
     elif "XY" in sequence_dict and len(sequence_dict) == 1:
         locals_a_d_p = sequence_dict["XY"]
     else:
-        raise ValueError("Emu-MPS only accepts ground-rydberg or mw_global channels")
+        raise ValueError("Only `ground-rydberg` and `mw_global` channels are supported.")
 
     max_duration = sequence.get_duration(include_fall_time=with_modulation)
 
