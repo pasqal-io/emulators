@@ -5,7 +5,7 @@ import torch
 dtype = torch.complex128
 
 # small example to show how to create a density matrix
-# using the emu-sv package
+# using emu-sv package
 
 # different ways to create a density matrix
 # 1. from a emu-sv state vector
@@ -33,6 +33,12 @@ print("\nsampling state2:", state2.sample())
 
 print("\ninner product:", state1.overlap(state2))
 
+
+# summing two density matrices
+
+density_sum = state1 + state2
+
+print("\n sum of two density matrices:\n", density_sum.matrix)
 
 # 2.- using amplitudes and the basis
 
