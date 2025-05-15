@@ -363,7 +363,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     seq.add(pulse, "ising_global")
 
     # emu-sv parameters
-    dt = 10
+    dt = 100
     times = [1.0]
     eigenstate = ("r", "g")
     amplitudes = {"rr": 1.0}
@@ -399,10 +399,10 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     # diagonal elements: array([0.13533544, 0.232544  , 0.232544  , 0.39957656])
     expected_state = torch.tensor(
         [
-            [0.3995 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.0000 + 0.0j, 0.2327 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.0000 + 0.0j, 0.0000 + 0.0j, 0.2327 + 0.0j, 0.0000 + 0.0j],
-            [0.0000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j, 0.1351 + 0.0j],
+            [0.3996 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
+            [0.0000 + 0.0j, 0.2325 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
+            [0.0000 + 0.0j, 0.0000 + 0.0j, 0.2325 + 0.0j, 0.0000 + 0.0j],
+            [0.0000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j, 0.1353 + 0.0j],
         ],
         dtype=dtype,
     )
