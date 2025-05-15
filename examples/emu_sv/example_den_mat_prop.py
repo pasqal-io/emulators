@@ -34,12 +34,6 @@ print("\nsampling state2:", state2.sample())
 print("\ninner product:", state1.overlap(state2))
 
 
-# summing two density matrices
-
-density_sum = state1 + state2
-
-print("\n sum of two density matrices:\n", density_sum.matrix)
-
 # 2.- using amplitudes and the basis
 
 n_atoms = 2
