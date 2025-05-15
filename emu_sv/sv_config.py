@@ -38,6 +38,10 @@ class SVConfig(EmulationConfig):
             the Lanczos algorithm uses this as the convergence tolerance
         gpu: Use 1 gpu if True, and a GPU is available, otherwise, cpu.
             Will cause errors if True when a gpu is not available
+        interaction_cutoff: Set interaction coefficients below this value to `0`.
+            Potentially improves runtime and memory consumption.
+        log_level: How much to log. Set to `logging.WARN` to get rid of the timestep info.
+        log_file: If specified, log to this file rather than stout.
         kwargs: arguments that are passed to the base class
 
     Examples:

@@ -38,4 +38,4 @@ __all__ = [
     "DensityMatrix",
 ]
 
-__version__ = "2.0.4"
+__version__ = "2.1.1"

@@ -742,6 +742,8 @@ def test_obs_after_autosave() -> None:
 
     evaluation_times = [1.0 / 30.0, 1.0 / 3.0, 0.5]
     energy = Energy(evaluation_times=evaluation_times)
+    correlation = CorrelationMatrix(evaluation_times=evaluation_times)
+    occupation = Occupation(evaluation_times=evaluation_times)
 
     save_simulation_original = MPSBackendImpl.save_simulation
 
@@ -754,4 +756,9 @@ def test_obs_after_autosave() -> None:
     ) as save_simulation_mock:
         save_simulation_mock.side_effect = save_simulation_mock_side_effect
 
-        MPSBackend(seq, config=MPSConfig(observables=[energy])).run()
+        results = MPSBackend(
+            seq, config=MPSConfig(observables=[energy, correlation, occupation])
+        ).run()
+    assert all([isinstance(x, torch.Tensor) for x in results.energy])
+    assert all([isinstance(x, torch.Tensor) for x in results.occupation])
+    assert all([isinstance(x, torch.Tensor) for x in results.correlation_matrix])
