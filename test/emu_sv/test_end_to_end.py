@@ -230,6 +230,7 @@ def test_end_to_end_afm_ring_with_noise() -> None:
 
     noise_model = pulser.noise_model.NoiseModel(
         depolarizing_rate=0.1,
+        dephasing_rate=0.1,
     )
 
     result = simulate_with_den_matrix(
@@ -244,15 +245,14 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     fidelity_state = DensityMatrix.from_state_vector(
         create_antiferromagnetic_state_vector(num_qubits, gpu=False)
     )
-    assert bitstrings["101010"] == 222
-    assert bitstrings["010101"] == 220
+    assert bitstrings["101010"] == 173
+    assert bitstrings["010101"] == 168
 
     assert torch.allclose(fidelity_state.overlap(final_state), final_fidelity, atol=1e-10)
 
     occupation = result.occupation[final_time]
-    print(occupation)
     assert torch.allclose(
-        torch.tensor([0.0812] * num_qubits, dtype=torch.float64), occupation, atol=1e-3
+        torch.tensor([0.4596] * num_qubits, dtype=torch.float64), occupation, atol=1e-3
     )
 
 
@@ -393,11 +393,10 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     assert torch.allclose(result.occupation[-1], expected_result, atol=1e-4)
 
     expected_counts = {"00": 395, "10": 249, "01": 222, "11": 134}
-    print(result.bitstrings[-1])
     assert expected_counts == result.bitstrings[-1]
 
     # pulser has similar results except for the basis which is not the same
-    # array([0.13533544, 0.232544  , 0.232544  , 0.39957656])
+    # diagonal elements: array([0.13533544, 0.232544  , 0.232544  , 0.39957656])
     expected_state = torch.tensor(
         [
             [0.3995 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
