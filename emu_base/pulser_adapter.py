@@ -37,13 +37,13 @@ def _rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
 
     nqubits = len(sequence.register.qubit_ids)
     c6 = sequence.device.interaction_coeff
-    qubit_positions = _get_qubit_positions(sequence.register)
+    positions = _get_qubit_positions(sequence.register)
 
     interaction_matrix = torch.zeros(nqubits, nqubits, dtype=torch.float64)
     for i in range(nqubits):
         for j in range(i + 1, nqubits):
-            coeff = c6 / torch.dist(qubit_positions[i], qubit_positions[j]) ** 6
-            interaction_matrix[[i, j], [j, i]] = coeff
+            rij = torch.dist(positions[i], positions[j])
+            interaction_matrix[[i, j], [j, i]] = c6 / rij**6
     return interaction_matrix
 
 
@@ -59,15 +59,14 @@ def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     c3 = sequence.device.interaction_coeff_xy
     mag_field = torch.tensor(sequence.magnetic_field, dtype=torch.float64)
     mag_field /= mag_field.norm()
-    qubit_positions = _get_qubit_positions(sequence.register)
+    positions = _get_qubit_positions(sequence.register)
 
     interaction_matrix = torch.zeros(nqubits, nqubits, dtype=torch.float64)
     for i in range(nqubits):
         for j in range(i + 1, nqubits):
-            rij = qubit_positions[i] - qubit_positions[j]
-            cosine = torch.dot(rij, mag_field) / rij.norm()
-            coeff = c3 * (1 - 3 * cosine**2) / rij.norm() ** 3
-            interaction_matrix[[i, j], [j, i]] = coeff
+            rij = torch.dist(positions[i], positions[j])
+            cosine = torch.dot(positions[i] - positions[j], mag_field) / rij
+            interaction_matrix[[i, j], [j, i]] = c3 * (1 - 3 * cosine**2) / rij**3
     return interaction_matrix
 
 
@@ -95,11 +94,7 @@ def _extract_omega_delta_phi(
             "modulation is not supported."
         )
 
-    samples = pulser.sampler.sample(
-        sequence,
-        modulation=with_modulation,
-        extended_duration=sequence.get_duration(include_fall_time=with_modulation),
-    )
+    samples = pulser.sampler.sample(sequence, modulation=with_modulation)
     sequence_dict = samples.to_nested_dict(all_local=True, samples_type="tensor")["Local"]
 
     if "ground-rydberg" in sequence_dict and len(sequence_dict) == 1:
@@ -108,8 +103,6 @@ def _extract_omega_delta_phi(
         locals_a_d_p = sequence_dict["XY"]
     else:
         raise ValueError("Only `ground-rydberg` and `mw_global` channels are supported.")
-
-    max_duration = sequence.get_duration(include_fall_time=with_modulation)
 
     nsamples = len(target_times) - 1
     omega = torch.zeros(
@@ -145,6 +138,7 @@ def _extract_omega_delta_phi(
 
     omega_1 = torch.zeros_like(omega[0])
     omega_2 = torch.zeros_like(omega[0])
+    max_duration = sequence.get_duration(include_fall_time=with_modulation)
 
     for i in range(nsamples):
         t = (target_times[i] + target_times[i + 1]) / 2
