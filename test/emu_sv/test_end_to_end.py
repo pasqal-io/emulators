@@ -1,4 +1,5 @@
 import math
+import random
 import torch
 from pytest import approx
 from typing import Any
@@ -353,6 +354,8 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     # sequence with spontaneous emission
     seed = 31415
     torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+
     total_time = 10000
     pulse = pulser.Pulse.ConstantAmplitude(
         0.0, pulser.waveforms.ConstantWaveform(total_time, 0.0), 0.0
