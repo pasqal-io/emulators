@@ -1,5 +1,5 @@
 import torch
-from typing import Callable, Tuple, cast
+from typing import Callable, Tuple
 
 DEFAULT_MAX_KRYLOV_DIM: int = 100
 
@@ -16,7 +16,7 @@ def _eigen_pair(
     """
     n = T_trunc.size(0)
     if n < 3:
-        return cast(Tuple[torch.Tensor, torch.Tensor], torch.linalg.eigh(T_trunc))
+        return tuple(torch.linalg.eigh(T_trunc))
 
     return torch.lobpcg(
         T_trunc,
@@ -59,18 +59,24 @@ class KrylovEnergyResult:
 
 def krylov_energy_minimization_impl(
     op: Callable[[torch.Tensor], torch.Tensor],
-    v: torch.Tensor,
+    psi_local: torch.Tensor,
     residual_tolerance: float,
     norm_tolerance: float,
     is_hermitian: bool,
     max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
 ) -> KrylovEnergyResult:
+    """
+    Computes the ground state of a Hermitian operator using Lanczos algorithm.
+    The Rayleigh quotient ⟨ψ|H|ψ⟩ is minimized over the Krylov subspace.
 
-    device = v.device
-    dtype = v.dtype
+    The convergence of the results is determined by a residual norm criterion or a happy breakdown.
+    """
 
-    initial_norm = v.norm()
-    lanczos_vectors = [v / initial_norm]
+    device = psi_local.device
+    dtype = psi_local.dtype
+
+    initial_norm = psi_local.norm()
+    lanczos_vectors = [psi_local / initial_norm]
     T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=dtype, device=device)
 
     converged = False
@@ -101,6 +107,7 @@ def krylov_energy_minimization_impl(
         eigvals, eigvecs = _eigen_pair(T_truncated, guessed_state, residual_tolerance)
         ground_energy = eigvals[0].real
         ground_eigenvector = eigvecs[:, 0]  # in Krylov subspace
+        iteration_count = j + 1
 
         if beta < norm_tolerance:
             final_state = sum(
@@ -109,10 +116,10 @@ def krylov_energy_minimization_impl(
             final_state = final_state / final_state.norm()
             happy_breakdown = True
             converged = True
-            iteration_count = j + 1
             break
 
         lanczos_vectors.append(w / beta)
+        # build the new guessed state from the eigenvector of the previous iteration
         prev_eigen_vec = ground_eigenvector.clone()
         guessed_state = extend_initial_state(prev_eigen_vec, dtype, device)
 
@@ -120,14 +127,12 @@ def krylov_energy_minimization_impl(
         final_state = sum(c * vec for c, vec in zip(ground_eigenvector, lanczos_vectors))
         final_state = final_state / final_state.norm()
 
-        # residual norm ||A v - lambda * v|| convergence check
+        # residual norm convergence check
         residual_norm = torch.norm(op(final_state) - ground_energy * final_state)
         if residual_norm < residual_tolerance:
             happy_breakdown = False
             converged = True
-            iteration_count = j + 1
             break
-        iteration_count = j + 1
 
     return KrylovEnergyResult(
         ground_state=final_state,
@@ -149,7 +154,7 @@ def krylov_energy_minimization(
 
     result = krylov_energy_minimization_impl(
         op=op,
-        v=v,
+        psi_local=v,
         norm_tolerance=norm_tolerance,
         residual_tolerance=residual_tolerance,
         is_hermitian=is_hermitian,

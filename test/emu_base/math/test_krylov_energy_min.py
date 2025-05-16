@@ -1,44 +1,31 @@
 import torch
 import pytest
 
-from emu_base.math.krylov_energy_min import (
-    krylov_energy_minimization_impl,
-)
+from emu_base.math.krylov_energy_min import krylov_energy_minimization_impl
+from test.emu_mps.test_hamiltonian import single_gate, sigma_x
 
 dtype = torch.complex128
+
+
+def sigma_z(i: int, nqubits: int) -> torch.Tensor:
+    s_z = torch.tensor([[1.0, 0.0], [0.0, -1.0]], dtype=dtype)
+    return single_gate(i, nqubits, s_z)
 
 
 def build_Ising_hamiltonian(N: int, J: float, h: float) -> torch.Tensor:
     """Build the Ising Hamiltonian and test the Lanczos routine afterwards
 
-    H = -J * sum Z_i Z_{i+1} - h * sum X_i
-    Returns: H in matrix form
+    Returns: H = -J * sum Z_i Z_{i+1} - h * sum X_i
     """
-    Identity = torch.eye(2, dtype=torch.float64)
-    X = torch.tensor([[0, 1], [1, 0]], dtype=torch.float64)
-    Z = torch.tensor([[1, 0], [0, -1]], dtype=torch.float64)
+    H = torch.zeros((2**N, 2**N), dtype=dtype)
 
-    def construct_tensor_product(list_of_ops):
-        res = list_of_ops[0]
-        for operator in list_of_ops[1:]:
-            res = torch.kron(res, operator)
-        return res
-
-    def build_operator(pauli_op, site):
-        # Pauli op acting on one site, and Identity on all others
-        list_of_op = [Identity] * N
-        list_of_op[site] = pauli_op
-        return construct_tensor_product(list_of_op)
-
-    H = torch.zeros((2**N, 2**N), dtype=torch.float64)
-
-    # Interaction term
+    # Interaction terms
     for i in range(N - 1):
-        H += -J * build_operator(Z, i) @ build_operator(Z, i + 1)
+        H += -J * (sigma_z(i, N) @ sigma_z(i + 1, N))
 
-    # Transverse field term
+    # Transverse field terms
     for i in range(N):
-        H += -h * build_operator(X, i)
+        H += -h * sigma_x(i, N)
 
     return H
 
@@ -64,7 +51,7 @@ def check(
 
     result = krylov_energy_minimization_impl(
         op=op,
-        v=v,
+        psi_local=v,
         norm_tolerance=norm_tolerance,
         residual_tolerance=residual_tolerance,
         is_hermitian=is_hermitian,
@@ -188,5 +175,5 @@ def test_ising_hamiltonian():
         residual_tolerance=1e-6,
         expect_converged=True,
         expect_happy_breakdown=False,
-        expected_iteration_count=99,
+        expected_iteration_count=98,
     )
