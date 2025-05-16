@@ -54,7 +54,11 @@ class SVBackend(EmulatorBackend):
         else:
             state = StateVector.make(nqubits, gpu=self._config.gpu)
 
-        stepper = EvolveStateVector.apply
+        stepper = (
+            EvolveStateVector.apply
+            if state.vector.requires_grad
+            else EvolveStateVector.evolve
+        )
         for step in range(nsteps):
             dt = self.target_times[step + 1] - self.target_times[step]
             state.vector, H = stepper(
