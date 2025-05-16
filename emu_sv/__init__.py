@@ -15,6 +15,7 @@ from pulser.backend import (
 from .dense_operator import DenseOperator
 from .sv_backend import SVBackend, SVConfig
 from .state_vector import StateVector, inner
+from .density_matrix_state import DensityMatrix
 
 
 __all__ = [
@@ -34,6 +35,7 @@ __all__ = [
     "StateResult",
     "StateVector",
     "inner",
+    "DensityMatrix",
 ]
 
 __version__ = "2.1.1"

@@ -17,6 +17,10 @@ class RydbergLindbladian:
     where A_k is a jump operator and H is the Rydberg Hamiltonian.
     The complex -𝑖, will be multiplied in the evolution.
 
+    Only works with effective noise channels, i.e., the jump or collapse
+    operators. For more information, see:
+    https://pulser.readthedocs.io/en/stable/tutorials/effective_noise.html
+
     Attributes:
         nqubits (int): number of qubits in the system.
         omegas (torch.Tensor): amplited frequencies  Ωⱼ for each qubit, divided by 2.

@@ -588,7 +588,9 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     results = []
     for _ in range(100):
         results.append(
-            simulate(seq, noise_model=noise_model, initial_state=initial_state, dt=10000)
+            simulate(
+                seq, noise_model=noise_model, initial_state=initial_state, dt=duration
+            )
         )
 
     counts = {}
@@ -602,6 +604,15 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     expected_counts = {"11": 16, "01": 17, "10": 23, "00": 44}
 
     assert counts == expected_counts
+
+    occu_list = [
+        result.occupation[-1] for result in results
+    ]  # to trigger the occupation observable
+
+    avg_occ = sum(occu_list) / len(occu_list)
+    assert torch.allclose(
+        avg_occ, torch.tensor([0.3900, 0.3300], dtype=torch.float64), atol=1e-3
+    )
 
 
 def test_laser_waist() -> None:
