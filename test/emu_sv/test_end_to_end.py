@@ -395,7 +395,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     expected_result = torch.tensor([0.3678, 0.3678], dtype=torch.float64)
     assert torch.allclose(result.occupation[-1], expected_result, atol=1e-4)
 
-    expected_counts = {"00": 395, "10": 249, "01": 222, "11": 134}
+    expected_counts = {"00": 380, "10": 223, "01": 246, "11": 151}
     assert expected_counts == result.bitstrings[-1]
 
     # pulser has similar results except upto a basis change
@@ -409,5 +409,4 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
         ],
         dtype=dtype,
     )
-
-    assert torch.allclose(result.state[-1].matrix.cpu(), expected_state, atol=1e-4)
+    assert torch.allclose(result.state[-1].matrix, expected_state, atol=1e-4)

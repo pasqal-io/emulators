@@ -182,7 +182,7 @@ class NoyseSVBackendImpl(SVBackendImpl):
 
         if self._config.initial_state is not None:  # fix this with state vector
             state = self._config.initial_state
-            state = DensityMatrix(state.matrix.clone(), gpu=state.matrix.is_cuda)
+            state = DensityMatrix(state.matrix.clone(), gpu=self._config.gpu)
         else:
             state = DensityMatrix.make(self.nqubits, gpu=self._config.gpu)
 
