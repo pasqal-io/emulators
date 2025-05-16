@@ -33,6 +33,9 @@ def _rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     """
     Returns the Rydberg interaction matrix from the qubit positions.
         Uᵢⱼ=C₆/|rᵢ-rⱼ|⁶
+
+    see Pulser
+    [documentation](https://pulser.readthedocs.io/en/stable/conventions.html#interaction-hamiltonian).
     """
 
     nqubits = len(sequence.register.qubit_ids)
@@ -49,10 +52,13 @@ def _rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
 
 def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     """
-    Computes the XY interaction matrix from the qubit positions.
+    Returns the XY interaction matrix from the qubit positions.
         Uᵢⱼ=C₃(1−3cos(𝜃ᵢⱼ)²)/|rᵢ-rⱼ|³
     with
         cos(𝜃ᵢⱼ) = (rᵢ-rⱼ)·m/|m||rᵢ-rⱼ|
+
+    see Pulser
+    [documentation](https://pulser.readthedocs.io/en/stable/conventions.html#interaction-hamiltonian).
     """
 
     nqubits = len(sequence.register.qubit_ids)
@@ -65,8 +71,8 @@ def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     for i in range(nqubits):
         for j in range(i + 1, nqubits):
             rij = torch.dist(positions[i], positions[j])
-            cosine = torch.dot(positions[i] - positions[j], mag_field) / rij
-            interaction_matrix[[i, j], [j, i]] = c3 * (1 - 3 * cosine**2) / rij**3
+            cos_ij = torch.dot(positions[i] - positions[j], mag_field) / rij
+            interaction_matrix[[i, j], [j, i]] = c3 * (1 - 3 * cos_ij**2) / rij**3
     return interaction_matrix
 
 
