@@ -148,7 +148,7 @@ class SVBackendImpl:
             del H
 
 
-class NoyseSVBackendImpl(SVBackendImpl):
+class NoisySVBackendImpl(SVBackendImpl):
     results: Results
 
     def __init__(self, config: SVConfig, pulser_data: PulserData):
@@ -238,6 +238,6 @@ def create_impl(sequence: Sequence, config: SVConfig) -> SVBackendImpl:
     """
     pulse_data = PulserData(sequence=sequence, config=config, dt=config.dt)
     if pulse_data.has_lindblad_noise:
-        return NoyseSVBackendImpl(config, pulse_data)
+        return NoisySVBackendImpl(config, pulse_data)
 
     return SVBackendImpl(config, pulse_data)
