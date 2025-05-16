@@ -131,26 +131,23 @@ class SVConfig(EmulationConfig):
                         qubit_occupation_sv_den_mat_impl, obs_copy
                     )
             if isinstance(obs, EnergyVariance):
-                if self.noise_model.noise_types == ():
-                    obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                        energy_variance_sv_impl, obs_copy
-                    )
-                else:
+                if self.noise_model.noise_types != ():
                     raise Exception("Not implemented for density matrix")
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    energy_variance_sv_impl, obs_copy
+                )
             elif isinstance(obs, EnergySecondMoment):
-                if self.noise_model.noise_types == ():
-                    obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                        energy_second_moment_sv_impl, obs_copy
-                    )
-                else:
+                if self.noise_model.noise_types != ():
                     raise Exception("Not implemented for density matrix")
+
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    energy_second_moment_sv_impl, obs_copy
+                )
+
             elif isinstance(obs, CorrelationMatrix):
-                if self.noise_model.noise_types == ():
-                    obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                        correlation_matrix_sv_impl, obs_copy
-                    )
-                else:
+                if self.noise_model.noise_types != ():
                     raise Exception("Not implemented for density matrix")
+
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     correlation_matrix_sv_impl, obs_copy
                 )
