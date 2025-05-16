@@ -43,7 +43,14 @@ def qubit_occupation_sv_den_mat_impl(
 ) -> torch.Tensor:
     """
     Custom implementation of the occupation nᵢ observable for density matrix.
-    <nᵢ> = Tr(ρᵢnᵢ)
+    The observable nᵢ is given by: I ⊗ ... ⊗  nᵢ ⊗ I ⊗I ⊗
+    where nᵢ is the occupation operator for qubit i.
+    The expectation value is given by: <nᵢ> = Tr(ρ nᵢ).
+
+    The output will be a tensor of size (nqubits,), where each element will be the
+    expectation value of the occupation operator for each qubit.
+    In case of 3 atoms, the output will be a tensor of size (3,), where each element
+    will be <nᵢ> = Tr(ρᵢnᵢ), or [ <n₁>, <n₂>, <n₃> ].
     """
     nqubits = state.n_qudits
     occupation = torch.zeros(nqubits, dtype=torch.float64, device=state.matrix.device)
