@@ -3,6 +3,9 @@
 There are currently two emulators, emu-sv and emu-mps, the specific documentation for which you can access from the list above.
 As of this writing, the emulators are provided for Linux and macOS but will not work under Windows.
 
+## Why several emulators
+
+
 ## Installation
 **Warning:** installing any emulator will update pulser-core
 
