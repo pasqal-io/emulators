@@ -20,6 +20,7 @@ from pulser.backend import EmulationConfig, Observable, Results, State
 
 from emu_base import DEVICE_COUNT, PulserData
 from emu_base.math.brents_root_finding import BrentsRootFinder
+from emu_base.utils import deallocate_tensor
 
 from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
@@ -415,7 +416,7 @@ class MPSBackendImpl:
             )
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
-                self.right_baths[-2] = torch.zeros(0)
+                deallocate_tensor(self.right_baths[-2])
 
             self._evolve(self.tdvp_index, dt=-delta_time / 2)
             self.left_baths.pop()

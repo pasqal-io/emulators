@@ -53,7 +53,7 @@ def split_tensor(
             _determine_cutoff_index(d, max_error),
             d.shape[0] - max_rank,
         )
-        right = q.T.conj()[max_bond:, :]
+        right = q[:, max_bond:].T.conj_physical()
         left = m @ q
         left = left[:, max_bond:]
 

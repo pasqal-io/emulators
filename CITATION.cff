@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+title: pasqal emulators
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Kemal
+    family-names: Bidzhiev
+    email: kemal.bidzhiev@pasqal.com
+    affiliation: Pasqal
+  - email: stefano.grava@pasqal.com
+    given-names: Stefano
+    family-names: Grava
+    affiliation: Pasqal
+  - given-names: Pablo
+    name-particle: le
+    family-names: Henaff
+    email: pablo.le-henaff@pasqal.com
+    affiliation: Pasqal
+  - given-names: Mauro
+    family-names: Mendizabel Pico
+    email: mauro.mendizabal-pico@pasqal.com
+    affiliation: Pasqal
+  - given-names: Elie
+    family-names: Merhej
+    email: elie.merhej@pasqal.com
+    affiliation: Pasqal
+  - given-names: Anton
+    family-names: Quelle
+    email: anton.quelle@pasqal.com
+    affiliation: Pasqal
+repository-code: 'https://github.com/pasqal-io/emulators'
+url: 'https://pasqal-io.github.io/emulators/latest/'
+abstract: >-
+  Monorepo for the Pasqal analog quantum computing
+  emulators. Contains emu-sv a state-vector based emulator
+  and emu-mps a Matrix Product State based emulator.
+keywords:
+  - analog quantum computing
+  - emulation
+version: 2.1.1
+date-released: '2025-05-12'
