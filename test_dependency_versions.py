@@ -8,7 +8,7 @@ from typing import Optional
 def extract_version_from_file(filepath: str, pattern: str) -> Optional[str]:
     with open(filepath, "r") as f:
         for line in f:
-            if pattern in line:
+            if re.search(pattern, line):
                 match = re.search(r"([0-9]+(?:\.[0-9*]+){2})", line)
                 if match:
                     return match.group()
@@ -33,6 +33,31 @@ print(f" - emu-mps depends on emu-base version {mps_dep}")
 # emu_base version
 base_version = extract_version_from_file("emu_base/__init__.py", "version")
 print(f" - emu-base is version {base_version}")
+
+# emu_sv version
+sv_version = extract_version_from_file("emu_sv/__init__.py", "version")
+print(f" - emu-sv is version {sv_version}")
+
+# emu_mps version
+mps_version = extract_version_from_file("emu_mps/__init__.py", "version")
+print(f" - emu-mps is version {mps_version}")
+
+# citation version
+
+citation_version = extract_version_from_file("CITATION.cff", "^version")
+print(f" - citation version is {citation_version}")
+
+if (
+    base_version != citation_version
+    or mps_version != citation_version
+    or sv_version != citation_version
+):
+    fail(
+        f" emu_base {base_version}"
+        "or emu_sv {sv_version}"
+        "or emu_mps {mps_version}"
+        "do not match the citation version {citation_version}"
+    )
 
 if mps_dep != base_version:
     fail(f" - emu-mps dependency version {mps_dep} != emu_base {base_version}")
