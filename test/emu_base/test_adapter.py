@@ -12,6 +12,7 @@ from emu_base.pulser_adapter import (
     _get_all_lindblad_noise_operators,
     _rydberg_interaction,
     _xy_interaction,
+    _get_qubit_positions,
     PulserData,
     HamiltonianType,
 )
@@ -212,33 +213,20 @@ def mock_sample(hamiltonian_type):
     ],
 )
 def test_interaction_coefficient(mock_sequence, hamiltonian_type):
-    atoms = torch.tensor(
-        [[0.0, 0.0], [10.0, 0.0], [20.0, 0.0]], dtype=torch.float64
-    )  # pulser input
+    coords = [
+        [0.0, 0.0],
+        [10.0, 0.0],
+        [20.0, 0.0],
+    ]
+    register = Register.from_coordinates(coords, prefix="q")
+    qubit_positions = _get_qubit_positions(register)
+    assert all(len(q) == 3 for q in qubit_positions)
+    assert all(q.dtype == torch.float64 for q in qubit_positions)
 
-    # only MagicMock supports XY interaction
     mock_device = MagicMock(interaction_coeff=TEST_C6, interaction_coeff_xy=TEST_C3)
+    mock_sequence.register = register
     mock_sequence.device = mock_device
     mock_sequence.magnetic_field = [0.0, 0.0, 30.0]
-
-    mock_register = MagicMock()
-
-    mock_register.qubit_ids = ["q0", "q1", "q2"]
-
-    mock_abstract_array_1 = MagicMock()
-    mock_abstract_array_2 = MagicMock()
-    mock_abstract_array_3 = MagicMock()
-
-    mock_abstract_array_1.as_tensor.return_value = atoms[0]
-    mock_abstract_array_2.as_tensor.return_value = atoms[1]
-    mock_abstract_array_3.as_tensor.return_value = atoms[2]
-
-    mock_register.qubits = {
-        "q0": mock_abstract_array_1,
-        "q1": mock_abstract_array_2,
-        "q2": mock_abstract_array_3,
-    }
-    mock_sequence.register = mock_register
 
     if hamiltonian_type == HamiltonianType.Rydberg:
         interaction_matrix = _rydberg_interaction(mock_sequence)
@@ -247,6 +235,7 @@ def test_interaction_coefficient(mock_sequence, hamiltonian_type):
 
     dev = interaction_matrix.device
     dtype = interaction_matrix.dtype
+    assert dtype == torch.float64
 
     if hamiltonian_type == HamiltonianType.Rydberg:
         expected_interaction_matrix = torch.tensor(
