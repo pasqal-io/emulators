@@ -122,8 +122,10 @@ def evolve_pair(
 
     # Computation is done on left_device (arbitrary)
 
+    right_state_factor = right_state_factor.to(left_device)
+
     combined_state_factors = torch.tensordot(
-        left_state_factor, right_state_factor.to(left_device), dims=1
+        left_state_factor, right_state_factor, dims=1
     ).reshape(left_bond_dim, 4, right_bond_dim)
 
     deallocate_tensor(left_state_factor)
