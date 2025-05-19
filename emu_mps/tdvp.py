@@ -76,7 +76,7 @@ def apply_effective_Hamiltonian(
     state = torch.tensordot(left_bath, state, 1)
     state = state.permute(0, 3, 1, 2)
     ham = ham.permute(0, 2, 1, 3)
-    state = state.reshape(state.shape[0], state.shape[1], -1).contiguous()
+    state = state.view(state.shape[0], state.shape[1], -1).contiguous()
     ham = ham.reshape(-1, ham.shape[2], ham.shape[3]).contiguous()
     state = torch.tensordot(state, ham, 1)
     state = state.permute(0, 2, 1, 3)
@@ -124,7 +124,7 @@ def evolve_pair(
 
     combined_state_factors = torch.tensordot(
         left_state_factor, right_state_factor.to(left_device), dims=1
-    ).reshape(left_bond_dim, 4, right_bond_dim)
+    ).view(left_bond_dim, 4, right_bond_dim)
 
     deallocate_tensor(left_state_factor)
     deallocate_tensor(right_state_factor)
@@ -155,7 +155,7 @@ def evolve_pair(
         norm_tolerance=config.precision * config.extra_krylov_tolerance,
         max_krylov_dim=config.max_krylov_dim,
         is_hermitian=is_hermitian,
-    ).reshape(left_bond_dim * 2, 2 * right_bond_dim)
+    ).view(left_bond_dim * 2, 2 * right_bond_dim)
 
     l, r = split_tensor(
         evol,
@@ -164,9 +164,7 @@ def evolve_pair(
         orth_center_right=orth_center_right,
     )
 
-    return l.reshape(left_bond_dim, 2, -1), r.reshape(-1, 2, right_bond_dim).to(
-        right_device
-    )
+    return l.view(left_bond_dim, 2, -1), r.view(-1, 2, right_bond_dim).to(right_device)
 
 
 def evolve_single(

@@ -111,9 +111,9 @@ def zip_right_step(
     L, slider = torch.linalg.qr(slider)
 
     # reshape slider to its original shape
-    slider = slider.reshape((-1, *right_inds))
+    slider = slider.view((-1, *right_inds))
     # reshape left as MPS/O factor and
-    return L.reshape(*left_inds, -1), slider
+    return L.view(*left_inds, -1), slider
 
 
 def zip_right(

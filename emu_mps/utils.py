@@ -77,13 +77,13 @@ def truncate_impl(
         factor_shape = factors[i].shape
 
         l, r = split_tensor(
-            factors[i].reshape(factor_shape[0], -1),
+            factors[i].view(factor_shape[0], -1),
             max_error=config.precision,
             max_rank=config.max_bond_dim,
             orth_center_right=False,
         )
 
-        factors[i] = r.reshape(-1, *factor_shape[1:])
+        factors[i] = r.view(-1, *factor_shape[1:])
         factors[i - 1] = torch.tensordot(
             factors[i - 1], l.to(factors[i - 1].device), dims=1
         )

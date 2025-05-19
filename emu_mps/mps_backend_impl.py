@@ -664,7 +664,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
                 for qubit in range(self.state.num_sites)
                 for op in self.lindblad_ops
             ],
-            weights=jump_operator_weights.reshape(-1).tolist(),
+            weights=jump_operator_weights.view(-1).tolist(),
         )[0]
 
         self.state.apply(jumped_qubit_index, jump_operator)

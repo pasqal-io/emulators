@@ -51,7 +51,7 @@ class StateVector(State[complex, torch.Tensor]):
     @property
     def n_qudits(self) -> int:
         """The number of qudits in the state."""
-        nqudits = math.log2(self.vector.reshape(-1).shape[0])
+        nqudits = math.log2(self.vector.view(-1).shape[0])
         return int(nqudits)
 
     def _normalize(self) -> None:
