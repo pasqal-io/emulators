@@ -56,7 +56,7 @@ def get_randn_state(
 def test_forward(N: int, tolerance: float, with_phase: bool) -> None:
     torch.manual_seed(1337)
     ham_params = get_randn_ham_params(N, with_phase=with_phase)
-    state_in = get_randn_state(N, device=device)
+    state_in = get_randn_state(N, device=device, requires_grad=True)
     dt = 1.0  # 1 μs big time step
 
     expected = do_dense_time_step(dt, *ham_params, state_in)
