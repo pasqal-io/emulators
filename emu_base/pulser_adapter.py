@@ -100,7 +100,11 @@ def _extract_omega_delta_phi(
             "modulation is not supported."
         )
 
-    samples = pulser.sampler.sample(sequence, modulation=with_modulation)
+    samples = pulser.sampler.sample(
+        sequence,
+        modulation=with_modulation,
+        extended_duration=sequence.get_duration(include_fall_time=with_modulation),
+    )
     sequence_dict = samples.to_nested_dict(all_local=True, samples_type="tensor")["Local"]
 
     if "ground-rydberg" in sequence_dict and len(sequence_dict) == 1:
