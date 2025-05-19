@@ -57,7 +57,7 @@ seq.add(
 )
 ```
 
-The register spacing is immaterial, because we run the sequence twice with a custom interaction matrix. We will plot the difference between the two corralation matrices at the end of the sequence for various parameters. The two interaction matrices contain only `0` and `1`, where the ones are between qubits
+The register spacing is immaterial because we run the sequence twice with a custom interaction matrix. We will plot the difference between the two corralation matrices at the end of the sequence for various parameters. The two interaction matrices contain only `0` and `1`, where the ones are between qubit pairs
 
  `[(6, 7), (8, 9), (10, 11), (7, 0), (7, 3), (9, 1), (9, 5), (11, 3), (11, 5), (6, 1), (6, 2), (8, 0), (8, 4), (10, 2), (10, 4)]`
 
@@ -65,7 +65,7 @@ The register spacing is immaterial, because we run the sequence twice with a cus
 
  `[(6, 7), (8, 9), (10, 11), (7, 1), (7, 3), (9, 1), (9, 5), (11, 3), (11, 5), (6, 0), (6, 2), (8, 0), (8, 4), (10, 2), (10, 4)]`
 
- respectively. As can be seen only two of the interaction terms are different `(6,1) -> (6,0)` and `(7,0) -> (7,1)`, causing the correlation matrices to be extremely similar, requiring good accuracy for the simulation. Furthermore, since the two differing terms are "long range", these form a good stress test for emu-mps, which uses an effective description of such long-range terms. The results are as follows:
+ respectively. As can be seen, only two of the interaction terms are different `(6,1) -> (6,0)` and `(7,0) -> (7,1)`, causing the correlation matrices to be extremely similar, requiring good accuracy for the simulation. Furthermore, since the two differing terms are "long range", these form a good stress test for emu-mps, which uses an effective description of such long-range terms. The results are as follows:
 
 <div style="text-align:center;">
 <img src="../benchmark_plots/sv_optimatrix_fidelity.png"  width="90%">
