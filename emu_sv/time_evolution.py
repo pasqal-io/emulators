@@ -124,6 +124,33 @@ class EvolveStateVector(torch.autograd.Function):
     """Custom autograd implementation of a step in the time evolution."""
 
     @staticmethod
+    def evolve(
+        dt: float,
+        omegas: torch.Tensor,
+        deltas: torch.Tensor,
+        phis: torch.Tensor,
+        interaction_matrix: torch.Tensor,
+        state: torch.Tensor,
+        krylov_tolerance: float,
+    ) -> tuple[torch.Tensor, RydbergHamiltonian]:
+        ham = RydbergHamiltonian(
+            omegas=omegas,
+            deltas=deltas,
+            phis=phis,
+            interaction_matrix=interaction_matrix,
+            device=state.device,
+        )
+        op = lambda x: -1j * dt * (ham * x)
+        res = krylov_exp(
+            op,
+            state,
+            norm_tolerance=krylov_tolerance,
+            exp_tolerance=krylov_tolerance,
+            is_hermitian=True,
+        )
+        return res, ham
+
+    @staticmethod
     def forward(
         ctx: Any,
         dt: float,
@@ -151,20 +178,8 @@ class EvolveStateVector(torch.autograd.Function):
             state (Tensor): input state to be evolved
             krylov_tolerance (float):
         """
-        ham = RydbergHamiltonian(
-            omegas=omegas,
-            deltas=deltas,
-            phis=phis,
-            interaction_matrix=interaction_matrix,
-            device=state.device,
-        )
-        op = lambda x: -1j * dt * (ham * x)
-        res = krylov_exp(
-            op,
-            state,
-            norm_tolerance=krylov_tolerance,
-            exp_tolerance=krylov_tolerance,
-            is_hermitian=True,
+        res, ham = EvolveStateVector.evolve(
+            dt, omegas, deltas, phis, interaction_matrix, state, krylov_tolerance
         )
         ctx.save_for_backward(omegas, deltas, phis, interaction_matrix, state)
         ctx.dt = dt
@@ -302,7 +317,7 @@ class EvolveStateVector(torch.autograd.Function):
 
         if ctx.needs_input_grad[5]:
             op = lambda x: (1j * dt) * (ham * x)
-            grad_state_in = krylov_exp(op, grad_state_out, tolerance, tolerance)
+            grad_state_in = krylov_exp(op, grad_state_out.detach(), tolerance, tolerance)
 
         return (
             None,
