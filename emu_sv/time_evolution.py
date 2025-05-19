@@ -87,26 +87,67 @@ class DHDPhiSparse:
 class DHDDeltaSparse:
     """
     Derivative of the Rydberg Hamiltonian respect to Delta:
-        ∂H/∂Δₖ = -nₖ
+        ∂H/∂Δᵢ = -nᵢ
     """
 
-    def __init__(self, index: int, device: torch.device, nqubits: int):
-        self.index = index
-        self.shape = (2**index, 2, 2 ** (nqubits - index - 1))
-        diag = torch.zeros(
-            *self.shape,
-            dtype=torch.complex128,
-            device=device,
-        )
-        diag[:, 1, :] = -1.0
-        self.diag = diag.reshape(-1)
+    def __init__(self, i: int, nqubits: int):
+        self.nqubits = nqubits
+        self.shape = (2**i, 2, 2 ** (nqubits - i - 1))
 
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
-        return vec * self.diag
+        result = vec.clone()
+        result = result.reshape(vec.shape[0], *self.shape)
+        result[:, :, 0] = 0.0
+        return -result.reshape(vec.shape[0], 2**self.nqubits)
+
+
+class DHDUSparse:
+    """
+    Derivative of the Rydberg Hamiltonian respect to the interaction matrix:
+        ∂H/∂Uᵢⱼ = nᵢnⱼ
+    """
+
+    def __init__(self, i: int, j: int, nqubits: int):
+        self.shape = (2**i, 2, 2 ** (j - i - 1), 2, 2 ** (nqubits - j - 1))
+        self.nqubits = nqubits
+
+    def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
+        result = vec.clone()
+        result = result.reshape(vec.shape[0], *self.shape)
+        result[:, :, 0] = 0.0
+        result[:, :, 1, :, 0] = 0.0
+        return result.reshape(vec.shape[0], 2**self.nqubits)
 
 
 class EvolveStateVector(torch.autograd.Function):
     """Custom autograd implementation of a step in the time evolution."""
+
+    @staticmethod
+    def evolve(
+        dt: float,
+        omegas: torch.Tensor,
+        deltas: torch.Tensor,
+        phis: torch.Tensor,
+        interaction_matrix: torch.Tensor,
+        state: torch.Tensor,
+        krylov_tolerance: float,
+    ) -> tuple[torch.Tensor, RydbergHamiltonian]:
+        ham = RydbergHamiltonian(
+            omegas=omegas,
+            deltas=deltas,
+            phis=phis,
+            interaction_matrix=interaction_matrix,
+            device=state.device,
+        )
+        op = lambda x: -1j * dt * (ham * x)
+        res = krylov_exp(
+            op,
+            state,
+            norm_tolerance=krylov_tolerance,
+            exp_tolerance=krylov_tolerance,
+            is_hermitian=True,
+        )
+        return res, ham
 
     @staticmethod
     def forward(
@@ -136,20 +177,8 @@ class EvolveStateVector(torch.autograd.Function):
             state (Tensor): input state to be evolved
             krylov_tolerance (float):
         """
-        ham = RydbergHamiltonian(
-            omegas=omegas,
-            deltas=deltas,
-            phis=phis,
-            interaction_matrix=interaction_matrix,
-            device=state.device,
-        )
-        op = lambda x: -1j * dt * (ham * x)
-        res = krylov_exp(
-            op,
-            state,
-            norm_tolerance=krylov_tolerance,
-            exp_tolerance=krylov_tolerance,
-            is_hermitian=True,
+        res, ham = EvolveStateVector.evolve(
+            dt, omegas, deltas, phis, interaction_matrix, state, krylov_tolerance
         )
         ctx.save_for_backward(omegas, deltas, phis, interaction_matrix, state)
         ctx.dt = dt
@@ -217,9 +246,10 @@ class EvolveStateVector(torch.autograd.Function):
 
         - The action of the derivatives of the Hamiltonian with
         respect to the input parameters are implemented separately in
-            - ∂H/∂Ω: `DHDOmegaSparse`
-            - ∂H/∂Δ: `DHDDeltaSparse`
-            - ∂H/∂φ: `DHDPhiSparse`
+            - ∂H/∂Ω:  `DHDOmegaSparse`
+            - ∂H/∂Δ:  `DHDDeltaSparse`
+            - ∂H/∂φ:  `DHDPhiSparse`
+            - ∂H/∂Uᵢⱼ `DHDUSparse`
 
         Then, the resulting gradient respect to a generic parameter reads:
             gΩ = Tr( -i dt ∂H/∂Ω @ Vs @ dS @ Vg* )
@@ -229,7 +259,9 @@ class EvolveStateVector(torch.autograd.Function):
         tolerance = ctx.tolerance
         nqubits = len(omegas)
 
-        grad_omegas, grad_deltas, grad_phis, grad_state_in = None, None, None, None
+        grad_omegas, grad_deltas, grad_phis = None, None, None
+        grad_int_mat = None
+        grad_state_in = None
 
         ham = RydbergHamiltonian(
             omegas=omegas,
@@ -239,7 +271,7 @@ class EvolveStateVector(torch.autograd.Function):
             device=state.device,
         )
 
-        if any(ctx.needs_input_grad[1:4]):
+        if any(ctx.needs_input_grad[1:5]):
             op = lambda x: -1j * dt * (ham * x)
             lanczos_vectors_state, dS, lanczos_vectors_grad = double_krylov(
                 op, state, grad_state_out, tolerance
@@ -263,9 +295,7 @@ class EvolveStateVector(torch.autograd.Function):
         if ctx.needs_input_grad[2]:
             grad_deltas = torch.zeros_like(deltas)
             for i in range(nqubits):
-                # dh as per the docstring
-                dhd = DHDDeltaSparse(i, e_l.device, nqubits)
-                # compute the trace
+                dhd = DHDDeltaSparse(i, nqubits)
                 v = dhd @ e_l
                 grad_deltas[i] = (-1j * dt * torch.tensordot(Vg.conj(), v)).real
 
@@ -276,8 +306,24 @@ class EvolveStateVector(torch.autograd.Function):
                 v = dhp @ e_l
                 grad_phis[i] = (-1j * dt * torch.tensordot(Vg.conj(), v)).real
 
+        if ctx.needs_input_grad[4]:
+            grad_int_mat = torch.zeros_like(interaction_matrix)
+            for i in range(nqubits):
+                for j in range(i + 1, nqubits):
+                    dhu = DHDUSparse(i, j, nqubits)
+                    v = dhu @ e_l
+                    grad_int_mat[i, j] = (-1j * dt * torch.tensordot(Vg.conj(), v)).real
+
         if ctx.needs_input_grad[5]:
             op = lambda x: (1j * dt) * (ham * x)
-            grad_state_in = krylov_exp(op, grad_state_out, tolerance, tolerance)
+            grad_state_in = krylov_exp(op, grad_state_out.detach(), tolerance, tolerance)
 
-        return None, grad_omegas, grad_deltas, grad_phis, None, grad_state_in, None
+        return (
+            None,
+            grad_omegas,
+            grad_deltas,
+            grad_phis,
+            grad_int_mat,
+            grad_state_in,
+            None,
+        )

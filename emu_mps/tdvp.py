@@ -1,6 +1,7 @@
 import torch
 
 from emu_base import krylov_exp
+from emu_base.utils import deallocate_tensor
 from emu_mps import MPS, MPO
 from emu_mps.utils import split_tensor
 from emu_mps.mps_config import MPSConfig
@@ -102,6 +103,8 @@ def evolve_pair(
     """
     Time evolution of a pair of tensors of a tensor train using baths and truncated SVD.
     Returned state tensors are kept on their respective devices.
+
+    The input state tensor objects become invalid after calling that function.
     """
     assert len(state_factors) == 2
     assert len(baths) == 2
@@ -119,9 +122,14 @@ def evolve_pair(
 
     # Computation is done on left_device (arbitrary)
 
+    right_state_factor = right_state_factor.to(left_device)
+
     combined_state_factors = torch.tensordot(
-        left_state_factor, right_state_factor.to(left_device), dims=1
+        left_state_factor, right_state_factor, dims=1
     ).reshape(left_bond_dim, 4, right_bond_dim)
+
+    deallocate_tensor(left_state_factor)
+    deallocate_tensor(right_state_factor)
 
     left_ham_factor = left_ham_factor.to(left_device)
     right_ham_factor = right_ham_factor.to(left_device)
@@ -174,6 +182,8 @@ def evolve_single(
 ) -> torch.Tensor:
     """
     Time evolution of a single tensor of a tensor train using baths.
+
+    The input state tensor object becomes invalid after calling that function.
     """
     assert len(baths) == 2
 

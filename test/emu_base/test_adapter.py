@@ -1,19 +1,21 @@
+import torch
+import math
+import pytest
+from unittest.mock import patch, MagicMock
+
+from pulser.backend import EmulationConfig
+from pulser.noise_model import NoiseModel
+from pulser import Register
+
 from emu_base.pulser_adapter import (
     _extract_omega_delta_phi,
     _get_all_lindblad_noise_operators,
     _rydberg_interaction,
     _xy_interaction,
+    _get_qubit_positions,
     PulserData,
     HamiltonianType,
 )
-from pulser.backend import EmulationConfig
-from unittest.mock import patch, MagicMock
-
-import pytest
-import torch
-from pulser.noise_model import NoiseModel
-import math
-
 
 TEST_QUBIT_IDS = ["test_qubit_0", "test_qubit_1", "test_qubit_2"]
 TEST_C6 = 5420158.53
@@ -211,32 +213,20 @@ def mock_sample(hamiltonian_type):
     ],
 )
 def test_interaction_coefficient(mock_sequence, hamiltonian_type):
-    atoms = torch.tensor(
-        [[0.0, 0.0], [10.0, 0.0], [20.0, 0.0]], dtype=torch.float64
-    )  # pulser input
+    coords = [
+        [0.0, 0.0],
+        [10.0, 0.0],
+        [20.0, 0.0],
+    ]
+    register = Register.from_coordinates(coords, prefix="q")
+    qubit_positions = _get_qubit_positions(register)
+    assert all(len(q) == 3 for q in qubit_positions)
+    assert all(q.dtype == torch.float64 for q in qubit_positions)
 
-    # only MagicMock supports XY interaction
     mock_device = MagicMock(interaction_coeff=TEST_C6, interaction_coeff_xy=TEST_C3)
+    mock_sequence.register = register
     mock_sequence.device = mock_device
-
-    mock_register = MagicMock()
-
-    mock_register.qubit_ids = ["q0", "q1", "q2"]
-
-    mock_abstract_array_1 = MagicMock()
-    mock_abstract_array_2 = MagicMock()
-    mock_abstract_array_3 = MagicMock()
-
-    mock_abstract_array_1.as_tensor.return_value = atoms[0]
-    mock_abstract_array_2.as_tensor.return_value = atoms[1]
-    mock_abstract_array_3.as_tensor.return_value = atoms[2]
-
-    mock_register.qubits = {
-        "q0": mock_abstract_array_1,
-        "q1": mock_abstract_array_2,
-        "q2": mock_abstract_array_3,
-    }
-    mock_sequence.register = mock_register
+    mock_sequence.magnetic_field = [0.0, 0.0, 30.0]
 
     if hamiltonian_type == HamiltonianType.Rydberg:
         interaction_matrix = _rydberg_interaction(mock_sequence)
@@ -244,6 +234,8 @@ def test_interaction_coefficient(mock_sequence, hamiltonian_type):
         interaction_matrix = _xy_interaction(mock_sequence)
 
     dev = interaction_matrix.device
+    dtype = interaction_matrix.dtype
+    assert dtype == torch.float64
 
     if hamiltonian_type == HamiltonianType.Rydberg:
         expected_interaction_matrix = torch.tensor(
@@ -251,17 +243,71 @@ def test_interaction_coefficient(mock_sequence, hamiltonian_type):
                 [0.0000, 5.4202, 5.4202 / 64],
                 [5.4202, 0.0000, 5.4202],
                 [5.4202 / 64, 5.4202, 0.0000],
-            ]
-        ).to(dev)
+            ],
+            dtype=dtype,
+            device=dev,
+        )
     else:
         expected_interaction_matrix = torch.tensor(
-            [[0.0, 3.7, 3.7 / 8], [3.7, 0.0, 3.7], [3.7 / 8, 3.7, 0.0]]
-        ).to(dev)
+            [[0.0, 3.7, 3.7 / 8], [3.7, 0.0, 3.7], [3.7 / 8, 3.7, 0.0]],
+            dtype=dtype,
+            device=dev,
+        )
 
     assert torch.allclose(
         interaction_matrix,
         expected_interaction_matrix,
     )
+
+
+def test_XY_interaction_with_mag_field():
+    coords = [[-8.0, 0.0], [0.0, 0.0], [8.0 * math.sqrt(2 / 3), 8.0 * math.sqrt(1 / 3)]]
+    register = Register.from_coordinates(coords, prefix="q")
+    mock_device = MagicMock(interaction_coeff_xy=TEST_C3)
+    mock_sequence = MagicMock(
+        register=register, device=mock_device, magnetic_field=[0.0, 1.0, 0.0]
+    )
+
+    interaction_matrix = _xy_interaction(mock_sequence)
+
+    expected_01 = TEST_C3 / 8**3
+    r_02 = math.sqrt(2 + 2 * math.sqrt(2 / 3))
+    expected_02 = TEST_C3 * (1 - 1 / r_02**2) / (8 * r_02) ** 3
+    # element 1,2 is expected to be 0 by the choice of the magnetic field
+    expected_interaction_matrix = torch.tensor(
+        [
+            [0.0, expected_01, expected_02],
+            [expected_01, 0.0, 0.0],
+            [expected_02, 0.0, 0.0],
+        ],
+        dtype=interaction_matrix.dtype,
+        device=interaction_matrix.device,
+    )
+
+    assert torch.allclose(
+        interaction_matrix,
+        expected_interaction_matrix,
+    )
+
+
+def test_interaction_matrix_differentiability():
+    coords = [
+        torch.tensor([1.0, 0.1], requires_grad=True),
+        torch.tensor([2.0, 0.1], requires_grad=True),
+    ]
+    register = Register.from_coordinates(coords, prefix="q")
+    mock_device = MagicMock(interaction_coeff=TEST_C6, interaction_coeff_xy=TEST_C3)
+    mock_sequence = MagicMock(register=register, device=mock_device)
+
+    interaction_matrix = _rydberg_interaction(mock_sequence)
+    assert interaction_matrix.requires_grad
+    assert not interaction_matrix.is_leaf
+
+    try:
+        loss = torch.sum(interaction_matrix)
+        torch.autograd.grad(loss, coords)
+    except Exception as err:
+        raise err
 
 
 @pytest.mark.parametrize(
