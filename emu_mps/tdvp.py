@@ -1,6 +1,7 @@
 import torch
 
 from emu_base import krylov_exp
+from emu_base.utils import deallocate_tensor
 from emu_mps import MPS, MPO
 from emu_mps.utils import split_tensor
 from emu_mps.mps_config import MPSConfig
@@ -73,12 +74,20 @@ def apply_effective_Hamiltonian(
     # this order seems to be pretty balanced, but needs to be
     # revisited when use-cases are more well-known
     state = torch.tensordot(left_bath, state, 1)
-    state = torch.tensordot(state, ham, ([1, 2], [0, 2]))
-    state = torch.tensordot(state, right_bath, ([3, 1], [1, 2]))
+    state = state.permute(0, 3, 1, 2)
+    ham = ham.permute(0, 2, 1, 3)
+    state = state.reshape(state.shape[0], state.shape[1], -1).contiguous()
+    ham = ham.reshape(-1, ham.shape[2], ham.shape[3]).contiguous()
+    state = torch.tensordot(state, ham, 1)
+    state = state.permute(0, 2, 1, 3)
+    state = state.reshape(state.shape[0], state.shape[1], -1).contiguous()
+    right_bath = right_bath.permute(2, 1, 0)
+    right_bath = right_bath.reshape(-1, right_bath.shape[2]).contiguous()
+    state = torch.tensordot(state, right_bath, 1)
     return state
 
 
-_TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/ms, dt in ns
+_TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
 
 
 def evolve_pair(
@@ -94,6 +103,8 @@ def evolve_pair(
     """
     Time evolution of a pair of tensors of a tensor train using baths and truncated SVD.
     Returned state tensors are kept on their respective devices.
+
+    The input state tensor objects become invalid after calling that function.
     """
     assert len(state_factors) == 2
     assert len(baths) == 2
@@ -111,9 +122,14 @@ def evolve_pair(
 
     # Computation is done on left_device (arbitrary)
 
+    right_state_factor = right_state_factor.to(left_device)
+
     combined_state_factors = torch.tensordot(
-        left_state_factor, right_state_factor.to(left_device), dims=1
+        left_state_factor, right_state_factor, dims=1
     ).reshape(left_bond_dim, 4, right_bond_dim)
+
+    deallocate_tensor(left_state_factor)
+    deallocate_tensor(right_state_factor)
 
     left_ham_factor = left_ham_factor.to(left_device)
     right_ham_factor = right_ham_factor.to(left_device)
@@ -166,6 +182,8 @@ def evolve_single(
 ) -> torch.Tensor:
     """
     Time evolution of a single tensor of a tensor train using baths.
+
+    The input state tensor object becomes invalid after calling that function.
     """
     assert len(baths) == 2
 

@@ -1,6 +1,8 @@
 from typing import Callable
 import torch
 
+from emu_base.utils import deallocate_tensor
+
 DEFAULT_MAX_KRYLOV_DIM: int = 100
 
 
@@ -36,11 +38,17 @@ def krylov_exp_impl(
     Convergence is checked using the exponential of the "extended T matrix", a criterion
     described in "Expokit: A Software Package for Computing Matrix Exponentials"
     (https://www.maths.uq.edu.au/expokit/paper.pdf).
+
+    The input tensor object `v` becomes invalid after calling that function.
     """
 
     initial_norm = v.norm()
+    normalized_v = v / initial_norm
 
-    lanczos_vectors = [v / initial_norm]
+    if not v.requires_grad:
+        deallocate_tensor(v)
+
+    lanczos_vectors = [normalized_v]
     T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
 
     for j in range(max_krylov_dim):
@@ -67,7 +75,8 @@ def krylov_exp_impl(
                 result=result, converged=True, happy_breakdown=True, iteration_count=j + 1
             )
 
-        lanczos_vectors.append(w / n2)
+        w = w / n2
+        lanczos_vectors.append(w)
 
         # Compute exponential of extended T matrix
         T[j + 2, j + 1] = 1

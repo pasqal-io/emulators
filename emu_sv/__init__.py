@@ -16,6 +16,7 @@ from .dense_operator import DenseOperator
 from .sv_backend import SVBackend, SVConfig
 from .state_vector import StateVector, inner
 
+
 __all__ = [
     "__version__",
     "BitStrings",
@@ -35,4 +36,4 @@ __all__ = [
     "inner",
 ]
 
-__version__ = "2.0.0"
+__version__ = "2.1.1"

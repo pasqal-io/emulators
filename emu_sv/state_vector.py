@@ -36,6 +36,7 @@ class StateVector(State[complex, torch.Tensor]):
         vector: torch.Tensor,
         *,
         gpu: bool = True,
+        eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
         # NOTE: this accepts also zero vectors.
 
@@ -43,6 +44,7 @@ class StateVector(State[complex, torch.Tensor]):
             len(vector)
         ).is_integer(), "The number of elements in the vector should be power of 2"
 
+        super().__init__(eigenstates=eigenstates)
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         self.vector = vector.to(dtype=dtype, device=device)
 
@@ -68,7 +70,12 @@ class StateVector(State[complex, torch.Tensor]):
             self.vector = self.vector / norm
 
     @classmethod
-    def zero(cls, num_sites: int, gpu: bool = True) -> StateVector:
+    def zero(
+        cls,
+        num_sites: int,
+        gpu: bool = True,
+        eigenstates: Sequence[Eigenstate] = ("r", "g"),
+    ) -> StateVector:
         """
         Returns a zero uninitialized "state" vector. Warning, this has no physical meaning as-is!
 
@@ -86,7 +93,7 @@ class StateVector(State[complex, torch.Tensor]):
 
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         vector = torch.zeros(2**num_sites, dtype=dtype, device=device)
-        return cls(vector, gpu=gpu)
+        return cls(vector, gpu=gpu, eigenstates=eigenstates)
 
     @classmethod
     def make(cls, num_sites: int, gpu: bool = True) -> StateVector:
@@ -172,7 +179,14 @@ class StateVector(State[complex, torch.Tensor]):
             The summed state
         """
         assert isinstance(other, StateVector), "`Other` state can only be a StateVector"
-        return StateVector(self.vector + other.vector, gpu=self.vector.is_cuda)
+        assert (
+            self.eigenstates == other.eigenstates
+        ), f"`Other` state has basis {other.eigenstates} != {self.eigenstates}"
+        return StateVector(
+            self.vector + other.vector,
+            gpu=self.vector.is_cuda,
+            eigenstates=self.eigenstates,
+        )
 
     def __rmul__(self, scalar: complex) -> StateVector:
         """Scalar multiplication
@@ -183,7 +197,11 @@ class StateVector(State[complex, torch.Tensor]):
         Returns:
             The scaled state
         """
-        return StateVector(scalar * self.vector, gpu=self.vector.is_cuda)
+        return StateVector(
+            scalar * self.vector,
+            gpu=self.vector.is_cuda,
+            eigenstates=self.eigenstates,
+        )
 
     def norm(self) -> torch.Tensor:
         """Returns the norm of the state
@@ -229,9 +247,6 @@ class StateVector(State[complex, torch.Tensor]):
             tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
                    dtype=torch.complex128)
         """
-
-        # nqubits = len(next(iter(amplitudes.keys())))
-        nqubits = cls._validate_amplitudes(amplitudes=amplitudes, eigenstates=eigenstates)
         basis = set(eigenstates)
         if basis == {"r", "g"}:
             one = "r"
@@ -242,7 +257,8 @@ class StateVector(State[complex, torch.Tensor]):
         else:
             raise ValueError("Unsupported basis provided")
 
-        accum_state = StateVector.zero(num_sites=nqubits)
+        nqubits = cls._validate_amplitudes(amplitudes=amplitudes, eigenstates=eigenstates)
+        accum_state = StateVector.zero(num_sites=nqubits, eigenstates=eigenstates)
 
         for state, amplitude in amplitudes.items():
             bin_to_int = int(

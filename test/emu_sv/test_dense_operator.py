@@ -107,10 +107,10 @@ def test_applyto_expect_DenseOperator(zero: str, one: str) -> None:
     )
 
     state = {one + one + one: -1.0, zero + zero + zero: 1.0}
-    from_string = StateVector.from_state_amplitudes(
-        eigenstates={one, zero}, amplitudes=state
+    state_from_string = StateVector.from_state_amplitudes(
+        eigenstates=(one, zero), amplitudes=state
     )
-    result = operator.apply_to(from_string)  # testing apply_to
+    result = operator.apply_to(state_from_string)  # testing apply_to
 
     state_torch = reduce(torch.kron, [zero_state_torch] * N)
     state_torch -= reduce(torch.kron, [one_state_torch] * N)
@@ -123,6 +123,6 @@ def test_applyto_expect_DenseOperator(zero: str, one: str) -> None:
     assert torch.allclose(mult_state, result.vector.cpu())
 
     # expectation value
-    res = operator.expect(from_string)
+    res = operator.expect(state_from_string)
     expected = state_torch.mH @ mult_state.T
-    assert torch.isclose(torch.tensor(res, dtype=dtype), expected)
+    assert torch.isclose(res, expected)

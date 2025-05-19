@@ -60,6 +60,7 @@ def simulate(
     initial_state: Any | None = None,
     given_fidelity_state: bool = True,
     interaction_cutoff: float = 0,
+    eval_times: list[float] = [1.0],
 ) -> Results:
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
@@ -82,23 +83,24 @@ def simulate(
     else:
         if noise_model is None:
             noise_model = pulser.noise_model.NoiseModel()
-    times = [1.0]
+
     mps_config = MPSConfig(
         initial_state=initial_state,
         dt=dt,
         precision=1e-5,
         observables=[
-            StateResult(evaluation_times=times),
-            BitStrings(evaluation_times=times, num_shots=1000),
-            Fidelity(evaluation_times=times, state=fidelity_state, tag_suffix="1"),
-            Occupation(evaluation_times=times),
-            Energy(evaluation_times=times),
-            EnergyVariance(evaluation_times=times),
-            EnergySecondMoment(evaluation_times=times),
-            CorrelationMatrix(evaluation_times=times),
+            Occupation(evaluation_times=eval_times),
+            BitStrings(evaluation_times=eval_times, num_shots=1000),
+            Energy(evaluation_times=eval_times),
+            EnergyVariance(evaluation_times=eval_times),
+            EnergySecondMoment(evaluation_times=eval_times),
+            CorrelationMatrix(evaluation_times=eval_times),
+            StateResult(evaluation_times=eval_times),
+            Fidelity(evaluation_times=eval_times, state=fidelity_state, tag_suffix="1"),
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
+        optimize_qubit_ordering=False,
     )
 
     backend = MPSBackend(seq, config=mps_config)
@@ -128,7 +130,7 @@ def get_proba(state: MPS, bitstring: str):
 
     factors = [one if bitstring[i] == "1" else zero for i in range(state.num_sites)]
 
-    return abs(state.inner(MPS(factors)).item()) ** 2
+    return abs(state.inner(MPS(factors, eigenstates=("0", "1"))).item()) ** 2
 
 
 Omega_max = 4 * 2 * torch.pi
@@ -217,6 +219,81 @@ def test_XY_3atomswith_slm() -> None:
     )  # todo, compare against pulser results
 
 
+@pytest.mark.parametrize(
+    "optimize_order",
+    [
+        False,
+        True,
+    ],
+)
+@pytest.mark.parametrize(
+    "occupation",
+    [
+        False,
+        True,
+    ],
+)
+def test_end_to_end_domain_wall_ring(
+    occupation: bool,
+    optimize_order: bool,
+) -> None:
+    # This setup is sensitive to the permutation order in contrast to AFM state preparation
+    torch.manual_seed(seed)
+
+    num_qubits = 6
+    seq = pulser_afm_sequence_ring(
+        num_qubits=num_qubits,
+        Omega_max=0,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=1300,
+        t_fall=1400,
+    )
+
+    initial_state = emu_mps.MPS.from_state_amplitudes(
+        eigenstates=("r", "g"),
+        amplitudes={(num_qubits // 2) * "r" + (num_qubits // 2) * "g": 1.0},
+    )
+    eval_times = [1 / 44, 1]  # 1/44 is 1 dt step
+    observables = [
+        BitStrings(evaluation_times=eval_times, num_shots=100),
+        Energy(evaluation_times=eval_times),
+        EnergyVariance(evaluation_times=eval_times),
+        CorrelationMatrix(evaluation_times=eval_times),
+    ]
+    if occupation:
+        observables.append(Occupation(evaluation_times=eval_times))
+    # I want to test permutation results close to the initial state
+    mps_config = MPSConfig(
+        initial_state=initial_state,
+        dt=100,
+        precision=1e-5,
+        observables=observables,
+        optimize_qubit_ordering=optimize_order,
+    )
+
+    backend = MPSBackend(seq, config=mps_config)
+    result = backend.run()
+
+    ntime_step = 0
+    bitstrings = result.bitstrings[ntime_step]
+    energy = result.energy[ntime_step]
+    energy_variance = result.energy_variance[ntime_step]
+    expect_occup = torch.tensor([1, 1, 1, 0, 0, 0], dtype=torch.float64)
+    correlation_matrix = result.correlation_matrix[ntime_step]
+    expect_corr = torch.outer(expect_occup, expect_occup).to(torch.complex128)
+
+    assert result.atom_order == seq.register.qubit_ids
+    assert bitstrings["111000"] == 100
+    assert approx(energy, rel=1e-4) == 286.8718
+    assert approx(energy_variance, abs=1e-5) == 0
+    assert torch.allclose(expect_corr, correlation_matrix, atol=1e-3)
+    if occupation:
+        occupation = result.occupation[ntime_step]
+        assert torch.allclose(expect_occup, occupation, atol=1e-3)
+
+
 def test_end_to_end_afm_ring() -> None:
     torch.manual_seed(seed)
 
@@ -233,31 +310,34 @@ def test_end_to_end_afm_ring() -> None:
 
     result = simulate(seq)
 
-    bitstrings = result.bitstrings[-1]
-    final_state = result.state[-1]
-    final_fidelity = result.fidelity_1[-1]
-    max_bond_dim = final_state.get_max_bond_dim()
-    fidelity_state = create_antiferromagnetic_mps(num_qubits)
-
-    assert bitstrings["1010101010"] == 129  # -> fidelity as samples increase
-    assert bitstrings["0101010101"] == 135
-    assert fidelity_state.overlap(final_state) == approx(final_fidelity, abs=1e-10)
+    final_time = -1
+    bitstrings = result.bitstrings[final_time]
+    occupation = result.occupation[final_time]
+    energy = result.energy[final_time]
+    energy_variance = result.energy_variance[final_time]
+    second_moment_energy = result.energy_second_moment[final_time]
+    state_fin = result.state[final_time]
+    fidelity_fin = result.fidelity_1[final_time]
+    max_bond_dim = state_fin.get_max_bond_dim()
+    fidelity_st = create_antiferromagnetic_mps(num_qubits)
     assert max_bond_dim == 29
+    assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
 
-    q_density = result.occupation[-1]
-    assert approx(q_density, 1e-3) == [0.578] * 10
+    assert bitstrings["1010101010"] == 129
+    assert bitstrings["0101010101"] == 135
 
-    energy = result.energy[-1]
-    assert approx(energy, 1e-8) == -115.34370829396005
+    # Comparing against EMU-SV -- state vector emulator
+    assert approx(occupation, abs=1e-3) == [0.5782] * 10
+    assert approx(occupation, rel=1e-3) == [0.5782] * 10
 
-    energy_variance = result.energy_variance[-1]
-    assert approx(energy_variance, 1e-6) == 45.905980469959104
+    assert approx(energy, abs=1e-2) == -115.3455
+    assert approx(energy, rel=1e-4) == -115.3455
 
-    second_moment_energy = result.energy_second_moment[-1]
-    assert approx(second_moment_energy, 1e-6) == 13350.07680148
+    assert approx(energy_variance, abs=1e-1) == 45.91
+    assert approx(energy_variance, rel=1e-2) == 45.911
 
-    correlation_matrix = result.correlation_matrix[-1]
-    print(correlation_matrix)
+    assert approx(second_moment_energy, abs=0.45) == 13350.5
+    assert approx(second_moment_energy, rel=1e-4) == 13350.5
 
 
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
@@ -630,3 +710,44 @@ def test_autosave() -> None:
             results_after_resume.get_result("energy", t),
             results_expected.get_result("energy", t),
         )
+
+
+def test_obs_after_autosave() -> None:
+    duration = 300
+    rows, cols = 2, 3
+    reg = pulser.Register.rectangle(
+        rows, cols, pulser.devices.MockDevice.rydberg_blockade_radius(U), prefix="q"
+    )
+    seq = pulser.Sequence(reg, pulser.devices.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(
+        pulser.Pulse.ConstantAmplitude(
+            amplitude=torch.pi,
+            detuning=pulser.waveforms.ConstantWaveform(duration=duration, value=0.0),
+            phase=0.0,
+        ),
+        "ising_global",
+    )
+
+    evaluation_times = [1.0 / 30.0, 1.0 / 3.0, 0.5]
+    energy = Energy(evaluation_times=evaluation_times)
+    correlation = CorrelationMatrix(evaluation_times=evaluation_times)
+    occupation = Occupation(evaluation_times=evaluation_times)
+
+    save_simulation_original = MPSBackendImpl.save_simulation
+
+    def save_simulation_mock_side_effect(self):
+        self.last_save_time = 0  # save at each timestep
+        return save_simulation_original(self)
+
+    with patch.object(
+        MPSBackendImpl, "save_simulation", autospec=True
+    ) as save_simulation_mock:
+        save_simulation_mock.side_effect = save_simulation_mock_side_effect
+
+        results = MPSBackend(
+            seq, config=MPSConfig(observables=[energy, correlation, occupation])
+        ).run()
+    assert all([isinstance(x, torch.Tensor) for x in results.energy])
+    assert all([isinstance(x, torch.Tensor) for x in results.occupation])
+    assert all([isinstance(x, torch.Tensor) for x in results.correlation_matrix])

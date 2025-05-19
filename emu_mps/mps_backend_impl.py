@@ -1,29 +1,37 @@
 import math
+import os
 import pathlib
+import pickle
 import random
+import time
+import typing
 import uuid
 
+from copy import deepcopy
+from collections import Counter
+from enum import Enum, auto
 from resource import RUSAGE_SELF, getrusage
-from typing import Optional, Any
-import typing
-import pickle
-import os
-import torch
-import time
-from pulser import Sequence
 from types import MethodType
+from typing import Any, Optional
 
-from pulser.backend import State, Observable, EmulationConfig, Results
-from emu_base import PulserData, DEVICE_COUNT
+import torch
+from pulser import Sequence
+from pulser.backend import EmulationConfig, Observable, Results, State
+
+from emu_base import DEVICE_COUNT, PulserData
 from emu_base.math.brents_root_finding import BrentsRootFinder
+from emu_base.utils import deallocate_tensor
+
 from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
-from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
+from emu_mps.noise import pick_well_prepared_qubits
+from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
+import emu_mps.optimatrix as optimat
 from emu_mps.tdvp import (
-    evolve_single,
     evolve_pair,
+    evolve_single,
     new_right_bath,
     right_baths,
 )
@@ -33,7 +41,6 @@ from emu_mps.utils import (
     get_extended_site_index,
     new_left_bath,
 )
-from enum import Enum, auto
 
 
 class Statistics(Observable):
@@ -118,8 +125,17 @@ class MPSBackendImpl:
         self.timestep_count: int = self.omega.shape[0]
         self.has_lindblad_noise = pulser_data.has_lindblad_noise
         self.lindblad_noise = torch.zeros(2, 2, dtype=torch.complex128)
-        self.full_interaction_matrix = pulser_data.full_interaction_matrix
-        self.masked_interaction_matrix = pulser_data.masked_interaction_matrix
+        self.qubit_permutation = (
+            optimat.minimize_bandwidth(pulser_data.full_interaction_matrix)
+            if self.config.optimize_qubit_ordering
+            else optimat.eye_permutation(self.qubit_count)
+        )
+        self.full_interaction_matrix = optimat.permute_tensor(
+            pulser_data.full_interaction_matrix, self.qubit_permutation
+        )
+        self.masked_interaction_matrix = optimat.permute_tensor(
+            pulser_data.masked_interaction_matrix, self.qubit_permutation
+        )
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.slm_end_time = pulser_data.slm_end_time
         self.is_masked = self.slm_end_time > 0.0
@@ -128,7 +144,12 @@ class MPSBackendImpl:
         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
         self.tdvp_index = 0
         self.timestep_index = 0
-        self.results = Results(atom_order=(), total_duration=self.target_times[-1])
+        self.results = Results(
+            atom_order=optimat.permute_tuple(
+                pulser_data.qubit_ids, self.qubit_permutation
+            ),
+            total_duration=self.target_times[-1],
+        )
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
             data=[],
@@ -149,16 +170,19 @@ class MPSBackendImpl:
             )
 
     def __getstate__(self) -> dict:
-        for obs in self.config.observables:
+        d = self.__dict__.copy()
+        cp = deepcopy(self.config)
+        d["config"] = cp
+        d["state"].config = cp
+        for obs in cp.observables:
             obs.apply = MethodType(type(obs).apply, obs)  # type: ignore[method-assign]
-        d = self.__dict__
         # mypy thinks the method below is an attribute, because of the __getattr__ override
         d["results"] = self.results._to_abstract_repr()  # type: ignore[operator]
         return d
 
     def __setstate__(self, d: dict) -> None:
-        d["results"] = Results._from_abstract_repr(d["results"])  # type: ignore [attr-defined]
         self.__dict__ = d
+        self.results = Results._from_abstract_repr(d["results"])  # type: ignore [attr-defined]
         self.config.monkeypatch_observables()
 
     @staticmethod
@@ -203,11 +227,24 @@ class MPSBackendImpl:
             )
 
         assert isinstance(initial_state, MPS)
+        if not torch.equal(
+            self.qubit_permutation, optimat.eye_permutation(self.qubit_count)
+        ):
+            # permute the initial state to match with permuted Hamiltonian
+            abstr_repr = initial_state._to_abstract_repr()
+            eigs = abstr_repr["eigenstates"]
+            ampl = {
+                optimat.permute_string(bstr, self.qubit_permutation): amp
+                for bstr, amp in abstr_repr["amplitudes"].items()
+            }
+            initial_state = MPS.from_state_amplitudes(eigenstates=eigs, amplitudes=ampl)
+
         initial_state = MPS(
             # Deep copy of every tensor of the initial state.
             [f.clone().detach() for f in initial_state.factors],
             config=self.config,
             num_gpus_to_use=self.config.num_gpus_to_use,
+            eigenstates=initial_state.eigenstates,
         )
         initial_state.truncate()
         initial_state *= 1 / initial_state.norm()
@@ -379,7 +416,7 @@ class MPSBackendImpl:
             )
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
-                self.right_baths[-2] = torch.zeros(0)
+                deallocate_tensor(self.right_baths[-2])
 
             self._evolve(self.tdvp_index, dt=-delta_time / 2)
             self.left_baths.pop()
@@ -444,7 +481,6 @@ class MPSBackendImpl:
         basename = self.autosave_file
         with open(basename.with_suffix(".new"), "wb") as file_handle:
             pickle.dump(self, file_handle)
-
         if basename.is_file():
             os.rename(basename, basename.with_suffix(".bak"))
 
@@ -497,16 +533,60 @@ class MPSBackendImpl:
                     )
                     full_state = MPS(
                         extended_mps_factors(
-                            normalized_state.factors, self.well_prepared_qubits_filter
+                            normalized_state.factors,
+                            self.well_prepared_qubits_filter,
                         ),
                         num_gpus_to_use=None,  # Keep the already assigned devices.
                         orthogonality_center=get_extended_site_index(
                             self.well_prepared_qubits_filter,
                             normalized_state.orthogonality_center,
                         ),
+                        eigenstates=normalized_state.eigenstates,
                     )
 
                 callback(self.config, fractional_time, full_state, full_mpo, self.results)
+
+    def permute_results(self, results: Results, permute: bool) -> Results:
+        if permute:
+            inv_perm = optimat.inv_permutation(self.qubit_permutation)
+            permute_bitstrings(results, inv_perm)
+            permute_occupations_and_correlations(results, inv_perm)
+            permute_atom_order(results, inv_perm)
+        return results
+
+
+def permute_bitstrings(results: Results, perm: torch.Tensor) -> None:
+    if "bitstrings" not in results.get_result_tags():
+        return
+    uuid_bs = results._find_uuid("bitstrings")
+
+    results._results[uuid_bs] = [
+        Counter({optimat.permute_string(bstr, perm): c for bstr, c in bs_counter.items()})
+        for bs_counter in results._results[uuid_bs]
+    ]
+
+
+def permute_occupations_and_correlations(results: Results, perm: torch.Tensor) -> None:
+    for corr in ["occupation", "correlation_matrix"]:
+        if corr not in results.get_result_tags():
+            continue
+
+        uuid_corr = results._find_uuid(corr)
+        corrs = results._results[uuid_corr]
+        results._results[uuid_corr] = (
+            [  # vector quantities become lists after results are serialized (e.g. for checkpoints)
+                optimat.permute_tensor(
+                    corr if isinstance(corr, torch.Tensor) else torch.tensor(corr), perm
+                )
+                for corr in corrs
+            ]
+        )
+
+
+def permute_atom_order(results: Results, perm: torch.Tensor) -> None:
+    at_ord = list(results.atom_order)
+    at_ord = optimat.permute_list(at_ord, perm)
+    results.atom_order = tuple(at_ord)
 
 
 class NoisyMPSBackendImpl(MPSBackendImpl):
@@ -536,7 +616,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
 
     def set_jump_threshold(self, bound: float) -> None:
         self.jump_threshold = random.uniform(0.0, bound)
-        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+        self.norm_gap_before_jump = self.state.norm().item() ** 2 - self.jump_threshold
 
     def init(self) -> None:
         self.init_lindblad_noise()
@@ -547,7 +627,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         previous_time = self.current_time
         self.current_time = self.target_time
         previous_norm_gap_before_jump = self.norm_gap_before_jump
-        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+        self.norm_gap_before_jump = self.state.norm().item() ** 2 - self.jump_threshold
 
         if self.root_finder is None:
             # No quantum jump location finding in progress
@@ -567,7 +647,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
 
             return
 
-        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+        self.norm_gap_before_jump = self.state.norm().item() ** 2 - self.jump_threshold
         self.root_finder.provide_ordinate(self.current_time, self.norm_gap_before_jump)
 
         if self.root_finder.is_converged(tolerance=1):
@@ -593,7 +673,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         self.state *= 1 / self.state.norm()
         self.init_baths()
 
-        norm_after_normalizing = self.state.norm()
+        norm_after_normalizing = self.state.norm().item()
         assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
         self.set_jump_threshold(norm_after_normalizing**2)
 

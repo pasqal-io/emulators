@@ -2,62 +2,94 @@ import torch
 import pytest
 from test.utils_testing import (
     dense_rydberg_hamiltonian,
-    nn_interaction_matrix,
     randn_interaction_matrix,
 )
-from emu_sv.time_evolution import do_time_step
+from emu_sv.time_evolution import EvolveStateVector
 
-dtype = torch.complex128
+# to test locally on GPU just change device here
 device = "cpu"
 
 
+def do_dense_time_step(
+    dt: float,
+    omegas: torch.Tensor,
+    deltas: torch.Tensor,
+    phis: torch.Tensor,
+    interaction_matrix: torch.Tensor,
+    state: torch.Tensor,
+) -> torch.Tensor:
+    H = dense_rydberg_hamiltonian(omegas, deltas, phis, interaction_matrix).to(
+        state.device
+    )
+    return torch.linalg.matrix_exp(-1j * dt * H) @ state
+
+
+def get_randn_ham_params(
+    nqubits: int, with_phase: bool = False, dtype: torch.dtype = torch.float64, **kwargs
+) -> tuple[torch.Tensor]:
+    omegas = torch.randn(nqubits, dtype=dtype, **kwargs)
+    deltas = torch.randn(nqubits, dtype=dtype, **kwargs)
+    if with_phase:
+        phis = torch.randn(nqubits, dtype=dtype, **kwargs)
+    else:
+        phis = torch.zeros(nqubits, dtype=dtype)
+    interaction = randn_interaction_matrix(nqubits, **kwargs)
+    return omegas, deltas, phis, interaction
+
+
+def get_randn_state(
+    nqubits: int, dtype: torch.dtype = torch.complex128, **kwargs
+) -> torch.Tensor:
+    state = torch.randn(2**nqubits, dtype=dtype, **kwargs)
+    return state / state.norm()
+
+
 @pytest.mark.parametrize(
-    ("N", "krylov_tolerance"),
-    [(3, 1e-10), (5, 1e-12), (7, 1e-10), (8, 1e-12)],
+    "N, tolerance, with_phase",
+    [
+        (n, tol, wp)
+        for n in [3, 5, 8]
+        for tol in [1e-8, 1e-10, 1e-12]
+        for wp in [False, True]
+    ],
 )
-def test_forward_no_phase(N: int, krylov_tolerance: float) -> None:
+def test_forward(N: int, tolerance: float, with_phase: bool) -> None:
     torch.manual_seed(1337)
-    omegas = torch.randn(N)
-    deltas = torch.randn(N)
-    phis = torch.zeros_like(omegas)
-    interaction = nn_interaction_matrix(N)
-    ham_params = (omegas, deltas, phis, interaction)
-
-    state = torch.randn(2**N, dtype=dtype, device=device)
-    state /= state.norm()
-
-    H = dense_rydberg_hamiltonian(*ham_params).to(device)
+    ham_params = get_randn_ham_params(N, with_phase=with_phase)
+    state_in = get_randn_state(N, device=device, requires_grad=True)
     dt = 1.0  # 1 μs big time step
-    ed = torch.linalg.matrix_exp(-1j * dt * H) @ state
-    krylov, _ = do_time_step(
+
+    expected = do_dense_time_step(dt, *ham_params, state_in)
+    state_out, _ = EvolveStateVector.apply(
         dt,
         *ham_params,
-        state,
-        krylov_tolerance,
+        state_in,
+        tolerance,
     )
-    assert torch.allclose(ed, krylov, atol=krylov_tolerance)
+    assert torch.allclose(expected, state_out, atol=tolerance)
 
 
 @pytest.mark.parametrize(
-    ("N", "krylov_tolerance"),
-    [(3, 1e-10), (5, 1e-12), (7, 1e-10), (8, 1e-12)],
+    "N, tolerance",
+    [(n, tol) for n in [3, 5, 8] for tol in [1e-8, 1e-10, 1e-12]],
 )
-def test_forward_with_phase(N: int, krylov_tolerance: float) -> None:
+def test_backward(N, tolerance):
     torch.manual_seed(1337)
-    omegas, deltas, phis = torch.randn(3, N)  # unpack a 3*N tensor
-    interaction = randn_interaction_matrix(N)
-    ham_params = (omegas, deltas, phis, interaction)
+    ham_params = get_randn_ham_params(N, with_phase=True, requires_grad=True)
+    state_in = get_randn_state(N, device=device, requires_grad=True)
+    dt = 1.0  # big timestep 1 μs
 
-    state = torch.randn(2**N, dtype=dtype, device=device)
-    state /= state.norm()
+    # arbitrary vector to construct a scalar
+    r = torch.randn(2**N, dtype=state_in.dtype, device=state_in.device)
+    r *= 0.71 / r.norm()
 
-    H = dense_rydberg_hamiltonian(*ham_params).to(device)
-    dt = 1.0  # 1 μs big time step
-    ed = torch.linalg.matrix_exp(-1j * dt * H) @ state
-    krylov, _ = do_time_step(
-        dt,
-        *ham_params,
-        state,
-        krylov_tolerance,
-    )
-    assert torch.allclose(ed, krylov, atol=krylov_tolerance)
+    state_out, _ = EvolveStateVector.apply(dt, *ham_params, state_in, tolerance)
+    scalar = torch.vdot(r, state_out).real
+    grads = torch.autograd.grad(scalar, (*ham_params, state_in))
+
+    expected = do_dense_time_step(dt, *ham_params, state_in)
+    expected_scalar = torch.vdot(r, expected).real
+    expected_grads = torch.autograd.grad(expected_scalar, (*ham_params, state_in))
+
+    for g, eg in zip(grads, expected_grads):
+        assert torch.allclose(g, eg, rtol=tolerance)

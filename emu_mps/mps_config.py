@@ -43,8 +43,14 @@ class MPSConfig(EmulationConfig):
         num_gpus_to_use: during the simulation, distribute the state over this many GPUs
             0=all factors to cpu. As shown in the benchmarks, using multiple GPUs might
             alleviate memory pressure per GPU, but the runtime should be similar.
+        optimize_qubit_ordering: Optimize the register ordering. Improves performance and
+            accuracy, but disables certain features.
+        interaction_cutoff: Set interaction coefficients below this value to `0`.
+            Potentially improves runtime and memory consumption.
+        log_level: How much to log. Set to `logging.WARN` to get rid of the timestep info.
+        log_file: If specified, log to this file rather than stout.
         autosave_prefix: filename prefix for autosaving simulation state to file
-        autosave_dt: minimum time interval in seconds between two autosaves
+        autosave_dt: minimum time interval in seconds between two autosaves.
             Saving the simulation state is only possible at specific times,
             therefore this interval is only a lower bound.
         kwargs: arguments that are passed to the base class
@@ -69,6 +75,7 @@ class MPSConfig(EmulationConfig):
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
         num_gpus_to_use: int = DEVICE_COUNT,
+        optimize_qubit_ordering: bool = False,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
@@ -84,6 +91,7 @@ class MPSConfig(EmulationConfig):
             max_krylov_dim=max_krylov_dim,
             extra_krylov_tolerance=extra_krylov_tolerance,
             num_gpus_to_use=num_gpus_to_use,
+            optimize_qubit_ordering=optimize_qubit_ordering,
             interaction_cutoff=interaction_cutoff,
             log_level=log_level,
             log_file=log_file,
@@ -91,6 +99,8 @@ class MPSConfig(EmulationConfig):
             autosave_dt=autosave_dt,
             **kwargs,
         )
+        if self.optimize_qubit_ordering:
+            self.check_permutable_observables()
 
         if "doppler" in self.noise_model.noise_types:
             raise NotImplementedError("Unsupported noise type: doppler")
@@ -136,6 +146,7 @@ class MPSConfig(EmulationConfig):
             "max_krylov_dim",
             "extra_krylov_tolerance",
             "num_gpus_to_use",
+            "optimize_qubit_ordering",
             "interaction_cutoff",
             "log_level",
             "log_file",
@@ -182,4 +193,28 @@ class MPSConfig(EmulationConfig):
                 filename=str(self.log_file),
                 filemode="w",
                 force=True,
+            )
+
+    def check_permutable_observables(self) -> None:
+        allowed_permutable_obs = set(
+            [
+                "bitstrings",
+                "occupation",
+                "correlation_matrix",
+                "statistics",
+                "energy",
+                "energy_variance",
+                "energy_second_moment",
+            ]
+        )
+
+        actual_obs = set([obs._base_tag for obs in self.observables])
+        not_allowed = actual_obs.difference(allowed_permutable_obs)
+        if not_allowed:
+            raise ValueError(
+                f"emu-mps allows only {allowed_permutable_obs} observables with"
+                " `optimize_qubit_ordering = True`."
+                f" you provided unsupported {not_allowed}"
+                " To use other observables, please set"
+                " `optimize_qubit_ordering = False` in `MPSConfig()`."
             )

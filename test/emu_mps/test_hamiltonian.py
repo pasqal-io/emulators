@@ -3,9 +3,9 @@ from functools import reduce
 
 import torch
 
-from emu_mps.hamiltonian import make_H, update_H, _get_interactions_to_keep
+from emu_mps.hamiltonian import make_H, update_H
 from emu_base.pulser_adapter import HamiltonianType
-from emu_mps.noise import compute_noise_from_lindbladians
+from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 
 
 #########################################
@@ -102,29 +102,6 @@ def sv_hamiltonian(
 
 
 #########################################
-
-
-@pytest.mark.parametrize(
-    "n",
-    [9, 10],
-)
-def test_get_interactions_to_keep(n):
-    interaction_matrix = torch.zeros(n, n, dtype=torch.float64)
-    for i in range(n - 1):
-        interaction_matrix[i, i + 1] = 1.0
-        interaction_matrix[i + 1, i] = 1
-    interactions_to_keep = _get_interactions_to_keep(interaction_matrix)
-    assert len(interactions_to_keep) == n - 1
-    for i in range(n // 2):
-        assert len(interactions_to_keep[i]) == i + 1
-        assert interactions_to_keep[i][-1].item() is True
-        if i > 0:
-            assert not torch.any(interactions_to_keep[i][:-1])
-    for i in range(n // 2, n - 1):
-        assert len(interactions_to_keep[i]) == n - i - 1
-        assert interactions_to_keep[i][0].item() is True
-        if i < n - 2:
-            assert not torch.any(interactions_to_keep[i][1:])
 
 
 # works for nqubits < 6

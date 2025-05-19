@@ -3,12 +3,12 @@ from typing import Tuple, Sequence
 import torch
 import math
 from pulser.noise_model import NoiseModel
-from pulser.register.base_register import BaseRegister
+from pulser.register.base_register import BaseRegister, QubitId
 from enum import Enum
 
 from pulser.backend.config import EmulationConfig
 
-from emu_base.lindblad_operators import get_lindblad_operators
+from emu_base.jump_lindblad_operators import get_lindblad_operators
 from emu_base.utils import dist2, dist3
 
 
@@ -228,9 +228,11 @@ class PulserData:
     phi: torch.Tensor
     hamiltonian_type: HamiltonianType
     lindblad_ops: list[torch.Tensor]
+    qubit_ids: tuple[QubitId, ...]
 
     def __init__(self, *, sequence: pulser.Sequence, config: EmulationConfig, dt: int):
-        self.qubit_count = len(sequence.register.qubit_ids)
+        self.qubit_ids = sequence.register.qubit_ids
+        self.qubit_count = len(self.qubit_ids)
         sequence_duration = sequence.get_duration()
         # the end value is exclusive, so add +1
         observable_times = set(torch.arange(0, sequence.get_duration() + 1, dt).tolist())
