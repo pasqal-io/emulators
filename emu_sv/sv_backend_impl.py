@@ -177,7 +177,8 @@ class NoisySVBackendImpl(SVBackendImpl):
 
     def __init__(self, config: SVConfig, pulser_data: PulserData):
         """
-        Initializes the NoisySVBackendImpl.
+        Initializes the NoisySVBackendImpl, master equation version.
+        This class is used to handle the Lindblad operators.
 
         Args:
             config: The configuration for the emulator.
