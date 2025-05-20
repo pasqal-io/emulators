@@ -106,7 +106,7 @@ def zip_right_step(
     # reshape slider as matrix
     left_inds = (slider.shape[0], *bottom.shape[1:-1])
     right_inds = (top.shape[-1], bottom.shape[-1])
-    slider = slider.reshape(math.prod(left_inds), math.prod(right_inds))
+    slider = slider.contiguous().view(math.prod(left_inds), math.prod(right_inds))
 
     L, slider = torch.linalg.qr(slider)
 

@@ -77,12 +77,12 @@ def apply_effective_Hamiltonian(
     state = state.permute(0, 3, 1, 2)
     ham = ham.permute(0, 2, 1, 3)
     state = state.view(state.shape[0], state.shape[1], -1).contiguous()
-    ham = ham.reshape(-1, ham.shape[2], ham.shape[3]).contiguous()
+    ham = ham.contiguous().view(-1, ham.shape[2], ham.shape[3])
     state = torch.tensordot(state, ham, 1)
     state = state.permute(0, 2, 1, 3)
-    state = state.reshape(state.shape[0], state.shape[1], -1).contiguous()
+    state = state.contiguous().view(state.shape[0], state.shape[1], -1)
     right_bath = right_bath.permute(2, 1, 0)
-    right_bath = right_bath.reshape(-1, right_bath.shape[2]).contiguous()
+    right_bath = right_bath.contiguous().view(-1, right_bath.shape[2])
     state = torch.tensordot(state, right_bath, 1)
     return state
 
