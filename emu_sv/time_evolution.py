@@ -330,32 +330,35 @@ class EvolveStateVector(torch.autograd.Function):
         )
 
 
-def do_noisy_time_step(
-    dt: float,
-    omegas: torch.Tensor,
-    deltas: torch.Tensor,
-    phis: torch.Tensor,
-    full_interaction_matrix: torch.Tensor,
-    density_matrix: torch.Tensor,
-    krylov_tolerance: float,
-    pulser_lindblads: list[torch.Tensor],
-) -> tuple[torch.Tensor, RydbergLindbladian]:
-    ham = RydbergLindbladian(
-        omegas=omegas,
-        deltas=deltas,
-        phis=phis,
-        pulser_linblads=pulser_lindblads,
-        interaction_matrix=full_interaction_matrix,
-        device=density_matrix.device,
-    )
-    op = lambda x: -1j * dt * (ham @ x)
-    return (
-        krylov_exp(
-            op,
-            density_matrix,
-            norm_tolerance=krylov_tolerance,
-            exp_tolerance=krylov_tolerance,
-            is_hermitian=False,
-        ),
-        ham,
-    )
+class EvolveDensityMatrix:
+
+    @staticmethod
+    def evolve(
+        dt: float,
+        omegas: torch.Tensor,
+        deltas: torch.Tensor,
+        phis: torch.Tensor,
+        full_interaction_matrix: torch.Tensor,
+        density_matrix: torch.Tensor,
+        krylov_tolerance: float,
+        pulser_lindblads: list[torch.Tensor],
+    ) -> tuple[torch.Tensor, RydbergLindbladian]:
+        ham = RydbergLindbladian(
+            omegas=omegas,
+            deltas=deltas,
+            phis=phis,
+            pulser_linblads=pulser_lindblads,
+            interaction_matrix=full_interaction_matrix,
+            device=density_matrix.device,
+        )
+        op = lambda x: -1j * dt * (ham @ x)
+        return (
+            krylov_exp(
+                op,
+                density_matrix,
+                norm_tolerance=krylov_tolerance,
+                exp_tolerance=krylov_tolerance,
+                is_hermitian=False,
+            ),
+            ham,
+        )
