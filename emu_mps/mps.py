@@ -140,8 +140,8 @@ class MPS(State[complex, torch.Tensor]):
         )
 
         for i in range(lr_swipe_start, desired_orthogonality_center):
-            q, r = torch.linalg.qr(self.factors[i].reshape(-1, self.factors[i].shape[2]))
-            self.factors[i] = q.reshape(self.factors[i].shape[0], 2, -1)
+            q, r = torch.linalg.qr(self.factors[i].view(-1, self.factors[i].shape[2]))
+            self.factors[i] = q.view(self.factors[i].shape[0], 2, -1)
             self.factors[i + 1] = torch.tensordot(
                 r.to(self.factors[i + 1].device), self.factors[i + 1], dims=1
             )
@@ -154,9 +154,9 @@ class MPS(State[complex, torch.Tensor]):
 
         for i in range(rl_swipe_start, desired_orthogonality_center, -1):
             q, r = torch.linalg.qr(
-                self.factors[i].reshape(self.factors[i].shape[0], -1).mT,
+                self.factors[i].view(self.factors[i].shape[0], -1).mT,
             )
-            self.factors[i] = q.mT.reshape(-1, 2, self.factors[i].shape[2])
+            self.factors[i] = q.mT.view(-1, 2, self.factors[i].shape[2])
             self.factors[i - 1] = torch.tensordot(
                 self.factors[i - 1], r.to(self.factors[i - 1].device), ([2], [1])
             )
@@ -301,7 +301,7 @@ class MPS(State[complex, torch.Tensor]):
             acc = torch.tensordot(acc, other.factors[i].to(acc.device), dims=1)
             acc = torch.tensordot(self.factors[i].conj(), acc, dims=([0, 1], [0, 1]))
 
-        return acc.reshape(1)[0].cpu()
+        return acc.view(1)[0].cpu()
 
     def overlap(self, other: State, /) -> torch.Tensor:
         """
@@ -468,7 +468,7 @@ class MPS(State[complex, torch.Tensor]):
             )
 
             if qubit_index < self.num_sites - 1:
-                _, r = torch.linalg.qr(center_factor.reshape(-1, center_factor.shape[2]))
+                _, r = torch.linalg.qr(center_factor.view(-1, center_factor.shape[2]))
                 center_factor = torch.tensordot(
                     r, self.factors[qubit_index + 1].to(r.device), dims=1
                 )
@@ -476,7 +476,7 @@ class MPS(State[complex, torch.Tensor]):
         center_factor = self.factors[orthogonality_center]
         for qubit_index in range(orthogonality_center - 1, -1, -1):
             _, r = torch.linalg.qr(
-                center_factor.reshape(center_factor.shape[0], -1).mT,
+                center_factor.view(center_factor.shape[0], -1).mT,
             )
             center_factor = torch.tensordot(
                 self.factors[qubit_index],

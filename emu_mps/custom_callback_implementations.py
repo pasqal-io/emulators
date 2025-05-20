@@ -28,7 +28,7 @@ def qubit_occupation_mps_impl(
     op = torch.tensor(
         [[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.complex128, device=state.factors[0].device
     )
-    return state.expect_batch(op).real.reshape(-1).cpu()
+    return state.expect_batch(op).real.view(-1).cpu()
 
 
 def correlation_matrix_mps_impl(
