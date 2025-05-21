@@ -103,25 +103,19 @@ class BaseSVBackendImpl:
         pass
 
     def step(self, step_idx: int) -> None:
+        """One step of the evolution"""
         dt = self._compute_dt(step_idx)
         self._evolve_step(dt, step_idx)
         self._apply_observables(step_idx)
         self._save_statistics(step_idx)
-
-    def _run(self) -> None:
-        for step in range(self.nsteps):
-            self.step(step)
-
-        # return self.results update the results and
-        # call the results when needed
-        pass
 
     def _compute_dt(self, step_idx: int) -> float:
         return self.target_times[step_idx + 1] - self.target_times[step_idx]
 
     @abstractmethod
     def _evolve_step(self, dt: float, step_idx: int) -> None:
-        """adapt the stepper accoridng to weather there is noise or not"""
+        """choose the stepper configuration accoridng to noisy or
+        non noisy simulation"""
         pass
 
     def _apply_observables(self, step_idx: int) -> None:
@@ -147,6 +141,13 @@ class BaseSVBackendImpl:
         )
         self.time = time.time()
         del self._current_H
+
+    def _run(self) -> None:
+        for step in range(self.nsteps):
+            self.step(step)
+
+        # NOTE: return self.results or not?
+        pass
 
 
 class SVBackendImpl(BaseSVBackendImpl):

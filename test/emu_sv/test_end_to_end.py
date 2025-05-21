@@ -206,7 +206,6 @@ def test_end_to_end_afm_ring() -> None:
     )
 
     energy = result.energy[final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
-    print(energy.item())
     assert approx(energy, 1e-7) == -115.34558020797967  # -115.34554479213088
 
     energy_variance = result.energy_variance[final_time]  # 45.911110563993134
