@@ -152,7 +152,7 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
                 state.factors[i + 1].device
             )
         acc = new_left_bath(acc, state.factors[n], self.factors[n])
-        return acc.reshape(1)[0].cpu()
+        return acc.view(1)[0].cpu()
 
     @classmethod
     def _from_operator_repr(
@@ -185,35 +185,35 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
             # operators_with_tensors will now contain the basis for single qubit ops,
             # and potentially user defined strings in terms of these
             operators_with_tensors = {
-                "gg": torch.tensor(
-                    [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "gr": torch.tensor(
-                    [[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "rg": torch.tensor(
-                    [[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "rr": torch.tensor(
-                    [[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
+                "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128).view(
+                    1, 2, 2, 1
+                ),
+                "gr": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128).view(
+                    1, 2, 2, 1
+                ),
+                "rg": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128).view(
+                    1, 2, 2, 1
+                ),
+                "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128).view(
+                    1, 2, 2, 1
+                ),
             }
         elif basis == {"0", "1"}:
             # operators_with_tensors will now contain the basis for single qubit ops,
             # and potentially user defined strings in terms of these
             operators_with_tensors = {
-                "00": torch.tensor(
-                    [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "01": torch.tensor(
-                    [[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "10": torch.tensor(
-                    [[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "11": torch.tensor(
-                    [[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
+                "00": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128).view(
+                    1, 2, 2, 1
+                ),
+                "01": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128).view(
+                    1, 2, 2, 1
+                ),
+                "10": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128).view(
+                    1, 2, 2, 1
+                ),
+                "11": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128).view(
+                    1, 2, 2, 1
+                ),
             }
         else:
             raise ValueError("Unsupported basis provided")
@@ -235,7 +235,7 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
                 return result
 
             factors = [
-                torch.eye(2, 2, dtype=torch.complex128).reshape(1, 2, 2, 1)
+                torch.eye(2, 2, dtype=torch.complex128).view(1, 2, 2, 1)
             ] * n_qudits
 
             for op in tensorop:

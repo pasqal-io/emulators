@@ -96,9 +96,9 @@ class DHDDeltaSparse:
 
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
         result = vec.clone()
-        result = result.reshape(vec.shape[0], *self.shape)
+        result = result.view(vec.shape[0], *self.shape)
         result[:, :, 0] = 0.0
-        return -result.reshape(vec.shape[0], 2**self.nqubits)
+        return -result.view(vec.shape[0], 2**self.nqubits)
 
 
 class DHDUSparse:
@@ -113,10 +113,10 @@ class DHDUSparse:
 
     def __matmul__(self, vec: torch.Tensor) -> torch.Tensor:
         result = vec.clone()
-        result = result.reshape(vec.shape[0], *self.shape)
+        result = result.view(vec.shape[0], *self.shape)
         result[:, :, 0] = 0.0
         result[:, :, 1, :, 0] = 0.0
-        return result.reshape(vec.shape[0], 2**self.nqubits)
+        return result.view(vec.shape[0], 2**self.nqubits)
 
 
 class EvolveStateVector(torch.autograd.Function):
