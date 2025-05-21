@@ -331,6 +331,7 @@ class EvolveStateVector(torch.autograd.Function):
 
 
 class EvolveDensityMatrix:
+    """Evolution of a density matrix under a Lindbladian operator."""
 
     @staticmethod
     def evolve(
