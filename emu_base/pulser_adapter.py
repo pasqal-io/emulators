@@ -82,6 +82,7 @@ def _extract_omega_delta_phi(
     target_times: list[int],
     with_modulation: bool,
     laser_waist: float | None,
+    amp_sigma: float,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Samples the Pulser sequence and returns a tuple of tensors (omega, delta, phi)
@@ -131,20 +132,33 @@ def _extract_omega_delta_phi(
         len(sequence.register.qubit_ids),
         dtype=torch.complex128,
     )
+    qubit_positions = _get_qubit_positions(sequence.register)
 
-    if laser_waist:
-        qubit_positions = _get_qubit_positions(sequence.register)
-        waist_factors = torch.tensor(
-            [math.exp(-((x[:2].norm() / laser_waist) ** 2)) for x in qubit_positions]
-        )
-    else:
-        waist_factors = torch.ones(len(sequence.register.qubit_ids))
+    def perp_dist(pos: torch.Tensor, axis: torch.Tensor) -> torch.Tensor:
+        return pos - torch.vdot(pos, axis) * axis
 
-    global_times = set()
+    global_times_to_amp_factors = {}
     for ch, ch_samples in samples.channel_samples.items():
-        if samples._ch_objs[ch].addressing == "Global":
-            for slot in ch_samples.slots:
-                global_times |= set(i for i in range(slot.ti, slot.tf))
+        ch_obj = samples._ch_objs[ch]
+        prop_dir = torch.tensor(
+            ch_obj.propagation_dir or [0.0, 1.0, 0.0], dtype=torch.float64
+        )
+        prop_dir /= prop_dir.norm()
+        sigma_factor = 1.0 + amp_sigma**2 * torch.max(torch.tensor(0), torch.randn(1))
+        for slot in ch_samples.slots:
+            factors = (
+                torch.tensor(
+                    [
+                        math.exp(-torch.norm(perp_dist(x, prop_dir) / laser_waist) ** 2)
+                        for x in qubit_positions
+                    ]
+                )
+                if laser_waist and ch_obj.addressing == "Global"
+                else torch.ones(len(sequence.register.qubit_ids))
+            )
+            factors *= sigma_factor
+            for i in range(slot.ti, slot.tf):
+                global_times_to_amp_factors[i] = factors
 
     omega_1 = torch.zeros_like(omega[0])
     omega_2 = torch.zeros_like(omega[0])
@@ -169,10 +183,8 @@ def _extract_omega_delta_phi(
                     locals_a_d_p[q_id]["phase"][t1] + locals_a_d_p[q_id]["phase"][t2]
                 ) / 2.0
             # omegas at different times need to have the laser waist applied independently
-            if t1 in global_times:
-                omega_1 *= waist_factors
-            if t2 in global_times:
-                omega_2 *= waist_factors
+            omega_1 *= global_times_to_amp_factors.get(t1, 1.0)
+            omega_2 *= global_times_to_amp_factors.get(t2, 1.0)
             omega[i] = 0.5 * (omega_1 + omega_2)
         else:
             # We're in the final step and dt=1, approximate this using linear extrapolation
@@ -238,14 +250,14 @@ class PulserData:
         self.target_times: list[int] = list(observable_times)
         self.target_times.sort()
 
-        laser_waist = (
-            config.noise_model.laser_waist if config.noise_model is not None else None
-        )
+        laser_waist = config.noise_model.laser_waist
+        amp_sigma = config.noise_model.amp_sigma
         self.omega, self.delta, self.phi = _extract_omega_delta_phi(
             sequence=sequence,
             target_times=self.target_times,
             with_modulation=config.with_modulation,
             laser_waist=laser_waist,
+            amp_sigma=amp_sigma,
         )
         self.lindblad_ops = _get_all_lindblad_noise_operators(config.noise_model)
         self.has_lindblad_noise: bool = self.lindblad_ops != []
