@@ -8,10 +8,6 @@ from pulser.register.base_register import BaseRegister, QubitId
 from pulser.backend.config import EmulationConfig
 from emu_base.jump_lindblad_operators import get_lindblad_operators
 
-RUBIDIUM_MASS = 1.45e-25  # kg
-KB = 1.38e-23  # J/K
-KEFF = 8.7  # µm^-1, conversion from atom velocity to detuning
-
 
 class HamiltonianType(Enum):
     Rydberg = 1
