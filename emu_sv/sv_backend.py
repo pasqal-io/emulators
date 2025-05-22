@@ -23,5 +23,4 @@ class SVBackend(EmulatorBackend):
         assert isinstance(self._config, SVConfig)
 
         impl = create_impl(self._sequence, self._config)
-        impl._run()
-        return impl.results
+        return impl._run()

@@ -2,6 +2,8 @@ from abc import abstractmethod
 import time
 import typing
 
+from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.lindblad_operator import RydbergLindbladian
 from pulser import Sequence
 import torch
 from resource import RUSAGE_SELF, getrusage
@@ -85,22 +87,15 @@ class BaseSVBackendImpl:
         self.phi = pulser_data.phi
         self.nsteps = pulser_data.omega.shape[0]
         self.nqubits = pulser_data.omega.shape[1]
+        self.state: State
         self.time = time.time()
-        self.state = self.initial_state()
-        self.stepper: typing.Callable
         self.results = Results(atom_order=(), total_duration=self.target_times[-1])
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
             data=[],
             timestep_count=self.nsteps,
         )
-        self._current_H = None
-
-    @abstractmethod
-    def initial_state(self) -> State:
-        """
-        Initializes the initial state according to StateVector or DensityMatrix."""
-        pass
+        self._current_H: None | RydbergLindbladian | RydbergHamiltonian
 
     def step(self, step_idx: int) -> None:
         """One step of the evolution"""
@@ -114,9 +109,7 @@ class BaseSVBackendImpl:
 
     @abstractmethod
     def _evolve_step(self, dt: float, step_idx: int) -> None:
-        """choose the stepper configuration accoridng to noisy or
-        non noisy simulation"""
-        pass
+        """One step evolution"""
 
     def _apply_observables(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx + 1] / self.target_times[-1]
@@ -140,14 +133,13 @@ class BaseSVBackendImpl:
             self.results,
         )
         self.time = time.time()
-        del self._current_H
+        self._current_H = None
 
-    def _run(self) -> None:
+    def _run(self) -> Results:
         for step in range(self.nsteps):
             self.step(step)
 
-        # NOTE: return self.results or not?
-        pass
+        return self.results
 
 
 class SVBackendImpl(BaseSVBackendImpl):
@@ -162,19 +154,19 @@ class SVBackendImpl(BaseSVBackendImpl):
         """
         super().__init__(config, pulser_data)
 
-        self.state: StateVector = self.initial_state()
+        self.state: StateVector = (
+            StateVector.make(self.nqubits, gpu=self._config.gpu)
+            if self._config.initial_state is None
+            else StateVector(
+                self._config.initial_state.vector.clone(),
+                gpu=self._config.gpu,
+            )
+        )
         self.stepper = (
             EvolveStateVector.apply
             if self.state.vector.requires_grad
             else EvolveStateVector.evolve
         )
-
-    def initial_state(self) -> StateVector:
-        if self._config.initial_state is not None:
-            state = self._config.initial_state
-            return StateVector(state.vector.clone(), gpu=state.vector.is_cuda)
-        else:
-            return StateVector.make(self.nqubits, gpu=self._config.gpu)
 
     def _evolve_step(self, dt: float, step_idx: int) -> None:
         self.state.vector, self._current_H = self.stepper(
@@ -203,15 +195,14 @@ class NoisySVBackendImpl(BaseSVBackendImpl):
         super().__init__(config, pulser_data)
 
         self.pulser_lindblads = pulser_data.lindblad_ops
-        self.state: DensityMatrix = self.initial_state()
+        self.state: DensityMatrix = (
+            DensityMatrix.make(self.nqubits, gpu=self._config.gpu)
+            if self._config.initial_state is None
+            else DensityMatrix(
+                self._config.initial_state.matrix.clone(), gpu=self._config.gpu
+            )
+        )
         self.stepper = EvolveDensityMatrix.evolve
-
-    def initial_state(self) -> DensityMatrix:
-        if self._config.initial_state is not None:  # fix this with state vector
-            state = self._config.initial_state
-            return DensityMatrix(state.matrix.clone(), gpu=self._config.gpu)
-        else:
-            return DensityMatrix.make(self.nqubits, gpu=self._config.gpu)
 
     def _evolve_step(self, dt: float, step_idx: int) -> None:
         self.state.matrix, self._current_H = self.stepper(
@@ -232,7 +223,7 @@ def create_impl(sequence: Sequence, config: SVConfig) -> BaseSVBackendImpl:
 
     Args:
         sequence: The sequence to be emulated.
-        config: configu for the emulator.
+        config: configuration for the emulator.
 
     Returns:
         An instance of SVBackendImpl.
