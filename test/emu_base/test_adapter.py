@@ -326,7 +326,10 @@ def test_interaction_matrix_differentiability():
     ],
 )
 @patch("emu_base.pulser_adapter.pulser.sampler.sample")
-def test_extract_omega_delta_phi_dt_2(mock_pulser_sample, hamiltonian_type, laser_waist):
+@patch("emu_base.pulser_adapter.torch.randn")
+def test_extract_omega_delta_phi_dt_2(
+    mock_randn, mock_pulser_sample, hamiltonian_type, laser_waist
+):
     """Local pulse - targe qubit 1:
     pulser.Pulse(RampWaveform(5,3,10),RampWaveform(5,1.5,-10),0.1) and
     Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
@@ -343,28 +346,46 @@ def test_extract_omega_delta_phi_dt_2(mock_pulser_sample, hamiltonian_type, lase
         waist_amplitudes = torch.ones(3, dtype=torch.float64)
 
     mock_pulser_sample.return_value = mock_sample(hamiltonian_type)
+    mock_randn.side_effect = [torch.tensor(0.5), torch.tensor(0.75)]
 
     actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
         sequence=sequence,
         target_times=target_times,
         with_modulation=False,
         laser_waist=laser_waist,
-        amp_sigma=0.0,
+        amp_sigma=1.0,
     )
 
     expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
     assert len(actual_omega) == expected_number_of_samples
 
-    expected_omega = torch.tensor(
+    expected_omega = torch.stack(
         [
-            [4.7500 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [8.2500 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [10.0000 + 0.0j, 10.0000 + 0.0j, 10.0000 + 0.0j],
-            [7.1429 + 0.0j, 7.1429 + 0.0j, 7.1429 + 0.0j],
-            [4.2857 + 0.0j, 4.2857 + 0.0j, 4.2857 + 0.0j],
-            [1.4286 + 0.0j, 1.4286 + 0.0j, 1.4286 + 0.0j],
-        ],
-        dtype=torch.complex128,
+            torch.tensor(
+                [4.7500 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j], dtype=torch.complex128
+            )
+            * 1.5,
+            torch.tensor(
+                [8.2500 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j], dtype=torch.complex128
+            )
+            * 1.5,
+            torch.tensor(
+                [10.0000 + 0.0j, 10.0000 + 0.0j, 10.0000 + 0.0j], dtype=torch.complex128
+            )
+            * 1.75,
+            torch.tensor(
+                [7.1429 + 0.0j, 7.1429 + 0.0j, 7.1429 + 0.0j], dtype=torch.complex128
+            )
+            * 1.75,
+            torch.tensor(
+                [4.2857 + 0.0j, 4.2857 + 0.0j, 4.2857 + 0.0j], dtype=torch.complex128
+            )
+            * 1.75,
+            torch.tensor(
+                [1.4286 + 0.0j, 1.4286 + 0.0j, 1.4286 + 0.0j], dtype=torch.complex128
+            )
+            * 1.75,
+        ]
     )
     to_modify = expected_omega[2:]
     to_modify *= waist_amplitudes
@@ -909,22 +930,22 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
 
     sequence._slm_mask_time = []
 
-    noise_model = NoiseModel(
-        laser_waist=0.1,
-    )
+    noise_model = NoiseModel(laser_waist=0.1, amp_sigma=1.0, runs=1, samples_per_run=1)
 
     config = EmulationConfig(
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
     )
+    torch.manual_seed(1337)
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
+    torch.manual_seed(1337)
     omega, delta, phi = _extract_omega_delta_phi(
         sequence=sequence,
         target_times=target_times,
         with_modulation=False,
         laser_waist=0.1,
-        amp_sigma=0.0,
+        amp_sigma=1.0,
     )
     assert torch.allclose(omega, parsed_sequence.omega)
     assert torch.allclose(delta, parsed_sequence.delta)
