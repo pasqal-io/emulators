@@ -95,7 +95,7 @@ class BaseSVBackendImpl:
             data=[],
             timestep_count=self.nsteps,
         )
-        self._current_H: None | RydbergLindbladian | RydbergHamiltonian
+        self._current_H: None | RydbergLindbladian | RydbergHamiltonian = None
 
     def step(self, step_idx: int) -> None:
         """One step of the evolution"""
@@ -162,6 +162,14 @@ class SVBackendImpl(BaseSVBackendImpl):
                 gpu=self._config.gpu,
             )
         )
+        if self._config.initial_state is not None and (
+            self._config.initial_state.n_qudits != self.nqubits
+        ):
+            raise ValueError(
+                f"Mismatch in number of atoms: initial state has "
+                f"{self._config.initial_state.n_qudits} and the sequence has {self.nqubits}"
+            )
+
         self.stepper = (
             EvolveStateVector.apply
             if self.state.vector.requires_grad
@@ -195,6 +203,7 @@ class NoisySVBackendImpl(BaseSVBackendImpl):
         super().__init__(config, pulser_data)
 
         self.pulser_lindblads = pulser_data.lindblad_ops
+
         self.state: DensityMatrix = (
             DensityMatrix.make(self.nqubits, gpu=self._config.gpu)
             if self._config.initial_state is None
@@ -202,6 +211,14 @@ class NoisySVBackendImpl(BaseSVBackendImpl):
                 self._config.initial_state.matrix.clone(), gpu=self._config.gpu
             )
         )
+
+        if self._config.initial_state is not None and (
+            self._config.initial_state.n_qudits != self.nqubits
+        ):
+            raise ValueError(
+                f"Mismatch in number of atoms: initial state has "
+                f"{self._config.initial_state.n_qudits} and the sequence has {self.nqubits}"
+            )
         self.stepper = EvolveDensityMatrix.evolve
 
     def _evolve_step(self, dt: float, step_idx: int) -> None:

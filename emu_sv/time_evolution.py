@@ -352,6 +352,7 @@ class EvolveDensityMatrix:
             interaction_matrix=full_interaction_matrix,
             device=density_matrix.device,
         )
+
         op = lambda x: -1j * dt * (ham @ x)
         return (
             krylov_exp(

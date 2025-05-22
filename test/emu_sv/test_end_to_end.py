@@ -292,13 +292,14 @@ def test_initial_state() -> None:
     pulse = pulser.Pulse.ConstantAmplitude(
         0.0, pulser.waveforms.ConstantWaveform(10.0, 0.0), 0.0
     )
-    reg = pulser.Register.rectangle(5, 1, spacing=1e10, prefix="q")
+    natoms = 2
+    reg = pulser.Register.rectangle(natoms, 1, spacing=1e10, prefix="q")
     seq = pulser.Sequence(reg, pulser.MockDevice)
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(pulse, "ising_global")  # do nothing in the pulse
 
     state = StateVector.from_state_amplitudes(
-        eigenstates=("r", "g"), amplitudes={"rrrrr": 1.0}
+        eigenstates=("r", "g"), amplitudes={"r" * (natoms): 1.0}
     )
     assert state.norm() == approx(1.0)  # assert unit norm
 
@@ -323,7 +324,7 @@ def test_initial_state_with_den_matrix() -> None:
     seq.add(pulse, "ising_global")  # do nothing in the pulse
 
     state = DensityMatrix.from_state_amplitudes(
-        eigenstates=("r", "g"), amplitudes={"r" * natoms: 1.0}
+        eigenstates=("r", "g"), amplitudes={"r" * (natoms): 1.0}
     )
     state.matrix = state.matrix.to("cpu")
     assert state.matrix.trace() == approx(1.0)  # assert unit norm
@@ -346,7 +347,6 @@ def test_initial_state_with_den_matrix() -> None:
         results.get_result(state_result, 1.0).matrix.cpu(), state.matrix.cpu(), atol=1e-8
     )
 
-    # but that it's a copy
     assert results.get_result(state_result, 1.0) is not state
 
 
@@ -360,7 +360,8 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     pulse = pulser.Pulse.ConstantAmplitude(
         0.0, pulser.waveforms.ConstantWaveform(total_time, 0.0), 0.0
     )
-    reg = pulser.Register.rectangle(1, 2, spacing=1e10, prefix="q")
+    natoms = 2
+    reg = pulser.Register.rectangle(1, natoms, spacing=1e10, prefix="q")
     seq = pulser.Sequence(reg, pulser.MockDevice)
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(pulse, "ising_global")
@@ -369,7 +370,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     dt = 100
     times = [1.0]
     eigenstate = ("r", "g")
-    amplitudes = {"rr": 1.0}
+    amplitudes = {"r" * natoms: 1.0}
     relaxation_rate = 0.1
 
     noise_model = pulser.noise_model.NoiseModel(relaxation_rate=relaxation_rate)
@@ -392,7 +393,8 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     result = backend.run()
 
     # pulser results [0.3678794421106907, 0.3678794421106907]
-    expected_result = torch.tensor([0.3678, 0.3678], dtype=torch.float64)
+    expected_result = torch.tensor([0.3678] * natoms, dtype=torch.float64)
+
     assert torch.allclose(result.occupation[-1], expected_result, atol=1e-4)
 
     expected_counts = {"00": 380, "10": 223, "01": 246, "11": 151}
