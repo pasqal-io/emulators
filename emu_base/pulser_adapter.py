@@ -8,6 +8,10 @@ from pulser.register.base_register import BaseRegister, QubitId
 from pulser.backend.config import EmulationConfig
 from emu_base.jump_lindblad_operators import get_lindblad_operators
 
+RUBIDIUM_MASS = 1.45e-25  # kg
+KB = 1.38e-23  # J/K
+KEFF = 8.7  # µm^-1, conversion from atom velocity to detuning
+
 
 class HamiltonianType(Enum):
     Rydberg = 1
@@ -101,6 +105,8 @@ def _extract_omega_delta_phi(
             "modulation is not supported."
         )
 
+    q_ids = sequence.register.qubit_ids
+
     samples = pulser.sampler.sample(
         sequence,
         modulation=with_modulation,
@@ -118,18 +124,18 @@ def _extract_omega_delta_phi(
     nsamples = len(target_times) - 1
     omega = torch.zeros(
         nsamples,
-        len(sequence.register.qubit_ids),
+        len(q_ids),
         dtype=torch.complex128,
     )
 
     delta = torch.zeros(
         nsamples,
-        len(sequence.register.qubit_ids),
+        len(q_ids),
         dtype=torch.complex128,
     )
     phi = torch.zeros(
         nsamples,
-        len(sequence.register.qubit_ids),
+        len(q_ids),
         dtype=torch.complex128,
     )
     qubit_positions = _get_qubit_positions(sequence.register)
@@ -137,14 +143,16 @@ def _extract_omega_delta_phi(
     def perp_dist(pos: torch.Tensor, axis: torch.Tensor) -> torch.Tensor:
         return pos - torch.vdot(pos, axis) * axis
 
-    global_times_to_amp_factors = {}
+    times_to_amp_factors: dict[int, torch.Tensor] = {}
     for ch, ch_samples in samples.channel_samples.items():
         ch_obj = samples._ch_objs[ch]
         prop_dir = torch.tensor(
             ch_obj.propagation_dir or [0.0, 1.0, 0.0], dtype=torch.float64
         )
         prop_dir /= prop_dir.norm()
-        sigma_factor = 1.0 + amp_sigma**2 * torch.max(torch.tensor(0), torch.randn(1))
+        sigma_factor = (
+            1.0 + amp_sigma**2 * torch.max(torch.tensor(0), torch.randn(1)).item()
+        )
         for slot in ch_samples.slots:
             factors = (
                 torch.tensor(
@@ -154,11 +162,16 @@ def _extract_omega_delta_phi(
                     ]
                 )
                 if laser_waist and ch_obj.addressing == "Global"
-                else torch.ones(len(sequence.register.qubit_ids))
+                else torch.ones(len(q_ids))
             )
-            factors *= sigma_factor
+
+            factors[[x in slot.targets for x in q_ids]] *= sigma_factor
+
             for i in range(slot.ti, slot.tf):
-                global_times_to_amp_factors[i] = factors
+                if i in times_to_amp_factors:
+                    times_to_amp_factors[i] = factors * times_to_amp_factors[i]
+                else:
+                    times_to_amp_factors[i] = factors
 
     omega_1 = torch.zeros_like(omega[0])
     omega_2 = torch.zeros_like(omega[0])
@@ -171,7 +184,7 @@ def _extract_omega_delta_phi(
         if math.ceil(t) < max_duration:
             # If we're not the final step, approximate this using linear interpolation
             # Note that for dt even, t1=t2
-            for q_pos, q_id in enumerate(sequence.register.qubit_ids):
+            for q_pos, q_id in enumerate(q_ids):
                 t1 = math.floor(t)
                 t2 = math.ceil(t)
                 omega_1[q_pos] = locals_a_d_p[q_id]["amp"][t1]
@@ -183,13 +196,13 @@ def _extract_omega_delta_phi(
                     locals_a_d_p[q_id]["phase"][t1] + locals_a_d_p[q_id]["phase"][t2]
                 ) / 2.0
             # omegas at different times need to have the laser waist applied independently
-            omega_1 *= global_times_to_amp_factors.get(t1, 1.0)
-            omega_2 *= global_times_to_amp_factors.get(t2, 1.0)
+            omega_1 *= times_to_amp_factors.get(t1, 1.0)
+            omega_2 *= times_to_amp_factors.get(t2, 1.0)
             omega[i] = 0.5 * (omega_1 + omega_2)
         else:
             # We're in the final step and dt=1, approximate this using linear extrapolation
             # we can reuse omega_1 and omega_2 from before
-            for q_pos, q_id in enumerate(sequence.register.qubit_ids):
+            for q_pos, q_id in enumerate(q_ids):
                 delta[i, q_pos] = (
                     3.0 * locals_a_d_p[q_id]["det"][t2] - locals_a_d_p[q_id]["det"][t1]
                 ) / 2.0
