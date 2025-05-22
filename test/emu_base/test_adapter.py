@@ -360,7 +360,7 @@ def test_extract_omega_delta_phi_dt_2(
         waist_amplitudes = torch.ones(3, dtype=torch.float64)
 
     mock_pulser_sample.return_value = mock_sample(hamiltonian_type)
-    mock_randn.side_effect = [torch.tensor(0.5), torch.tensor(0.6), torch.tensor(0.75)]
+    mock_randn.side_effect = [torch.tensor(0.5), -torch.tensor(0.6), torch.tensor(0.75)]
 
     actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
         sequence=sequence,
@@ -375,8 +375,8 @@ def test_extract_omega_delta_phi_dt_2(
 
     expected_omega = torch.tensor(
         [
-            [4.75 * 1.5, 0.0, 4.75 * 1.6],
-            [8.25 * 1.5, 0.0, 8.25 * 1.6],
+            [4.75 * 1.5, 0.0, 4.75 * 0.4],
+            [8.25 * 1.5, 0.0, 8.25 * 0.4],
             [10.0 * 1.75, 10.0 * 1.75, 10.0 * 1.75],
             [7.1429 * 1.75, 7.1429 * 1.75, 7.1429 * 1.75],
             [4.2857 * 1.75, 4.2857 * 1.75, 4.2857 * 1.75],

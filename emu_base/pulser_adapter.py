@@ -1,4 +1,4 @@
-from typing import Tuple, Sequence
+from typing import Tuple, Sequence, Any
 from enum import Enum
 import torch
 import math
@@ -140,8 +140,8 @@ def _extract_omega_delta_phi(
     )
     qubit_positions = _get_qubit_positions(sequence.register)
 
-    def perp_dist(pos: torch.Tensor, axis: torch.Tensor) -> torch.Tensor:
-        return pos - torch.vdot(pos, axis) * axis
+    def perp_dist(pos: torch.Tensor, axis: torch.Tensor) -> Any:
+        return torch.linalg.vector_norm(pos - torch.vdot(pos, axis) * axis)
 
     times_to_amp_factors: dict[int, torch.Tensor] = {}
     for ch, ch_samples in samples.channel_samples.items():
@@ -150,25 +150,34 @@ def _extract_omega_delta_phi(
             ch_obj.propagation_dir or [0.0, 1.0, 0.0], dtype=torch.float64
         )
         prop_dir /= prop_dir.norm()
-        sigma_factor = (
-            1.0 + amp_sigma**2 * torch.max(torch.tensor(0), torch.randn(1)).item()
-        )
+
+        # each channel has a noise on its laser amplitude
+        # we assume each channel has the same noise amplitude currently
+        # the hardware currently has only a global channel anyway
+        sigma_factor = torch.max(
+            torch.tensor(0), 1.0 + amp_sigma**2 * torch.randn(1)
+        ).item()
         for slot in ch_samples.slots:
             factors = (
                 torch.tensor(
                     [
-                        math.exp(-torch.norm(perp_dist(x, prop_dir) / laser_waist) ** 2)
+                        math.exp(-((perp_dist(x, prop_dir) / laser_waist) ** 2))
                         for x in qubit_positions
                     ]
-                )
+                )  # the lasers have a gaussian profile perpendicular to the propagation direction
                 if laser_waist and ch_obj.addressing == "Global"
-                else torch.ones(len(q_ids))
+                else torch.ones(
+                    len(q_ids)
+                )  # but for a local channel, this does not matter
             )
 
+            # add the amplitude noise for the targeted qubits
             factors[[x in slot.targets for x in q_ids]] *= sigma_factor
 
             for i in range(slot.ti, slot.tf):
-                if i in times_to_amp_factors:
+                if i in times_to_amp_factors:  # multiple local channels at the same time
+                    # pulser enforces that no two lasers target the same qubit simultaneously
+                    # so only a single factor will be != 1.0 for each qubit
                     times_to_amp_factors[i] = factors * times_to_amp_factors[i]
                 else:
                     times_to_amp_factors[i] = factors
@@ -184,9 +193,9 @@ def _extract_omega_delta_phi(
         if math.ceil(t) < max_duration:
             # If we're not the final step, approximate this using linear interpolation
             # Note that for dt even, t1=t2
+            t1 = math.floor(t)
+            t2 = math.ceil(t)
             for q_pos, q_id in enumerate(q_ids):
-                t1 = math.floor(t)
-                t2 = math.ceil(t)
                 omega_1[q_pos] = locals_a_d_p[q_id]["amp"][t1]
                 omega_2[q_pos] = locals_a_d_p[q_id]["amp"][t2]
                 delta[i, q_pos] = (
