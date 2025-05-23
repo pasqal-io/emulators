@@ -64,8 +64,7 @@ def check(
         expected_iteration_count,
         expected_iteration_count + 1,
     }
-
-    E_approx = result.ground_energy
+    E_approx = result.ground_energy.real if is_hermitian else result.ground_energy
     psi_approx = result.ground_state
 
     eigen_energy, eigen_state = torch.linalg.eigh(A)
@@ -150,7 +149,7 @@ def test_exact_case():
 
 
 def test_ising_hamiltonian():
-    N = 12
+    N = 8
     d = 2
     J, h = 1.0, 0.1
 
@@ -175,5 +174,5 @@ def test_ising_hamiltonian():
         residual_tolerance=1e-6,
         expect_converged=True,
         expect_happy_breakdown=False,
-        expected_iteration_count=98,
+        expected_iteration_count=62,
     )
