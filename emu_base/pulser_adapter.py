@@ -9,6 +9,10 @@ from pulser.backend.config import EmulationConfig
 from emu_base.jump_lindblad_operators import get_lindblad_operators
 from emu_base.utils import random_gaussian
 
+RUBIDIUM_MASS = 1.45e-25  # kg
+KB = 1.38e-23  # J/K
+KEFF = 8.7  # µm^-1, conversion from atom velocity to detuning
+
 
 class HamiltonianType(Enum):
     Rydberg = 1
@@ -77,6 +81,65 @@ def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
     return interaction_matrix
 
 
+def _get_amp_factors(
+    samples: pulser.sampler.SequenceSamples,
+    amp_sigma: float,
+    laser_waist: float | None,
+    qubit_positions: list[torch.Tensor],
+    q_ids: tuple[str, ...],
+) -> dict[int, torch.Tensor]:
+    def perp_dist(pos: torch.Tensor, axis: torch.Tensor) -> Any:
+        return torch.linalg.vector_norm(pos - torch.vdot(pos, axis) * axis)
+
+    times_to_amp_factors: dict[int, torch.Tensor] = {}
+    for ch, ch_samples in samples.channel_samples.items():
+        ch_obj = samples._ch_objs[ch]
+        prop_dir = torch.tensor(
+            ch_obj.propagation_dir or [0.0, 1.0, 0.0], dtype=torch.float64
+        )
+        prop_dir /= prop_dir.norm()
+
+        # each channel has a noise on its laser amplitude
+        # we assume each channel has the same noise amplitude currently
+        # the hardware currently has only a global channel anyway
+        sigma_factor = (
+            1.0
+            if amp_sigma == 0.0
+            else torch.max(torch.tensor(0), random_gaussian((1,), 1.0, amp_sigma)).item()
+        )
+        for slot in ch_samples.slots:
+            factors = (
+                torch.tensor(
+                    [
+                        math.exp(-((perp_dist(x, prop_dir) / laser_waist) ** 2))
+                        for x in qubit_positions
+                    ]
+                )  # the lasers have a gaussian profile perpendicular to the propagation direction
+                if laser_waist and ch_obj.addressing == "Global"
+                else torch.ones(
+                    len(q_ids)
+                )  # but for a local channel, this does not matter
+            )
+
+            # add the amplitude noise for the targeted qubits
+            factors[[x in slot.targets for x in q_ids]] *= sigma_factor
+
+            for i in range(slot.ti, slot.tf):
+                if i in times_to_amp_factors:  # multiple local channels at the same time
+                    # pulser enforces that no two lasers target the same qubit simultaneously
+                    # so only a single factor will be != 1.0 for each qubit
+                    times_to_amp_factors[i] = factors * times_to_amp_factors[i]
+                else:
+                    times_to_amp_factors[i] = factors
+    return times_to_amp_factors
+
+
+def _get_delta_offset(nqubits: int, temperature: float) -> torch.Tensor:
+    t = temperature * 1e-6  # microKelvin -> Kelvin
+    sigma = KEFF * math.sqrt(KB * t / RUBIDIUM_MASS)
+    return random_gaussian((nqubits,), 0.0, sigma)
+
+
 def _extract_omega_delta_phi(
     *,
     sequence: pulser.Sequence,
@@ -84,6 +147,7 @@ def _extract_omega_delta_phi(
     with_modulation: bool,
     laser_waist: float | None,
     amp_sigma: float,
+    temperature: float,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Samples the Pulser sequence and returns a tuple of tensors (omega, delta, phi)
@@ -137,49 +201,14 @@ def _extract_omega_delta_phi(
     )
     qubit_positions = _get_qubit_positions(sequence.register)
 
-    def perp_dist(pos: torch.Tensor, axis: torch.Tensor) -> Any:
-        return torch.linalg.vector_norm(pos - torch.vdot(pos, axis) * axis)
-
-    times_to_amp_factors: dict[int, torch.Tensor] = {}
-    for ch, ch_samples in samples.channel_samples.items():
-        ch_obj = samples._ch_objs[ch]
-        prop_dir = torch.tensor(
-            ch_obj.propagation_dir or [0.0, 1.0, 0.0], dtype=torch.float64
-        )
-        prop_dir /= prop_dir.norm()
-
-        # each channel has a noise on its laser amplitude
-        # we assume each channel has the same noise amplitude currently
-        # the hardware currently has only a global channel anyway
-        sigma_factor = (
-            1.0
-            if amp_sigma == 0.0
-            else torch.max(torch.tensor(0), random_gaussian((1,), 1.0, amp_sigma)).item()
-        )
-        for slot in ch_samples.slots:
-            factors = (
-                torch.tensor(
-                    [
-                        math.exp(-((perp_dist(x, prop_dir) / laser_waist) ** 2))
-                        for x in qubit_positions
-                    ]
-                )  # the lasers have a gaussian profile perpendicular to the propagation direction
-                if laser_waist and ch_obj.addressing == "Global"
-                else torch.ones(
-                    len(q_ids)
-                )  # but for a local channel, this does not matter
-            )
-
-            # add the amplitude noise for the targeted qubits
-            factors[[x in slot.targets for x in q_ids]] *= sigma_factor
-
-            for i in range(slot.ti, slot.tf):
-                if i in times_to_amp_factors:  # multiple local channels at the same time
-                    # pulser enforces that no two lasers target the same qubit simultaneously
-                    # so only a single factor will be != 1.0 for each qubit
-                    times_to_amp_factors[i] = factors * times_to_amp_factors[i]
-                else:
-                    times_to_amp_factors[i] = factors
+    times_to_amp_factors = _get_amp_factors(
+        samples, amp_sigma, laser_waist, qubit_positions, q_ids
+    )
+    doppler_offset = (
+        _get_delta_offset(len(q_ids), temperature)
+        if temperature != 0.0
+        else torch.zeros(len(q_ids), dtype=torch.float64)
+    )
 
     omega_1 = torch.zeros_like(omega[0])
     omega_2 = torch.zeros_like(omega[0])
@@ -219,7 +248,7 @@ def _extract_omega_delta_phi(
                     - locals_a_d_p[q_id]["phase"][t1]
                 ) / 2.0
             omega[i] = torch.clamp(0.5 * (3 * omega_2 - omega_1).real, min=0.0)
-
+    delta += doppler_offset
     return omega, delta, phi
 
 
@@ -273,12 +302,14 @@ class PulserData:
 
         laser_waist = config.noise_model.laser_waist
         amp_sigma = config.noise_model.amp_sigma
+        temperature = config.noise_model.temperature
         self.omega, self.delta, self.phi = _extract_omega_delta_phi(
             sequence=sequence,
             target_times=self.target_times,
             with_modulation=config.with_modulation,
             laser_waist=laser_waist,
             amp_sigma=amp_sigma,
+            temperature=temperature,
         )
         self.lindblad_ops = _get_all_lindblad_noise_operators(config.noise_model)
         self.has_lindblad_noise: bool = self.lindblad_ops != []
