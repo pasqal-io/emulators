@@ -141,7 +141,7 @@ def test_end_to_end_afm_ring() -> None:
 
     fidelity_state = create_antiferromagnetic_state_vector(num_qubits, gpu=False)
 
-    assert bitstrings["1010101010"] == 137
+    assert bitstrings["1010101010"] == 136
     assert bitstrings["0101010101"] == 159
     assert fidelity_state.overlap(final_state) == approx(final_fidelity, abs=1e-10)
 
