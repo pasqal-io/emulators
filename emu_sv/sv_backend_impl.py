@@ -101,7 +101,7 @@ class BaseSVBackendImpl:
             self._config.initial_state.n_qudits != self.nqubits
         ):
             raise ValueError(
-                f"Mismatch in number of atoms: initial state has "
+                "Mismatch in number of atoms: initial state has "
                 f"{self._config.initial_state.n_qudits} and the sequence has {self.nqubits}"
             )
 

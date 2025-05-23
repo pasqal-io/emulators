@@ -1,5 +1,6 @@
 import math
 import random
+import pytest
 import torch
 from pytest import approx
 from typing import Any
@@ -313,6 +314,30 @@ def test_initial_state() -> None:
     assert results.get_result(state_result, 1.0) is not state
 
 
+def test_initial_state_wrong_atmos_number() -> None:
+    pulse = pulser.Pulse.ConstantAmplitude(
+        0.0, pulser.waveforms.ConstantWaveform(10.0, 0.0), 0.0
+    )
+    natoms = 2
+    reg = pulser.Register.rectangle(natoms, 1, spacing=1e10, prefix="q")
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(pulse, "ising_global")  # do nothing in the pulse
+
+    with pytest.raises(ValueError) as excinfo:
+        state = StateVector.from_state_amplitudes(
+            eigenstates=("r", "g"), amplitudes={"r" * (natoms + 1): 1.0}
+        )
+        state_result = StateResult(evaluation_times=[1.0])
+        config = SVConfig(observables=[state_result], initial_state=state)
+        backend = SVBackend(seq, config=config)
+        _ = backend.run()
+    assert (
+        "Mismatch in number of atoms: initial state has "
+        + f"{state.n_qudits} and the sequence has {natoms}"
+    ) in str(excinfo.value)
+
+
 def test_initial_state_with_den_matrix() -> None:
     pulse = pulser.Pulse.ConstantAmplitude(
         0.0, pulser.waveforms.ConstantWaveform(10.0, 0.0), 0.0
@@ -348,6 +373,42 @@ def test_initial_state_with_den_matrix() -> None:
     )
 
     assert results.get_result(state_result, 1.0) is not state
+
+
+def test_initial_state_den_mat_wrong_atoms():
+    pulse = pulser.Pulse.ConstantAmplitude(
+        0.0, pulser.waveforms.ConstantWaveform(10.0, 0.0), 0.0
+    )
+    natoms = 5
+    reg = pulser.Register.rectangle(natoms, 1, spacing=1e10, prefix="q")
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(pulse, "ising_global")  # do nothing in the pulse
+
+    state = DensityMatrix.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"r" * (natoms + 1): 1.0}
+    )
+
+    with pytest.raises(ValueError) as excinfo:
+        state.matrix = state.matrix.to("cpu")
+
+        state_result = StateResult(evaluation_times=[1.0])
+        noise_model = pulser.noise_model.NoiseModel(
+            dephasing_rate=0.5,  # dephaing will not decrease the norm
+        )
+        config = SVConfig(
+            observables=[state_result],
+            initial_state=state,
+            noise_model=noise_model,
+            gpu=False,
+        )
+        backend = SVBackend(seq, config=config)
+        _ = backend.run()
+
+    assert (
+        "Mismatch in number of atoms: initial state has "
+        + f"{state.n_qudits} and the sequence has {natoms}"
+    ) in str(excinfo.value)
 
 
 def test_end_to_end_spontaneous_emission_rate() -> None:
