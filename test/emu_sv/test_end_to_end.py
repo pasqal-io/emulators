@@ -41,6 +41,9 @@ t_rise = 500
 t_fall = 1000
 
 dtype = torch.complex128
+gpu = False  # if True bitstrigs will fail and energy variance
+
+device = "cpu" if not gpu else "cuda"
 
 
 def create_antiferromagnetic_state_vector(
@@ -186,7 +189,7 @@ def test_end_to_end_afm_ring() -> None:
     )
 
     result = simulate(
-        seq, gpu=False
+        seq, gpu=gpu
     )  # only run on cpu, bitstring sampling is device dependent
 
     final_time = -1  # seq.get_duration()
@@ -194,7 +197,7 @@ def test_end_to_end_afm_ring() -> None:
     final_state = result.state[final_time]
     final_fidelity = result.fidelity_1[final_time]
 
-    fidelity_state = create_antiferromagnetic_state_vector(num_qubits, gpu=False)
+    fidelity_state = create_antiferromagnetic_state_vector(num_qubits, gpu=gpu)
 
     assert bitstrings["1010101010"] == 136
     assert bitstrings["0101010101"] == 159
@@ -207,13 +210,22 @@ def test_end_to_end_afm_ring() -> None:
     )
 
     energy = result.energy[final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
-    assert approx(energy, 1e-7) == -115.34558020797967  # -115.34554479213088
+    assert torch.allclose(
+        energy, torch.tensor(-115.34558020797967, device=device, dtype=torch.float64)
+    )
 
     energy_variance = result.energy_variance[final_time]  # 45.911110563993134
-    assert approx(energy_variance, 1e-3) == 45.91111056399
+    assert torch.allclose(
+        energy_variance,
+        torch.tensor(45.91111056399, dtype=torch.float64, device=device),
+        rtol=1e-3,
+    )
 
     energy_second_moment = result.energy_second_moment[final_time]  # 13350.505342183847
-    assert approx(energy_second_moment, 1e-6) == 13350.5053421
+    assert torch.allclose(
+        energy_second_moment,
+        torch.tensor(13350.5053421, dtype=torch.float64, device=device),
+    )
 
 
 def test_end_to_end_afm_ring_with_noise() -> None:
@@ -236,7 +248,7 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     )
 
     result = simulate_with_den_matrix(
-        seq, noise_model=noise_model, gpu=False
+        seq, noise_model=noise_model, gpu=gpu
     )  # only run on cpu, bitstring sampling is device dependent
 
     final_time = -1  # seq.get_duration()
@@ -245,7 +257,7 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     final_fidelity = result.fidelity_1[final_time]
 
     fidelity_state = DensityMatrix.from_state_vector(
-        create_antiferromagnetic_state_vector(num_qubits, gpu=False)
+        create_antiferromagnetic_state_vector(num_qubits, gpu=gpu)
     )
     assert bitstrings["101010"] == 173
     assert bitstrings["010101"] == 168
@@ -362,7 +374,7 @@ def test_initial_state_with_den_matrix() -> None:
         observables=[state_result],
         initial_state=state,
         noise_model=noise_model,
-        gpu=False,
+        gpu=gpu,
     )
     backend = SVBackend(seq, config=config)
     results = backend.run()
@@ -400,7 +412,7 @@ def test_initial_state_den_mat_wrong_atoms():
             observables=[state_result],
             initial_state=state,
             noise_model=noise_model,
-            gpu=False,
+            gpu=gpu,
         )
         backend = SVBackend(seq, config=config)
         _ = backend.run()
@@ -448,7 +460,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
             Occupation(evaluation_times=times),
         ],
         noise_model=noise_model,
-        gpu=False,
+        gpu=gpu,
     )
     backend = SVBackend(seq, config=sv_config)
     result = backend.run()
@@ -471,5 +483,6 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
             [0.0000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j, 0.1353 + 0.0j],
         ],
         dtype=dtype,
+        device=device,
     )
     assert torch.allclose(result.state[-1].matrix, expected_state, atol=1e-4)
