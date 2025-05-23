@@ -356,7 +356,7 @@ def test_initial_state_with_den_matrix() -> None:
 
     state_result = StateResult(evaluation_times=[1.0])
     noise_model = pulser.noise_model.NoiseModel(
-        dephasing_rate=0.5,  # dephaing will not decrease the norm
+        dephasing_rate=0.5,
     )
     config = SVConfig(
         observables=[state_result],
@@ -394,7 +394,7 @@ def test_initial_state_den_mat_wrong_atoms():
 
         state_result = StateResult(evaluation_times=[1.0])
         noise_model = pulser.noise_model.NoiseModel(
-            dephasing_rate=0.5,  # dephaing will not decrease the norm
+            dephasing_rate=0.5,
         )
         config = SVConfig(
             observables=[state_result],
