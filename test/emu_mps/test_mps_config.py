@@ -33,32 +33,22 @@ def test_unsupported_noise() -> None:
     with pytest.raises(NotImplementedError) as exc:
         MPSConfig(
             noise_model=pulser.noise_model.NoiseModel(
-                amp_sigma=0.1, laser_waist=5, runs=1, samples_per_run=1
+                temperature=10.0, runs=1, samples_per_run=1
             )
         )
-    assert "Unsupported noise type: amp_sigma" in str(exc.value)
+    assert "Unsupported noise type: doppler" in str(exc.value)
 
     MPSConfig(
         noise_model=pulser.noise_model.NoiseModel(
             runs=1,  # TODO: connect this with MCArlo
             samples_per_run=1,  # TODO: connect this with MCarlo or ignored
             state_prep_error=0.1,
-            p_false_pos=0.0,
-            p_false_neg=0.0,
-        )
-    )
-
-    MPSConfig(
-        noise_model=pulser.noise_model.NoiseModel(
-            runs=1,
-            samples_per_run=1,
-            state_prep_error=0.1,
             p_false_pos=0.1,
             p_false_neg=0.15,
+            laser_waist=5,
+            amp_sigma=0.1,
         )
     )
-
-    pass
 
 
 def test_default_config_repr() -> None:

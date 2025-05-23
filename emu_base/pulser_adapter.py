@@ -1,4 +1,4 @@
-from typing import Tuple, Sequence
+from typing import Tuple, Sequence, Any
 from enum import Enum
 import torch
 import math
@@ -7,6 +7,7 @@ from pulser.noise_model import NoiseModel
 from pulser.register.base_register import BaseRegister, QubitId
 from pulser.backend.config import EmulationConfig
 from emu_base.jump_lindblad_operators import get_lindblad_operators
+from emu_base.utils import random_gaussian
 
 
 class HamiltonianType(Enum):
@@ -82,6 +83,7 @@ def _extract_omega_delta_phi(
     target_times: list[int],
     with_modulation: bool,
     laser_waist: float | None,
+    amp_sigma: float,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Samples the Pulser sequence and returns a tuple of tensors (omega, delta, phi)
@@ -100,6 +102,8 @@ def _extract_omega_delta_phi(
             "modulation is not supported."
         )
 
+    q_ids = sequence.register.qubit_ids
+
     samples = pulser.sampler.sample(
         sequence,
         modulation=with_modulation,
@@ -117,34 +121,65 @@ def _extract_omega_delta_phi(
     nsamples = len(target_times) - 1
     omega = torch.zeros(
         nsamples,
-        len(sequence.register.qubit_ids),
+        len(q_ids),
         dtype=torch.complex128,
     )
 
     delta = torch.zeros(
         nsamples,
-        len(sequence.register.qubit_ids),
+        len(q_ids),
         dtype=torch.complex128,
     )
     phi = torch.zeros(
         nsamples,
-        len(sequence.register.qubit_ids),
+        len(q_ids),
         dtype=torch.complex128,
     )
+    qubit_positions = _get_qubit_positions(sequence.register)
 
-    if laser_waist:
-        qubit_positions = _get_qubit_positions(sequence.register)
-        waist_factors = torch.tensor(
-            [math.exp(-((x[:2].norm() / laser_waist) ** 2)) for x in qubit_positions]
-        )
-    else:
-        waist_factors = torch.ones(len(sequence.register.qubit_ids))
+    def perp_dist(pos: torch.Tensor, axis: torch.Tensor) -> Any:
+        return torch.linalg.vector_norm(pos - torch.vdot(pos, axis) * axis)
 
-    global_times = set()
+    times_to_amp_factors: dict[int, torch.Tensor] = {}
     for ch, ch_samples in samples.channel_samples.items():
-        if samples._ch_objs[ch].addressing == "Global":
-            for slot in ch_samples.slots:
-                global_times |= set(i for i in range(slot.ti, slot.tf))
+        ch_obj = samples._ch_objs[ch]
+        prop_dir = torch.tensor(
+            ch_obj.propagation_dir or [0.0, 1.0, 0.0], dtype=torch.float64
+        )
+        prop_dir /= prop_dir.norm()
+
+        # each channel has a noise on its laser amplitude
+        # we assume each channel has the same noise amplitude currently
+        # the hardware currently has only a global channel anyway
+        sigma_factor = (
+            1.0
+            if amp_sigma == 0.0
+            else torch.max(torch.tensor(0), random_gaussian((1,), 1.0, amp_sigma)).item()
+        )
+        for slot in ch_samples.slots:
+            factors = (
+                torch.tensor(
+                    [
+                        math.exp(-((perp_dist(x, prop_dir) / laser_waist) ** 2))
+                        for x in qubit_positions
+                    ]
+                )  # the lasers have a gaussian profile perpendicular to the propagation direction
+                if laser_waist and ch_obj.addressing == "Global"
+                else torch.ones(
+                    len(q_ids)
+                )  # but for a local channel, this does not matter
+            )
+
+            # add the amplitude noise for the targeted qubits
+            factors[[x in slot.targets for x in q_ids]] *= sigma_factor
+
+            for i in range(slot.ti, slot.tf):
+                if i in times_to_amp_factors:  # multiple local channels at the same time
+                    # pulser enforces that no two lasers target the same qubit simultaneously
+                    # so only a single factor will be != 1.0 for each qubit
+                    times_to_amp_factors[i] = factors * times_to_amp_factors[i]
+                else:
+                    times_to_amp_factors[i] = factors
 
     omega_1 = torch.zeros_like(omega[0])
     omega_2 = torch.zeros_like(omega[0])
@@ -157,9 +192,9 @@ def _extract_omega_delta_phi(
         if math.ceil(t) < max_duration:
             # If we're not the final step, approximate this using linear interpolation
             # Note that for dt even, t1=t2
-            for q_pos, q_id in enumerate(sequence.register.qubit_ids):
-                t1 = math.floor(t)
-                t2 = math.ceil(t)
+            t1 = math.floor(t)
+            t2 = math.ceil(t)
+            for q_pos, q_id in enumerate(q_ids):
                 omega_1[q_pos] = locals_a_d_p[q_id]["amp"][t1]
                 omega_2[q_pos] = locals_a_d_p[q_id]["amp"][t2]
                 delta[i, q_pos] = (
@@ -169,15 +204,13 @@ def _extract_omega_delta_phi(
                     locals_a_d_p[q_id]["phase"][t1] + locals_a_d_p[q_id]["phase"][t2]
                 ) / 2.0
             # omegas at different times need to have the laser waist applied independently
-            if t1 in global_times:
-                omega_1 *= waist_factors
-            if t2 in global_times:
-                omega_2 *= waist_factors
+            omega_1 *= times_to_amp_factors.get(t1, 1.0)
+            omega_2 *= times_to_amp_factors.get(t2, 1.0)
             omega[i] = 0.5 * (omega_1 + omega_2)
         else:
             # We're in the final step and dt=1, approximate this using linear extrapolation
             # we can reuse omega_1 and omega_2 from before
-            for q_pos, q_id in enumerate(sequence.register.qubit_ids):
+            for q_pos, q_id in enumerate(q_ids):
                 delta[i, q_pos] = (
                     3.0 * locals_a_d_p[q_id]["det"][t2] - locals_a_d_p[q_id]["det"][t1]
                 ) / 2.0
@@ -238,14 +271,14 @@ class PulserData:
         self.target_times: list[int] = list(observable_times)
         self.target_times.sort()
 
-        laser_waist = (
-            config.noise_model.laser_waist if config.noise_model is not None else None
-        )
+        laser_waist = config.noise_model.laser_waist
+        amp_sigma = config.noise_model.amp_sigma
         self.omega, self.delta, self.phi = _extract_omega_delta_phi(
             sequence=sequence,
             target_times=self.target_times,
             with_modulation=config.with_modulation,
             laser_waist=laser_waist,
+            amp_sigma=amp_sigma,
         )
         self.lindblad_ops = _get_all_lindblad_noise_operators(config.noise_model)
         self.has_lindblad_noise: bool = self.lindblad_ops != []

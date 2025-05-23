@@ -104,11 +104,6 @@ class MPSConfig(EmulationConfig):
 
         if "doppler" in self.noise_model.noise_types:
             raise NotImplementedError("Unsupported noise type: doppler")
-        if (
-            "amplitude" in self.noise_model.noise_types
-            and self.noise_model.amp_sigma != 0.0
-        ):
-            raise NotImplementedError("Unsupported noise type: amp_sigma")
 
         MIN_AUTOSAVE_DT = 10
         assert (
