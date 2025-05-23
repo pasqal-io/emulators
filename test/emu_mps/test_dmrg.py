@@ -16,13 +16,17 @@ def test_minimize_energy_pair():
     left_state_factor_shape = left_state_factor.shape
     right_state_factor_shape = right_state_factor.shape
 
-    op = torch.einsum(
-        "abc,bdef,fghi,jik->adgjcehk",
-        left_bath,
-        left_ham_factor,
-        right_ham_factor,
-        right_bath,
-    ).reshape(2 * 2 * 2 * 2, -1)
+    op = (
+        torch.einsum(
+            "abc,bdef,fghi,jik->adgjcehk",
+            left_bath,
+            left_ham_factor,
+            right_ham_factor,
+            right_bath,
+        )
+        .contiguous()
+        .view(2 * 2 * 2 * 2, -1)
+    )
 
     eigen_energy, _ = torch.linalg.eig(op)
     idx0 = torch.argmin(eigen_energy.abs())
