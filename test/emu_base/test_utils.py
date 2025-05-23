@@ -123,12 +123,12 @@ def test_random_gaussian():
     assert torch.allclose(
         torch.mean(actual),
         torch.tensor(mean, dtype=torch.float64),
-        rtol=0.0,
-        atol=1 / sqrt(n_samples),
+        atol=0.0,
+        rtol=1 / sqrt(n_samples),
     )
     assert torch.allclose(
         torch.var(actual),
         torch.tensor(sigma**2, dtype=torch.float64),
-        rtol=0.0,
-        atol=1 / sqrt(n_samples),
+        atol=0.0,
+        rtol=1 / sqrt(n_samples),
     )
