@@ -7,6 +7,7 @@ from pulser.noise_model import NoiseModel
 from pulser.register.base_register import BaseRegister, QubitId
 from pulser.backend.config import EmulationConfig
 from emu_base.jump_lindblad_operators import get_lindblad_operators
+from emu_base.utils import random_gaussian
 
 
 class HamiltonianType(Enum):
@@ -150,9 +151,11 @@ def _extract_omega_delta_phi(
         # each channel has a noise on its laser amplitude
         # we assume each channel has the same noise amplitude currently
         # the hardware currently has only a global channel anyway
-        sigma_factor = torch.max(
-            torch.tensor(0), 1.0 + amp_sigma**2 * torch.randn(1)
-        ).item()
+        sigma_factor = (
+            1.0
+            if amp_sigma == 0.0
+            else torch.max(torch.tensor(0), random_gaussian((1,), 1.0, amp_sigma)).item()
+        )
         for slot in ch_samples.slots:
             factors = (
                 torch.tensor(

@@ -340,7 +340,7 @@ def test_interaction_matrix_differentiability():
     ],
 )
 @patch("emu_base.pulser_adapter.pulser.sampler.sample")
-@patch("emu_base.pulser_adapter.torch.randn")
+@patch("emu_base.pulser_adapter.random_gaussian")
 def test_extract_omega_delta_phi_dt_2(
     mock_randn, mock_pulser_sample, hamiltonian_type, laser_waist
 ):
@@ -360,7 +360,7 @@ def test_extract_omega_delta_phi_dt_2(
         waist_amplitudes = torch.ones(3, dtype=torch.float64)
 
     mock_pulser_sample.return_value = mock_sample(hamiltonian_type)
-    mock_randn.side_effect = [torch.tensor(0.5), -torch.tensor(0.6), torch.tensor(0.75)]
+    mock_randn.side_effect = [torch.tensor(1.5), torch.tensor(0.4), torch.tensor(1.75)]
 
     actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
         sequence=sequence,

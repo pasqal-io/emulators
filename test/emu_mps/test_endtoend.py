@@ -323,8 +323,8 @@ def test_end_to_end_afm_ring() -> None:
     assert max_bond_dim == 29
     assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
 
-    assert bitstrings["1010101010"] == 125
-    assert bitstrings["0101010101"] == 130
+    assert bitstrings["1010101010"] == 129
+    assert bitstrings["0101010101"] == 135
 
     # Comparing against EMU-SV -- state vector emulator
     assert approx(occupation, abs=1e-3) == [0.5782] * 10
@@ -489,8 +489,8 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     final_state = result.state[-1]
     max_bond_dim = final_state.get_max_bond_dim()
 
-    assert bitstrings["101010"] == 503
-    assert bitstrings["010101"] == 482
+    assert bitstrings["101010"] == 472
+    assert bitstrings["010101"] == 510
     assert max_bond_dim == 8
 
 
