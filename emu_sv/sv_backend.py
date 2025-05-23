@@ -7,7 +7,7 @@ from emu_sv.sv_backend_impl import create_impl
 class SVBackend(EmulatorBackend):
     """
     A backend for emulating Pulser sequences using state vectors and sparse matrices.
-    Noysi simulation is supported by solving the Lindblad equation and using effective
+    Noisy simulation is supported by solving the Lindblad equation and using effective
     noise channel or jump operators
     """
 

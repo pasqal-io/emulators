@@ -214,10 +214,8 @@ class NoisySVBackendImpl(BaseSVBackendImpl):
             )
         )
 
-        self.stepper = EvolveDensityMatrix.evolve
-
     def _evolve_step(self, dt: float, step_idx: int) -> None:
-        self.state.matrix, self._current_H = self.stepper(
+        self.state.matrix, self._current_H = EvolveDensityMatrix.evolve(
             dt * _TIME_CONVERSION_COEFF,
             self.omega[step_idx],
             self.delta[step_idx],
