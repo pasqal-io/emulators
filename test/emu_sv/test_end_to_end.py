@@ -41,7 +41,8 @@ t_rise = 500
 t_fall = 1000
 
 dtype = torch.complex128
-gpu = False  # if True bitstrigs will fail and energy variance
+dtype_f64 = torch.float64
+gpu = False  # if True, bitstrigs and energy variance will fail
 
 device = "cpu" if not gpu else "cuda"
 
@@ -49,7 +50,7 @@ device = "cpu" if not gpu else "cuda"
 def create_antiferromagnetic_state_vector(
     num_qubits: int, gpu: bool = True
 ) -> StateVector:
-    factors = [torch.zeros(2, dtype=torch.complex128) for _ in range(num_qubits)]
+    factors = [torch.zeros(2, dtype=dtype) for _ in range(num_qubits)]
     for i in range(num_qubits):
         if i % 2:
             factors[i][0] = 1.0
@@ -206,25 +207,25 @@ def test_end_to_end_afm_ring() -> None:
     occupation = result.occupation[final_time]
 
     assert torch.allclose(
-        torch.tensor([0.578] * num_qubits, dtype=torch.float64), occupation, atol=1e-3
+        torch.tensor([0.578] * num_qubits, dtype=dtype_f64), occupation, atol=1e-3
     )
 
     energy = result.energy[final_time]  # (-115.34554274708604-2.1316282072803006e-14j)
     assert torch.allclose(
-        energy, torch.tensor(-115.34558020797967, device=device, dtype=torch.float64)
+        energy, torch.tensor(-115.34558020797967, device=device, dtype=dtype_f64)
     )
 
     energy_variance = result.energy_variance[final_time]  # 45.911110563993134
     assert torch.allclose(
         energy_variance,
-        torch.tensor(45.91111056399, dtype=torch.float64, device=device),
+        torch.tensor(45.91111056399, dtype=dtype_f64, device=device),
         rtol=1e-3,
     )
 
     energy_second_moment = result.energy_second_moment[final_time]  # 13350.505342183847
     assert torch.allclose(
         energy_second_moment,
-        torch.tensor(13350.5053421, dtype=torch.float64, device=device),
+        torch.tensor(13350.5053421, dtype=dtype_f64, device=device),
     )
 
 
@@ -266,7 +267,7 @@ def test_end_to_end_afm_ring_with_noise() -> None:
 
     occupation = result.occupation[final_time]
     assert torch.allclose(
-        torch.tensor([0.4596] * num_qubits, dtype=torch.float64), occupation, atol=1e-3
+        torch.tensor([0.4596] * num_qubits, dtype=dtype_f64), occupation, atol=1e-3
     )
 
 
@@ -280,7 +281,7 @@ def test_end_to_end_pi_half_pulse() -> None:
     final_time = -1
     final_state = result.state[final_time]
 
-    expected = torch.tensor([1, -1j], dtype=torch.complex128) / math.sqrt(2)
+    expected = torch.tensor([1, -1j], dtype=dtype) / math.sqrt(2)
     assert torch.allclose(final_state.vector.cpu(), expected, atol=1e-8)
 
 
@@ -296,7 +297,7 @@ def test_end_to_end_pi_half_pulse_with_phase() -> None:
 
     final_state = result.state[final_time]
     # with the phase we expect |ψ❭=(|0❭+|1❭)/sqrt(2)
-    expected = torch.tensor([1, 1], dtype=torch.complex128) / math.sqrt(2)
+    expected = torch.tensor([1, 1], dtype=dtype) / math.sqrt(2)
 
     assert torch.allclose(final_state.vector.cpu(), expected, atol=1e-8)
 
