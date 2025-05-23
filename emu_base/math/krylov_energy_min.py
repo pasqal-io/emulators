@@ -8,23 +8,33 @@ def _eigen_pair(
     T_trunc: torch.Tensor,
     guessed_state: torch.Tensor,
     residual_tolerance: float,
+    is_hermitian: bool,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Return the smallest (k = 1) eigenpair of T_trunc.
-    If T_trunc is too small for LOBPCG (n < 3), do a full eigh;
-    otherwise call lobpcg with the given initial guessed state.
+    Return the smallest eigenpair of T_trunc.
+    If T_trunc is small (n < 3) or Hermitian, do a full eigh;
+    otherwise use lobpcg with the given initial guessed state.
     """
     n = T_trunc.size(0)
-    if n < 3:
-        return tuple(torch.linalg.eigh(T_trunc))
+    if is_hermitian:
+        if n > 2:
+            return torch.lobpcg(
+                T_trunc,
+                k=1,
+                X=guessed_state,
+                tol=residual_tolerance,
+                largest=False,
+            )
+        else:
+            return tuple(torch.linalg.eigh(T_trunc))
 
-    return torch.lobpcg(
-        T_trunc,
-        k=1,
-        X=guessed_state,
-        tol=residual_tolerance,
-        largest=False,
-    )
+    # eig does not guarantee that eigenvalues are sorted
+    # use argmin to force extract the smallest eigen-pair
+    eigvals, eigvecs = torch.linalg.eig(T_trunc)
+    idx = torch.argmin(eigvals.abs())
+    energy = eigvals[idx : idx + 1]
+    state = eigvecs[:, idx : idx + 1]
+    return energy, state
 
 
 def extend_initial_state(
@@ -104,8 +114,10 @@ def krylov_energy_minimization_impl(
         if prev_eigen_vec is None:
             guessed_state = torch.ones(size, 1, dtype=dtype, device=device)
 
-        eigvals, eigvecs = _eigen_pair(T_truncated, guessed_state, residual_tolerance)
-        ground_energy = eigvals[0].real
+        eigvals, eigvecs = _eigen_pair(
+            T_truncated, guessed_state, residual_tolerance, is_hermitian
+        )
+        ground_energy = eigvals[0]
         ground_eigenvector = eigvecs[:, 0]  # in Krylov subspace
         iteration_count = j + 1
 
