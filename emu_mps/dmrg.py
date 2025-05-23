@@ -41,7 +41,7 @@ def minimize_energy_pair(
 
     combined_state_factors = torch.tensordot(
         left_state_factor, right_state_factor, dims=1
-    ).reshape(left_bond_dim, 4, right_bond_dim)
+    ).view(left_bond_dim, 4, right_bond_dim)
 
     deallocate_tensor(left_state_factor)
     deallocate_tensor(right_state_factor)
@@ -53,7 +53,8 @@ def minimize_energy_pair(
     combined_hamiltonian_factors = (
         torch.tensordot(left_ham_factor, right_ham_factor, dims=1)
         .transpose(2, 3)
-        .reshape(left_ham_factor.shape[0], 4, 4, -1)
+        .contiguous()
+        .view(left_ham_factor.shape[0], 4, 4, -1)
     )
 
     op = lambda x: apply_effective_Hamiltonian(
