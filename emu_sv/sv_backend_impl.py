@@ -74,8 +74,7 @@ class Statistics(Observable):
 
 class BaseSVBackendImpl:
     """
-    Base class for the SVBackendImpl. This class is used to handle the
-    state vector and density matrix evolution.
+    This class is used to handle the state vector and density matrix evolution.
     """
 
     def __init__(self, config: SVConfig, pulser_data: PulserData):
@@ -154,7 +153,8 @@ class SVBackendImpl(BaseSVBackendImpl):
 
     def __init__(self, config: SVConfig, pulser_data: PulserData):
         """
-        Initializes the SVBackendImpl.
+        For running sequences without noise. The state will evolve accoring
+        to e^(-iH t)
 
         Args:
             config: The configuration for the emulator.
@@ -194,7 +194,8 @@ class NoisySVBackendImpl(BaseSVBackendImpl):
     def __init__(self, config: SVConfig, pulser_data: PulserData):
         """
         Initializes the NoisySVBackendImpl, master equation version.
-        This class is used to handle the Lindblad operators.
+        This class handles the Lindblad operators and
+        solves the Lindblad master equation
 
         Args:
             config: The configuration for the emulator.
