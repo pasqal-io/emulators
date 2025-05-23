@@ -135,9 +135,12 @@ def _get_amp_factors(
 
 
 def _get_delta_offset(nqubits: int, temperature: float) -> torch.Tensor:
-    t = temperature * 1e-6  # microKelvin -> Kelvin
-    sigma = KEFF * math.sqrt(KB * t / RUBIDIUM_MASS)
-    return random_gaussian((nqubits,), 0.0, sigma)
+    if temperature == 0.0:
+        return torch.zeros(nqubits, dtype=torch.float64)
+    else:
+        t = temperature * 1e-6  # microKelvin -> Kelvin
+        sigma = KEFF * math.sqrt(KB * t / RUBIDIUM_MASS)
+        return random_gaussian((nqubits,), 0.0, sigma)
 
 
 def _extract_omega_delta_phi(
@@ -204,11 +207,7 @@ def _extract_omega_delta_phi(
     times_to_amp_factors = _get_amp_factors(
         samples, amp_sigma, laser_waist, qubit_positions, q_ids
     )
-    doppler_offset = (
-        _get_delta_offset(len(q_ids), temperature)
-        if temperature != 0.0
-        else torch.zeros(len(q_ids), dtype=torch.float64)
-    )
+    doppler_offset = _get_delta_offset(len(q_ids), temperature)
 
     omega_1 = torch.zeros_like(omega[0])
     omega_2 = torch.zeros_like(omega[0])

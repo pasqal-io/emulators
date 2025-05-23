@@ -330,6 +330,14 @@ def test_interaction_matrix_differentiability():
         raise err
 
 
+def test_get_amp_factors():
+    assert False
+
+
+def test_get_delta_offset():
+    assert False
+
+
 @pytest.mark.parametrize(
     ("hamiltonian_type", "laser_waist"),
     [
