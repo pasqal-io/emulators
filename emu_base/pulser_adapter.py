@@ -113,11 +113,12 @@ def _get_amp_factors(
                     [
                         math.exp(-((perp_dist(x, prop_dir) / laser_waist) ** 2))
                         for x in qubit_positions
-                    ]
+                    ],
+                    dtype=torch.float64,
                 )  # the lasers have a gaussian profile perpendicular to the propagation direction
                 if laser_waist and ch_obj.addressing == "Global"
                 else torch.ones(
-                    len(q_ids)
+                    len(q_ids), dtype=torch.float64
                 )  # but for a local channel, this does not matter
             )
 

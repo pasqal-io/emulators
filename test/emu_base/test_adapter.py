@@ -14,6 +14,8 @@ from emu_base.pulser_adapter import (
     _rydberg_interaction,
     _xy_interaction,
     _get_qubit_positions,
+    _get_amp_factors,
+    _get_delta_offset,
     PulserData,
     HamiltonianType,
 )
@@ -27,6 +29,22 @@ sequence.register.qubit_ids = TEST_QUBIT_IDS
 sequence.register.qubits = {
     key: AbstractArray(torch.tensor([i, 0.0, 0.0], dtype=torch.float64))
     for i, key in enumerate(TEST_QUBIT_IDS)
+}
+
+expected_amp_factors = {
+    0: torch.tensor([1.5, 1.0, 0.4]),
+    1: torch.tensor([1.5, 1.0, 0.4]),
+    2: torch.tensor([1.5, 1.0, 0.4]),
+    3: torch.tensor([1.5, 1.0, 0.4]),
+    4: torch.tensor([1.5, 1.0, 0.4]),
+    5: torch.tensor([1.75, 1.75, 1.75]),
+    6: torch.tensor([1.75, 1.75, 1.75]),
+    7: torch.tensor([1.75, 1.75, 1.75]),
+    8: torch.tensor([1.75, 1.75, 1.75]),
+    9: torch.tensor([1.75, 1.75, 1.75]),
+    10: torch.tensor([1.75, 1.75, 1.75]),
+    11: torch.tensor([1.75, 1.75, 1.75]),
+    12: torch.tensor([1.5, 1.0, 0.4]),
 }
 
 
@@ -179,7 +197,7 @@ def mock_sample(hamiltonian_type):
     local_slot1 = MagicMock()
     local_slot1.targets = [TEST_QUBIT_IDS[0]]
     local_slot1.ti = 0
-    local_slot1.tf = 4
+    local_slot1.tf = 5
     local_slot2 = MagicMock()
     local_slot2.targets = [TEST_QUBIT_IDS[0]]
     local_slot2.ti = 12
@@ -187,7 +205,7 @@ def mock_sample(hamiltonian_type):
     local_slot3 = MagicMock()
     local_slot3.targets = [TEST_QUBIT_IDS[2]]
     local_slot3.ti = 0
-    local_slot3.tf = 4
+    local_slot3.tf = 5
     local_slot4 = MagicMock()
     local_slot4.targets = [TEST_QUBIT_IDS[2]]
     local_slot4.ti = 12
@@ -330,12 +348,46 @@ def test_interaction_matrix_differentiability():
         raise err
 
 
-def test_get_amp_factors():
-    assert False
+@pytest.mark.parametrize(
+    ("hamiltonian_type", "laser_waist"),
+    [
+        ("ground-rydberg", None),
+        ("XY", None),
+        ("ground-rydberg", 10.0),
+        ("XY", 10.0),
+    ],
+)
+@patch("emu_base.pulser_adapter.random_gaussian")
+def test_get_amp_factors(mock_randn, hamiltonian_type, laser_waist):
+    global_times = list(range(5, 12))
+    mock_randn.side_effect = [torch.tensor(1.5), torch.tensor(0.4), torch.tensor(1.75)]
+    samples = mock_sample(hamiltonian_type)
+    actual = _get_amp_factors(
+        samples,
+        1.0,
+        laser_waist,
+        [x.as_tensor() for x in sequence.register.qubits.values()],
+        TEST_QUBIT_IDS,
+    )
+    assert set(actual.keys()) == set(expected_amp_factors.keys())
+    for key, val in actual.items():
+        if laser_waist is not None and key in global_times:
+            waist_amplitudes = torch.tensor(
+                [math.exp(-((i / laser_waist) ** 2)) for i in range(3)],
+                dtype=torch.float64,
+            )
+        else:
+            waist_amplitudes = torch.ones(3, dtype=torch.float64)
+        assert torch.allclose(val, expected_amp_factors[key] * waist_amplitudes)
 
 
-def test_get_delta_offset():
-    assert False
+@patch("emu_base.pulser_adapter.random_gaussian")
+def test_get_delta_offset(mock_random):
+    mock_random.return_value = torch.tensor([1.0, 2.0, 3.0])
+    actual = _get_delta_offset(3, 5.0)
+    sigma = 0.18978408784721654
+    mock_random.assert_called_once_with((3,), 0.0, sigma)
+    assert torch.allclose(actual, mock_random.return_value, rtol=0.0, atol=0.0)
 
 
 @pytest.mark.parametrize(
@@ -347,11 +399,17 @@ def test_get_delta_offset():
         ("XY", 10.0),
     ],
 )
+@patch("emu_base.pulser_adapter._get_qubit_positions")
 @patch("emu_base.pulser_adapter.pulser.sampler.sample")
-@patch("emu_base.pulser_adapter.random_gaussian")
+@patch("emu_base.pulser_adapter._get_amp_factors")
 @patch("emu_base.pulser_adapter._get_delta_offset")
 def test_extract_omega_delta_phi_dt_2(
-    mock_offset, mock_randn, mock_pulser_sample, hamiltonian_type, laser_waist
+    mock_offset,
+    mock_factors,
+    mock_pulser_sample,
+    mock_qubit_positions,
+    hamiltonian_type,
+    laser_waist,
 ):
     """Local pulse - targe qubit 1:
     pulser.Pulse(RampWaveform(5,3,10),RampWaveform(5,1.5,-10),0.1) and
@@ -361,16 +419,14 @@ def test_extract_omega_delta_phi_dt_2(
     target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
     sequence.get_duration.return_value = TEST_DURATION
 
-    if laser_waist is not None:
-        waist_amplitudes = torch.tensor(
-            [math.exp(-((i / laser_waist) ** 2)) for i in range(3)], dtype=torch.float64
-        )
-    else:
-        waist_amplitudes = torch.ones(3, dtype=torch.float64)
-
+    mock_qubit_positions.return_value = [
+        torch.tensor([-1, 0, 1], dtype=torch.float64),
+        torch.tensor([1, 0, 1], dtype=torch.float64),
+        torch.tensor([2, 0, 1], dtype=torch.float64),
+    ]
     mock_offset.return_value = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float64)
     mock_pulser_sample.return_value = mock_sample(hamiltonian_type)
-    mock_randn.side_effect = [torch.tensor(1.5), torch.tensor(0.4), torch.tensor(1.75)]
+    mock_factors.return_value = expected_amp_factors
 
     actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
         sequence=sequence,
@@ -386,17 +442,18 @@ def test_extract_omega_delta_phi_dt_2(
 
     expected_omega = torch.tensor(
         [
-            [4.75 * 1.5, 0.0, 4.75 * 0.4],
-            [8.25 * 1.5, 0.0, 8.25 * 0.4],
-            [10.0 * 1.75, 10.0 * 1.75, 10.0 * 1.75],
-            [7.1429 * 1.75, 7.1429 * 1.75, 7.1429 * 1.75],
-            [4.2857 * 1.75, 4.2857 * 1.75, 4.2857 * 1.75],
-            [1.4286 * 1.75, 1.4286 * 1.75, 1.4286 * 1.75],
+            [4.75, 0.0, 4.75],
+            [8.25, 0.0, 8.25],
+            [10.0, 10.0, 10.0],
+            [7.1429, 7.1429, 7.1429],
+            [4.2857, 4.2857, 4.2857],
+            [1.4286, 1.4286, 1.4286],
         ],
         dtype=torch.complex128,
     )
-    to_modify = expected_omega[2:]
-    to_modify *= waist_amplitudes
+    for i in range(6):
+        to_modify = expected_omega[i]
+        to_modify *= expected_amp_factors[2 * i + 1]
     expected_delta = torch.tensor(
         [
             [-1.3750, 0.0000, 0.0000],
@@ -419,7 +476,13 @@ def test_extract_omega_delta_phi_dt_2(
         ],
         dtype=torch.complex128,
     )
-
+    mock_factors.assert_called_once_with(
+        mock_pulser_sample.return_value,
+        1.0,
+        laser_waist,
+        mock_qubit_positions.return_value,
+        TEST_QUBIT_IDS,
+    )
     mock_offset.assert_called_once_with(3, 5.0)
     assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
     assert torch.allclose(
@@ -439,9 +502,15 @@ def test_extract_omega_delta_phi_dt_2(
 )
 @patch("emu_base.pulser_adapter._get_qubit_positions")
 @patch("emu_base.pulser_adapter.pulser.sampler.sample")
+@patch("emu_base.pulser_adapter._get_amp_factors")
 @patch("emu_base.pulser_adapter._get_delta_offset")
 def test_extract_omega_delta_phi_dt_1(
-    mock_offset, mock_pulser_sample, mock_qubit_positions, hamiltonian_type, laser_waist
+    mock_offset,
+    mock_factors,
+    mock_pulser_sample,
+    mock_qubit_positions,
+    hamiltonian_type,
+    laser_waist,
 ):
     """Local pulse - targe qubit 1:
     pulser.Pulse(RampWaveform(5,3,10),RampWaveform(5,1.5,-10),0.1) and
@@ -450,29 +519,22 @@ def test_extract_omega_delta_phi_dt_1(
     dt = 1
     target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
     sequence.get_duration.return_value = TEST_DURATION
-
-    if laser_waist is not None:
-        mock_qubit_positions.return_value = [
-            torch.tensor([-1, 0, 1], dtype=torch.float64),
-            torch.tensor([1, 0, 1], dtype=torch.float64),
-            torch.tensor([2, 0, 1], dtype=torch.float64),
-        ]
-        waist_amplitudes = torch.tensor(
-            [math.exp(-((abs(i) / laser_waist) ** 2)) for i in [-1, 1, 2]],
-            dtype=torch.float64,
-        )
-    else:
-        waist_amplitudes = torch.ones(3, dtype=torch.float64)
+    mock_qubit_positions.return_value = [
+        torch.tensor([-1, 0, 1], dtype=torch.float64),
+        torch.tensor([1, 0, 1], dtype=torch.float64),
+        torch.tensor([2, 0, 1], dtype=torch.float64),
+    ]
 
     mock_offset.return_value = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float64)
     mock_pulser_sample.return_value = mock_sample(hamiltonian_type)
+    mock_factors.return_value = expected_amp_factors
 
     actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
         sequence=sequence,
         target_times=target_times,
         with_modulation=False,
         laser_waist=laser_waist,
-        amp_sigma=0.0,
+        amp_sigma=1.0,
         temperature=5.0,
     )
 
@@ -482,18 +544,18 @@ def test_extract_omega_delta_phi_dt_1(
     expected_omega = torch.tensor(
         [
             [
-                3.875,
-                5.625,
-                7.375,
-                9.125,
+                3.0,
+                4.75,
+                6.5,
+                8.25,
                 10.0,
-                9.285714285000001,
-                7.857142855,
-                6.428571425,
-                5.0,
-                3.5714285749999997,
-                2.1428571450000002,
-                0.714285715,
+                10.0,
+                8.57142857,
+                7.14285714,
+                5.71428571,
+                4.28571429,
+                2.85714286,
+                1.42857143,
                 0.0,
             ],
             [
@@ -501,42 +563,42 @@ def test_extract_omega_delta_phi_dt_1(
                 0.0,
                 0.0,
                 0.0,
-                5.0,
-                9.285714285000001,
-                7.857142855,
-                6.428571425,
-                5.0,
-                3.5714285749999997,
-                2.1428571450000002,
-                0.714285715,
+                0.0,
+                10.0,
+                8.57142857,
+                7.14285714,
+                5.71428571,
+                4.28571429,
+                2.85714286,
+                1.42857143,
                 0.0,
             ],
             [
-                3.875,
-                5.625,
-                7.375,
-                9.125,
+                3.0,
+                4.75,
+                6.5,
+                8.25,
                 10.0,
-                9.285714285000001,
-                7.857142855,
-                6.428571425,
-                5.0,
-                3.5714285749999997,
-                2.1428571450000002,
-                0.714285715,
+                10.0,
+                8.57142857,
+                7.14285714,
+                5.71428571,
+                4.28571429,
+                2.85714286,
+                1.42857143,
                 0.0,
             ],
         ],
         dtype=torch.complex128,
     ).T
-    to_modify = expected_omega[4:]
-    to_modify *= waist_amplitudes
+    for i in range(12):
+        expected_omega[i] = 0.5 * (
+            expected_omega[i] * expected_amp_factors[i]
+            + expected_omega[i + 1] * expected_amp_factors[i + 1]
+        )
     # the element omega[4,0] should not simply be multiplied by wais_amplitudes
     # it is the average of two samples, one of which should be multiplied, and the other not
     # this test has different qubit positions than the dt=2 one to test precisely this.
-    if laser_waist is not None:
-        expected_omega[4, 0] = 0.5 * (expected_omega[4, 0] + 10.0)
-        expected_omega[4, 2] = 0.5 * (expected_omega[4, 2] + 10.0)
     expected_delta = torch.tensor(
         [
             [
@@ -606,6 +668,13 @@ def test_extract_omega_delta_phi_dt_1(
         dtype=torch.complex128,
     )
 
+    mock_factors.assert_called_once_with(
+        mock_pulser_sample.return_value,
+        1.0,
+        laser_waist,
+        mock_qubit_positions.return_value,
+        TEST_QUBIT_IDS,
+    )
     mock_offset.assert_called_once_with(3, 5.0)
     assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
     assert torch.allclose(
