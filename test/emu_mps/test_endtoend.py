@@ -480,7 +480,7 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     )
 
     noise_model = pulser.noise_model.NoiseModel(
-        depolarizing_rate=0.1,
+        depolarizing_rate=0.3,  # High enough to trigger a jump.
     )
 
     result = simulate(seq, noise_model=noise_model)
@@ -489,8 +489,8 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     final_state = result.state[-1]
     max_bond_dim = final_state.get_max_bond_dim()
 
-    assert bitstrings["101010"] == 472
-    assert bitstrings["010101"] == 510
+    assert bitstrings["101010"] == 454
+    assert bitstrings["010101"] == 500
     assert max_bond_dim == 8
 
 
