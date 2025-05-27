@@ -3,6 +3,7 @@ from typing import Any, no_type_check
 from emu_base.math.krylov_exp import krylov_exp
 from emu_base.math.double_krylov import double_krylov
 from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.lindblad_operator import RydbergLindbladian
 
 
 def _apply_omega_real(
@@ -326,4 +327,40 @@ class EvolveStateVector(torch.autograd.Function):
             grad_int_mat,
             grad_state_in,
             None,
+        )
+
+
+class EvolveDensityMatrix:
+    """Evolution of a density matrix under a Lindbladian operator."""
+
+    @staticmethod
+    def evolve(
+        dt: float,
+        omegas: torch.Tensor,
+        deltas: torch.Tensor,
+        phis: torch.Tensor,
+        full_interaction_matrix: torch.Tensor,
+        density_matrix: torch.Tensor,
+        krylov_tolerance: float,
+        pulser_lindblads: list[torch.Tensor],
+    ) -> tuple[torch.Tensor, RydbergLindbladian]:
+        ham = RydbergLindbladian(
+            omegas=omegas,
+            deltas=deltas,
+            phis=phis,
+            pulser_linblads=pulser_lindblads,
+            interaction_matrix=full_interaction_matrix,
+            device=density_matrix.device,
+        )
+
+        op = lambda x: -1j * dt * (ham @ x)
+        return (
+            krylov_exp(
+                op,
+                density_matrix,
+                norm_tolerance=krylov_tolerance,
+                exp_tolerance=krylov_tolerance,
+                is_hermitian=False,
+            ),
+            ham,
         )
