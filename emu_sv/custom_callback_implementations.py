@@ -13,6 +13,8 @@ from emu_sv.state_vector import StateVector
 from emu_sv.dense_operator import DenseOperator
 from emu_sv.hamiltonian import RydbergHamiltonian
 
+dtype = torch.float64
+
 
 def qubit_occupation_sv_impl(
     self: Occupation,
@@ -25,7 +27,7 @@ def qubit_occupation_sv_impl(
     Custom implementation of the occupation ❬ψ|nᵢ|ψ❭ for the state vector solver.
     """
     nqubits = state.n_qudits
-    occupation = torch.zeros(nqubits, dtype=torch.float64, device=state.vector.device)
+    occupation = torch.zeros(nqubits, dtype=dtype, device=state.vector.device)
     for i in range(nqubits):
         state_tensor = state.vector.view(2**i, 2, -1)
         # nᵢ is a projector and therefore nᵢ == nᵢnᵢ
@@ -53,7 +55,7 @@ def qubit_occupation_sv_den_mat_impl(
     will be <nᵢ> = Tr(ρnᵢ), or [ <n₁>, <n₂>, <n₃> ].
     """
     nqubits = state.n_qudits
-    occupation = torch.zeros(nqubits, dtype=torch.float64, device=state.matrix.device)
+    occupation = torch.zeros(nqubits, dtype=dtype, device=state.matrix.device)
     for i in range(nqubits):
         state_tensor = (
             state.matrix.view(
@@ -79,9 +81,7 @@ def correlation_matrix_sv_impl(
     TODO: extend to arbitrary two-point correlation ❬ψ|AᵢBⱼ|ψ❭
     """
     nqubits = state.n_qudits
-    correlation = torch.zeros(
-        nqubits, nqubits, dtype=torch.float64, device=state.vector.device
-    )
+    correlation = torch.zeros(nqubits, nqubits, dtype=dtype, device=state.vector.device)
 
     for i in range(nqubits):
         select_i = state.vector.view(2**i, 2, -1)
@@ -97,6 +97,41 @@ def correlation_matrix_sv_impl(
                 correlation[i, j] = value
                 correlation[j, i] = value
 
+    return correlation.cpu()
+
+
+def correlation_matrix_sv_den_mat_impl(
+    self: CorrelationMatrix,
+    *,
+    config: EmulationConfig,
+    state: DensityMatrix,
+    hamiltonian: DenseOperator,
+) -> torch.Tensor:
+    """
+    Custom implementation
+    """
+    nqubits = state.n_qudits
+    correlation = torch.zeros(nqubits, nqubits, dtype=dtype)
+    for i in range(nqubits):  # applying ni
+        shapei = (2**i, 2, 2 ** (nqubits - i - 1))
+        rho_ni = (
+            state.matrix.view(*shapei, *shapei)[:, 1, :, :, 1, :]
+            .contiguous()
+            .view(2 ** (nqubits - 1), 2 ** (nqubits - 1))
+        )
+        for j in range(i, nqubits):
+            if i == j:
+                correlation[i, j] = rho_ni.trace()
+            else:
+                shapeij = (2**i, 2 ** (j - i - 1), 2, 2 ** (nqubits - 1 - j))
+                rho_ni = rho_ni.view(*shapeij, *shapeij)
+                rho_ni_ni = (
+                    rho_ni[:, :, 1, :, :, :, 1, :]
+                    .contiguous()
+                    .view(2 ** (nqubits - 2), 2 ** (nqubits - 2))
+                )
+                correlation[i, j] = rho_ni_ni.trace()
+                correlation[j, i] = correlation[i, j]
     return correlation.cpu()
 
 
