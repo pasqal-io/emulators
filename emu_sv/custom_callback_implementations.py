@@ -8,7 +8,7 @@ from pulser.backend import (
     Occupation,
     Energy,
 )
-
+from emu_sv.density_matrix_state import DensityMatrix
 from emu_sv.state_vector import StateVector
 from emu_sv.dense_operator import DenseOperator
 from emu_sv.hamiltonian import RydbergHamiltonian
@@ -31,6 +31,38 @@ def qubit_occupation_sv_impl(
         # nᵢ is a projector and therefore nᵢ == nᵢnᵢ
         # ❬ψ|nᵢ|ψ❭ == ❬ψ|nᵢnᵢ|ψ❭ == ❬ψ|nᵢ * nᵢ|ψ❭ == ❬ϕ|ϕ❭ == |ϕ|**2
         occupation[i] = torch.linalg.vector_norm(state_tensor[:, 1]) ** 2
+    return occupation.cpu()
+
+
+def qubit_occupation_sv_den_mat_impl(
+    self: Occupation,
+    *,
+    config: EmulationConfig,
+    state: DensityMatrix,
+    hamiltonian: DenseOperator,
+) -> torch.Tensor:
+    """
+    Custom implementation of the occupation nᵢ observable for density matrix.
+    The observable nᵢ is given by: I ⊗ ... ⊗  nᵢ ⊗ ...  ⊗I
+    where nᵢ is the occupation operator for qubit i.
+    The expectation value is given by: <nᵢ> = Tr(ρ nᵢ).
+
+    The output will be a tensor of size (nqubits,), where each element will be the
+    expectation value of the occupation operator for each qubit.
+    In case of 3 atoms, the output will be a tensor of size (3,), where each element
+    will be <nᵢ> = Tr(ρnᵢ), or [ <n₁>, <n₂>, <n₃> ].
+    """
+    nqubits = state.n_qudits
+    occupation = torch.zeros(nqubits, dtype=torch.float64, device=state.matrix.device)
+    for i in range(nqubits):
+        state_tensor = (
+            state.matrix.view(
+                2**i, 2, 2 ** (nqubits - i - 1), 2**i, 2, 2 ** (nqubits - i - 1)
+            )[:, 1, :, :, 1, :]
+            .contiguous()
+            .view(2 ** (nqubits - 1), 2 ** (nqubits - 1))
+        )
+        occupation[i] = state_tensor.trace().real
     return occupation.cpu()
 
 

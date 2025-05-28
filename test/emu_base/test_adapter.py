@@ -6,6 +6,7 @@ from unittest.mock import patch, MagicMock
 from pulser.backend import EmulationConfig
 from pulser.noise_model import NoiseModel
 from pulser import Register
+from pulser.math import AbstractArray
 
 from emu_base.pulser_adapter import (
     _extract_omega_delta_phi,
@@ -23,6 +24,10 @@ TEST_C3 = 3700.0
 
 sequence = MagicMock()
 sequence.register.qubit_ids = TEST_QUBIT_IDS
+sequence.register.qubits = {
+    key: AbstractArray(torch.tensor([i, 0.0, 0.0], dtype=torch.float64))
+    for i, key in enumerate(TEST_QUBIT_IDS)
+}
 
 
 def mock_sample(hamiltonian_type):
@@ -77,11 +82,11 @@ def mock_sample(hamiltonian_type):
             },
             TEST_QUBIT_IDS[2]: {
                 "amp": [
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
+                    3.0,
+                    4.75,
+                    6.5,
+                    8.25,
+                    10.0,
                     10.0,
                     8.57142857,
                     7.14285714,
@@ -179,26 +184,41 @@ def mock_sample(hamiltonian_type):
     local_slot2.targets = [TEST_QUBIT_IDS[0]]
     local_slot2.ti = 12
     local_slot2.tf = 13
+    local_slot3 = MagicMock()
+    local_slot3.targets = [TEST_QUBIT_IDS[2]]
+    local_slot3.ti = 0
+    local_slot3.tf = 4
+    local_slot4 = MagicMock()
+    local_slot4.targets = [TEST_QUBIT_IDS[2]]
+    local_slot4.ti = 12
+    local_slot4.tf = 13
     global_slot = MagicMock()
     global_slot.targets = TEST_QUBIT_IDS
     global_slot.ti = 5
     global_slot.tf = 12
-    local_samples = MagicMock()
-    local_samples.slots = [local_slot1, local_slot2]
+    local_samples1 = MagicMock()
+    local_samples1.slots = [local_slot1, local_slot2]
+    local_samples2 = MagicMock()
+    local_samples2.slots = [local_slot3, local_slot4]
     global_samples = MagicMock()
     global_samples.slots = [global_slot]
-    local_ch_obj = MagicMock()
-    local_ch_obj.addressing = "Local"
+    local_ch_obj1 = MagicMock()
+    local_ch_obj1.addressing = "Local"
+    local_ch_obj2 = MagicMock()
+    local_ch_obj2.addressing = "Local"
     global_ch_obj = MagicMock()
     global_ch_obj.addressing = "Global"
+    global_ch_obj.propagation_dir = (0.0, 0.0, 1.0)
     sample_mock = MagicMock()
     sample_mock.to_nested_dict.return_value = {"Local": mock_pulser_dict}
     sample_mock._ch_objs = {
-        "local channel": local_ch_obj,
+        "local channel 1": local_ch_obj1,
+        "local channel 2": local_ch_obj2,
         "global channel": global_ch_obj,
     }
     sample_mock.channel_samples = {
-        "local channel": local_samples,
+        "local channel 1": local_samples1,
+        "local channel 2": local_samples2,
         "global channel": global_samples,
     }
     return sample_mock
@@ -319,10 +339,10 @@ def test_interaction_matrix_differentiability():
         ("XY", 10.0),
     ],
 )
-@patch("emu_base.pulser_adapter._get_qubit_positions")
 @patch("emu_base.pulser_adapter.pulser.sampler.sample")
+@patch("emu_base.pulser_adapter.random_gaussian")
 def test_extract_omega_delta_phi_dt_2(
-    mock_pulser_sample, mock_qubit_positions, hamiltonian_type, laser_waist
+    mock_randn, mock_pulser_sample, hamiltonian_type, laser_waist
 ):
     """Local pulse - targe qubit 1:
     pulser.Pulse(RampWaveform(5,3,10),RampWaveform(5,1.5,-10),0.1) and
@@ -333,9 +353,6 @@ def test_extract_omega_delta_phi_dt_2(
     sequence.get_duration.return_value = TEST_DURATION
 
     if laser_waist is not None:
-        mock_qubit_positions.return_value = [
-            torch.tensor([i, 0], dtype=torch.float64) for i in range(3)
-        ]
         waist_amplitudes = torch.tensor(
             [math.exp(-((i / laser_waist) ** 2)) for i in range(3)], dtype=torch.float64
         )
@@ -343,12 +360,14 @@ def test_extract_omega_delta_phi_dt_2(
         waist_amplitudes = torch.ones(3, dtype=torch.float64)
 
     mock_pulser_sample.return_value = mock_sample(hamiltonian_type)
+    mock_randn.side_effect = [torch.tensor(1.5), torch.tensor(0.4), torch.tensor(1.75)]
 
     actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
         sequence=sequence,
         target_times=target_times,
         with_modulation=False,
         laser_waist=laser_waist,
+        amp_sigma=1.0,
     )
 
     expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
@@ -356,12 +375,12 @@ def test_extract_omega_delta_phi_dt_2(
 
     expected_omega = torch.tensor(
         [
-            [4.7500 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [8.2500 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [10.0000 + 0.0j, 10.0000 + 0.0j, 10.0000 + 0.0j],
-            [7.1429 + 0.0j, 7.1429 + 0.0j, 7.1429 + 0.0j],
-            [4.2857 + 0.0j, 4.2857 + 0.0j, 4.2857 + 0.0j],
-            [1.4286 + 0.0j, 1.4286 + 0.0j, 1.4286 + 0.0j],
+            [4.75 * 1.5, 0.0, 4.75 * 0.4],
+            [8.25 * 1.5, 0.0, 8.25 * 0.4],
+            [10.0 * 1.75, 10.0 * 1.75, 10.0 * 1.75],
+            [7.1429 * 1.75, 7.1429 * 1.75, 7.1429 * 1.75],
+            [4.2857 * 1.75, 4.2857 * 1.75, 4.2857 * 1.75],
+            [1.4286 * 1.75, 1.4286 * 1.75, 1.4286 * 1.75],
         ],
         dtype=torch.complex128,
     )
@@ -369,23 +388,23 @@ def test_extract_omega_delta_phi_dt_2(
     to_modify *= waist_amplitudes
     expected_delta = torch.tensor(
         [
-            [-1.3750 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [-7.1250 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [-10.0000 + 0.0j, -10.0000 + 0.0j, -10.0000 + 0.0j],
-            [-4.2857 + 0.0j, -4.2857 + 0.0j, -4.2857 + 0.0j],
-            [1.4286 + 0.0j, 1.4286 + 0.0j, 1.4286 + 0.0j],
-            [7.1429 + 0.0j, 7.1429 + 0.0j, 7.1429 + 0.0j],
+            [-1.3750, 0.0000, 0.0000],
+            [-7.1250, 0.0000, 0.0000],
+            [-10.0000, -10.0000, -10.0000],
+            [-4.2857, -4.2857, -4.2857],
+            [1.4286, 1.4286, 1.4286],
+            [7.1429, 7.1429, 7.1429],
         ],
         dtype=torch.complex128,
     )
     expected_phi = torch.tensor(
         [
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+            [0.1000, 0.0000, 0.0000],
+            [0.1000, 0.0000, 0.0000],
+            [0.2000, 0.2000, 0.2000],
+            [0.2000, 0.2000, 0.2000],
+            [0.2000, 0.2000, 0.2000],
+            [0.2000, 0.2000, 0.2000],
         ],
         dtype=torch.complex128,
     )
@@ -419,9 +438,9 @@ def test_extract_omega_delta_phi_dt_1(
 
     if laser_waist is not None:
         mock_qubit_positions.return_value = [
-            torch.tensor([-1, 0], dtype=torch.float64),
-            torch.tensor([1, 0], dtype=torch.float64),
-            torch.tensor([2, 0], dtype=torch.float64),
+            torch.tensor([-1, 0, 1], dtype=torch.float64),
+            torch.tensor([1, 0, 1], dtype=torch.float64),
+            torch.tensor([2, 0, 1], dtype=torch.float64),
         ]
         waist_amplitudes = torch.tensor(
             [math.exp(-((abs(i) / laser_waist) ** 2)) for i in [-1, 1, 2]],
@@ -437,6 +456,7 @@ def test_extract_omega_delta_phi_dt_1(
         target_times=target_times,
         with_modulation=False,
         laser_waist=laser_waist,
+        amp_sigma=0.0,
     )
 
     expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
@@ -475,11 +495,11 @@ def test_extract_omega_delta_phi_dt_1(
                 0.0,
             ],
             [
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                5.0,
+                3.875,
+                5.625,
+                7.375,
+                9.125,
+                10.0,
                 9.285714285000001,
                 7.857142855,
                 6.428571425,
@@ -499,6 +519,7 @@ def test_extract_omega_delta_phi_dt_1(
     # this test has different qubit positions than the dt=2 one to test precisely this.
     if laser_waist is not None:
         expected_omega[4, 0] = 0.5 * (expected_omega[4, 0] + 10.0)
+        expected_omega[4, 2] = 0.5 * (expected_omega[4, 2] + 10.0)
     expected_delta = torch.tensor(
         [
             [
@@ -648,6 +669,7 @@ def test_autograd(mock_pulser_sample):
         target_times=target_times,
         with_modulation=False,
         laser_waist=None,
+        amp_sigma=0.0,
     )[0][2, 2].real
 
     # second data to for grad
@@ -835,6 +857,7 @@ def test_parsed_sequence(mock_pulser_sample):
         target_times=target_times,
         with_modulation=False,
         laser_waist=None,
+        amp_sigma=0.0,
     )
 
     cutoff_interaction_matrix = torch.tensor(
@@ -867,6 +890,7 @@ def test_parsed_sequence(mock_pulser_sample):
         target_times=target_times,
         with_modulation=False,
         laser_waist=None,
+        amp_sigma=0.0,
     )
 
     assert torch.allclose(parsed_sequence.omega, omega)
@@ -889,7 +913,7 @@ def test_parsed_sequence(mock_pulser_sample):
 @patch("emu_base.pulser_adapter.pulser.sampler.sample")
 def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
     mock_qubit_positions.return_value = [
-        torch.tensor([i, 0], dtype=torch.float64) for i in range(3)
+        torch.tensor([i, 0, 1], dtype=torch.float64) for i in range(3)
     ]
     TEST_DURATION = 10
     dt = 2
@@ -904,21 +928,22 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
 
     sequence._slm_mask_time = []
 
-    noise_model = NoiseModel(
-        laser_waist=0.1,
-    )
+    noise_model = NoiseModel(laser_waist=0.1, amp_sigma=1.0, runs=1, samples_per_run=1)
 
     config = EmulationConfig(
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
     )
+    torch.manual_seed(1337)
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
+    torch.manual_seed(1337)
     omega, delta, phi = _extract_omega_delta_phi(
         sequence=sequence,
         target_times=target_times,
         with_modulation=False,
         laser_waist=0.1,
+        amp_sigma=1.0,
     )
     assert torch.allclose(omega, parsed_sequence.omega)
     assert torch.allclose(delta, parsed_sequence.delta)
