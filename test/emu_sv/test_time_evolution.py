@@ -44,6 +44,22 @@ def get_randn_state(
     return state / state.norm()
 
 
+@pytest.mark.parametrize("requires_grad", [True, False])
+def test_forward_with_requires_grad(requires_grad):
+    """test that index_add is called in a no_grad context in forward"""
+    ham_params = get_randn_ham_params(
+        1, with_phase=False, requires_grad=not requires_grad
+    )
+    state_in = get_randn_state(1, device=device, requires_grad=requires_grad)
+    state_out, _ = EvolveStateVector.apply(
+        0.3,
+        *ham_params,
+        state_in,
+        1e-5,
+    )
+    assert state_out.requires_grad
+
+
 @pytest.mark.parametrize(
     "N, tolerance, with_phase",
     [
@@ -53,10 +69,10 @@ def get_randn_state(
         for wp in [False, True]
     ],
 )
-def test_forward(N: int, tolerance: float, with_phase: bool) -> None:
+def test_forward_accuracy(N: int, tolerance: float, with_phase: bool) -> None:
     torch.manual_seed(1337)
     ham_params = get_randn_ham_params(N, with_phase=with_phase)
-    state_in = get_randn_state(N, device=device, requires_grad=True)
+    state_in = get_randn_state(N, device=device)
     dt = 1.0  # 1 μs big time step
 
     expected = do_dense_time_step(dt, *ham_params, state_in)
@@ -73,7 +89,7 @@ def test_forward(N: int, tolerance: float, with_phase: bool) -> None:
     "N, tolerance",
     [(n, tol) for n in [3, 5, 8] for tol in [1e-8, 1e-10, 1e-12]],
 )
-def test_backward(N, tolerance):
+def test_backward_accuracy(N, tolerance):
     torch.manual_seed(1337)
     ham_params = get_randn_ham_params(N, with_phase=True, requires_grad=True)
     state_in = get_randn_state(N, device=device, requires_grad=True)
