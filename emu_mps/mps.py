@@ -499,11 +499,10 @@ class MPS(State[complex, torch.Tensor]):
         """
         self.orthogonalize(qubit_index)
 
-        self.factors[qubit_index] = torch.tensordot(
-            self.factors[qubit_index],
-            single_qubit_operator.to(self.factors[qubit_index].device),
-            ([1], [1]),
-        ).transpose(1, 2)
+        self.factors[qubit_index] = (
+            single_qubit_operator.to(self.factors[qubit_index].device)
+            @ self.factors[qubit_index]
+        )
 
     def get_correlation_matrix(
         self, *, operator: torch.Tensor = n_operator
