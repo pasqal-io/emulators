@@ -7,7 +7,6 @@ from pulser.noise_model import NoiseModel
 from pulser.register.base_register import BaseRegister, QubitId
 from pulser.backend.config import EmulationConfig
 from emu_base.jump_lindblad_operators import get_lindblad_operators
-from emu_base.utils import random_gaussian
 
 RUBIDIUM_MASS = 1.45e-25  # kg
 KB = 1.38e-23  # J/K
@@ -125,7 +124,7 @@ def _get_amp_factors(
         sigma_factor = (
             1.0
             if amp_sigma == 0.0
-            else torch.max(torch.tensor(0), random_gaussian((1,), 1.0, amp_sigma)).item()
+            else torch.max(torch.tensor(0), torch.normal(1.0, amp_sigma, (1,))).item()
         )
         for slot in ch_samples.slots:
             factors = (
@@ -160,7 +159,7 @@ def _get_delta_offset(nqubits: int, temperature: float) -> torch.Tensor:
         return torch.zeros(nqubits, dtype=torch.float64)
     t = temperature * 1e-6  # microKelvin -> Kelvin
     sigma = KEFF * math.sqrt(KB * t / RUBIDIUM_MASS)
-    return random_gaussian((nqubits,), 0.0, sigma)
+    return torch.normal(0.0, sigma, (nqubits,))
 
 
 def _extract_omega_delta_phi(

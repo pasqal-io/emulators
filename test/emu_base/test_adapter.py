@@ -358,7 +358,7 @@ def test_interaction_matrix_differentiability():
         ("XY", 10.0),
     ],
 )
-@patch("emu_base.pulser_adapter.random_gaussian")
+@patch("emu_base.pulser_adapter.torch.normal")
 def test_get_amp_factors(mock_randn, hamiltonian_type, laser_waist):
     global_times = list(range(5, 12))
     mock_randn.side_effect = [torch.tensor(1.5), torch.tensor(0.4), torch.tensor(1.75)]
@@ -382,12 +382,12 @@ def test_get_amp_factors(mock_randn, hamiltonian_type, laser_waist):
         assert torch.allclose(val, expected_amp_factors[key] * waist_amplitudes)
 
 
-@patch("emu_base.pulser_adapter.random_gaussian")
+@patch("emu_base.pulser_adapter.torch.normal")
 def test_get_delta_offset(mock_random):
     mock_random.return_value = torch.tensor([1.0, 2.0, 3.0])
     actual = _get_delta_offset(3, 5.0)
     sigma = 0.18978408784721654
-    mock_random.assert_called_once_with((3,), 0.0, sigma)
+    mock_random.assert_called_once_with(0.0, sigma, (3,))
     assert torch.equal(actual, mock_random.return_value)
 
 
