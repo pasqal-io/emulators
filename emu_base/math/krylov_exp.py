@@ -56,7 +56,7 @@ def krylov_exp_impl(
         for k in range(k_start, j + 1):
             overlap = torch.tensordot(lanczos_vectors[k].conj(), w, dims=w.dim())
             T[k, j] = overlap
-            w = w - overlap * lanczos_vectors[k]
+            w -= overlap * lanczos_vectors[k]
 
         n2 = w.norm()
         T[j + 1, j] = n2
@@ -71,7 +71,7 @@ def krylov_exp_impl(
                 result=result, converged=True, happy_breakdown=True, iteration_count=j + 1
             )
 
-        w = w / n2
+        w /= n2
         lanczos_vectors.append(w)
 
         # Compute exponential of extended T matrix
