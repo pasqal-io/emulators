@@ -19,6 +19,26 @@ class HamiltonianType(Enum):
     XY = 2
 
 
+SUPPORTED_NOISES: dict = {
+    HamiltonianType.Rydberg: {
+        "amplitude",
+        "dephasing",
+        "relaxation",
+        "depolarizing",
+        "doppler",
+        "eff_noise",
+        "SPAM",
+        # "leakage",
+    },
+    HamiltonianType.XY: {
+        "dephasing",
+        "depolarizing",
+        "eff_noise",
+        "SPAM",
+    },  # , "leakage"},
+}
+
+
 def _get_qubit_positions(
     register: BaseRegister,
 ) -> list[torch.Tensor]:
@@ -138,10 +158,9 @@ def _get_amp_factors(
 def _get_delta_offset(nqubits: int, temperature: float) -> torch.Tensor:
     if temperature == 0.0:
         return torch.zeros(nqubits, dtype=torch.float64)
-    else:
-        t = temperature * 1e-6  # microKelvin -> Kelvin
-        sigma = KEFF * math.sqrt(KB * t / RUBIDIUM_MASS)
-        return random_gaussian((nqubits,), 0.0, sigma)
+    t = temperature * 1e-6  # microKelvin -> Kelvin
+    sigma = KEFF * math.sqrt(KB * t / RUBIDIUM_MASS)
+    return random_gaussian((nqubits,), 0.0, sigma)
 
 
 def _extract_omega_delta_phi(
@@ -208,7 +227,6 @@ def _extract_omega_delta_phi(
     times_to_amp_factors = _get_amp_factors(
         samples, amp_sigma, laser_waist, qubit_positions, q_ids
     )
-    doppler_offset = _get_delta_offset(len(q_ids), temperature)
 
     omega_1 = torch.zeros_like(omega[0])
     omega_2 = torch.zeros_like(omega[0])
@@ -248,6 +266,8 @@ def _extract_omega_delta_phi(
                     - locals_a_d_p[q_id]["phase"][t1]
                 ) / 2.0
             omega[i] = torch.clamp(0.5 * (3 * omega_2 - omega_1).real, min=0.0)
+
+    doppler_offset = _get_delta_offset(len(q_ids), temperature)
     delta += doppler_offset
     return omega, delta, phi
 
@@ -311,8 +331,6 @@ class PulserData:
             amp_sigma=amp_sigma,
             temperature=temperature,
         )
-        self.lindblad_ops = _get_all_lindblad_noise_operators(config.noise_model)
-        self.has_lindblad_noise: bool = self.lindblad_ops != []
 
         addressed_basis = sequence.get_addressed_bases()[0]
         if addressed_basis == "ground-rydberg":  # for local and global
@@ -321,6 +339,18 @@ class PulserData:
             self.hamiltonian_type = HamiltonianType.XY
         else:
             raise ValueError(f"Unsupported basis: {addressed_basis}")
+
+        not_supported = (
+            set(config.noise_model.noise_types) - SUPPORTED_NOISES[self.hamiltonian_type]
+        )
+        if not_supported:
+            raise NotImplementedError(
+                f"Interaction mode '{self.hamiltonian_type}' does not support "
+                f"simulation of noise types: {', '.join(not_supported)}."
+            )
+
+        self.lindblad_ops = _get_all_lindblad_noise_operators(config.noise_model)
+        self.has_lindblad_noise: bool = self.lindblad_ops != []
 
         if config.interaction_matrix is not None:
             assert len(config.interaction_matrix) == self.qubit_count, (

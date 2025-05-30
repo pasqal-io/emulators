@@ -2,6 +2,7 @@ import torch
 import math
 import pytest
 from unittest.mock import patch, MagicMock
+import re
 
 from pulser.backend import EmulationConfig
 from pulser.noise_model import NoiseModel
@@ -387,7 +388,7 @@ def test_get_delta_offset(mock_random):
     actual = _get_delta_offset(3, 5.0)
     sigma = 0.18978408784721654
     mock_random.assert_called_once_with((3,), 0.0, sigma)
-    assert torch.allclose(actual, mock_random.return_value, rtol=0.0, atol=0.0)
+    assert torch.equal(actual, mock_random.return_value)
 
 
 @pytest.mark.parametrize(
@@ -1011,7 +1012,7 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
     dt = 2
     target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
     sequence.get_duration.return_value = TEST_DURATION
-    adressed_basis = "XY"
+    adressed_basis = "ground-rydberg"
     sequence.get_addressed_bases.return_value = [adressed_basis]
     mock_pulser_sample.return_value = mock_sample(adressed_basis)
 
@@ -1043,3 +1044,74 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
     assert torch.allclose(omega, parsed_sequence.omega)
     assert torch.allclose(delta, parsed_sequence.delta)
     assert torch.allclose(phi, parsed_sequence.phi)
+
+
+@pytest.mark.parametrize(
+    "hamiltonian_type",
+    ["ground-rydberg", "XY"],
+)
+@patch("emu_base.pulser_adapter._get_qubit_positions")
+@patch("emu_base.pulser_adapter.pulser.sampler.sample")
+def test_supported_noise_types(
+    mock_pulser_sample, mock_qubit_positions, hamiltonian_type
+):
+    mock_qubit_positions.return_value = [
+        torch.tensor([i, 0, 1], dtype=torch.float64) for i in range(3)
+    ]
+    TEST_DURATION = 10
+    dt = 2
+    sequence.get_duration.return_value = TEST_DURATION
+    sequence.get_addressed_bases.return_value = [hamiltonian_type]
+    mock_pulser_sample.return_value = mock_sample(hamiltonian_type)
+
+    mat = torch.randn(3, 3, dtype=float)
+    interaction_matrix = (mat + mat.T).fill_diagonal_(0).tolist()
+
+    sequence._slm_mask_time = []
+
+    noise_model = NoiseModel(
+        laser_waist=0.1,
+        amp_sigma=1.0,
+        runs=1,
+        samples_per_run=1,
+        temperature=5.0,
+        state_prep_error=0.5,
+        p_false_neg=0.1,
+        p_false_pos=0.2,
+        relaxation_rate=5.0,
+        dephasing_rate=11.0,
+        # hyperfine_dephasing_rate= 12., not supported yet
+        depolarizing_rate=13.0,
+        with_leakage=True,
+        eff_noise_rates=(0.1,),
+        eff_noise_opers=(torch.randn(3, 3, dtype=torch.float64),),
+    )
+
+    config = EmulationConfig(
+        noise_model=noise_model,
+        interaction_matrix=interaction_matrix,
+        interaction_cutoff=0.15,
+    )
+    torch.manual_seed(1337)
+    if hamiltonian_type == "XY":
+        unsupported_noises = {"doppler", "relaxation", "amplitude", "leakage"}
+        regex_string = (
+            "Interaction mode 'HamiltonianType.XY'"
+            " does not support simulation of noise types:"
+            r" (\w+), (\w+), (\w+), (\w+)."
+        )
+    elif hamiltonian_type == "ground-rydberg":
+        unsupported_noises = {"leakage"}
+        regex_string = (
+            "Interaction mode 'HamiltonianType.Rydberg'"
+            " does not support simulation of noise types:"
+            r" (\w+)."
+        )
+    else:
+        assert False, "bad hamiltonian type"
+    with pytest.raises(NotImplementedError) as exc:
+        PulserData(sequence=sequence, config=config, dt=dt)
+    # the noise types do not show in the exception in a deterministic way
+    # regex to the rescue
+    match = re.match(regex_string, str(exc.value))
+    assert set(match.groups()) == unsupported_noises
