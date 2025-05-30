@@ -44,6 +44,7 @@ def test_unsupported_noise() -> None:
             with_leakage=True,
             eff_noise_rates=(0.1,),
             eff_noise_opers=(torch.randn(3, 3, dtype=torch.float64),),
+            hyperfine_dephasing_rate=1.5,
         )
     )
 
