@@ -33,7 +33,3 @@ def deallocate_tensor(t: torch.Tensor) -> None:
     if t._base is not None:
         t._base.resize_(0)
         t._base.set_(source=replacement_storage)
-
-
-def random_gaussian(size: tuple[int, ...], mean: float, sigma: float) -> torch.Tensor:
-    return mean + sigma * torch.randn(size, dtype=torch.float64)
