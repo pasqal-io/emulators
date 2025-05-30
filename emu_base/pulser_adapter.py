@@ -155,6 +155,13 @@ def _get_amp_factors(
 
 
 def _get_delta_offset(nqubits: int, temperature: float) -> torch.Tensor:
+    """
+    The delta values are shifted due to atomic velocities.
+    The atomic velocities follow the Maxwell distribution
+    https://en.wikipedia.org/wiki/Maxwell%E2%80%93Boltzmann_distribution
+    and then a given residual velocity is converted to a delta offset per
+    https://en.wikipedia.org/wiki/Doppler_broadening
+    """
     if temperature == 0.0:
         return torch.zeros(nqubits, dtype=torch.float64)
     t = temperature * 1e-6  # microKelvin -> Kelvin
