@@ -13,7 +13,6 @@ def minimize_energy_pair(
     baths: tuple[torch.Tensor, torch.Tensor],
     ham_factors: tuple[torch.Tensor],
     orth_center_right: bool,
-    is_hermitian: bool,
     config: MPSConfig,
     residual_tolerance: float,
 ) -> tuple[torch.Tensor, torch.Tensor, float]:
@@ -67,7 +66,6 @@ def minimize_energy_pair(
         norm_tolerance=config.precision * config.extra_krylov_tolerance,
         residual_tolerance=residual_tolerance,
         max_krylov_dim=config.max_krylov_dim,
-        is_hermitian=is_hermitian,
     )
     updated_state = updated_state.view(left_bond_dim * 2, 2 * right_bond_dim)
 

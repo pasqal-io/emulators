@@ -44,7 +44,6 @@ def test_minimize_energy_pair():
         baths=[left_bath, right_bath],
         ham_factors=[left_ham_factor, right_ham_factor],
         config=MPSConfig(max_bond_dim=12),
-        is_hermitian=True,
         orth_center_right=False,
         residual_tolerance=1e-8,
     )

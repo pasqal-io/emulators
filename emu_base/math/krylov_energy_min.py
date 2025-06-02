@@ -34,7 +34,6 @@ def krylov_energy_minimization_impl(
     psi_local: torch.Tensor,
     residual_tolerance: float,
     norm_tolerance: float,
-    is_hermitian: bool,
     max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
 ) -> KrylovEnergyResult:
     """
@@ -58,8 +57,7 @@ def krylov_energy_minimization_impl(
     for j in range(max_krylov_dim):
         w = op(lanczos_vectors[-1])
 
-        k_start = max(0, j - 1) if is_hermitian else 0
-        for k in range(k_start, j + 1):
+        for k in range(max(0, j - 1), j + 1):
             alpha = torch.tensordot(lanczos_vectors[k].conj(), w, dims=w.dim())
             T[k, j] = alpha
             w = w - alpha * lanczos_vectors[k]
@@ -112,7 +110,6 @@ def krylov_energy_minimization(
     v: torch.Tensor,
     norm_tolerance: float,
     residual_tolerance: float,
-    is_hermitian: bool = True,
     max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
 ) -> Tuple[torch.Tensor, float]:
 
@@ -121,7 +118,6 @@ def krylov_energy_minimization(
         psi_local=v,
         norm_tolerance=norm_tolerance,
         residual_tolerance=residual_tolerance,
-        is_hermitian=is_hermitian,
         max_krylov_dim=max_krylov_dim,
     )
 
