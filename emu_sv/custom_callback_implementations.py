@@ -56,10 +56,10 @@ def qubit_occupation_sv_den_mat_impl(
     """
     nqubits = state.n_qudits
     occupation = torch.zeros(nqubits, dtype=dtype, device=state.matrix.device)
-    diag_state_tensor = state.matrix.diag()
+    diag_state_tensor = state.matrix.diagonal()
     for i in range(nqubits):
         state_tensor = diag_state_tensor.view(2**i, 2, 2 ** (nqubits - i - 1))[:, 1, :]
-        occupation[i] = state_tensor.sum()
+        occupation[i] = state_tensor.sum().real
     return occupation.cpu()
 
 
@@ -81,16 +81,12 @@ def correlation_matrix_sv_impl(
     for i in range(nqubits):
         select_i = state.vector.view(2**i, 2, -1)
         select_i = select_i[:, 1]
-        for j in range(i, nqubits):  # select the upper triangle
-            if i == j:
-                value = torch.linalg.vector_norm(select_i) ** 2
-                correlation[j, j] = value
-            else:
-                select_i = select_i.view(2**i, 2 ** (j - i - 1), 2, -1)
-                select_ij = select_i[:, :, 1, :]
-                value = torch.linalg.vector_norm(select_ij) ** 2
-                correlation[i, j] = value
-                correlation[j, i] = value
+        correlation[i, i] = torch.linalg.vector_norm(select_i) ** 2
+        for j in range(i + 1, nqubits):  # select the upper triangle
+            select_i = select_i.view(2**i, 2 ** (j - i - 1), 2, -1)
+            select_ij = select_i[:, :, 1, :]
+            correlation[i, j] = torch.linalg.vector_norm(select_ij) ** 2
+            correlation[j, i] = correlation[i, j]
 
     return correlation.cpu()
 
@@ -107,18 +103,16 @@ def correlation_matrix_sv_den_mat_impl(
     """
     nqubits = state.n_qudits
     correlation = torch.zeros(nqubits, nqubits, dtype=dtype)
-    state_diag_matrix = state.matrix.diag()
+    state_diag_matrix = state.matrix.diagonal()
     for i in range(nqubits):  # applying ni
         shapei = (2**i, 2, 2 ** (nqubits - i - 1))
         state_diag_ni = state_diag_matrix.view(*shapei)[:, 1, :]
-        for j in range(i, nqubits):
-            if i == j:
-                correlation[i, j] = state_diag_ni.sum()
-            else:
-                shapeij = (2**i, 2 ** (j - i - 1), 2, 2 ** (nqubits - 1 - j))
-                state_diag_ni_nj = state_diag_ni.view(*shapeij)[:, :, 1, :]
-                correlation[i, j] = state_diag_ni_nj.sum()
-                correlation[j, i] = correlation[i, j]
+        correlation[i, i] = state_diag_ni.sum().real  # diagonal
+        for j in range(i + 1, nqubits):
+            shapeij = (2**i, 2 ** (j - i - 1), 2, 2 ** (nqubits - 1 - j))
+            state_diag_ni_nj = state_diag_ni.view(*shapeij)[:, :, 1, :]
+            correlation[i, j] = state_diag_ni_nj.sum().real
+            correlation[j, i] = correlation[i, j]
     return correlation.cpu()
 
 
