@@ -56,15 +56,19 @@ def qubit_occupation_sv_den_mat_impl(
     """
     nqubits = state.n_qudits
     occupation = torch.zeros(nqubits, dtype=dtype, device=state.matrix.device)
+    diag_state_tensor = state.matrix.diag()
     for i in range(nqubits):
-        state_tensor = (
-            state.matrix.view(
-                2**i, 2, 2 ** (nqubits - i - 1), 2**i, 2, 2 ** (nqubits - i - 1)
-            )[:, 1, :, :, 1, :]
-            .contiguous()
-            .view(2 ** (nqubits - 1), 2 ** (nqubits - 1))
-        )
-        occupation[i] = state_tensor.trace().real
+        # state_tensor = (
+        #    state.matrix.view(
+        #        2**i, 2, 2 ** (nqubits - i - 1), 2**i, 2, 2 ** (nqubits - i - 1)
+        #    )[:, 1, :, :, 1, :]
+        #    .contiguous()
+        #    .view(2 ** (nqubits - 1), 2 ** (nqubits - 1))
+        # )
+
+        state_tensor = diag_state_tensor.view(2**i, 2, 2 ** (nqubits - i - 1))[:, 1, :]
+
+        occupation[i] = state_tensor.sum()
     return occupation.cpu()
 
 
@@ -112,26 +116,17 @@ def correlation_matrix_sv_den_mat_impl(
     """
     nqubits = state.n_qudits
     correlation = torch.zeros(nqubits, nqubits, dtype=dtype)
+    state_diag_matrix = state.matrix.diag()
     for i in range(nqubits):  # applying ni
         shapei = (2**i, 2, 2 ** (nqubits - i - 1))
-        rho_ni = (
-            state.matrix.view(*shapei, *shapei)[:, 1, :, :, 1, :]
-            .contiguous()
-            .view(2 ** (nqubits - 1), 2 ** (nqubits - 1))
-        )
+        state_diag_ni = state_diag_matrix.view(*shapei)[:, 1, :]
         for j in range(i, nqubits):
             if i == j:
-                correlation[i, j] = rho_ni.trace().real
+                correlation[i, j] = state_diag_ni.sum()
             else:
                 shapeij = (2**i, 2 ** (j - i - 1), 2, 2 ** (nqubits - 1 - j))
-                rho_ni = rho_ni.view(*shapeij, *shapeij)
-                rho_ni_ni = (
-                    rho_ni[:, :, 1, :, :, :, 1, :]
-                    .contiguous()
-                    .view(2 ** (nqubits - 2), 2 ** (nqubits - 2))
-                )
-
-                correlation[i, j] = rho_ni_ni.trace().real
+                state_diag_ni_nj = state_diag_ni.view(*shapeij)[:, :, 1, :]
+                correlation[i, j] = state_diag_ni_nj.sum()
                 correlation[j, i] = correlation[i, j]
     return correlation.cpu()
 

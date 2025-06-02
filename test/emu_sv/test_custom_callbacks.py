@@ -44,27 +44,28 @@ dtype = torch.complex128
 def test_custom_occupation(noise: bool) -> None:
     # set up for state
     basis = ("r", "g")
-    num_qubits = 4
-    strings = {"rrrr": 1.0, "gggg": 1.0}
+    num_qubits = 10
+    strings = {"r" * num_qubits: 1.0, "g" * num_qubits: 1.0}
     state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
     operator_mock = MagicMock(spec=DenseOperator)
     H_mock = operator_mock.return_value
     MockOccupation = MagicMock(spec=Occupation)
     occupation_mock = MockOccupation.return_value
     config = SVConfig(gpu=gpu)
-
+    expected = torch.tensor([0.5] * num_qubits, dtype=dtype_fl, device="cpu")
     if not noise:
         occupation = qubit_occupation_sv_impl(
             occupation_mock, config=config, state=state, hamiltonian=H_mock
         )
+
+        assert torch.allclose(occupation, expected)
     else:
         state = DensityMatrix.from_state_vector(state)
         occupation = qubit_occupation_sv_den_mat_impl(
             occupation_mock, config=config, state=state, hamiltonian=H_mock
         )
 
-    expected = torch.tensor([0.5] * num_qubits, dtype=dtype_fl, device="cpu")
-    assert torch.allclose(occupation, expected)
+        assert torch.allclose(occupation, expected)
 
 
 @pytest.mark.parametrize(
@@ -77,8 +78,8 @@ def test_custom_occupation(noise: bool) -> None:
 def test_custom_correlation(noise: bool) -> None:
     # set up for state
     basis = ("r", "g")
-    num_qubits = 4
-    strings = {"rgrg": 1.0, "grgr": 1.0}
+    num_qubits = 6
+    strings = {"rgrgrg": 1.0, "grgrgr": 1.0}
     state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
     config = SVConfig(gpu=gpu)
     operator_mock = MagicMock(spec=DenseOperator)
