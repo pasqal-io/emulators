@@ -1,7 +1,6 @@
 from typing import Callable
 import torch
 
-from emu_base.utils import deallocate_tensor
 
 DEFAULT_MAX_KRYLOV_DIM: int = 100
 
@@ -43,12 +42,9 @@ def krylov_exp_impl(
     """
 
     initial_norm = v.norm()
-    normalized_v = v / initial_norm
+    v /= initial_norm
 
-    if not v.requires_grad:
-        deallocate_tensor(v)
-
-    lanczos_vectors = [normalized_v]
+    lanczos_vectors = [v]
     T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
 
     for j in range(max_krylov_dim):
@@ -60,7 +56,7 @@ def krylov_exp_impl(
         for k in range(k_start, j + 1):
             overlap = torch.tensordot(lanczos_vectors[k].conj(), w, dims=w.dim())
             T[k, j] = overlap
-            w = w - overlap * lanczos_vectors[k]
+            w -= overlap * lanczos_vectors[k]
 
         n2 = w.norm()
         T[j + 1, j] = n2
@@ -75,7 +71,7 @@ def krylov_exp_impl(
                 result=result, converged=True, happy_breakdown=True, iteration_count=j + 1
             )
 
-        w = w / n2
+        w /= n2
         lanczos_vectors.append(w)
 
         # Compute exponential of extended T matrix

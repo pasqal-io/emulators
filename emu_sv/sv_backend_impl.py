@@ -171,11 +171,7 @@ class SVBackendImpl(BaseSVBackendImpl):
             )
         )
 
-        self.stepper = (
-            EvolveStateVector.apply
-            if self.state.vector.requires_grad
-            else EvolveStateVector.evolve
-        )
+        self.stepper = EvolveStateVector.apply
 
     def _evolve_step(self, dt: float, step_idx: int) -> None:
         self.state.vector, self._current_H = self.stepper(
