@@ -9,9 +9,9 @@ from emu_mps.tdvp import apply_effective_Hamiltonian
 
 def minimize_energy_pair(
     *,
-    state_factors: list[torch.Tensor],
+    state_factors: tuple[torch.Tensor],
     baths: tuple[torch.Tensor, torch.Tensor],
-    ham_factors: list[torch.Tensor],
+    ham_factors: tuple[torch.Tensor],
     orth_center_right: bool,
     is_hermitian: bool,
     config: MPSConfig,

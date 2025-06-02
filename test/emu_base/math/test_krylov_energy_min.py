@@ -149,7 +149,7 @@ def test_exact_case():
 
 
 def test_ising_hamiltonian():
-    N = 8
+    N = 9
     d = 2
     J, h = 1.0, 0.1
 
@@ -170,9 +170,9 @@ def test_ising_hamiltonian():
         v,
         max_krylov_dim=d**N,
         is_hermitian=True,
-        norm_tolerance=1e-7,
-        residual_tolerance=1e-6,
+        norm_tolerance=1e-8,
+        residual_tolerance=1e-8,
         expect_converged=True,
         expect_happy_breakdown=False,
-        expected_iteration_count=62,
+        expected_iteration_count=27,
     )
