@@ -108,7 +108,7 @@ def correlation_matrix_sv_den_mat_impl(
     hamiltonian: DenseOperator,
 ) -> torch.Tensor:
     """
-    Custom implementation
+    Custom implementation of the density-density correlation <nᵢnⱼ> = Tr(ρ nᵢnⱼ)
     """
     nqubits = state.n_qudits
     correlation = torch.zeros(nqubits, nqubits, dtype=dtype)
