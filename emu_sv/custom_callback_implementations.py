@@ -58,16 +58,7 @@ def qubit_occupation_sv_den_mat_impl(
     occupation = torch.zeros(nqubits, dtype=dtype, device=state.matrix.device)
     diag_state_tensor = state.matrix.diag()
     for i in range(nqubits):
-        # state_tensor = (
-        #    state.matrix.view(
-        #        2**i, 2, 2 ** (nqubits - i - 1), 2**i, 2, 2 ** (nqubits - i - 1)
-        #    )[:, 1, :, :, 1, :]
-        #    .contiguous()
-        #    .view(2 ** (nqubits - 1), 2 ** (nqubits - 1))
-        # )
-
         state_tensor = diag_state_tensor.view(2**i, 2, 2 ** (nqubits - i - 1))[:, 1, :]
-
         occupation[i] = state_tensor.sum()
     return occupation.cpu()
 
