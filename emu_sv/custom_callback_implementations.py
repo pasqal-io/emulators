@@ -121,7 +121,7 @@ def correlation_matrix_sv_den_mat_impl(
         )
         for j in range(i, nqubits):
             if i == j:
-                correlation[i, j] = rho_ni.trace()
+                correlation[i, j] = rho_ni.trace().real
             else:
                 shapeij = (2**i, 2 ** (j - i - 1), 2, 2 ** (nqubits - 1 - j))
                 rho_ni = rho_ni.view(*shapeij, *shapeij)
@@ -130,7 +130,8 @@ def correlation_matrix_sv_den_mat_impl(
                     .contiguous()
                     .view(2 ** (nqubits - 2), 2 ** (nqubits - 2))
                 )
-                correlation[i, j] = rho_ni_ni.trace()
+
+                correlation[i, j] = rho_ni_ni.trace().real
                 correlation[j, i] = correlation[i, j]
     return correlation.cpu()
 
