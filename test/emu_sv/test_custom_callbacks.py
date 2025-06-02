@@ -79,7 +79,7 @@ def test_custom_correlation(noise: bool) -> None:
     # set up for state
     basis = ("r", "g")
     num_qubits = 6
-    strings = {"rgrgrg": 1.0, "grgrgr": 1.0}
+    strings = {"rg" * int(num_qubits / 2): 1.0, "gr" * int(num_qubits / 2): 1.0}
     state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
     config = SVConfig(gpu=gpu)
     operator_mock = MagicMock(spec=DenseOperator)

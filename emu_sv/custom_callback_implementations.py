@@ -100,6 +100,7 @@ def correlation_matrix_sv_den_mat_impl(
 ) -> torch.Tensor:
     """
     Custom implementation of the density-density correlation <nᵢnⱼ> = Tr(ρ nᵢnⱼ)
+    in the case of Lindblad noise
     """
     nqubits = state.n_qudits
     correlation = torch.zeros(nqubits, nqubits, dtype=dtype)
