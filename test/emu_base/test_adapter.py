@@ -386,7 +386,7 @@ def test_get_amp_factors(mock_randn, hamiltonian_type, laser_waist):
 def test_get_delta_offset(mock_random):
     mock_random.return_value = torch.tensor([1.0, 2.0, 3.0])
     actual = _get_delta_offset(3, 5.0)
-    sigma = 0.18978408784721654
+    sigma = 0.18978408784721648
     mock_random.assert_called_once_with(0.0, sigma, (3,))
     assert torch.equal(actual, mock_random.return_value)
 

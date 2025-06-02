@@ -8,8 +8,7 @@ from pulser.register.base_register import BaseRegister, QubitId
 from pulser.backend.config import EmulationConfig
 from emu_base.jump_lindblad_operators import get_lindblad_operators
 
-RUBIDIUM_MASS = 1.45e-25  # kg
-KB = 1.38e-23  # J/K
+KB_PER_RUBIDIUM_MASS = 95.17241379310344  # J/K/kg
 KEFF = 8.7  # µm^-1, conversion from atom velocity to detuning
 
 
@@ -165,7 +164,7 @@ def _get_delta_offset(nqubits: int, temperature: float) -> torch.Tensor:
     if temperature == 0.0:
         return torch.zeros(nqubits, dtype=torch.float64)
     t = temperature * 1e-6  # microKelvin -> Kelvin
-    sigma = KEFF * math.sqrt(KB * t / RUBIDIUM_MASS)
+    sigma = KEFF * math.sqrt(KB_PER_RUBIDIUM_MASS * t)
     return torch.normal(0.0, sigma, (nqubits,))
 
 
