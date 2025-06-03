@@ -258,9 +258,7 @@ class StateVector(State[complex, torch.Tensor]):
         else:
             raise ValueError("Unsupported basis provided")
 
-        nqubits = cls._validate_amplitudes(amplitudes=amplitudes, eigenstates=eigenstates)
-        assert n_qudits == nqubits
-        accum_state = StateVector.zero(num_sites=nqubits, eigenstates=eigenstates)
+        accum_state = StateVector.zero(num_sites=n_qudits, eigenstates=eigenstates)
 
         for state, amplitude in amplitudes.items():
             bin_to_int = int(
