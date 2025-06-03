@@ -1,6 +1,7 @@
 import pytest
 import re
 import logging
+import torch
 
 import pulser
 
@@ -30,14 +31,6 @@ mps_params = {
 
 
 def test_unsupported_noise() -> None:
-    with pytest.raises(NotImplementedError) as exc:
-        MPSConfig(
-            noise_model=pulser.noise_model.NoiseModel(
-                temperature=10.0, runs=1, samples_per_run=1
-            )
-        )
-    assert "Unsupported noise type: doppler" in str(exc.value)
-
     MPSConfig(
         noise_model=pulser.noise_model.NoiseModel(
             runs=1,  # TODO: connect this with MCArlo
@@ -47,6 +40,11 @@ def test_unsupported_noise() -> None:
             p_false_neg=0.15,
             laser_waist=5,
             amp_sigma=0.1,
+            temperature=10.0,
+            with_leakage=True,
+            eff_noise_rates=(0.1,),
+            eff_noise_opers=(torch.randn(3, 3, dtype=torch.float64),),
+            hyperfine_dephasing_rate=1.5,
         )
     )
 

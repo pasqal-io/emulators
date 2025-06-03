@@ -33,7 +33,6 @@ def build_Ising_hamiltonian(N: int, J: float, h: float) -> torch.Tensor:
 def check(
     A: torch.Tensor,
     v: torch.Tensor,
-    is_hermitian: bool,
     norm_tolerance: float,
     residual_tolerance: float,
     expect_converged: bool,
@@ -54,7 +53,6 @@ def check(
         psi_local=v,
         norm_tolerance=norm_tolerance,
         residual_tolerance=residual_tolerance,
-        is_hermitian=is_hermitian,
         max_krylov_dim=max_krylov_dim,
     )
 
@@ -64,8 +62,7 @@ def check(
         expected_iteration_count,
         expected_iteration_count + 1,
     }
-
-    E_approx = result.ground_energy
+    E_approx = result.ground_energy.real
     psi_approx = result.ground_state
 
     eigen_energy, eigen_state = torch.linalg.eigh(A)
@@ -103,7 +100,6 @@ def test_id():
     check(
         A,
         v,
-        is_hermitian=True,
         norm_tolerance=1e-8,
         residual_tolerance=1e-10,
         expect_converged=True,
@@ -122,7 +118,6 @@ def test_id_large():
     check(
         A,
         v,
-        is_hermitian=True,
         norm_tolerance=1e-8,
         residual_tolerance=1e-10,
         expect_converged=True,
@@ -139,7 +134,6 @@ def test_exact_case():
     check(
         A,
         v,
-        is_hermitian=True,
         norm_tolerance=1e-12,
         residual_tolerance=1e-10,
         expect_converged=True,
@@ -150,7 +144,7 @@ def test_exact_case():
 
 
 def test_ising_hamiltonian():
-    N = 12
+    N = 9
     d = 2
     J, h = 1.0, 0.1
 
@@ -170,10 +164,9 @@ def test_ising_hamiltonian():
         A,
         v,
         max_krylov_dim=d**N,
-        is_hermitian=True,
-        norm_tolerance=1e-7,
-        residual_tolerance=1e-6,
+        norm_tolerance=1e-8,
+        residual_tolerance=1e-8,
         expect_converged=True,
         expect_happy_breakdown=False,
-        expected_iteration_count=98,
+        expected_iteration_count=27,
     )

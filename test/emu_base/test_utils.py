@@ -1,7 +1,6 @@
 import torch
 import pytest
-from math import sqrt
-from emu_base.utils import deallocate_tensor, random_gaussian
+from emu_base.utils import deallocate_tensor
 
 
 def test_deallocate_tensor_shape():
@@ -112,23 +111,3 @@ def test_deallocate_tensordot():
     torch._C._cuda_clearCublasWorkspaces()  # tensordot allocates extra memory on first use
 
     assert torch.cuda.memory_allocated() == original_memory_allocated
-
-
-def test_random_gaussian():
-    torch.manual_seed(1337)
-    mean = 1.0
-    sigma = 0.5
-    n_samples = 10000000
-    actual = random_gaussian((n_samples,), mean, sigma)
-    assert torch.allclose(
-        torch.mean(actual),
-        torch.tensor(mean, dtype=torch.float64),
-        atol=0.0,
-        rtol=1 / sqrt(n_samples),
-    )
-    assert torch.allclose(
-        torch.var(actual),
-        torch.tensor(sigma**2, dtype=torch.float64),
-        atol=0.0,
-        rtol=1 / sqrt(n_samples),
-    )

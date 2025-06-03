@@ -7,6 +7,7 @@ from typing import Any, ClassVar
 
 from emu_sv.custom_callback_implementations import (
     correlation_matrix_sv_impl,
+    correlation_matrix_sv_den_mat_impl,
     energy_second_moment_sv_impl,
     energy_variance_sv_impl,
     qubit_occupation_sv_impl,
@@ -130,6 +131,15 @@ class SVConfig(EmulationConfig):
                     ),
                     obs_copy,
                 )
+            if isinstance(obs, CorrelationMatrix):
+                obs_copy.apply = MethodType(  # type: ignore[method-assign]
+                    (
+                        correlation_matrix_sv_impl
+                        if self.noise_model.noise_types == ()
+                        else correlation_matrix_sv_den_mat_impl
+                    ),
+                    obs_copy,
+                )
             if isinstance(obs, EnergyVariance):
                 if self.noise_model.noise_types != ():
                     raise Exception("Not implemented for density matrix")
@@ -142,14 +152,6 @@ class SVConfig(EmulationConfig):
 
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     energy_second_moment_sv_impl, obs_copy
-                )
-
-            elif isinstance(obs, CorrelationMatrix):
-                if self.noise_model.noise_types != ():
-                    raise Exception("Not implemented for density matrix")
-
-                obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    correlation_matrix_sv_impl, obs_copy
                 )
             obs_list.append(obs_copy)
         self.observables = tuple(obs_list)
