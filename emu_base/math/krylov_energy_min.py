@@ -4,13 +4,14 @@ from typing import Callable, Tuple
 DEFAULT_MAX_KRYLOV_DIM: int = 100
 
 
-def _eigen_pair(
+def _lowest_eigen_pair(
     T_trunc: torch.Tensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Return the eigenpairs of the hermitian matrix T_trunc.
+    Return the lowest eigenpair of the hermitian matrix T_trunc.
     """
-    return tuple(torch.linalg.eigh(T_trunc))
+    eig_energy, eig_state = torch.linalg.eigh(T_trunc)
+    return eig_energy[0], eig_state[:, 0]
 
 
 class KrylovEnergyResult:
@@ -69,9 +70,9 @@ def krylov_energy_minimization_impl(
         size = effective_dim + (0 if beta < norm_tolerance else 1)
         T_truncated = T[:size, :size]
 
-        eigvals, eigvecs = _eigen_pair(T_truncated)
-        ground_energy = eigvals[0]
-        ground_eigenvector = eigvecs[:, 0]  # in Krylov subspace
+        ground_energy, ground_eigenvector = _lowest_eigen_pair(
+            T_truncated
+        )  # in Krylov subspace
         iteration_count = j + 1
 
         # happy breakdown check

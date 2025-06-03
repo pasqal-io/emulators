@@ -29,7 +29,7 @@ from emu_mps.mps_config import MPSConfig
 from emu_mps.noise import pick_well_prepared_qubits
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 import emu_mps.optimatrix as optimat
-from emu_mps.tdvp import (
+from emu_mps.solver_utils import (
     evolve_pair,
     evolve_single,
     new_right_bath,

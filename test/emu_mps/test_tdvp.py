@@ -1,7 +1,7 @@
 import torch
 from emu_base.math import krylov_exp
 from emu_mps import MPS, MPO, MPSConfig
-from emu_mps.tdvp import (
+from emu_mps.solver_utils import (
     apply_effective_Hamiltonian,
     right_baths,
     evolve_single,

@@ -1,6 +1,6 @@
 import torch
 from emu_mps.mps_config import MPSConfig
-from emu_mps.dmrg import minimize_energy_pair
+from emu_mps.solver_utils import minimize_energy_pair
 
 dtype = torch.complex128
 
