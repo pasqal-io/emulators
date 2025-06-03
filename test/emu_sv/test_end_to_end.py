@@ -160,10 +160,10 @@ def simulate_with_den_matrix(
             BitStrings(evaluation_times=times, num_shots=1000),
             Fidelity(evaluation_times=times, state=fidelity_state, tag_suffix="1"),
             Occupation(evaluation_times=times),
+            # CorrelationMatrix(evaluation_times=times),
             # Energy(evaluation_times=times),
             # EnergyVariance(evaluation_times=times),
             # EnergySecondMoment(evaluation_times=times),
-            # CorrelationMatrix(evaluation_times=times),
         ],
         noise_model=noise_model,
         gpu=gpu,
@@ -266,6 +266,7 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     assert torch.allclose(fidelity_state.overlap(final_state), final_fidelity, atol=1e-10)
 
     occupation = result.occupation[final_time]
+
     assert torch.allclose(
         torch.tensor([0.4596] * num_qubits, dtype=dtype_f64), occupation, atol=1e-3
     )

@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from pytest import approx
@@ -10,6 +11,7 @@ from emu_sv import (
     DenseOperator,
     SVConfig,
     StateVector,
+    DensityMatrix,
     CorrelationMatrix,
     EnergySecondMoment,
     EnergyVariance,
@@ -18,66 +20,90 @@ from emu_sv import (
 
 from emu_sv.custom_callback_implementations import (
     correlation_matrix_sv_impl,
+    correlation_matrix_sv_den_mat_impl,
     energy_second_moment_sv_impl,
     energy_variance_sv_impl,
     qubit_occupation_sv_impl,
+    qubit_occupation_sv_den_mat_impl,
 )
 
-device = "cuda" if DEVICE_COUNT > 0 else "cpu"
+device = "cuda" if DEVICE_COUNT > 0 else "cpu"  # some observables are on cpu always
+gpu = False if device == "cpu" else True
+
+dtype_fl = torch.float64
+dtype = torch.complex128
 
 
-def test_custom_occupation() -> None:
+@pytest.mark.parametrize(
+    "noise",
+    [
+        True,
+        False,
+    ],
+)
+def test_custom_occupation(noise: bool) -> None:
     # set up for state
     basis = ("r", "g")
-    num_qubits = 4
-    strings = {"rrrr": 1.0, "gggg": 1.0}
+    num_qubits = 10
+    strings = {"r" * num_qubits: 1.0, "g" * num_qubits: 1.0}
     state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
-
     operator_mock = MagicMock(spec=DenseOperator)
-
     H_mock = operator_mock.return_value
-
     MockOccupation = MagicMock(spec=Occupation)
-
     occupation_mock = MockOccupation.return_value
+    config = SVConfig(gpu=gpu)
+    expected = torch.tensor([0.5] * num_qubits, dtype=dtype_fl, device="cpu")
+    if not noise:
+        occupation = qubit_occupation_sv_impl(
+            occupation_mock, config=config, state=state, hamiltonian=H_mock
+        )
 
-    config = SVConfig()
+        assert torch.allclose(occupation, expected)
+    else:
+        state = DensityMatrix.from_state_vector(state)
+        occupation = qubit_occupation_sv_den_mat_impl(
+            occupation_mock, config=config, state=state, hamiltonian=H_mock
+        )
 
-    occupation = qubit_occupation_sv_impl(
-        occupation_mock, config=config, state=state, hamiltonian=H_mock
-    )
-    expected = [0.5] * num_qubits
-    assert occupation.cpu() == approx(expected, abs=1e-8)
+        assert torch.allclose(occupation, expected)
 
 
-def test_custom_correlation() -> None:
+@pytest.mark.parametrize(
+    "noise",
+    [
+        True,
+        False,
+    ],
+)
+def test_custom_correlation(noise: bool) -> None:
     # set up for state
     basis = ("r", "g")
-    num_qubits = 4
-    strings = {"rgrg": 1.0, "grgr": 1.0}
+    num_qubits = 6
+    strings = {"rg" * int(num_qubits / 2): 1.0, "gr" * int(num_qubits / 2): 1.0}
     state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
-    config = SVConfig()
+    config = SVConfig(gpu=gpu)
     operator_mock = MagicMock(spec=DenseOperator)
     H_mock = operator_mock.return_value
     correlation_matrix_mock = MagicMock(spec=CorrelationMatrix)
     correlation_mock = correlation_matrix_mock.return_value
-    correlation = correlation_matrix_sv_impl(
-        correlation_mock, config=config, state=state, hamiltonian=H_mock
-    )
+    if not noise:
+        correlation = correlation_matrix_sv_impl(
+            correlation_mock, config=config, state=state, hamiltonian=H_mock
+        )
 
-    expected = []
+    else:
+        state = DensityMatrix.from_state_vector(state)
+        correlation = correlation_matrix_sv_den_mat_impl(
+            correlation_mock, config=config, state=state, hamiltonian=H_mock
+        )
+
+    expected = torch.zeros(num_qubits, num_qubits, dtype=dtype_fl, device="cpu")
     for qubiti in range(num_qubits):
-        correlation_one = []
         for qubitj in range(num_qubits):
             if (qubiti + qubitj) % 2 == 0:
-                correlation_one.append(0.5)
-            else:
-                correlation_one.append(0.0)
-        expected.append(correlation_one)
+                expected[qubiti, qubitj] = 0.5
 
-    for i, row in enumerate(correlation):
-        for j, col in enumerate(row):
-            assert col.cpu() == approx(expected[i][j], abs=1e-8)
+    assert torch.allclose(expected, correlation)
 
 
 def test_custom_energy_and_variance_and_second() -> None:
@@ -88,14 +114,10 @@ def test_custom_energy_and_variance_and_second() -> None:
     num_qubits = 4
     strings = {"rgrg": 1.0, "grgr": 1.0}
     state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=strings)
-    config = SVConfig()
+    config = SVConfig(gpu=gpu)
 
-    omegas = torch.randn(num_qubits, dtype=torch.float64).to(
-        device=device, dtype=torch.complex128
-    )
-    deltas = torch.randn(num_qubits, dtype=torch.float64).to(
-        device=device, dtype=torch.complex128
-    )
+    omegas = torch.randn(num_qubits, dtype=dtype_fl).to(device=device, dtype=dtype)
+    deltas = torch.randn(num_qubits, dtype=dtype_fl).to(device=device, dtype=dtype)
     phis = torch.zeros_like(omegas)
     interaction_matrix = torch.randn((num_qubits, num_qubits))
     h_rydberg = RydbergHamiltonian(
