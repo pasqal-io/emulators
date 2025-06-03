@@ -43,7 +43,7 @@ operations = [
     )
 ]
 
-basis = {"r", "g"}
+basis = ("r", "g")
 N = 3
 oper = DenseOperator.from_operator_repr(
     eigenstates=basis,

@@ -399,6 +399,7 @@ class MPS(State[complex, torch.Tensor]):
         cls,
         *,
         eigenstates: Sequence[Eigenstate],
+        n_qudits: int,
         amplitudes: Mapping[str, complex],
     ) -> tuple[MPS, Mapping[str, complex]]:
         """
@@ -421,6 +422,7 @@ class MPS(State[complex, torch.Tensor]):
             raise ValueError("Unsupported basis provided")
 
         nqubits = cls._validate_amplitudes(amplitudes, eigenstates)
+        assert n_qudits == nqubits
 
         basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)  # ground state
         basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state

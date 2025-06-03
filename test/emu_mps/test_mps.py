@@ -339,7 +339,10 @@ def test_wrong_basis_string_state():
 
     with pytest.raises(ValueError) as ve:
         MPS.from_state_amplitudes(eigenstates=("0", "r"), amplitudes=afm_string_state)
-    msg = "Unsupported basis provided"
+    msg = (
+        "All basis states must be combinations of eigenstates with the same length. "
+        "Expected combinations of ('0', 'r'), each with 3 elements."
+    )
     assert str(ve.value) == msg
 
 
