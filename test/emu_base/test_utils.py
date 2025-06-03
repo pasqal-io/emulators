@@ -1,6 +1,5 @@
 import torch
 import pytest
-
 from emu_base.utils import deallocate_tensor
 
 

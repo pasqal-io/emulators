@@ -480,7 +480,7 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     )
 
     noise_model = pulser.noise_model.NoiseModel(
-        depolarizing_rate=0.1,
+        depolarizing_rate=0.3,  # High enough to trigger a jump.
     )
 
     result = simulate(seq, noise_model=noise_model)
@@ -489,8 +489,8 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     final_state = result.state[-1]
     max_bond_dim = final_state.get_max_bond_dim()
 
-    assert bitstrings["101010"] == 472
-    assert bitstrings["010101"] == 510
+    assert bitstrings["101010"] == 454
+    assert bitstrings["010101"] == 500
     assert max_bond_dim == 8
 
 
@@ -588,7 +588,9 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     results = []
     for _ in range(100):
         results.append(
-            simulate(seq, noise_model=noise_model, initial_state=initial_state, dt=10000)
+            simulate(
+                seq, noise_model=noise_model, initial_state=initial_state, dt=duration
+            )
         )
 
     counts = {}
@@ -602,6 +604,15 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     expected_counts = {"11": 16, "01": 17, "10": 23, "00": 44}
 
     assert counts == expected_counts
+
+    occu_list = [
+        result.occupation[-1] for result in results
+    ]  # to trigger the occupation observable
+
+    avg_occ = sum(occu_list) / len(occu_list)
+    assert torch.allclose(
+        avg_occ, torch.tensor([0.3900, 0.3300], dtype=torch.float64), atol=1e-3
+    )
 
 
 def test_laser_waist() -> None:

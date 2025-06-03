@@ -3,6 +3,12 @@
 There are currently two emulators, emu-sv and emu-mps, the specific documentation for which you can access from the list above.
 As of this writing, the emulators are provided for Linux and macOS but will not work under Windows.
 
+## Which emulator to choose
+Firstly, it will be useful to look at the list of supported features for [emu-sv](./emu_sv/index.md) and [emu-mps](./emu_mps/index.md), since the emulators do not support exactly the same set of features. Secondly, there are in-depth benchmarks available for [emu-sv](./emu_sv/benchmarks/index.md) and [emu-mps](./emu_mps/benchmarks/index.md) to help determine which emulator, with which parameter settings, is most suitable for the problem you're trying to solve.
+
+As a general guideline, emu-sv with default precision settings is likely to be the best choice for noiseless simulations of up to 25 qubits. Shortly we will release support for noisy simulations using the Lindblad equation, and this will effectively halve the number of qubits that can be simulated. For larger qubit numbers, an emu-sv simulation is unlikely to fit on a gpu, and it is probably much slower than emu-mps, although accuracy will be better. Unless extreme accuracy is required, emu-mps is likely a better choice, and we strongly recommend you read through the documentation for that emulator to ensure you get correct results.
+
+
 ## Installation
 **Warning:** installing any emulator will update pulser-core
 
