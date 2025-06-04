@@ -99,10 +99,40 @@ class RydbergLindbladian:
         """
 
         orignal_shape = density_matrix.shape
-        density_matrix = density_matrix.view(2**target_qubit, 2, -1)
-        density_matrix = local_op @ density_matrix
+        if density_matrix.is_cpu:
+            density_matrix = density_matrix.view(2**target_qubit, 2, -1)
+            density_matrix = local_op @ density_matrix
 
-        return density_matrix.view(orignal_shape)
+            return density_matrix.view(orignal_shape)
+
+        density_matrix = density_matrix.view((2,) * (2 * self.nqubits))
+        result = torch.zeros_like(density_matrix)
+        result = result.index_add_(
+            target_qubit,
+            torch.tensor(0, device=self.device),
+            density_matrix.select(target_qubit, 0).unsqueeze(target_qubit),
+            alpha=local_op[0, 0],  # type: ignore [arg-type]
+        )
+        result = result.index_add_(
+            target_qubit,
+            torch.tensor(0, device=self.device),
+            density_matrix.select(target_qubit, 1).unsqueeze(target_qubit),
+            alpha=local_op[0, 1],  # type: ignore [arg-type]
+        )
+        result = result.index_add_(
+            target_qubit,
+            torch.tensor(1, device=self.device),
+            density_matrix.select(target_qubit, 0).unsqueeze(target_qubit),
+            alpha=local_op[1, 0],  # type: ignore [arg-type]
+        )
+        result = result.index_add_(
+            target_qubit,
+            torch.tensor(1, device=self.device),
+            density_matrix.select(target_qubit, 1).unsqueeze(target_qubit),
+            alpha=local_op[1, 1],  # type: ignore [arg-type]
+        )
+
+        return result.view(orignal_shape)
 
     def apply_density_matrix_to_local_op_T(
         self,
@@ -118,11 +148,42 @@ class RydbergLindbladian:
         """
 
         orignal_shape = density_matrix.shape
+        if density_matrix.is_cpu:
+            density_matrix = density_matrix.view(
+                2 ** (target_qubit + self.nqubits), 2, -1
+            )
+            density_matrix = local_op.conj() @ density_matrix
 
-        density_matrix = density_matrix.view(2 ** (target_qubit + self.nqubits), 2, -1)
-        density_matrix = local_op.conj() @ density_matrix
+            return density_matrix.view(orignal_shape)
 
-        return density_matrix.view(orignal_shape)
+        density_matrix = density_matrix.view((2,) * (2 * self.nqubits))
+        result = torch.zeros_like(density_matrix)
+        target = self.nqubits + target_qubit
+        result = result.index_add_(
+            target,
+            torch.tensor(0, device=self.device),
+            density_matrix.select(target, 0).unsqueeze(target),
+            alpha=local_op.conj()[0, 0],  # type: ignore [arg-type]
+        )
+        result = result.index_add_(
+            target,
+            torch.tensor(0, device=self.device),
+            density_matrix.select(target, 1).unsqueeze(target),
+            alpha=local_op.conj()[0, 1],  # type: ignore [arg-type]
+        )
+        result = result.index_add_(
+            target,
+            torch.tensor(1, device=self.device),
+            density_matrix.select(target, 0).unsqueeze(target),
+            alpha=local_op.conj()[1, 0],  # type: ignore [arg-type]
+        )
+        result = result.index_add_(
+            target,
+            torch.tensor(1, device=self.device),
+            density_matrix.select(target, 1).unsqueeze(target),
+            alpha=local_op.conj()[1, 1],  # type: ignore [arg-type]
+        )
+        return result.view(orignal_shape)
 
     def __matmul__(self, density_matrix: torch.Tensor) -> torch.Tensor:
         """Apply the i*RydbergLindbladian operator to the density matrix ρ
