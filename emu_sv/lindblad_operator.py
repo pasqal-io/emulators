@@ -184,7 +184,7 @@ class RydbergLindbladian:
         sum_lindblad_local = compute_noise_from_lindbladians(self.pulser_linblads).to(
             self.device
         )
-
+        # Heff = Hρ  -0.5i ∑ₖ Lₖ† Lₖ ρ
         H_den_matrix = self.h_eff(density_matrix, sum_lindblad_local)
 
         # Heff - Heff^†=  [H, ρ] - 0.5i ∑ₖ Lₖ† Lₖρ - ρ 0.5i ∑ₖ Lₖ† Lₖρ

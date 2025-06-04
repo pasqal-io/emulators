@@ -200,8 +200,8 @@ def test_end_to_end_afm_ring() -> None:
 
     fidelity_state = create_antiferromagnetic_state_vector(num_qubits, gpu=gpu)
 
-    assert bitstrings["1010101010"] == 136
-    assert bitstrings["0101010101"] == 159
+    assert bitstrings["10" * int(num_qubits / 2)] == 136
+    assert bitstrings["01" * int(num_qubits / 2)] == 159
     assert torch.allclose(fidelity_state.overlap(final_state), final_fidelity, atol=1e-10)
 
     occupation = result.occupation[final_time]
@@ -260,8 +260,8 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     fidelity_state = DensityMatrix.from_state_vector(
         create_antiferromagnetic_state_vector(num_qubits, gpu=gpu)
     )
-    assert bitstrings["101010"] == 173
-    assert bitstrings["010101"] == 168
+    assert bitstrings["10" * int(num_qubits / 2)] == 173
+    assert bitstrings["01" * int(num_qubits / 2)] == 168
 
     assert torch.allclose(fidelity_state.overlap(final_state), final_fidelity, atol=1e-10)
 
@@ -270,6 +270,9 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     assert torch.allclose(
         torch.tensor([0.4596] * num_qubits, dtype=dtype_f64), occupation, atol=1e-3
     )
+    en = result.energy[-1]
+
+    assert torch.allclose(en, torch.tensor(-53.4424, dtype=dtype_f64, device=device))
 
 
 def test_end_to_end_pi_half_pulse() -> None:
