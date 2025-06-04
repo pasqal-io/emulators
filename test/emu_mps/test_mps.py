@@ -335,13 +335,14 @@ def test_from_string_not_normalized_state(mock_print, zero, one):
 
 
 def test_wrong_basis_string_state():
-    afm_string_state = {"rrr": 1.0 / math.sqrt(2), "ggg": 1.0 / math.sqrt(2)}
+    N = 3
+    afm_string_state = {"r" * N: 1.0 / math.sqrt(2), "g" * N: 1.0 / math.sqrt(2)}
 
     with pytest.raises(ValueError) as ve:
         MPS.from_state_amplitudes(eigenstates=("0", "r"), amplitudes=afm_string_state)
     msg = (
         "All basis states must be combinations of eigenstates with the same length. "
-        "Expected combinations of ('0', 'r'), each with 3 elements."
+        f"Expected combinations of ('0', 'r'), each with {N} elements."
     )
     assert str(ve.value) == msg
 
