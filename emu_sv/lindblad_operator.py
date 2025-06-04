@@ -1,5 +1,6 @@
 import torch
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
+from emu_sv.density_matrix_state import DensityMatrix
 
 
 dtype = torch.complex128
@@ -124,20 +125,16 @@ class RydbergLindbladian:
 
         return density_matrix.view(orignal_shape)
 
-    def __matmul__(self, density_matrix: torch.Tensor) -> torch.Tensor:
-        """Apply the i*RydbergLindbladian operator to the density matrix ρ
-        in the following way:
-        Define and effective Hamiltonian
-        Heff = Hρ  -0.5i ∑ₖ Lₖ† Lₖ ρ
-        Then, the Lindblad operator applying to ρ is giving by
-         ℒ(𝜌) = Heff - Heff^†+i*∑ₖ Lₖ ρ Lₖ†
+    def h_eff(
+        self,
+        density_matrix: torch.Tensor,
+        lindbladops: torch.Tensor = torch.zeros(2, 2, dtype=dtype),
+    ) -> torch.Tensor:
+        """gets the Heff hamiltonian given by
+        Hρ  -0.5i ∑ₖ Lₖ† Lₖ ρ,
+        Lₖ are Lindblad or jump operators which by defatul are
+        the 2x2 zero matrix
         """
-
-        # compute -0.5i ∑ₖ Lₖ† Lₖ
-        sum_lindblad_local = compute_noise_from_lindbladians(self.pulser_linblads).to(
-            self.device
-        )
-
         # apply all local terms:  Ωⱼ σₓ - δⱼ n - 0.5i (∑ₖ Lₖ† Lₖ) to each qubit
         H_den_matrix = torch.zeros_like(density_matrix, dtype=dtype, device=self.device)
 
@@ -146,7 +143,7 @@ class RydbergLindbladian:
                 H_q = (
                     omega * sigmax.to(device=self.device)
                     - delta * n_op.to(device=self.device)
-                    + sum_lindblad_local
+                    + lindbladops
                 )
                 H_den_matrix += self.apply_local_op_to_density_matrix(
                     density_matrix, H_q, qubit
@@ -164,7 +161,7 @@ class RydbergLindbladian:
                         )
                     )
                     - delta * n_op.to(device=self.device)
-                    + sum_lindblad_local
+                    + lindbladops
                 )
                 H_den_matrix += self.apply_local_op_to_density_matrix(
                     density_matrix, H_q, qubit
@@ -172,6 +169,23 @@ class RydbergLindbladian:
 
         # apply the interaction terms  ∑ᵢⱼ Uᵢⱼ nᵢ nⱼ
         H_den_matrix += self.diag.view(-1, 1) * density_matrix
+        return H_den_matrix
+
+    def __matmul__(self, density_matrix: torch.Tensor) -> torch.Tensor:
+        """Apply the i*RydbergLindbladian operator to the density matrix ρ
+        in the following way:
+        Define and effective Hamiltonian
+        Heff = Hρ  -0.5i ∑ₖ Lₖ† Lₖ ρ
+        Then, the Lindblad operator applying to ρ is giving by
+         ℒ(𝜌) = Heff - Heff^†+i*∑ₖ Lₖ ρ Lₖ†
+        """
+
+        # compute -0.5i ∑ₖ Lₖ† Lₖ
+        sum_lindblad_local = compute_noise_from_lindbladians(self.pulser_linblads).to(
+            self.device
+        )
+
+        H_den_matrix = self.h_eff(density_matrix, sum_lindblad_local)
 
         # Heff - Heff^†=  [H, ρ] - 0.5i ∑ₖ Lₖ† Lₖρ - ρ 0.5i ∑ₖ Lₖ† Lₖρ
         H_den_matrix = H_den_matrix - H_den_matrix.conj().T
@@ -190,3 +204,10 @@ class RydbergLindbladian:
         )
 
         return H_den_matrix + 1.0j * L_den_matrix_Ldag
+
+    def expect(self, state: DensityMatrix) -> torch.Tensor:
+        """Return the energy expectation value E=tr(H𝜌)"""
+        en = (self.h_eff(state.matrix)).trace()
+
+        assert torch.allclose(en.imag, torch.zeros_like(en.imag), atol=1e-8)
+        return en.real
