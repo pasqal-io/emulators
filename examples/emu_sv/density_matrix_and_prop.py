@@ -40,7 +40,7 @@ n_atoms = 2
 amplitudes = {"gg": 1.0, "rr": 1.0j}
 eigenstates = ("r", "g")
 density, input_amplitudes = DensityMatrix._from_state_amplitudes(
-    eigenstates=eigenstates, amplitudes=amplitudes
+    eigenstates=eigenstates, n_qudits=n_atoms, amplitudes=amplitudes
 )
 print("\nDensity matrix from state amplitudes:\n", density.matrix)
 print("\nAmplitudes:\n", input_amplitudes)

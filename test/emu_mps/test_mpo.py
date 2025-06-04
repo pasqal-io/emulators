@@ -35,8 +35,8 @@ def test_wrong_basis_string_state():
     ]
 
     with pytest.raises(ValueError) as ve:
-        MPO.from_operator_repr(eigenstates={"g", "1"}, n_qudits=3, operations=operations)
-    msg = "Unsupported basis provided"
+        MPO.from_operator_repr(eigenstates=("g", "1"), n_qudits=3, operations=operations)
+    msg = "Every QuditOp key must be made up of two eigenstates among ('g', '1'); instead, got 'X'."
     assert str(ve.value) == msg
 
 
@@ -57,7 +57,7 @@ def test_from_operator_string(zero, one):
         )
     ]
     mpo = MPO.from_operator_repr(
-        eigenstates={one, zero}, n_qudits=3, operations=operations
+        eigenstates=(one, zero), n_qudits=3, operations=operations
     )
     assert torch.allclose(
         mpo.factors[0],

@@ -111,6 +111,7 @@ class DensityMatrix(State[complex, torch.Tensor]):
         cls: Type[DensityMatrixType],
         *,
         eigenstates: Sequence[Eigenstate],
+        n_qudits: int,
         amplitudes: Mapping[str, complex],
     ) -> tuple[DensityMatrix, Mapping[str, complex]]:
         """Transforms a state given by a string into a density matrix.
@@ -140,7 +141,7 @@ class DensityMatrix(State[complex, torch.Tensor]):
         """
 
         state_vector, amplitudes = StateVector._from_state_amplitudes(
-            eigenstates=eigenstates, amplitudes=amplitudes
+            eigenstates=eigenstates, n_qudits=n_qudits, amplitudes=amplitudes
         )
 
         return DensityMatrix.from_state_vector(state_vector), amplitudes

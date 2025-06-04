@@ -110,7 +110,7 @@ def test_from_state_string():
     amplitudes = {"gg": 1.0, "rr": 1.0j}
     eigenstates = ("r", "g")
     density, _ = DensityMatrix._from_state_amplitudes(
-        eigenstates=eigenstates, amplitudes=amplitudes
+        eigenstates=eigenstates, n_qudits=n_atoms, amplitudes=amplitudes
     )
 
     assert torch.allclose(density.matrix, density_bell_state_complex)
@@ -119,7 +119,7 @@ def test_from_state_string():
     amplitudes = {"rrr": 1.0}
     eigenstates = ("r", "g")
     density, _ = DensityMatrix._from_state_amplitudes(
-        eigenstates=eigenstates, amplitudes=amplitudes
+        eigenstates=eigenstates, n_qudits=n_atoms, amplitudes=amplitudes
     )
 
     dummu_mat = torch.zeros((2**n_atoms, 2**n_atoms), dtype=dtype, device=device)

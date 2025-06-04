@@ -94,7 +94,7 @@ def test_default_constructors_for_all_config() -> None:
         "are expected:"
     )
     # re.escape() avoid interpreting message symbols "{}"", "()","."" as regex
-    with pytest.warns(UserWarning, match="^" + re.escape(msg)):
+    with pytest.raises(ValueError, match="^" + re.escape(msg)):
         MPSConfig(blabla=10)
 
 
