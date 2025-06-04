@@ -220,6 +220,7 @@ class StateVector(State[complex, torch.Tensor]):
         cls: Type[StateVectorType],
         *,
         eigenstates: Sequence[Eigenstate],
+        n_qudits: int,
         amplitudes: Mapping[str, complex],
     ) -> tuple[StateVector, Mapping[str, complex]]:
         """Transforms a state given by a string into a state vector.
@@ -257,8 +258,7 @@ class StateVector(State[complex, torch.Tensor]):
         else:
             raise ValueError("Unsupported basis provided")
 
-        nqubits = cls._validate_amplitudes(amplitudes=amplitudes, eigenstates=eigenstates)
-        accum_state = StateVector.zero(num_sites=nqubits, eigenstates=eigenstates)
+        accum_state = StateVector.zero(num_sites=n_qudits, eigenstates=eigenstates)
 
         for state, amplitude in amplitudes.items():
             bin_to_int = int(

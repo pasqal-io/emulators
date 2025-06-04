@@ -102,7 +102,10 @@ class SVConfig(EmulationConfig):
             self.logger.warning(
                 "Warning: The runs and samples_per_run "
                 "values of the NoiseModel are ignored!"
-                "Only effective noise channels are supported."
+            )
+        if "SPAM" in self.noise_model.noise_types:
+            raise NotImplementedError(
+                "SPAM errors are currently not supported in emu-sv."
             )
 
     def _expected_kwargs(self) -> set[str]:
