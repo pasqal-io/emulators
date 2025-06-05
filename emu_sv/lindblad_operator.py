@@ -1,7 +1,6 @@
 import torch
-from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
+from emu_base import compute_noise_from_lindbladians, matmul_2x2_with_batched
 from emu_sv.density_matrix_state import DensityMatrix
-
 
 dtype = torch.complex128
 sigmax = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype)
@@ -101,7 +100,10 @@ class RydbergLindbladian:
 
         orignal_shape = density_matrix.shape
         density_matrix = density_matrix.view(2**target_qubit, 2, -1)
-        density_matrix = local_op @ density_matrix
+        if density_matrix.is_cpu:
+            density_matrix = local_op @ density_matrix
+        else:
+            density_matrix = matmul_2x2_with_batched(local_op, density_matrix)
 
         return density_matrix.view(orignal_shape)
 
@@ -119,9 +121,11 @@ class RydbergLindbladian:
         """
 
         orignal_shape = density_matrix.shape
-
         density_matrix = density_matrix.view(2 ** (target_qubit + self.nqubits), 2, -1)
-        density_matrix = local_op.conj() @ density_matrix
+        if density_matrix.is_cpu:
+            density_matrix = local_op.conj() @ density_matrix
+        else:
+            density_matrix = matmul_2x2_with_batched(local_op.conj(), density_matrix)
 
         return density_matrix.view(orignal_shape)
 
