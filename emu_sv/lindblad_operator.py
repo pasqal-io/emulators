@@ -64,7 +64,6 @@ class RydbergLindbladian:
         self.pulser_linblads: list[torch.Tensor] = pulser_linblads
         self.device: torch.device = device
         self.complex = self.phis.any()
-        self.factored_shape = (2,) * self.nqubits
 
         self.diag: torch.Tensor = self._create_diagonal()
 
