@@ -1,6 +1,6 @@
 # script that uses the interaction matrix instead of atmos positions
 import numpy as np
-
+import logging
 import pulser
 from pulser.devices import AnalogDevice
 
@@ -97,6 +97,8 @@ mpsconfig = MPSConfig(
     dt=dt,
     observables=[bitstrings, fidelity, fidelity_another_state],
     interaction_matrix=interaction_matrix,
+    log_level=logging.DEBUG,
+    max_bond_dim=2,
 )
 
 # we initialize a Backend instance

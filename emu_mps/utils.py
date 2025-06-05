@@ -1,4 +1,5 @@
 from typing import List, Optional
+import logging
 import torch
 import random
 from collections import Counter
@@ -57,6 +58,9 @@ def split_tensor(
         left = m @ q
         left = left[:, max_bond:]
 
+    logging.getLogger("global_logger").debug(
+        f"Truncated away {torch.sum(d[:max_bond])} of the state norm."
+    )
     return left, right
 
 
