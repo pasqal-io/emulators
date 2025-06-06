@@ -161,7 +161,7 @@ def simulate_with_den_matrix(
             Fidelity(evaluation_times=times, state=fidelity_state, tag_suffix="1"),
             Occupation(evaluation_times=times),
             Energy(evaluation_times=times),
-            # CorrelationMatrix(evaluation_times=times),
+            CorrelationMatrix(evaluation_times=times),
             # EnergyVariance(evaluation_times=times),
             # EnergySecondMoment(evaluation_times=times),
         ],
