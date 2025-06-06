@@ -28,7 +28,7 @@ import pulser.noise_model
 from pulser.backend import Results
 
 from emu_mps.mps_backend_impl import MPSBackendImpl
-from emu_mps.tdvp import right_baths
+from emu_mps.solver_utils import right_baths
 from test.utils_testing import (
     pulser_afm_sequence_grid,
     pulser_afm_sequence_ring,

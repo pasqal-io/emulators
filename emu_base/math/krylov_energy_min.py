@@ -4,41 +4,14 @@ from typing import Callable, Tuple
 DEFAULT_MAX_KRYLOV_DIM: int = 100
 
 
-def _eigen_pair(
+def _lowest_eigen_pair(
     T_trunc: torch.Tensor,
-    guessed_state: torch.Tensor,
-    residual_tolerance: float,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Return the smallest (k = 1) eigenpair of T_trunc.
-    If T_trunc is too small for LOBPCG (n < 3), do a full eigh;
-    otherwise call lobpcg with the given initial guessed state.
+    Return the lowest eigenpair of the hermitian matrix T_trunc.
     """
-    n = T_trunc.size(0)
-    if n < 3:
-        return tuple(torch.linalg.eigh(T_trunc))
-
-    return torch.lobpcg(
-        T_trunc,
-        k=1,
-        X=guessed_state,
-        tol=residual_tolerance,
-        largest=False,
-    )
-
-
-def extend_initial_state(
-    prev_eigen_vec: torch.Tensor, dtype: torch.dtype, device: torch.device
-) -> torch.Tensor:
-    """
-    Extend the previous eigenvector guess by one zero element to match the
-    increased size of T_truncated .
-    """
-    if prev_eigen_vec is None:
-        raise ValueError("prev_eigen_vec cannot be None when extending the guess state.")
-    prev_eigen_vec = prev_eigen_vec.view(-1, 1)
-    zero = torch.zeros((1, 1), dtype=dtype, device=device)
-    return torch.cat([prev_eigen_vec, zero], dim=0)
+    eig_energy, eig_state = torch.linalg.eigh(T_trunc)
+    return eig_energy[0], eig_state[:, 0]
 
 
 class KrylovEnergyResult:
@@ -62,7 +35,6 @@ def krylov_energy_minimization_impl(
     psi_local: torch.Tensor,
     residual_tolerance: float,
     norm_tolerance: float,
-    is_hermitian: bool,
     max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
 ) -> KrylovEnergyResult:
     """
@@ -82,13 +54,11 @@ def krylov_energy_minimization_impl(
     converged = False
     happy_breakdown = False
     iteration_count = 0
-    prev_eigen_vec: torch.Tensor | None = None
 
     for j in range(max_krylov_dim):
         w = op(lanczos_vectors[-1])
 
-        k_start = max(0, j - 1) if is_hermitian else 0
-        for k in range(k_start, j + 1):
+        for k in range(max(0, j - 1), j + 1):
             alpha = torch.tensordot(lanczos_vectors[k].conj(), w, dims=w.dim())
             T[k, j] = alpha
             w = w - alpha * lanczos_vectors[k]
@@ -100,15 +70,12 @@ def krylov_energy_minimization_impl(
         size = effective_dim + (0 if beta < norm_tolerance else 1)
         T_truncated = T[:size, :size]
 
-        # Initial guess state for LOBPCG solver
-        if prev_eigen_vec is None:
-            guessed_state = torch.ones(size, 1, dtype=dtype, device=device)
-
-        eigvals, eigvecs = _eigen_pair(T_truncated, guessed_state, residual_tolerance)
-        ground_energy = eigvals[0].real
-        ground_eigenvector = eigvecs[:, 0]  # in Krylov subspace
+        ground_energy, ground_eigenvector = _lowest_eigen_pair(
+            T_truncated
+        )  # in Krylov subspace
         iteration_count = j + 1
 
+        # happy breakdown check
         if beta < norm_tolerance:
             final_state = sum(
                 c * vec for c, vec in zip(ground_eigenvector, lanczos_vectors)
@@ -118,12 +85,8 @@ def krylov_energy_minimization_impl(
             converged = True
             break
 
-        lanczos_vectors.append(w / beta)
-        # build the new guessed state from the eigenvector of the previous iteration
-        prev_eigen_vec = ground_eigenvector.clone()
-        guessed_state = extend_initial_state(prev_eigen_vec, dtype, device)
-
         # Reconstruct final state in original Hilbert space
+        lanczos_vectors.append(w / beta)
         final_state = sum(c * vec for c, vec in zip(ground_eigenvector, lanczos_vectors))
         final_state = final_state / final_state.norm()
 
@@ -148,7 +111,6 @@ def krylov_energy_minimization(
     v: torch.Tensor,
     norm_tolerance: float,
     residual_tolerance: float,
-    is_hermitian: bool = True,
     max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
 ) -> Tuple[torch.Tensor, float]:
 
@@ -157,7 +119,6 @@ def krylov_energy_minimization(
         psi_local=v,
         norm_tolerance=norm_tolerance,
         residual_tolerance=residual_tolerance,
-        is_hermitian=is_hermitian,
         max_krylov_dim=max_krylov_dim,
     )
 

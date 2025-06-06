@@ -102,9 +102,6 @@ class MPSConfig(EmulationConfig):
         if self.optimize_qubit_ordering:
             self.check_permutable_observables()
 
-        if "doppler" in self.noise_model.noise_types:
-            raise NotImplementedError("Unsupported noise type: doppler")
-
         MIN_AUTOSAVE_DT = 10
         assert (
             self.autosave_dt > MIN_AUTOSAVE_DT
