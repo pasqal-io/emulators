@@ -140,7 +140,7 @@ class RydbergLindbladian:
         H_den_matrix = torch.zeros_like(density_matrix, dtype=dtype, device=self.device)
 
         for qubit in range(len(self.omegas)):
-            H_q = self._local_terms_hamiltonian(qubit, lindblad_ops)
+            H_q = self._local_terms_hamiltonian(qubit, lindblad_ops.to(self.device))
             H_den_matrix += self.apply_local_op_to_density_matrix(
                 density_matrix, H_q, qubit
             )
@@ -164,12 +164,12 @@ class RydbergLindbladian:
         n = n_op.to(device=self.device)
 
         if not self.complex:
-            return omega * sigma_x - delta * n + lindblad_ops
+            return omega * sigma_x - delta * n + lindblad_ops.to(self.device)
 
         phi = self.phis[qubit]
         sigma_y = sigmay.to(device=self.device)
         complex_part = torch.cos(phi) * sigma_x + torch.sin(phi) * sigma_y
-        return omega * complex_part - delta * n + lindblad_ops
+        return omega * complex_part - delta * n + lindblad_ops.to(self.device)
 
     def _apply_interaction_terms(self, density_matrix: torch.Tensor) -> torch.Tensor:
         """Apply the interaction terms ∑ᵢⱼ Uᵢⱼ nᵢ nⱼ to the density matrix."""

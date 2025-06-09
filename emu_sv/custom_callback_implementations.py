@@ -11,8 +11,11 @@ from emu_sv.density_matrix_state import DensityMatrix
 from emu_sv.state_vector import StateVector
 from emu_sv.dense_operator import DenseOperator
 from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.lindblad_operator import RydbergLindbladian
 
 dtype = torch.float64
+device = "cpu"  # "cuda" if torch.cuda.is_available() else "cpu"
+gpu = False if device == "cpu" else True
 
 
 def qubit_occupation_sv_impl(
@@ -133,6 +136,26 @@ def energy_variance_sv_impl(
     return en_var.cpu()
 
 
+def energy_variance_sv_den_mat_impl(
+    self: EnergyVariance,
+    *,
+    config: EmulationConfig,
+    state: DensityMatrix,
+    hamiltonian: RydbergLindbladian,
+) -> torch.Tensor:
+    """
+    Custom implementation of the energy variance tr(ρH²)-tr(ρH)² for the
+    lindblad equation solver.
+    """
+    h_dense_matrix = hamiltonian.h_eff(state.matrix)  # Hρ
+    gpu = False if -state.matrix.get_device() else True  # gpu = -1, cpu = 0
+    h_squared_dense_mat = hamiltonian.expect(
+        DensityMatrix(h_dense_matrix, gpu=gpu)
+    )  # tr(ρH²)
+    en_var: torch.Tensor = h_squared_dense_mat - hamiltonian.expect(state) ** 2  # tr(ρH)²
+    return en_var.cpu()
+
+
 def energy_second_moment_sv_impl(
     self: EnergySecondMoment,
     *,
@@ -147,3 +170,22 @@ def energy_second_moment_sv_impl(
     hstate = hamiltonian * state.vector
     en_2_mom: torch.Tensor = torch.vdot(hstate, hstate).real
     return en_2_mom.cpu()
+
+
+def energy_second_moment_den_mat_impl(
+    self: EnergyVariance,
+    *,
+    config: EmulationConfig,
+    state: DensityMatrix,
+    hamiltonian: RydbergLindbladian,
+) -> torch.Tensor:
+    """
+    Custom implementation of the second moment of energy tr(ρH²) for the
+    lindblad equation solver.
+    """
+    h_dense_matrix = hamiltonian.h_eff(state.matrix)  # Hρ
+    gpu = False if (-state.matrix.get_device()) else True  # gpu = 0, cpu = -1
+
+    return hamiltonian.expect(
+        DensityMatrix(h_dense_matrix, gpu=gpu)
+    ).cpu()  # tr(ρH²) = tr(ρ H H)
