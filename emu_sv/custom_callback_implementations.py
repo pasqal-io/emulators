@@ -14,8 +14,6 @@ from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 
 dtype = torch.float64
-device = "cpu"  # "cuda" if torch.cuda.is_available() else "cpu"
-gpu = False if device == "cpu" else True
 
 
 def qubit_occupation_sv_impl(
