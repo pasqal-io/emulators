@@ -146,7 +146,7 @@ def energy_variance_sv_den_mat_impl(
     lindblad equation solver.
     """
     h_dense_matrix = hamiltonian.h_eff(state.matrix)  # Hρ
-    gpu = False if -state.matrix.get_device() else True  # gpu = -1, cpu = 0
+    gpu = state.matrix.is_cuda
     h_squared_dense_mat = hamiltonian.expect(
         DensityMatrix(h_dense_matrix, gpu=gpu)
     )  # tr(ρH²)
@@ -182,7 +182,7 @@ def energy_second_moment_den_mat_impl(
     lindblad equation solver.
     """
     h_dense_matrix = hamiltonian.h_eff(state.matrix)  # Hρ
-    gpu = False if (-state.matrix.get_device()) else True  # gpu = 0, cpu = -1
+    gpu = state.matrix.is_cuda
 
     return hamiltonian.expect(
         DensityMatrix(h_dense_matrix, gpu=gpu)
