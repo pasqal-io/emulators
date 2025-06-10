@@ -229,9 +229,9 @@ def evolve_single(
 
 def minimize_energy_pair(
     *,
-    state_factors: tuple[torch.Tensor],
+    state_factors: Sequence[torch.Tensor],
     baths: tuple[torch.Tensor, torch.Tensor],
-    ham_factors: tuple[torch.Tensor],
+    ham_factors: Sequence[torch.Tensor],
     orth_center_right: bool,
     config: MPSConfig,
     residual_tolerance: float,
