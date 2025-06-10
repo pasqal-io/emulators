@@ -5,11 +5,9 @@ import typing
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 from pulser import Sequence
-import torch
-from resource import RUSAGE_SELF, getrusage
 
 from pulser.backend import Results, Observable, State, EmulationConfig
-from emu_base import PulserData
+from emu_base import PulserData, get_max_rss
 
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
@@ -45,20 +43,12 @@ class Statistics(Observable):
         assert isinstance(state, StateVector | DensityMatrix)
         assert isinstance(config, SVConfig)
         duration = self.data[-1]
-        if isinstance(state, StateVector) and state.vector.is_cuda:
-            max_mem_per_device = (
-                torch.cuda.max_memory_allocated(device) * 1e-6
-                for device in range(torch.cuda.device_count())
-            )
-            max_mem = max(max_mem_per_device)
-        elif isinstance(state, DensityMatrix) and state.matrix.is_cuda:
-            max_mem_per_device = (
-                torch.cuda.max_memory_allocated(device) * 1e-6
-                for device in range(torch.cuda.device_count())
-            )
-            max_mem = max(max_mem_per_device)
-        else:
-            max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+        max_mem = get_max_rss(
+            isinstance(state, StateVector)
+            and state.vector.is_cuda
+            or isinstance(state, DensityMatrix)
+            and state.matrix.is_cuda
+        )
 
         config.logger.info(
             f"step = {len(self.data)}/{self.timestep_count}, "
