@@ -6,7 +6,6 @@ from pulser.backend import (
     EnergySecondMoment,
     EnergyVariance,
     Occupation,
-    Energy,
 )
 from emu_sv.density_matrix_state import DensityMatrix
 from emu_sv.state_vector import StateVector
@@ -148,17 +147,3 @@ def energy_second_moment_sv_impl(
     hstate = hamiltonian * state.vector
     en_2_mom: torch.Tensor = torch.vdot(hstate, hstate).real
     return en_2_mom.cpu()
-
-
-def energy_sv_impl(
-    self: Energy,
-    *,
-    config: EmulationConfig,
-    state: StateVector,
-    hamiltonian: RydbergHamiltonian,
-) -> torch.Tensor:
-    """
-    Custom implementation of the energy ❬ψ|H|ψ❭ for the state vector solver.
-    """
-    en: torch.Tensor = hamiltonian.expect(state)
-    return en

@@ -86,14 +86,13 @@ def test_custom_correlation(noise: bool) -> None:
     H_mock = operator_mock.return_value
     correlation_matrix_mock = MagicMock(spec=CorrelationMatrix)
     correlation_mock = correlation_matrix_mock.return_value
-    if not noise:
-        correlation = correlation_matrix_sv_impl(
-            correlation_mock, config=config, state=state, hamiltonian=H_mock
-        )
-
-    else:
+    if noise:
         state = DensityMatrix.from_state_vector(state)
         correlation = correlation_matrix_sv_den_mat_impl(
+            correlation_mock, config=config, state=state, hamiltonian=H_mock
+        )
+    else:
+        correlation = correlation_matrix_sv_impl(
             correlation_mock, config=config, state=state, hamiltonian=H_mock
         )
 
