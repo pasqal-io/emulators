@@ -274,16 +274,16 @@ def test_end_to_end_afm_ring_with_noise() -> None:
 
     assert torch.allclose(energy, torch.tensor(-53.4424, dtype=dtype_f64, device=device))
 
-    energy_variance = result.energy_variance[final_time]  # 45.911110563993134
-    print(energy_variance)
+    energy_variance = result.energy_variance[final_time]
+
     assert torch.allclose(
         energy_variance,
         torch.tensor(267.6186, dtype=torch.float64, device="cpu"),
         rtol=1e-3,
     )
 
-    energy_second_moment = result.energy_second_moment[final_time]  # 13350.505342183847
-    print(energy_second_moment)
+    energy_second_moment = result.energy_second_moment[final_time]
+
     assert torch.allclose(
         energy_second_moment,
         torch.tensor(3123.7050, dtype=torch.float64, device="cpu"),

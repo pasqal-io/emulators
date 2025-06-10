@@ -202,8 +202,7 @@ def test_expect():
 
     interaction_mat = nn_interaction_matrix(nqubits)  # U₀₁ n₀⊗ n₁ + U₁₂ n₁⊗ n₂
 
-    pulser_linbdlas = torch.zeros(2, 2, dtype=dtype)  # no jump operators
-
+    pulser_linbdlas = torch.rand(2, 2, dtype=dtype)  # no jump operators
     ham = RydbergLindbladian(
         omegas, deltas, phis, pulser_linbdlas, interaction_mat, device=device
     )
