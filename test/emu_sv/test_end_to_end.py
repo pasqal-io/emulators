@@ -162,8 +162,8 @@ def simulate_with_den_matrix(
             Occupation(evaluation_times=times),
             Energy(evaluation_times=times),
             CorrelationMatrix(evaluation_times=times),  # TODO: add a test for this
-            # EnergyVariance(evaluation_times=times),
-            # EnergySecondMoment(evaluation_times=times),
+            EnergySecondMoment(evaluation_times=times),
+            EnergyVariance(evaluation_times=times),
         ],
         noise_model=noise_model,
         gpu=gpu,
@@ -270,9 +270,24 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     assert torch.allclose(
         torch.tensor([0.4596] * num_qubits, dtype=dtype_f64), occupation, atol=1e-3
     )
-    en = result.energy[-1]
+    energy = result.energy[-1]
 
-    assert torch.allclose(en, torch.tensor(-53.4424, dtype=dtype_f64, device=device))
+    assert torch.allclose(energy, torch.tensor(-53.4424, dtype=dtype_f64, device=device))
+
+    energy_variance = result.energy_variance[final_time]
+
+    assert torch.allclose(
+        energy_variance,
+        torch.tensor(267.6186, dtype=torch.float64, device="cpu"),
+        rtol=1e-3,
+    )
+
+    energy_second_moment = result.energy_second_moment[final_time]
+
+    assert torch.allclose(
+        energy_second_moment,
+        torch.tensor(3123.7050, dtype=torch.float64, device="cpu"),
+    )
 
 
 def test_end_to_end_pi_half_pulse() -> None:
