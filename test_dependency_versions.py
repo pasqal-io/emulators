@@ -53,10 +53,10 @@ if (
     or sv_version != citation_version
 ):
     fail(
-        f" emu_base {base_version}"
-        "or emu_sv {sv_version}"
-        "or emu_mps {mps_version}"
-        "do not match the citation version {citation_version}"
+        f" emu_base {base_version} "
+        f"or emu_sv {sv_version} "
+        f"or emu_mps {mps_version} "
+        f"do not match the citation version {citation_version}"
     )
 
 if mps_dep != base_version:
