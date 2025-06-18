@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import itertools
 from functools import reduce
 
 import torch
@@ -18,25 +17,6 @@ from pulser.backend.operator import FullOp, QuditOp
 from pulser.backend.state import Eigenstate
 
 dtype = torch.complex128
-
-
-def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:
-    """Check for `operator_for_string` method"""
-    for tensorop in operations:
-        target_qids = (factor[1] for factor in tensorop[1])
-        target_qids_list = list(itertools.chain(*target_qids))
-        target_qids_set = set(target_qids_list)
-        if len(target_qids_set) < len(target_qids_list):
-            # Either the qubit id has been defined twice in an operation:
-            for qids in target_qids:
-                if len(set(qids)) < len(qids):
-                    raise ValueError("Duplicate atom ids in argument list.")
-            # Or it was defined in two different operations
-            raise ValueError("Each qubit can be targeted by only one operation.")
-        if max(target_qids_set) >= nqubits:
-            raise ValueError(
-                "The operation targets more qubits than there are in the register."
-            )
 
 
 class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
@@ -149,7 +129,6 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
             A DenseOperator instance corresponding to the given representation.
         """
 
-        _validate_operator_targets(operations, n_qudits)
         assert len(set(eigenstates)) == 2, "Only qubits are supported in EMU-SV."
 
         operators_with_tensors: dict[str, torch.Tensor | QuditOp] = dict()
