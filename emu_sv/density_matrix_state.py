@@ -4,7 +4,7 @@ import math
 from typing import Mapping, TypeVar, Type, Sequence
 import torch
 from pulser.backend import State
-from emu_base import DEVICE_COUNT
+from emu_base import DEVICE_COUNT,apply_measurement_errors
 from emu_sv.state_vector import StateVector
 from emu_sv.utils import index_to_bitstring
 from pulser.backend.state import Eigenstate
@@ -176,7 +176,6 @@ class DensityMatrix(State[complex, torch.Tensor]):
          Counter({'00': 517, '11': 483})
         """
 
-        assert p_false_neg == p_false_pos == 0.0, "Error rates must be 0.0"
 
         probabilities = torch.abs(self.matrix.diagonal())
 
@@ -187,6 +186,12 @@ class DensityMatrix(State[complex, torch.Tensor]):
             [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes]
         )
 
+        if p_false_neg > 0 or p_false_pos > 0:
+            counts = apply_measurement_errors(
+                counts,
+                p_false_pos=p_false_pos,
+                p_false_neg=p_false_neg,
+            )
         return counts
 
 
