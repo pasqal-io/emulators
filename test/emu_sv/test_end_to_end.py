@@ -139,6 +139,7 @@ def simulate_with_den_matrix(
     given_fidelity_state: bool = True,
     interaction_cutoff: float = 0,
     gpu: bool = True,
+    num_shots: int = 1000,
 ) -> Results:
     n_qubits = len(seq.register.qubit_ids)
 
@@ -147,7 +148,7 @@ def simulate_with_den_matrix(
             create_antiferromagnetic_state_vector(n_qubits, gpu=gpu)
         )
     else:
-        fidelity_state = DensityMatrix.make(n_qubits)  # make |00.0>
+        fidelity_state = DensityMatrix.make(n_qubits, gpu=gpu)  # make |00.0>
 
     if state_prep_error > 0.0 or p_false_pos > 0.0 or p_false_neg > 0.0:
         assert noise_model is not None, "Provide either noise_model or SPAM values"
@@ -159,7 +160,7 @@ def simulate_with_den_matrix(
         krylov_tolerance=1e-5,
         observables=[
             StateResult(evaluation_times=times),
-            BitStrings(evaluation_times=times, num_shots=1000),
+            BitStrings(evaluation_times=times, num_shots=num_shots),
             Fidelity(evaluation_times=times, state=fidelity_state, tag_suffix="1"),
             Occupation(evaluation_times=times),
             Energy(evaluation_times=times),
@@ -509,7 +510,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     assert torch.allclose(result.state[-1].matrix, expected_state, atol=1e-4)
 
 
-def test_end_to_end_1D_sv_spam() -> None:
+def test_end_to_end_1D_sv_measure_errors() -> None:
     torch.manual_seed(seed)
     random.seed(seed)
     num_qubits = 4
@@ -569,7 +570,73 @@ def test_end_to_end_1D_sv_spam() -> None:
     assert bitstrings["0111"] == 725
 
 
-def test_end_to_end_afm_line_with_measurement_errors() -> None:
+def test_end_to_end_1D_dense_mat_measure_errors() -> None:
+    torch.manual_seed(seed)
+    random.seed(seed)
+    num_qubits = 4
+
+    # initial state with all atoms in |g> state
+    reg = pulser.Register.rectangle(num_qubits, 1, spacing=10, prefix="q")
+    pulse = pulser.Pulse.ConstantPulse(1000, 0.0, 0.0, 0.0)
+
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(pulse, "ising_global")
+    # false positive readout error
+    # we should add an effective noise model to the sequence in order to use the
+    # density matrix solver
+    noise_model = pulser.noise_model.NoiseModel(
+        dephasing_rate=0.1, p_false_neg=0.0, p_false_pos=0.1
+    )
+    result = simulate_with_den_matrix(
+        seq,
+        gpu=gpu,
+        num_shots=10000,
+        given_fidelity_state=False,
+        noise_model=noise_model,
+    )  # only run on cpu, bitstring sampling is device dependent
+
+    final_time = -1  # seq.get_duration()
+    bitstrings = result.bitstrings[final_time]
+
+    assert bitstrings["1" * int(num_qubits)] == 1
+    assert bitstrings["0" * int(num_qubits)] == 6534
+    assert bitstrings["1000"] == 747
+    assert bitstrings["0100"] == 719
+    assert bitstrings["0010"] == 734
+    assert bitstrings["0001"] == 732
+
+    # initial state with all atoms in |r> state
+    eigenstate = ("r", "g")
+    amplitudes = {"r" * num_qubits: 1.0}
+    initial_state = DensityMatrix.from_state_amplitudes(
+        eigenstates=eigenstate, amplitudes=amplitudes
+    )
+    # false negative readout error
+    noise_model = pulser.noise_model.NoiseModel(
+        dephasing_rate=0.1, p_false_neg=0.1, p_false_pos=0.0
+    )
+    result = simulate_with_den_matrix(
+        seq,
+        noise_model=noise_model,
+        gpu=gpu,
+        initial_state=initial_state,
+        num_shots=10000,
+        given_fidelity_state=False,
+    )
+
+    final_time = -1
+    bitstrings = result.bitstrings[final_time]
+    print(bitstrings)
+    assert bitstrings["1" * int(num_qubits)] == 6589
+    assert bitstrings["0" * int(num_qubits)] == 1
+    assert bitstrings["1110"] == 724
+    assert bitstrings["1101"] == 766
+    assert bitstrings["1011"] == 725
+    assert bitstrings["0111"] == 725
+
+
+def test_spam_bitstring_class() -> None:
     torch.manual_seed(seed)
     random.seed(seed)
     num_qubits = 4
@@ -587,6 +654,21 @@ def test_end_to_end_afm_line_with_measurement_errors() -> None:
         apply_measurement_errors_mock.return_value = bitstrings
 
         results = simulate(seq, p_false_pos=0.0, p_false_neg=0.5)
+        apply_measurement_errors_mock.assert_called_with(
+            ANY, p_false_pos=0.0, p_false_neg=0.5
+        )
+        assert results.bitstrings[-1] is bitstrings
+    with patch(
+        "emu_sv.density_matrix_state.apply_measurement_errors"
+    ) as apply_measurement_errors_mock:
+        bitstrings = MagicMock()
+        apply_measurement_errors_mock.return_value = bitstrings
+        noise_model = pulser.noise_model.NoiseModel(
+            dephasing_rate=0.1, p_false_neg=0.5, p_false_pos=0.0
+        )
+        results = simulate_with_den_matrix(
+            seq, p_false_pos=0.0, p_false_neg=0.5, noise_model=noise_model
+        )
         apply_measurement_errors_mock.assert_called_with(
             ANY, p_false_pos=0.0, p_false_neg=0.5
         )
