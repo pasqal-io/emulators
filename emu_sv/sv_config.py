@@ -106,9 +106,10 @@ class SVConfig(EmulationConfig):
                 "values of the NoiseModel are ignored!"
             )
         if "SPAM" in self.noise_model.noise_types:
-            raise NotImplementedError(
-                "SPAM errors are currently not supported in emu-sv."
-            )
+            if self.noise_model.state_prep_error != 0.0:
+                raise NotImplementedError(
+                    "State preparation errors are currently not supported in emu-sv."
+                )
 
     def _expected_kwargs(self) -> set[str]:
         return super()._expected_kwargs() | {
@@ -132,6 +133,10 @@ class SVConfig(EmulationConfig):
                     (
                         qubit_occupation_sv_impl
                         if self.noise_model.noise_types == ()
+                        or (
+                            self.noise_model.noise_types == ("SPAM",)
+                            and self.noise_model.state_prep_error == 0.0
+                        )
                         else qubit_occupation_sv_den_mat_impl
                     ),
                     obs_copy,
@@ -141,6 +146,10 @@ class SVConfig(EmulationConfig):
                     (
                         correlation_matrix_sv_impl
                         if self.noise_model.noise_types == ()
+                        or (
+                            self.noise_model.noise_types == ("SPAM",)
+                            and self.noise_model.state_prep_error == 0.0
+                        )
                         else correlation_matrix_sv_den_mat_impl
                     ),
                     obs_copy,
@@ -150,6 +159,10 @@ class SVConfig(EmulationConfig):
                     (
                         energy_variance_sv_impl
                         if self.noise_model.noise_types == ()
+                        or (
+                            self.noise_model.noise_types == ("SPAM",)
+                            and self.noise_model.state_prep_error == 0.0
+                        )
                         else energy_variance_sv_den_mat_impl
                     ),
                     obs_copy,
@@ -159,6 +172,10 @@ class SVConfig(EmulationConfig):
                     (
                         energy_second_moment_sv_impl
                         if self.noise_model.noise_types == ()
+                        or (
+                            self.noise_model.noise_types == ("SPAM",)
+                            and self.noise_model.state_prep_error == 0.0
+                        )
                         else energy_second_moment_den_mat_impl
                     ),
                     obs_copy,
