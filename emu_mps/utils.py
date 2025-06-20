@@ -1,7 +1,5 @@
 from typing import List, Optional
 import torch
-import random
-from collections import Counter
 
 from emu_mps import MPSConfig
 
@@ -208,7 +206,6 @@ def get_extended_site_index(
                 return extended_index
 
     raise ValueError(f"Index {desired_index} does not exist")
-
 
 
 n_operator: torch.Tensor = torch.tensor(

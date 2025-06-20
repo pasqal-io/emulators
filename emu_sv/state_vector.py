@@ -8,7 +8,7 @@ import torch
 
 from emu_sv.utils import index_to_bitstring
 
-from emu_base import DEVICE_COUNT,apply_measurement_errors
+from emu_base import DEVICE_COUNT, apply_measurement_errors
 from pulser.backend import State
 from pulser.backend.state import Eigenstate
 
@@ -165,7 +165,6 @@ class StateVector(State[complex, torch.Tensor]):
             [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes]
         )
 
-    
         if p_false_neg > 0 or p_false_pos > 0:
             counts = apply_measurement_errors(
                 counts,

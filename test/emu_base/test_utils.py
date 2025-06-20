@@ -1,11 +1,11 @@
 from collections import Counter
 import random
 from unittest.mock import call, patch
-from requests import patch
 import torch
 import pytest
 from emu_base.utils import deallocate_tensor
 from emu_base.utils import readout_with_error, apply_measurement_errors
+
 
 def test_deallocate_tensor_shape():
     t = torch.ones(100, 100, dtype=torch.complex128)
@@ -116,6 +116,7 @@ def test_deallocate_tensordot():
 
     assert torch.cuda.memory_allocated() == original_memory_allocated
 
+
 @patch("emu_base.utils.random.random")
 def test_readout_with_error(random_mock):
     random_mock.side_effect = [0.6, 0.08, 0.4, 0.1, 0.04]
@@ -125,6 +126,7 @@ def test_readout_with_error(random_mock):
     assert readout_with_error("1", p_false_pos=0.1, p_false_neg=0.2) == "1"
     assert readout_with_error("1", p_false_pos=0.1, p_false_neg=0.2) == "0"
     assert readout_with_error("0", p_false_pos=0.1, p_false_neg=0.2) == "1"
+
 
 def test_add_measurement_errors():
     bitstrings = Counter(

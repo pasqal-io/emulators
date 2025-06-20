@@ -14,7 +14,6 @@ from emu_mps.utils import (
 )
 
 
-
 @pytest.mark.parametrize(
     "orth_center_right",
     [
