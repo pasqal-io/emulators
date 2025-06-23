@@ -308,10 +308,12 @@ class PulserData:
     def __init__(self, *, sequence: pulser.Sequence, config: EmulationConfig, dt: int):
         self.qubit_ids = sequence.register.qubit_ids
         self.qubit_count = len(self.qubit_ids)
-        sequence_duration = sequence.get_duration()
+        sequence_duration = sequence.get_duration(
+            include_fall_time=config.with_modulation
+        )
         # the end value is exclusive, so add +1
-        observable_times = set(torch.arange(0, sequence.get_duration() + 1, dt).tolist())
-        observable_times.add(sequence.get_duration())
+        observable_times = set(range(0, sequence_duration + 1, dt))
+        observable_times.add(sequence_duration)
         for obs in config.observables:
             times: Sequence[float]
             if obs.evaluation_times is not None:
