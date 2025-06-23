@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import re
 
-from pulser.backend import EmulationConfig
+from pulser.backend import EmulationConfig, Observable
 from pulser.noise_model import NoiseModel
 from pulser import Register
 from pulser.math import AbstractArray
@@ -1115,3 +1115,27 @@ def test_supported_noise_types(
     # regex to the rescue
     match = re.match(regex_string, str(exc.value))
     assert set(match.groups()) == unsupported_noises
+
+
+@patch("emu_base.pulser_adapter._rydberg_interaction")
+@patch("emu_base.pulser_adapter._extract_omega_delta_phi")
+def test_target_times_with_obs_eval_time(
+    mock_extract_omega_delta_phi, mock_rydberg_interaction
+):
+    duration = 123
+    dt = 3
+    sequence.get_duration.return_value = duration
+    sequence.get_addressed_bases.return_value = ["ground-rydberg"]
+    mock_extract_omega_delta_phi.return_value = (None, None, None)
+    mock_rydberg_interaction.return_value = torch.rand(2, 2)
+    obs = MagicMock(spec=Observable, evaluation_times=[0.5, 0.9])
+    config = EmulationConfig(observables=[obs], interaction_cutoff=0.0)
+    pd = PulserData(sequence=sequence, config=config, dt=dt)
+
+    expected_set = set(range(0, duration + 1, dt))
+    for ft in [0.5, 0.9, 1.0]:
+        expected_set.add(round(ft * duration))
+    expected = list(expected_set)
+    expected.sort()
+
+    assert all([a == b for a, b in zip(pd.target_times, expected)])
