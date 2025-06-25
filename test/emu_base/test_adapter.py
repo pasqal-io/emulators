@@ -17,6 +17,7 @@ from emu_base.pulser_adapter import (
     _get_qubit_positions,
     _get_amp_factors,
     _get_delta_offset,
+    _get_target_times,
     PulserData,
     HamiltonianType,
 )
@@ -1122,25 +1123,17 @@ def test_supported_noise_types(
     assert set(match.groups()) == unsupported_noises
 
 
-@patch("emu_base.pulser_adapter._rydberg_interaction")
-@patch("emu_base.pulser_adapter._extract_omega_delta_phi")
-def test_target_times_with_obs_eval_time(
-    mock_extract_omega_delta_phi, mock_rydberg_interaction
-):
+def test_get_target_times_with_obs_eval_time():
     duration = 123
     dt = 3
     sequence.get_duration.return_value = duration
-    sequence.get_addressed_bases.return_value = ["ground-rydberg"]
-    mock_extract_omega_delta_phi.return_value = (None, None, None)
-    mock_rydberg_interaction.return_value = torch.rand(2, 2)
     obs = MagicMock(spec=Observable, evaluation_times=[0.5, 0.9])
     config = EmulationConfig(observables=[obs], interaction_cutoff=0.0)
-    pd = PulserData(sequence=sequence, config=config, dt=dt)
 
-    expected_set = set(range(0, duration + 1, dt))
-    for ft in [0.5, 0.9, 1.0]:
-        expected_set.add(round(ft * duration))
+    target_times = _get_target_times(sequence, config, dt)
+
+    expected_set = set(range(0, duration + 1, dt)) | {62, 111, 123}
     expected = list(expected_set)
     expected.sort()
 
-    assert all([a == b for a, b in zip(pd.target_times, expected)])
+    assert all([a == b for a, b in zip(target_times, expected)])
