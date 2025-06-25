@@ -32,6 +32,8 @@ sequence.register.qubits = {
     for i, key in enumerate(TEST_QUBIT_IDS)
 }
 
+mock_observable = MagicMock(spec=Observable, evaluation_times=None)
+
 expected_amp_factors = {
     0: torch.tensor([1.5, 1.0, 0.4]),
     1: torch.tensor([1.5, 1.0, 0.4]),
@@ -937,6 +939,7 @@ def test_parsed_sequence(mock_pulser_sample):
     ops = _get_all_lindblad_noise_operators(noise_model)
 
     config = EmulationConfig(
+        observables=[mock_observable],
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
@@ -1026,6 +1029,7 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
     )
 
     config = EmulationConfig(
+        observables=[mock_observable],
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
@@ -1088,6 +1092,7 @@ def test_supported_noise_types(
     )
 
     config = EmulationConfig(
+        observables=[mock_observable],
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
