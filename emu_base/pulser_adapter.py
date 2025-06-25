@@ -303,7 +303,7 @@ def _get_target_times(
     observable_times.add(sequence_duration)
     for obs in config.observables:
         times: Sequence[float]
-        if obs.evaluation_times:
+        if obs.evaluation_times is not None:
             times = obs.evaluation_times
         elif config.default_evaluation_times != "Full":
             times = config.default_evaluation_times.tolist()  # type: ignore[union-attr,assignment]
