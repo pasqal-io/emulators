@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import re
 
-from pulser.backend import EmulationConfig
+from pulser.backend import EmulationConfig, Observable
 from pulser.noise_model import NoiseModel
 from pulser import Register
 from pulser.math import AbstractArray
@@ -17,6 +17,7 @@ from emu_base.pulser_adapter import (
     _get_qubit_positions,
     _get_amp_factors,
     _get_delta_offset,
+    _get_target_times,
     PulserData,
     HamiltonianType,
 )
@@ -31,6 +32,8 @@ sequence.register.qubits = {
     key: AbstractArray(torch.tensor([i, 0.0, 0.0], dtype=torch.float64))
     for i, key in enumerate(TEST_QUBIT_IDS)
 }
+
+mock_observable = MagicMock(spec=Observable, evaluation_times=None)
 
 expected_amp_factors = {
     0: torch.tensor([1.5, 1.0, 0.4]),
@@ -937,6 +940,7 @@ def test_parsed_sequence(mock_pulser_sample):
     ops = _get_all_lindblad_noise_operators(noise_model)
 
     config = EmulationConfig(
+        observables=[mock_observable],
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
@@ -1026,6 +1030,7 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
     )
 
     config = EmulationConfig(
+        observables=[mock_observable],
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
@@ -1088,6 +1093,7 @@ def test_supported_noise_types(
     )
 
     config = EmulationConfig(
+        observables=[mock_observable],
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
@@ -1115,3 +1121,19 @@ def test_supported_noise_types(
     # regex to the rescue
     match = re.match(regex_string, str(exc.value))
     assert set(match.groups()) == unsupported_noises
+
+
+def test_get_target_times_with_obs_eval_time():
+    duration = 123
+    dt = 3
+    sequence.get_duration.return_value = duration
+    obs = MagicMock(spec=Observable, evaluation_times=[0.5, 0.9])
+    config = EmulationConfig(observables=[obs], interaction_cutoff=0.0)
+
+    target_times = _get_target_times(sequence, config, dt)
+
+    expected_set = set(range(0, duration + 1, dt)) | {62, 111, 123}
+    expected = list(expected_set)
+    expected.sort()
+
+    assert all([a == b for a, b in zip(target_times, expected)])
