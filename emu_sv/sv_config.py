@@ -124,6 +124,7 @@ class SVConfig(EmulationConfig):
 
     def monkeypatch_observables(self) -> None:
         obs_list = []
+        use_state_vector = set(self.noise_model.noise_types).issubset({"SPAM"})
 
         for _, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
@@ -132,11 +133,7 @@ class SVConfig(EmulationConfig):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     (
                         qubit_occupation_sv_impl
-                        if self.noise_model.noise_types == ()
-                        or (
-                            self.noise_model.noise_types == ("SPAM",)
-                            and self.noise_model.state_prep_error == 0.0
-                        )
+                        if use_state_vector
                         else qubit_occupation_sv_den_mat_impl
                     ),
                     obs_copy,
@@ -145,11 +142,7 @@ class SVConfig(EmulationConfig):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     (
                         correlation_matrix_sv_impl
-                        if self.noise_model.noise_types == ()
-                        or (
-                            self.noise_model.noise_types == ("SPAM",)
-                            and self.noise_model.state_prep_error == 0.0
-                        )
+                        if use_state_vector
                         else correlation_matrix_sv_den_mat_impl
                     ),
                     obs_copy,
@@ -158,11 +151,7 @@ class SVConfig(EmulationConfig):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     (
                         energy_variance_sv_impl
-                        if self.noise_model.noise_types == ()
-                        or (
-                            self.noise_model.noise_types == ("SPAM",)
-                            and self.noise_model.state_prep_error == 0.0
-                        )
+                        if use_state_vector
                         else energy_variance_sv_den_mat_impl
                     ),
                     obs_copy,
@@ -171,11 +160,7 @@ class SVConfig(EmulationConfig):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     (
                         energy_second_moment_sv_impl
-                        if self.noise_model.noise_types == ()
-                        or (
-                            self.noise_model.noise_types == ("SPAM",)
-                            and self.noise_model.state_prep_error == 0.0
-                        )
+                        if use_state_vector
                         else energy_second_moment_den_mat_impl
                     ),
                     obs_copy,
