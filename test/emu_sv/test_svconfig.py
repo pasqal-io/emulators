@@ -54,7 +54,10 @@ def test_unsupported_noise() -> None:
                 hyperfine_dephasing_rate=1.5,
             )
         )
-    assert str(exc.value) == "SPAM errors are currently not supported in emu-sv."
+    assert (
+        str(exc.value)
+        == "State preparation errors are currently not supported in emu-sv."
+    )
 
 
 def test_default_SVConfig_ctr() -> None:
