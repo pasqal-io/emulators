@@ -366,7 +366,7 @@ class MPSBackendImpl:
             else:
                 self._evolve(0, 1, dt=delta_time, orth_center_right=False)
 
-            self.tdvp_complete()
+            self.sweep_complete()
 
         elif (
             self.tdvp_index < self.qubit_count - 2
@@ -431,7 +431,7 @@ class MPSBackendImpl:
             self.tdvp_index -= 1
 
             if self.tdvp_index == 0:
-                self.tdvp_complete()
+                self.sweep_complete()
                 self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
 
         else:
@@ -439,7 +439,7 @@ class MPSBackendImpl:
 
         self.save_simulation()
 
-    def tdvp_complete(self) -> None:
+    def sweep_complete(self) -> None:
         self.current_time = self.target_time
         self.timestep_complete()
 
@@ -624,7 +624,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         super().init()
         self.set_jump_threshold(1.0)
 
-    def tdvp_complete(self) -> None:
+    def sweep_complete(self) -> None:
         previous_time = self.current_time
         self.current_time = self.target_time
         previous_norm_gap_before_jump = self.norm_gap_before_jump
@@ -769,9 +769,9 @@ class DMRGBackend(MPSBackendImpl):
             if self.state.orthogonality_center == 0:
                 self.direction = SwipeDirection.LEFT_TO_RIGHT
                 self.sweep_count += 1
-                self.tdvp_complete()
+                self.sweep_complete()
 
-    def tdvp_complete(self) -> None:
+    def sweep_complete(self) -> None:
         # This marks the end of one full sweep: checking convergence
         if self.convergence_check(self.energy_tolerance):
             self.timestep_complete()
