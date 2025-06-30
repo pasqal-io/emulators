@@ -692,125 +692,100 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
 
 
 class DMRGBackend(MPSBackendImpl):
-    """
-    Implementing the DMRG algorithm for the computation of the ground state
-    at different time steps
-    The algorithm relies on the sweeping (back and forth) procedure
-    This procedure locally minimizes the 2-site problem using the Lanczos algorithm
-    """
-
-    def __init__(self, mps_config: MPSConfig, pulser_data: PulserData):
-        super().__init__(mps_config, pulser_data)
-
-    def convergence_check(
+    def __init__(
         self,
-        previous_energy: Optional[float],
-        current_energy: Optional[float],
-        energy_tolerance: float,
-    ) -> bool:
-        """
-        Check convergence by comparing energy of two successive full sweeps.
-        Returns True if the absolute difference is below tol.
-        """
-        if previous_energy is None or current_energy is None:
-            return False
-
-        energy_diff = abs(current_energy - previous_energy)
-        return energy_diff < energy_tolerance
-
-    def run_dmrg(self, num_sweeps: int = 20, energy_tolerance: float = 1e-5) -> None:
-        """
-        Perform a single DMRG ground state search
-        """
-        self.init()  # to initiate the ham, baths etc.
-        mps_size = len(self.state.factors)
-        if mps_size < 2:
-            raise TypeError("DMRG algorithm requires an MPS of at least 2 sites")
-
+        mps_config: MPSConfig,
+        pulser_data: PulserData,
+        energy_tolerance: float = 1e-5,
+        max_sweeps: int = 200,
+    ):
+        super().__init__(mps_config, pulser_data)
+        self.init()
         self.state.orthogonality_center = 0
-        direction = SwipeDirection.LEFT_TO_RIGHT
+        self.direction = SwipeDirection.LEFT_TO_RIGHT
+        self.previous_energy: Optional[float] = None
+        self.current_energy: Optional[float] = None
+        self.sweep_count: int = 0
+        self.energy_tolerance: float = energy_tolerance
+        self.max_sweeps: int = max_sweeps
 
-        previous_energy = None
-        current_energy = None
-        converged = False
+    def convergence_check(self, energy_tolerance: float) -> bool:
+        if self.previous_energy is None or self.current_energy is None:
+            return False
+        return abs(self.current_energy - self.previous_energy) < energy_tolerance
 
-        for sweep in range(1, num_sweeps + 1):
-            # for each sweep, there are 2(mps_size - 1) neihbouring bonds
-            for step in range(2 * (mps_size - 1)):
-                print(f"sweep: {sweep}. step: {step}/{2*(mps_size-1)}")
-                ortho_center = self.state.orthogonality_center
+    def progress(self) -> None:
+        if self.is_finished():
+            return
 
-                # determine bond indices
-                if mps_size == 2:
-                    idx_Left, idx_Right = 0, 1
-                elif direction == SwipeDirection.LEFT_TO_RIGHT:
-                    idx_Left, idx_Right = ortho_center, ortho_center + 1
-                elif direction == SwipeDirection.RIGHT_TO_LEFT:
-                    idx_Left, idx_Right = ortho_center - 1, ortho_center
+        # perform one two-site energy minimization and update
+        idx = self.state.orthogonality_center
+        assert idx and self.state.orthogonality_center is not None
 
-                left_site = self.state.factors[idx_Left]
-                right_site = self.state.factors[idx_Right]
-                left_bath = self.left_baths[-1]
-                right_bath = self.right_baths[-1]
-                left_ham = self.hamiltonian.factors[idx_Left]
-                right_ham = self.hamiltonian.factors[idx_Right]
+        if self.direction == SwipeDirection.LEFT_TO_RIGHT:
+            left_idx, right_idx = idx, idx + 1
+        elif self.direction == SwipeDirection.RIGHT_TO_LEFT:
+            left_idx, right_idx = idx - 1, idx
+        else:
+            raise RuntimeError(f"Unknown sweep direction: {self.direction}")
 
-                # Minimize Hamiltonian on this two-site block
-                new_node_left, new_node_right, current_energy = minimize_energy_pair(
-                    state_factors=(left_site, right_site),
-                    ham_factors=(left_ham, right_ham),
-                    baths=(left_bath, right_bath),
-                    orth_center_right=(direction == SwipeDirection.LEFT_TO_RIGHT),
-                    config=self.config,
-                    residual_tolerance=1e-7,
+        new_L, new_R, energy = minimize_energy_pair(
+            state_factors=self.state.factors[left_idx : right_idx + 1],
+            ham_factors=self.hamiltonian.factors[left_idx : right_idx + 1],
+            baths=(self.left_baths[-1], self.right_baths[-1]),
+            orth_center_right=(self.direction == SwipeDirection.LEFT_TO_RIGHT),
+            config=self.config,
+            residual_tolerance=1e-7,
+        )
+        self.state.factors[left_idx], self.state.factors[right_idx] = new_L, new_R
+        self.current_energy = energy
+
+        # updating baths and orthogonality center
+        if self.direction == SwipeDirection.LEFT_TO_RIGHT:
+            self.left_baths.append(
+                new_left_bath(
+                    self.get_current_left_bath(),
+                    self.state.factors[left_idx],
+                    self.hamiltonian.factors[right_idx],
+                ).to(self.state.factors[right_idx].device)
+            )
+            self.right_baths.pop()
+            self.state.orthogonality_center += 1
+
+            if self.state.orthogonality_center == self.qubit_count - 1:
+                self.direction = SwipeDirection.RIGHT_TO_LEFT
+
+        elif self.direction == SwipeDirection.RIGHT_TO_LEFT:
+            self.right_baths.append(
+                new_right_bath(
+                    self.get_current_right_bath(),
+                    self.state.factors[right_idx],
+                    self.hamiltonian.factors[right_idx],
+                ).to(self.state.factors[left_idx].device)
+            )
+            self.left_baths.pop()
+            self.state.orthogonality_center -= 1
+
+            if self.state.orthogonality_center == 0:
+                self.direction = SwipeDirection.LEFT_TO_RIGHT
+                self.sweep_count += 1
+                self.tdvp_complete()
+
+    def tdvp_complete(self) -> None:
+        # This marks the end of one full sweep: checking convergence
+        if self.convergence_check(self.energy_tolerance):
+            self.timestep_complete()
+        else:
+            # not converged: restart a new sweep
+            if self.sweep_count + 1 > self.max_sweeps:
+                raise RuntimeError(
+                    f"DMRG did not converge after {self.max_sweeps} sweeps"
                 )
+            self.previous_energy = self.current_energy
 
-                # Update MPS factors with updated mps tensors
-                self.state.factors[idx_Left] = new_node_left
-                self.state.factors[idx_Right] = new_node_right
-
-                # Update baths and sweep
-                if direction == SwipeDirection.LEFT_TO_RIGHT:
-                    update_left_bath = new_left_bath(
-                        self.get_current_left_bath(),
-                        self.state.factors[idx_Left],
-                        self.hamiltonian.factors[idx_Right],
-                    ).to(self.state.factors[idx_Right].device)
-                    self.left_baths.append(update_left_bath)
-                    self.right_baths.pop()
-
-                    self.state.orthogonality_center += 1
-                else:
-                    # Append new right bath, then pop left
-                    update_right_bath = new_right_bath(
-                        self.get_current_right_bath(),
-                        self.state.factors[idx_Right],
-                        self.hamiltonian.factors[idx_Right],
-                    ).to(self.state.factors[idx_Left].device)
-                    self.right_baths.append(update_right_bath)
-                    self.left_baths.pop()
-
-                    self.state.orthogonality_center -= 1
-
-                if (
-                    self.state.orthogonality_center == mps_size - 1
-                    and direction == SwipeDirection.LEFT_TO_RIGHT
-                ):
-                    assert step == mps_size - 2
-                    direction = SwipeDirection.RIGHT_TO_LEFT
-                elif (
-                    self.state.orthogonality_center == 0
-                    and direction == SwipeDirection.RIGHT_TO_LEFT
-                ):
-                    direction = SwipeDirection.LEFT_TO_RIGHT
-
-            # end of one full sweep
-            if self.convergence_check(previous_energy, current_energy, energy_tolerance):
-                converged = True
-                break
-            previous_energy = current_energy
-        if not converged:
-            raise RuntimeError(f"DMRG failed to converge after {num_sweeps} sweeps")
+        assert self.state.orthogonality_center == 0
+        assert self.direction == SwipeDirection.LEFT_TO_RIGHT
+        self.current_energy = None
 
 
 def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
