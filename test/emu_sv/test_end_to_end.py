@@ -89,7 +89,6 @@ def simulate(
         fidelity_state = StateVector.make(n_qubits, gpu=gpu)  # make |00.0>
 
     if state_prep_error > 0.0 or p_false_pos > 0.0 or p_false_neg > 0.0:
-        # assert noise_model is None, "Provide either noise_model or SPAM values"
 
         runs_args = (
             {"runs": 1, "samples_per_run": 1} if state_prep_error > 0.0 else {}
@@ -583,6 +582,7 @@ def test_end_to_end_1D_dense_mat_measure_errors() -> None:
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(pulse, "ising_global")
     # false positive readout error
+
     # we should add an effective noise model to the sequence in order to use the
     # density matrix solver
     noise_model = pulser.noise_model.NoiseModel(
