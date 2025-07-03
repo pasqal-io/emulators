@@ -10,6 +10,7 @@ from resource import RUSAGE_SELF, getrusage
 
 from pulser.backend import Results, Observable, State, EmulationConfig
 from emu_base import PulserData
+from emu_base.noise import pick_well_prepared_qubits
 
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
@@ -77,6 +78,8 @@ class BaseSVBackendImpl:
     This class is used to handle the state vector and density matrix evolution.
     """
 
+    well_prepared_qubits_filter: typing.Optional[list[bool]]
+
     def __init__(self, config: SVConfig, pulser_data: PulserData):
         self._config = config
         self._pulser_data = pulser_data
@@ -86,6 +89,7 @@ class BaseSVBackendImpl:
         self.phi = pulser_data.phi
         self.nsteps = pulser_data.omega.shape[0]
         self.nqubits = pulser_data.omega.shape[1]
+        self.full_interaction_matrix = pulser_data.full_interaction_matrix
         self.state: State
         self.time = time.time()
         self.results = Results(atom_order=(), total_duration=self.target_times[-1])
@@ -95,7 +99,6 @@ class BaseSVBackendImpl:
             timestep_count=self.nsteps,
         )
         self._current_H: None | RydbergLindbladian | RydbergHamiltonian = None
-
         if self._config.initial_state is not None and (
             self._config.initial_state.n_qudits != self.nqubits
         ):
@@ -103,6 +106,29 @@ class BaseSVBackendImpl:
                 "Mismatch in number of atoms: initial state has "
                 f"{self._config.initial_state.n_qudits} and the sequence has {self.nqubits}"
             )
+        self.init_dark_qubits()
+        # NOTE: initial_state and state_error_prep are not supported at the same time
+
+    def init_dark_qubits(self) -> None:
+        if self._config.noise_model.state_prep_error > 0.0:
+            self.well_prepared_qubits_filter = pick_well_prepared_qubits(
+                self._config.noise_model.state_prep_error, self.nqubits
+            )
+        else:
+            self.well_prepared_qubits_filter = None
+
+        if self.well_prepared_qubits_filter is not None:
+
+            self.full_interaction_matrix[self.well_prepared_qubits_filter, :] = 0.0
+            self.full_interaction_matrix[:, self.well_prepared_qubits_filter] = 0.0
+            self.omega[:, self.well_prepared_qubits_filter] = 0.0
+            self.delta[:, self.well_prepared_qubits_filter] = 0.0
+            self.phi[:, self.well_prepared_qubits_filter] = 0.0
+            print(self._config.noise_model.state_prep_error)
+            print(self.full_interaction_matrix)
+            print(self.omega[:10])
+            print(self.delta[:10])
+            print(self.phi[:10])
 
     def step(self, step_idx: int) -> None:
         """One step of the evolution"""
@@ -179,7 +205,7 @@ class SVBackendImpl(BaseSVBackendImpl):
             self.omega[step_idx],
             self.delta[step_idx],
             self.phi[step_idx],
-            self._pulser_data.full_interaction_matrix,
+            self.full_interaction_matrix,
             self.state.vector,
             self._config.krylov_tolerance,
         )
@@ -216,7 +242,7 @@ class NoisySVBackendImpl(BaseSVBackendImpl):
             self.omega[step_idx],
             self.delta[step_idx],
             self.phi[step_idx],
-            self._pulser_data.full_interaction_matrix,
+            self.full_interaction_matrix,
             self.state.matrix,
             self._config.krylov_tolerance,
             self.pulser_lindblads,

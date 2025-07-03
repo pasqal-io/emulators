@@ -26,7 +26,7 @@ from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
-from emu_mps.noise import pick_well_prepared_qubits
+from emu_base.noise import pick_well_prepared_qubits
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 import emu_mps.optimatrix as optimat
 from emu_mps.solver_utils import (

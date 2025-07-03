@@ -19,7 +19,7 @@ from emu_mps.utils import (
 )
 
 
-@patch("emu_mps.noise.random.random")
+@patch("emu_base.noise.random.random")
 def test_readout_with_error(random_mock):
     random_mock.side_effect = [0.6, 0.08, 0.4, 0.1, 0.04]
 

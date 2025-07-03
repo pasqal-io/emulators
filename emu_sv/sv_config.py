@@ -105,10 +105,6 @@ class SVConfig(EmulationConfig):
                 "Warning: The runs and samples_per_run "
                 "values of the NoiseModel are ignored!"
             )
-        if "SPAM" in self.noise_model.noise_types:
-            raise NotImplementedError(
-                "SPAM errors are currently not supported in emu-sv."
-            )
 
     def _expected_kwargs(self) -> set[str]:
         return super()._expected_kwargs() | {
@@ -123,7 +119,7 @@ class SVConfig(EmulationConfig):
 
     def monkeypatch_observables(self) -> None:
         obs_list = []
-
+        use_state_vector = set(self.noise_model.noise_types).issubset({"SPAM"})
         for _, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
 
@@ -131,7 +127,7 @@ class SVConfig(EmulationConfig):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
                     (
                         qubit_occupation_sv_impl
-                        if self.noise_model.noise_types == ()
+                        if use_state_vector
                         else qubit_occupation_sv_den_mat_impl
                     ),
                     obs_copy,

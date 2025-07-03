@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 import torch
 
-from emu_mps.noise import pick_well_prepared_qubits
+from emu_base.noise import pick_well_prepared_qubits
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 
 
@@ -36,7 +36,7 @@ def test_compute_noise_from_lindbladians():
     )
 
 
-@patch("emu_mps.noise.random.random")
+@patch("emu_base.noise.random.random")
 def test_pick_well_prepared_qubits(random_mock):
     random_values = [0.1, 0.8, 0.2, 0.4, 0.5]
 
