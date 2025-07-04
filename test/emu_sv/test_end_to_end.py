@@ -515,8 +515,8 @@ def test_end_to_end_1D_sv_measure_errors() -> None:
     num_qubits = 4
 
     # initial state with all atoms in |g> state
-    reg = pulser.Register.rectangle(num_qubits, 1, spacing=10, prefix="q")
-    pulse = pulser.Pulse.ConstantPulse(1000, 0.0, 0.0, 0.0)
+    reg = pulser.Register.rectangle(num_qubits, 1, spacing=100000, prefix="q")
+    pulse = pulser.Pulse.ConstantPulse(100, 0.0, 0.0, 0.0)
 
     seq = pulser.Sequence(reg, pulser.MockDevice)
     seq.declare_channel("ising_global", "rydberg_global")
@@ -575,8 +575,8 @@ def test_end_to_end_1D_dense_mat_measure_errors() -> None:
     num_qubits = 4
 
     # initial state with all atoms in |g> state
-    reg = pulser.Register.rectangle(num_qubits, 1, spacing=10, prefix="q")
-    pulse = pulser.Pulse.ConstantPulse(1000, 0.0, 0.0, 0.0)
+    reg = pulser.Register.rectangle(num_qubits, 1, spacing=10000, prefix="q")
+    pulse = pulser.Pulse.ConstantPulse(100, 0.0, 0.0, 0.0)
 
     seq = pulser.Sequence(reg, pulser.MockDevice)
     seq.declare_channel("ising_global", "rydberg_global")

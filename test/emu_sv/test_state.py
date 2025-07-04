@@ -3,6 +3,7 @@ import torch
 import math
 from emu_sv import StateVector, inner
 from emu_sv.utils import index_to_bitstring
+import random
 
 pi = torch.tensor(math.pi)
 factor = 1.0 / torch.sqrt(torch.tensor(2.0))
@@ -150,3 +151,42 @@ def test_constructor() -> None:
         eig = ("0", "1")
         ampl = {4 * "1": 1.0}
         StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
+
+
+def multi_nomial(num_trials: int, outcomes: int, p_success: float):
+    return (
+        math.comb(num_trials, outcomes)
+        * (p_success) ** outcomes
+        * (1 - p_success) ** (num_trials - outcomes)
+    )
+
+
+def test_sample_measurement_errors():
+    random.seed(10)
+    n_atoms = 4
+    p_false_neg = 0.1
+    p_false_pos = 0.0
+    num_shots = 10000
+    amplitudes = {"r" * n_atoms: 1.0}
+    eigenstates = ("r", "g")
+    state_up = StateVector.from_state_amplitudes(
+        eigenstates=eigenstates, amplitudes=amplitudes
+    )
+
+    bitstrings = state_up.sample(
+        num_shots=num_shots, p_false_neg=p_false_neg, p_false_pos=p_false_pos
+    )
+    res1up = bitstrings["1" * n_atoms] / num_shots
+
+    res_1_0bitstrings = 0
+    for i in ["1110", "1101", "1011", "0111"]:
+        res_1_0bitstrings += bitstrings[i]
+    res_1_0bitstrings /= num_shots
+
+    # theory no false negative
+    res_up_theroy = multi_nomial(n_atoms, 0, p_false_neg)
+    assert res1up == pytest.approx(res_up_theroy, abs=0.01)
+
+    # theory 1 false negative
+    res_1_false_neg = multi_nomial(n_atoms, 1, p_false_neg)
+    assert res_1_0bitstrings == pytest.approx(res_1_false_neg, abs=0.01)
