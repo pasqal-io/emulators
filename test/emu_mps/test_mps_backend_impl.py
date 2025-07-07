@@ -127,7 +127,9 @@ def test_init_dark_qubits_with_state_prep_error(pick_well_prepared_qubits_mock):
     noise_model.state_prep_error = 0.123
     victim = create_victim(noise_model=noise_model)
 
-    pick_well_prepared_qubits_mock.return_value = [True, False, True, True, False]
+    pick_well_prepared_qubits_mock.return_value = torch.logical_not(
+        torch.tensor([True, False, True, True, False])
+    )
 
     victim.full_interaction_matrix = torch.tensor(
         [
@@ -161,7 +163,10 @@ def test_init_dark_qubits_with_state_prep_error(pick_well_prepared_qubits_mock):
     victim.init_dark_qubits()
     pick_well_prepared_qubits_mock.assert_called_once_with(0.123, QUBIT_COUNT)
 
-    assert victim.well_prepared_qubits_filter == [True, False, True, True, False]
+    assert torch.equal(
+        victim.well_prepared_qubits_filter,
+        torch.tensor([True, False, True, True, False]),
+    )
 
     assert torch.allclose(
         victim.masked_interaction_matrix,
@@ -251,7 +256,9 @@ def test_set_jump_threshold(random_mock):
 
 @patch("emu_mps.mps_backend_impl.pick_well_prepared_qubits")
 def test_init_initial_state_default(pick_well_prepared_qubits_mock):
-    pick_well_prepared_qubits_mock.return_value = [True, False, False, True, True]
+    pick_well_prepared_qubits_mock.return_value = torch.logical_not(
+        torch.tensor([True, False, False, True, True])
+    )
 
     noise_model = MagicMock(spec=NoiseModel)
     noise_model.noise_types = []

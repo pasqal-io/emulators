@@ -36,10 +36,8 @@ def test_compute_noise_from_lindbladians():
     )
 
 
-@patch("emu_base.noise.random.random")
+@patch("emu_base.noise.torch.rand")
 def test_pick_well_prepared_qubits(random_mock):
-    random_values = [0.1, 0.8, 0.2, 0.4, 0.5]
-
-    random_mock.side_effect = random_values
-
-    assert pick_well_prepared_qubits(eta=0.25, n=5) == [False, True, False, True, True]
+    random_mock.return_value = torch.tensor([0.1, 0.8, 0.2, 0.4, 0.5])
+    expected = torch.tensor([True, False, True, False, False], dtype=torch.bool)
+    assert torch.equal(pick_well_prepared_qubits(eta=0.25, n=5), expected)

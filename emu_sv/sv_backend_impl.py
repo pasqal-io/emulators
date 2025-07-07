@@ -78,7 +78,7 @@ class BaseSVBackendImpl:
     This class is used to handle the state vector and density matrix evolution.
     """
 
-    well_prepared_qubits_filter: typing.Optional[list[bool]]
+    well_prepared_qubits_filter: typing.Optional[torch.Tensor]
 
     def __init__(self, config: SVConfig, pulser_data: PulserData):
         self._config = config

@@ -102,7 +102,7 @@ class MPSBackendImpl:
     current_time: float = (
         0.0  # While dt is an integer, noisy collapse can happen at non-integer times.
     )
-    well_prepared_qubits_filter: Optional[list[bool]]
+    well_prepared_qubits_filter: Optional[torch.Tensor]
     hamiltonian: MPO
     state: MPS
     right_baths: list[torch.Tensor]
@@ -192,8 +192,10 @@ class MPSBackendImpl:
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
         if self.config.noise_model.state_prep_error > 0.0:
-            self.well_prepared_qubits_filter = pick_well_prepared_qubits(
-                self.config.noise_model.state_prep_error, self.qubit_count
+            self.well_prepared_qubits_filter = torch.logical_not(
+                pick_well_prepared_qubits(
+                    self.config.noise_model.state_prep_error, self.qubit_count
+                )
             )
         else:
             self.well_prepared_qubits_filter = None
