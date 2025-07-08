@@ -124,11 +124,6 @@ class BaseSVBackendImpl:
             self.omega[:, self.well_prepared_qubits_filter] = 0.0
             self.delta[:, self.well_prepared_qubits_filter] = 0.0
             self.phi[:, self.well_prepared_qubits_filter] = 0.0
-            print(self._config.noise_model.state_prep_error)
-            print(self.full_interaction_matrix)
-            print(self.omega[:10])
-            print(self.delta[:10])
-            print(self.phi[:10])
 
     def step(self, step_idx: int) -> None:
         """One step of the evolution"""
