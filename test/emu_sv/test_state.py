@@ -162,6 +162,7 @@ def multi_nomial(num_trials: int, outcomes: int, p_success: float):
 
 
 def test_sample_measurement_errors():
+    # using the multinomial distribution to test the sampling with measurement errors
     random.seed(10)
     n_atoms = 4
     p_false_neg = 0.1
@@ -173,19 +174,21 @@ def test_sample_measurement_errors():
         eigenstates=eigenstates, amplitudes=amplitudes
     )
 
+    # results with "1111", no false positives
     bitstrings = state_up.sample(
         num_shots=num_shots, p_false_neg=p_false_neg, p_false_pos=p_false_pos
     )
     res1up = bitstrings["1" * n_atoms] / num_shots
 
+    # theory no false negative
+    res_up_theroy = multi_nomial(n_atoms, 0, p_false_neg)
+    assert res1up == pytest.approx(res_up_theroy, abs=0.01)
+
+    # results with 1 dark atom: "1110", "1101", "1011", "0111"
     res_1_0bitstrings = 0
     for i in ["1110", "1101", "1011", "0111"]:
         res_1_0bitstrings += bitstrings[i]
     res_1_0bitstrings /= num_shots
-
-    # theory no false negative
-    res_up_theroy = multi_nomial(n_atoms, 0, p_false_neg)
-    assert res1up == pytest.approx(res_up_theroy, abs=0.01)
 
     # theory 1 false negative
     res_1_false_neg = multi_nomial(n_atoms, 1, p_false_neg)
