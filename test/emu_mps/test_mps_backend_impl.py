@@ -1,7 +1,7 @@
 from emu_mps.mps_backend_impl import (
     MPSBackendImpl,
     NoisyMPSBackendImpl,
-    DMRGBackend,
+    DMRGBackendImpl,
     SwipeDirection,
 )
 from emu_mps.mps_backend_impl import (
@@ -65,7 +65,7 @@ def create_noisy_victim(dt=10, noise_model=None):
     return victim
 
 
-def create_dmrg_victim(constructor=DMRGBackend, dt=10):
+def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
     config = MPSConfig(dt=dt, optimize_qubit_ordering=False)
     mock_pulser_data = MagicMock()
     mock_pulser_data.qubit_count = QUBIT_COUNT
@@ -74,11 +74,11 @@ def create_dmrg_victim(constructor=DMRGBackend, dt=10):
     mock_pulser_data.masked_interaction_matrix = torch.eye(QUBIT_COUNT)
     mock_pulser_data.slm_end_time = 10.0
 
-    victim = constructor(config, mock_pulser_data)
+    dmrg_obj = constructor(config, mock_pulser_data)
 
-    assert victim.qubit_count == QUBIT_COUNT
-    assert victim.current_time == 0.0
-    return victim
+    assert dmrg_obj.qubit_count == QUBIT_COUNT
+    assert dmrg_obj.current_time == 0.0
+    return dmrg_obj
 
 
 @patch("emu_mps.mps_backend_impl.pick_well_prepared_qubits")
@@ -420,7 +420,7 @@ def test_progress_at_random_middle_mpssite(
     mock_right_baths.return_value = [torch.zeros(1, 1, 1)] * (QUBIT_COUNT - 1)
     mock_new_left_bath.return_value = torch.zeros(1)
 
-    dmrg = create_dmrg_victim()
+    dmrg = create_dmrg_mock()
     dmrg.timestep_index = 0
     dmrg.timestep_count = 2
 
@@ -430,7 +430,6 @@ def test_progress_at_random_middle_mpssite(
     # while the right bath being a list of 3 elements
     dmrg.left_baths = [torch.zeros(1)]
     dmrg.right_baths = [torch.zeros(1)] * 3
-    dmrg.direction = SwipeDirection.LEFT_TO_RIGHT
 
     new_left_factor = torch.tensor([[1.0]])
     new_right_factor = torch.tensor([[2.0]])
@@ -444,7 +443,7 @@ def test_progress_at_random_middle_mpssite(
     assert dmrg.state.orthogonality_center == 2
     assert len(dmrg.left_baths) == 2
     assert len(dmrg.right_baths) == 2
-    assert dmrg.direction == SwipeDirection.LEFT_TO_RIGHT
+    assert dmrg.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
 
 
 @patch("emu_mps.mps_backend_impl.new_left_bath")
@@ -460,7 +459,7 @@ def test_progress_at_right_mps_boundary(
     mock_right_baths.return_value = [torch.zeros(1, 1, 1)] * (QUBIT_COUNT - 1)
     mock_new_left_bath.return_value = torch.zeros(1)
 
-    dmrg = create_dmrg_victim()
+    dmrg = create_dmrg_mock()
     dmrg.timestep_index = 0
     dmrg.timestep_count = 2
 
@@ -483,4 +482,4 @@ def test_progress_at_right_mps_boundary(
     assert dmrg.state.orthogonality_center == 4
     assert len(dmrg.left_baths) == 4
     assert len(dmrg.right_baths) == 0
-    assert dmrg.direction == SwipeDirection.RIGHT_TO_LEFT
+    assert dmrg.swipe_direction == SwipeDirection.RIGHT_TO_LEFT

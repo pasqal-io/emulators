@@ -691,23 +691,24 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         super().fill_results()
 
 
-class DMRGBackend(MPSBackendImpl):
+class DMRGBackendImpl(MPSBackendImpl):
     def __init__(
         self,
         mps_config: MPSConfig,
         pulser_data: PulserData,
         energy_tolerance: float = 1e-5,
-        max_sweeps: int = 200,
+        max_sweeps: int = 999,
+        residual_tolerance: float = 1e-7,
     ):
         super().__init__(mps_config, pulser_data)
         self.init()
         self.state.orthogonality_center = 0
-        self.direction = SwipeDirection.LEFT_TO_RIGHT
         self.previous_energy: Optional[float] = None
         self.current_energy: Optional[float] = None
         self.sweep_count: int = 0
         self.energy_tolerance: float = energy_tolerance
         self.max_sweeps: int = max_sweeps
+        self.residual_tolerance: float = residual_tolerance
 
     def convergence_check(self, energy_tolerance: float) -> bool:
         if self.previous_energy is None or self.current_energy is None:
@@ -719,29 +720,31 @@ class DMRGBackend(MPSBackendImpl):
             return
 
         # perform one two-site energy minimization and update
+        assert self.state.orthogonality_center is not None
         idx = self.state.orthogonality_center
-        assert idx and self.state.orthogonality_center is not None
 
-        if self.direction == SwipeDirection.LEFT_TO_RIGHT:
+        assert (
+            self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+            or self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
+        )
+        if self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
             left_idx, right_idx = idx, idx + 1
-        elif self.direction == SwipeDirection.RIGHT_TO_LEFT:
+        elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
             left_idx, right_idx = idx - 1, idx
-        else:
-            raise RuntimeError(f"Unknown sweep direction: {self.direction}")
 
         new_L, new_R, energy = minimize_energy_pair(
             state_factors=self.state.factors[left_idx : right_idx + 1],
             ham_factors=self.hamiltonian.factors[left_idx : right_idx + 1],
             baths=(self.left_baths[-1], self.right_baths[-1]),
-            orth_center_right=(self.direction == SwipeDirection.LEFT_TO_RIGHT),
+            orth_center_right=(self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT),
             config=self.config,
-            residual_tolerance=1e-7,
+            residual_tolerance=self.residual_tolerance,
         )
         self.state.factors[left_idx], self.state.factors[right_idx] = new_L, new_R
         self.current_energy = energy
 
         # updating baths and orthogonality center
-        if self.direction == SwipeDirection.LEFT_TO_RIGHT:
+        if self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
             self.left_baths.append(
                 new_left_bath(
                     self.get_current_left_bath(),
@@ -753,9 +756,9 @@ class DMRGBackend(MPSBackendImpl):
             self.state.orthogonality_center += 1
 
             if self.state.orthogonality_center == self.qubit_count - 1:
-                self.direction = SwipeDirection.RIGHT_TO_LEFT
+                self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
-        elif self.direction == SwipeDirection.RIGHT_TO_LEFT:
+        elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
             self.right_baths.append(
                 new_right_bath(
                     self.get_current_right_bath(),
@@ -767,7 +770,7 @@ class DMRGBackend(MPSBackendImpl):
             self.state.orthogonality_center -= 1
 
             if self.state.orthogonality_center == 0:
-                self.direction = SwipeDirection.LEFT_TO_RIGHT
+                self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
                 self.sweep_count += 1
                 self.sweep_complete()
 
@@ -784,7 +787,7 @@ class DMRGBackend(MPSBackendImpl):
             self.previous_energy = self.current_energy
 
         assert self.state.orthogonality_center == 0
-        assert self.direction == SwipeDirection.LEFT_TO_RIGHT
+        assert self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
         self.current_energy = None
 
 
