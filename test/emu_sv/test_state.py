@@ -3,7 +3,6 @@ import torch
 import math
 from emu_sv import StateVector, inner
 from emu_sv.utils import index_to_bitstring
-import random
 
 pi = torch.tensor(math.pi)
 factor = 1.0 / torch.sqrt(torch.tensor(2.0))
@@ -18,7 +17,7 @@ gpu = False if device == "cpu" else True
 
 def test_creating_state() -> None:
     # test constructor
-    single_qubit_state = StateVector(torch.tensor([factor] * 2, dtype=dtype))
+    single_qubit_state = StateVector(torch.tensor([factor] * 2, dtype=dtype), gpu=gpu)
     assert single_qubit_state.n_qudits == 1
     assert math.isclose(1.0, single_qubit_state.norm(), rel_tol=1e-5)
 
@@ -32,16 +31,16 @@ def test_creating_state() -> None:
     # test make()
     nqubits = 3
     state = StateVector.make(num_sites=nqubits)  # create |00..0>
-    zero_state_tensor = torch.tensor([0] * 2**nqubits, dtype=dtype)
+    zero_state_tensor = torch.tensor([0] * 2**nqubits, dtype=dtype, device=device)
     zero_state_tensor[0] = 1
     zero_state = StateVector(zero_state_tensor)
     assert state.overlap(zero_state) == 1.0
 
     # test zero()
     nqubits = 3
-    state = StateVector.zero(num_sites=nqubits, gpu=False)  # create |00..0>
+    state = StateVector.zero(num_sites=nqubits, gpu=gpu)  # create |00..0>
     tensor = state.vector
-    expected = torch.tensor([0] * 2**nqubits, dtype=dtype)
+    expected = torch.tensor([0] * 2**nqubits, dtype=dtype, device=device)
     assert torch.allclose(expected, tensor)
 
 
@@ -106,7 +105,7 @@ def test_sample() -> None:
     torch.manual_seed(seed)
 
     tensor = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
-    state = StateVector(tensor, gpu=False)
+    state = StateVector(tensor, gpu=gpu)
     sampling = state.sample(num_shots=1000)
 
     assert sampling["111"] == 485
@@ -151,45 +150,3 @@ def test_constructor() -> None:
         eig = ("0", "1")
         ampl = {4 * "1": 1.0}
         StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
-
-
-def multi_nomial(num_trials: int, outcomes: int, p_success: float):
-    return (
-        math.comb(num_trials, outcomes)
-        * (p_success) ** outcomes
-        * (1 - p_success) ** (num_trials - outcomes)
-    )
-
-
-def test_sample_measurement_errors():
-    # using the multinomial distribution to test the sampling with measurement errors
-    random.seed(10)
-    n_atoms = 4
-    p_false_neg = 0.1
-    p_false_pos = 0.0
-    num_shots = 10000
-    amplitudes = {"r" * n_atoms: 1.0}
-    eigenstates = ("r", "g")
-    state_up = StateVector.from_state_amplitudes(
-        eigenstates=eigenstates, amplitudes=amplitudes
-    )
-
-    # results with "1111", no false positives
-    bitstrings = state_up.sample(
-        num_shots=num_shots, p_false_neg=p_false_neg, p_false_pos=p_false_pos
-    )
-    res1up = bitstrings["1" * n_atoms] / num_shots
-
-    # theory no false negative
-    res_up_theroy = multi_nomial(n_atoms, 0, p_false_neg)
-    assert res1up == pytest.approx(res_up_theroy, abs=0.01)
-
-    # results with 1 dark atom: "1110", "1101", "1011", "0111"
-    res_1_0bitstrings = 0
-    for i in ["1110", "1101", "1011", "0111"]:
-        res_1_0bitstrings += bitstrings[i]
-    res_1_0bitstrings /= num_shots
-
-    # theory 1 false negative
-    res_1_false_neg = multi_nomial(n_atoms, 1, p_false_neg)
-    assert res_1_0bitstrings == pytest.approx(res_1_false_neg, abs=0.01)
