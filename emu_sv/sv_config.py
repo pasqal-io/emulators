@@ -25,6 +25,8 @@ from pulser.backend import (
     BitStrings,
 )
 
+from emu_base.pulser_adapter import _NON_LINDBLADIAN_NOISE
+
 
 class SVConfig(EmulationConfig):
     """
@@ -124,7 +126,9 @@ class SVConfig(EmulationConfig):
 
     def monkeypatch_observables(self) -> None:
         obs_list = []
-        use_state_vector = set(self.noise_model.noise_types).issubset({"SPAM"})
+        use_state_vector = set(self.noise_model.noise_types).issubset(
+            _NON_LINDBLADIAN_NOISE
+        )
 
         for _, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
