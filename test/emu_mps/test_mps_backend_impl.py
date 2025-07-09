@@ -426,6 +426,8 @@ def test_progress_at_random_middle_mpssite(
 
     dmrg.hamiltonian = MagicMock(factors=[None] * QUBIT_COUNT)
     dmrg.state = MagicMock(factors=[None] * QUBIT_COUNT, orthogonality_center=1)
+    dmrg.sweep_index = dmrg.state.orthogonality_center
+
     # at the 2nd MPS site (orthogonality_center = 1), the left bath must be a list of 1 element
     # while the right bath being a list of 3 elements
     dmrg.left_baths = [torch.zeros(1)]
@@ -440,6 +442,7 @@ def test_progress_at_random_middle_mpssite(
 
     mock_minimize.assert_called_once()
     assert dmrg.current_energy == current_energy
+    assert dmrg.sweep_index == 2
     assert dmrg.state.orthogonality_center == 2
     assert len(dmrg.left_baths) == 2
     assert len(dmrg.right_baths) == 2
@@ -464,6 +467,8 @@ def test_progress_at_right_mps_boundary(
     dmrg.timestep_count = 2
 
     dmrg.state = MagicMock(factors=[None] * QUBIT_COUNT, orthogonality_center=3)
+    dmrg.sweep_index = dmrg.state.orthogonality_center
+
     dmrg.hamiltonian = MagicMock(factors=[None] * QUBIT_COUNT)
     # at the 4th MPS site (orthogonality_center = 3), the left bath must be a list of 3 elements
     # while the right bath being a list of a single element
@@ -479,6 +484,7 @@ def test_progress_at_right_mps_boundary(
 
     mock_minimize.assert_called_once()
     assert dmrg.current_energy == pytest.approx(0.5)
+    assert dmrg.sweep_index == 4
     assert dmrg.state.orthogonality_center == 4
     assert len(dmrg.left_baths) == 4
     assert len(dmrg.right_baths) == 0

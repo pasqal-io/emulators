@@ -107,7 +107,7 @@ class MPSBackendImpl:
     hamiltonian: MPO
     state: MPS
     right_baths: list[torch.Tensor]
-    tdvp_index: int
+    sweep_index: int
     swipe_direction: SwipeDirection
     timestep_index: int
     target_time: float
@@ -143,7 +143,7 @@ class MPSBackendImpl:
         self.left_baths: list[torch.Tensor]
         self.time = time.time()
         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
-        self.tdvp_index = 0
+        self.sweep_index = 0
         self.timestep_index = 0
         self.results = Results(
             atom_order=optimat.permute_tuple(
@@ -348,7 +348,7 @@ class MPSBackendImpl:
         """
         Do one unit of simulation work given the current state.
         Update the state accordingly.
-        The state of the simulation is stored in self.tdvp_index and self.swipe_direction.
+        The state of the simulation is stored in self.sweep_index and self.swipe_direction.
         """
         if self.is_finished():
             return
@@ -359,7 +359,7 @@ class MPSBackendImpl:
         if 1 <= self.qubit_count <= 2:
             # Corner case: only 1 or 2 qubits
             assert self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-            assert self.tdvp_index == 0
+            assert self.sweep_index == 0
 
             if self.qubit_count == 1:
                 self._evolve(0, dt=delta_time)
@@ -369,68 +369,68 @@ class MPSBackendImpl:
             self.sweep_complete()
 
         elif (
-            self.tdvp_index < self.qubit_count - 2
+            self.sweep_index < self.qubit_count - 2
             and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
         ):
             # Left-to-right swipe of TDVP
             self._evolve(
-                self.tdvp_index,
-                self.tdvp_index + 1,
+                self.sweep_index,
+                self.sweep_index + 1,
                 dt=delta_time / 2,
                 orth_center_right=True,
             )
             self.left_baths.append(
                 new_left_bath(
                     self.get_current_left_bath(),
-                    self.state.factors[self.tdvp_index],
-                    self.hamiltonian.factors[self.tdvp_index],
-                ).to(self.state.factors[self.tdvp_index + 1].device)
+                    self.state.factors[self.sweep_index],
+                    self.hamiltonian.factors[self.sweep_index],
+                ).to(self.state.factors[self.sweep_index + 1].device)
             )
-            self._evolve(self.tdvp_index + 1, dt=-delta_time / 2)
+            self._evolve(self.sweep_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
-            self.tdvp_index += 1
+            self.sweep_index += 1
 
         elif (
-            self.tdvp_index == self.qubit_count - 2
+            self.sweep_index == self.qubit_count - 2
             and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
         ):
             # Time-evolution of the rightmost 2 tensors
             self._evolve(
-                self.tdvp_index,
-                self.tdvp_index + 1,
+                self.sweep_index,
+                self.sweep_index + 1,
                 dt=delta_time,
                 orth_center_right=False,
             )
             self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
         elif (
-            1 <= self.tdvp_index and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
+            1 <= self.sweep_index and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
         ):
             # Right-to-left swipe of TDVP
-            assert self.tdvp_index <= self.qubit_count - 2
+            assert self.sweep_index <= self.qubit_count - 2
             self.right_baths.append(
                 new_right_bath(
                     self.get_current_right_bath(),
-                    self.state.factors[self.tdvp_index + 1],
-                    self.hamiltonian.factors[self.tdvp_index + 1],
-                ).to(self.state.factors[self.tdvp_index].device)
+                    self.state.factors[self.sweep_index + 1],
+                    self.hamiltonian.factors[self.sweep_index + 1],
+                ).to(self.state.factors[self.sweep_index].device)
             )
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
                 deallocate_tensor(self.right_baths[-2])
 
-            self._evolve(self.tdvp_index, dt=-delta_time / 2)
+            self._evolve(self.sweep_index, dt=-delta_time / 2)
             self.left_baths.pop()
 
             self._evolve(
-                self.tdvp_index - 1,
-                self.tdvp_index,
+                self.sweep_index - 1,
+                self.sweep_index,
                 dt=delta_time / 2,
                 orth_center_right=False,
             )
-            self.tdvp_index -= 1
+            self.sweep_index -= 1
 
-            if self.tdvp_index == 0:
+            if self.sweep_index == 0:
                 self.sweep_complete()
                 self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
 
@@ -720,27 +720,28 @@ class DMRGBackendImpl(MPSBackendImpl):
             return
 
         # perform one two-site energy minimization and update
-        assert self.state.orthogonality_center is not None
-        idx = self.state.orthogonality_center
+        idx = self.sweep_index
+        assert self.swipe_direction in (
+            SwipeDirection.LEFT_TO_RIGHT,
+            SwipeDirection.RIGHT_TO_LEFT,
+        ), "Unknown Swipe direction"
 
-        assert (
-            self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-            or self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
-        )
         if self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
             left_idx, right_idx = idx, idx + 1
         elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
             left_idx, right_idx = idx - 1, idx
 
+        orth_center_right = self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
         new_L, new_R, energy = minimize_energy_pair(
             state_factors=self.state.factors[left_idx : right_idx + 1],
             ham_factors=self.hamiltonian.factors[left_idx : right_idx + 1],
             baths=(self.left_baths[-1], self.right_baths[-1]),
-            orth_center_right=(self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT),
+            orth_center_right=orth_center_right,
             config=self.config,
             residual_tolerance=self.residual_tolerance,
         )
         self.state.factors[left_idx], self.state.factors[right_idx] = new_L, new_R
+        self.state.orthogonality_center = right_idx if orth_center_right else left_idx
         self.current_energy = energy
 
         # updating baths and orthogonality center
@@ -753,9 +754,9 @@ class DMRGBackendImpl(MPSBackendImpl):
                 ).to(self.state.factors[right_idx].device)
             )
             self.right_baths.pop()
-            self.state.orthogonality_center += 1
+            self.sweep_index += 1
 
-            if self.state.orthogonality_center == self.qubit_count - 1:
+            if self.sweep_index == self.qubit_count - 1:
                 self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
         elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
@@ -767,9 +768,9 @@ class DMRGBackendImpl(MPSBackendImpl):
                 ).to(self.state.factors[left_idx].device)
             )
             self.left_baths.pop()
-            self.state.orthogonality_center -= 1
+            self.sweep_index -= 1
 
-            if self.state.orthogonality_center == 0:
+            if self.sweep_index == 0:
                 self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
                 self.sweep_count += 1
                 self.sweep_complete()
@@ -778,14 +779,13 @@ class DMRGBackendImpl(MPSBackendImpl):
         # This marks the end of one full sweep: checking convergence
         if self.convergence_check(self.energy_tolerance):
             self.timestep_complete()
-        else:
+        elif self.sweep_count + 1 > self.max_sweeps:
             # not converged: restart a new sweep
-            if self.sweep_count + 1 > self.max_sweeps:
-                raise RuntimeError(
-                    f"DMRG did not converge after {self.max_sweeps} sweeps"
-                )
+            raise RuntimeError(f"DMRG did not converge after {self.max_sweeps} sweeps")
+        else:
             self.previous_energy = self.current_energy
 
+        assert self.sweep_index == 0
         assert self.state.orthogonality_center == 0
         assert self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
         self.current_energy = None
