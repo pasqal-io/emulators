@@ -177,18 +177,38 @@ def test_add_measurement_errors():
         bitstrings_with_measurement_errors = apply_measurement_errors(
             bitstrings, p_false_pos=p_false_pos, p_false_neg=p_false_neg
         )
-
         ps = {"p_false_pos": p_false_pos, "p_false_neg": p_false_neg}
 
-        # Counter is a subclass of dict.
-        # In Python 3.7+, dict iteration order is guaranteed to be the insertion order.
-        # Therefore, the loop in add_measurement_errors has a known order.
+        expected_calls = [
+            call("1", **ps),
+            call("0", **ps),
+            call("1", **ps),
+            call("0", **ps),
+            call("1", **ps),
+            call("0", **ps),
+            call("1", **ps),
+            call("0", **ps),
+            call("1", **ps),
+            call("0", **ps),
+            call("1", **ps),
+            call("0", **ps),
+            call("0", **ps),
+            call("1", **ps),
+            call("0", **ps),
+            call("1", **ps),
+            call("0", **ps),
+            call("1", **ps),
+            call("0", **ps),
+            call("1", **ps),
+            call("1", **ps),
+            call("1", **ps),
+            call("1", **ps),
+            call("1", **ps),
+        ]
 
-        readout_with_error_mock.assert_has_calls(
-            [call("1", **ps), call("0", **ps), call("1", **ps), call("0", **ps)] * 3
-            + [call("0", **ps), call("1", **ps), call("0", **ps), call("1", **ps)] * 2
-            + [call("1", **ps), call("1", **ps), call("1", **ps), call("1", **ps)] * 1
-        )
+        readout_with_error_mock.assert_has_calls(expected_calls)
+
+        assert readout_with_error_mock.call_count == len(expected_calls)
 
         assert bitstrings_with_measurement_errors == Counter(
             {"1011": 1, "0001": 2, "1010": 1, "0101": 1, "1111": 1}
