@@ -179,33 +179,28 @@ def test_add_measurement_errors():
         )
         ps = {"p_false_pos": p_false_pos, "p_false_neg": p_false_neg}
 
-        expected_calls = [
-            call("1", **ps),
-            call("0", **ps),
-            call("1", **ps),
-            call("0", **ps),
-            call("1", **ps),
-            call("0", **ps),
-            call("1", **ps),
-            call("0", **ps),
-            call("1", **ps),
-            call("0", **ps),
-            call("1", **ps),
-            call("0", **ps),
-            call("0", **ps),
-            call("1", **ps),
-            call("0", **ps),
-            call("1", **ps),
-            call("0", **ps),
-            call("1", **ps),
-            call("0", **ps),
-            call("1", **ps),
-            call("1", **ps),
-            call("1", **ps),
-            call("1", **ps),
-            call("1", **ps),
-        ]
-
+        expected_calls = (
+            [
+                call("1", **ps),
+                call("0", **ps),
+                call("1", **ps),
+                call("0", **ps),
+            ]
+            * 3
+            + [
+                call("0", **ps),
+                call("1", **ps),
+                call("0", **ps),
+                call("1", **ps),
+            ]
+            * 2
+            + [
+                call("1", **ps),
+                call("1", **ps),
+                call("1", **ps),
+                call("1", **ps),
+            ]
+        )
         readout_with_error_mock.assert_has_calls(expected_calls)
 
         assert readout_with_error_mock.call_count == len(expected_calls)
