@@ -153,7 +153,7 @@ class SVBackendImpl(BaseSVBackendImpl):
 
     def __init__(self, config: SVConfig, pulser_data: PulserData):
         """
-        For running sequences without noise. The state will evolve accoring
+        For running sequences without noise. The state will evolve according
         to e^(-iH t)
 
         Args:
