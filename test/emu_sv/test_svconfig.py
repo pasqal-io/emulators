@@ -21,41 +21,6 @@ sv_params = {
     "log_file": None,
 }
 
-# NOTE: check what noise models are supported
-# def test_unsupported_noise() -> None:
-#     SVConfig(
-#         noise_model=NoiseModel(
-#             runs=1,  # TODO: connect this with MCArlo
-#             samples_per_run=1,  # TODO: connect this with MCarlo or ignored
-#             laser_waist=5,
-#             amp_sigma=0.1,
-#             temperature=10.0,
-#             with_leakage=True,
-#             eff_noise_rates=(0.1,),
-#             eff_noise_opers=(torch.randn(3, 3, dtype=torch.float64),),
-#             hyperfine_dephasing_rate=1.5,
-#         )
-#     )
-
-#     with pytest.raises(NotImplementedError) as exc:
-#         SVConfig(
-#             noise_model=NoiseModel(
-#                 runs=1,  # TODO: connect this with MCArlo
-#                 samples_per_run=1,  # TODO: connect this with MCarlo or ignored
-#                 state_prep_error=0.1,
-#                 p_false_pos=0.1,
-#                 p_false_neg=0.15,
-#                 laser_waist=5,
-#                 amp_sigma=0.1,
-#                 temperature=10.0,
-#                 with_leakage=True,
-#                 eff_noise_rates=(0.1,),
-#                 eff_noise_opers=(torch.randn(3, 3, dtype=torch.float64),),
-#                 hyperfine_dephasing_rate=1.5,
-#             )
-#         )
-#     assert str(exc.value) == "SPAM errors are currently not supported in emu-sv."
-
 
 def test_default_SVConfig_ctr() -> None:
     sv_config = SVConfig()
