@@ -5,6 +5,7 @@ from .math.krylov_exp import krylov_exp, DEFAULT_MAX_KRYLOV_DIM
 from .jump_lindblad_operators import compute_noise_from_lindbladians
 from .math.matmul import matmul_2x2_with_batched
 from .aggregators import AggregationType, aggregate
+from .utils import apply_measurement_errors
 
 __all__ = [
     "__version__",
@@ -18,6 +19,7 @@ __all__ = [
     "HamiltonianType",
     "DEFAULT_MAX_KRYLOV_DIM",
     "DEVICE_COUNT",
+    "apply_measurement_errors",
 ]
 
 __version__ = "2.2.1"
