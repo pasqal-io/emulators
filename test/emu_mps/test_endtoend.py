@@ -537,8 +537,8 @@ def test_end_to_end_spontaneous_emission() -> None:
         # the right baths administration happens properly when a quantum jump occurs.
 
         assert len(impl.right_baths) in [
-            impl.state.num_sites - impl.tdvp_index,
-            impl.state.num_sites - impl.tdvp_index - 1,
+            impl.state.num_sites - impl.sweep_index,
+            impl.state.num_sites - impl.sweep_index - 1,
         ]
 
         expected_right_baths = right_baths(
