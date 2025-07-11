@@ -36,6 +36,7 @@ from test.utils_testing import (
 )
 
 seed = 1337
+device = "cpu"  # "cuda"
 
 
 def create_antiferromagnetic_mps(num_qubits: int):
@@ -346,7 +347,9 @@ def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     with patch(
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
-        pick_well_prepared_qubits_mock.return_value = [True, True, True, False]
+        pick_well_prepared_qubits_mock.return_value = torch.logical_not(
+            torch.tensor([True, True, True, False])
+        )
         result = simulate_line(4, state_prep_error=0.1)
         final_state = result.state[-1]
         pick_well_prepared_qubits_mock.assert_called_with(0.1, 4)
@@ -367,7 +370,9 @@ def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     with patch(
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
-        pick_well_prepared_qubits_mock.return_value = [True, False, True, True]
+        pick_well_prepared_qubits_mock.return_value = torch.logical_not(
+            torch.tensor([True, False, True, True])
+        )
         result = simulate_line(4, state_prep_error=0.1)
         final_state = result.state[-1]
 
@@ -381,7 +386,9 @@ def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     with patch(
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
-        pick_well_prepared_qubits_mock.return_value = [False, True, True, False]
+        pick_well_prepared_qubits_mock.return_value = torch.logical_not(
+            torch.tensor([False, True, True, False])
+        )
         result = simulate_line(4, state_prep_error=0.1)
         final_state = result.state[-1]
 
@@ -392,7 +399,9 @@ def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
         "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
     ) as pick_well_prepared_qubits_mock:
         with pytest.raises(ValueError) as exception_info:
-            pick_well_prepared_qubits_mock.return_value = [False, False, True, False]
+            pick_well_prepared_qubits_mock.return_value = torch.logical_not(
+                torch.tensor([False, False, True, False])
+            )
             result = simulate_line(4, state_prep_error=0.1)
             final_state = result.state[-1]
 

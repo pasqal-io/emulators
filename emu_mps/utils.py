@@ -109,7 +109,7 @@ def assign_devices(tensors: List[torch.Tensor], num_gpus_to_use: int) -> None:
 
 
 def extended_mps_factors(
-    mps_factors: list[torch.Tensor], where: list[bool]
+    mps_factors: list[torch.Tensor], where: torch.Tensor
 ) -> list[torch.Tensor]:
     """
     Given a valid list of MPS factors, accounting for qubits marked as `True` in `where`,
@@ -147,7 +147,7 @@ def extended_mps_factors(
 
 
 def extended_mpo_factors(
-    mpo_factors: list[torch.Tensor], where: list[bool]
+    mpo_factors: list[torch.Tensor], where: torch.Tensor
 ) -> list[torch.Tensor]:
     """
     Given a valid list of MPO factors, accounting for qubits marked as `True` in `where`,
@@ -182,7 +182,7 @@ def extended_mpo_factors(
 
 
 def get_extended_site_index(
-    where: list[bool], desired_index: Optional[int]
+    where: torch.Tensor, desired_index: Optional[int]
 ) -> Optional[int]:
     """
     Returns the index in `where` that has `desired_index` preceding True elements.

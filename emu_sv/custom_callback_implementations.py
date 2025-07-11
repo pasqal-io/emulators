@@ -16,6 +16,27 @@ from emu_sv.lindblad_operator import RydbergLindbladian
 dtype = torch.float64
 
 
+def choose_qubit_occupation_impl(
+    self: Occupation,
+    *,
+    config: EmulationConfig,
+    state: StateVector | DensityMatrix,
+    hamiltonian: RydbergHamiltonian | RydbergLindbladian,
+) -> torch.Tensor:
+    """Choose the appropriate implementation of the qubit occupation observable
+    based on the type of state (StateVector or DensityMatrix)."""
+    if isinstance(state, StateVector):
+        return qubit_occupation_sv_impl(
+            self, config=config, state=state, hamiltonian=hamiltonian  # type: ignore[arg-type]
+        )
+    elif isinstance(state, DensityMatrix):
+        return qubit_occupation_sv_den_mat_impl(
+            self, config=config, state=state, hamiltonian=hamiltonian  # type: ignore[arg-type]
+        )
+    else:
+        raise TypeError("Unsupported state type for qubit occupation observable.")
+
+
 def qubit_occupation_sv_impl(
     self: Occupation,
     *,
@@ -61,6 +82,27 @@ def qubit_occupation_sv_den_mat_impl(
         state_tensor = diag_state_tensor.view(2**i, 2, 2 ** (nqubits - i - 1))[:, 1, :]
         occupation[i] = state_tensor.sum().real
     return occupation.cpu()
+
+
+def choose_correlation_matrix_impl(
+    self: CorrelationMatrix,
+    *,
+    config: EmulationConfig,
+    state: StateVector | DensityMatrix,
+    hamiltonian: RydbergHamiltonian | RydbergLindbladian,
+) -> torch.Tensor:
+    """Choose the appropriate implementation of the correlation matrix observable
+    based on the type of state (StateVector or DensityMatrix)."""
+    if isinstance(state, StateVector):
+        return correlation_matrix_sv_impl(
+            self, config=config, state=state, hamiltonian=hamiltonian  # type: ignore[arg-type]
+        )
+    elif isinstance(state, DensityMatrix):
+        return correlation_matrix_sv_den_mat_impl(
+            self, config=config, state=state, hamiltonian=hamiltonian  # type: ignore[arg-type]
+        )
+    else:
+        raise TypeError("Unsupported state type for correlation matrix observable.")
 
 
 def correlation_matrix_sv_impl(
@@ -117,6 +159,27 @@ def correlation_matrix_sv_den_mat_impl(
     return correlation.cpu()
 
 
+def choose_energy_variance_impl(
+    self: EnergyVariance,
+    *,
+    config: EmulationConfig,
+    state: StateVector | DensityMatrix,
+    hamiltonian: RydbergHamiltonian | RydbergLindbladian,
+) -> torch.Tensor:
+    """Choose the appropriate implementation of the energy variance observable
+    based on the type of state (StateVector or DensityMatrix)."""
+    if isinstance(state, StateVector):
+        return energy_variance_sv_impl(
+            self, config=config, state=state, hamiltonian=hamiltonian  # type: ignore[arg-type]
+        )
+    elif isinstance(state, DensityMatrix):
+        return energy_variance_sv_den_mat_impl(
+            self, config=config, state=state, hamiltonian=hamiltonian  # type: ignore[arg-type]
+        )
+    else:
+        raise TypeError("Unsupported state type for energy variance observable.")
+
+
 def energy_variance_sv_impl(
     self: EnergyVariance,
     *,
@@ -152,6 +215,27 @@ def energy_variance_sv_den_mat_impl(
     )  # tr(ρH²)
     en_var: torch.Tensor = h_squared_dense_mat - hamiltonian.expect(state) ** 2  # tr(ρH)²
     return en_var.cpu()
+
+
+def choose_energy_second_moment_impl(
+    self: EnergySecondMoment,
+    *,
+    config: EmulationConfig,
+    state: StateVector | DensityMatrix,
+    hamiltonian: RydbergHamiltonian | RydbergLindbladian,
+) -> torch.Tensor:
+    """Choose the appropriate implementation of the second moment of energy observable
+    based on the type of state (StateVector or DensityMatrix)."""
+    if isinstance(state, StateVector):
+        return energy_second_moment_sv_impl(
+            self, config=config, state=state, hamiltonian=hamiltonian  # type: ignore[arg-type]
+        )
+    elif isinstance(state, DensityMatrix):
+        return energy_second_moment_den_mat_impl(
+            self, config=config, state=state, hamiltonian=hamiltonian  # type: ignore[arg-type]
+        )
+    else:
+        raise TypeError("Unsupported state type for second moment of energy observable.")
 
 
 def energy_second_moment_sv_impl(
