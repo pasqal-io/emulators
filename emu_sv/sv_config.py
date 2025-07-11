@@ -6,14 +6,10 @@ from types import MethodType
 from typing import Any, ClassVar
 
 from emu_sv.custom_callback_implementations import (
-    correlation_matrix_sv_impl,
-    correlation_matrix_sv_den_mat_impl,
-    energy_second_moment_sv_impl,
-    energy_second_moment_den_mat_impl,
-    energy_variance_sv_impl,
-    energy_variance_sv_den_mat_impl,
-    qubit_occupation_sv_impl,
-    qubit_occupation_sv_den_mat_impl,
+    choose_correlation_matrix_impl,
+    choose_energy_second_moment_impl,
+    choose_energy_variance_impl,
+    choose_qubit_occupation_impl,
 )
 
 from pulser.backend import (
@@ -24,8 +20,6 @@ from pulser.backend import (
     Occupation,
     BitStrings,
 )
-
-from emu_base.pulser_adapter import _NON_LINDBLADIAN_NOISE
 
 
 class SVConfig(EmulationConfig):
@@ -121,47 +115,28 @@ class SVConfig(EmulationConfig):
 
     def monkeypatch_observables(self) -> None:
         obs_list = []
-        use_state_vector = set(self.noise_model.noise_types).issubset(
-            _NON_LINDBLADIAN_NOISE
-        )
 
         for _, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
 
             if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    (
-                        qubit_occupation_sv_impl
-                        if use_state_vector
-                        else qubit_occupation_sv_den_mat_impl
-                    ),
+                    (choose_qubit_occupation_impl),
                     obs_copy,
                 )
             if isinstance(obs, CorrelationMatrix):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    (
-                        correlation_matrix_sv_impl
-                        if use_state_vector
-                        else correlation_matrix_sv_den_mat_impl
-                    ),
+                    (choose_correlation_matrix_impl),
                     obs_copy,
                 )
             if isinstance(obs, EnergyVariance):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    (
-                        energy_variance_sv_impl
-                        if use_state_vector
-                        else energy_variance_sv_den_mat_impl
-                    ),
+                    (choose_energy_variance_impl),
                     obs_copy,
                 )
             elif isinstance(obs, EnergySecondMoment):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    (
-                        energy_second_moment_sv_impl
-                        if use_state_vector
-                        else energy_second_moment_den_mat_impl
-                    ),
+                    (choose_energy_second_moment_impl),
                     obs_copy,
                 )
             obs_list.append(obs_copy)
