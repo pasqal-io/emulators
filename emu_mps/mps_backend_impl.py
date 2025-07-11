@@ -702,7 +702,7 @@ class DMRGBackendImpl(MPSBackendImpl):
     ):
         super().__init__(mps_config, pulser_data)
         self.init()
-        self.state.orthogonality_center = 0
+        self.state.orthogonalize(0)
         self.previous_energy: Optional[float] = None
         self.current_energy: Optional[float] = None
         self.sweep_count: int = 0
