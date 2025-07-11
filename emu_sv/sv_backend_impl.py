@@ -107,7 +107,14 @@ class BaseSVBackendImpl:
                 f"{self._config.initial_state.n_qudits} and the sequence has {self.nqubits}"
             )
         self.init_dark_qubits()
-        # NOTE: initial_state and state_error_prep are not supported at the same time
+
+        if (
+            self._config.initial_state is not None
+            and self._config.noise_model.state_prep_error > 0.0
+        ):
+            raise NotImplementedError(
+                "Initial state and state preparation error can not be together."
+            )
 
     def init_dark_qubits(self) -> None:
         if self._config.noise_model.state_prep_error > 0.0:
