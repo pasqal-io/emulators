@@ -1123,17 +1123,29 @@ def test_supported_noise_types(
     assert set(match.groups()) == unsupported_noises
 
 
-def test_get_target_times_with_obs_eval_time():
+@pytest.mark.parametrize("with_modulation", [True, False])
+def test_get_target_times_with_obs_eval_time(with_modulation):
     duration = 123
     dt = 3
-    sequence.get_duration.return_value = duration
+
     obs = MagicMock(spec=Observable, evaluation_times=[0.5, 0.9])
-    config = EmulationConfig(observables=[obs], interaction_cutoff=0.0)
 
-    target_times = _get_target_times(sequence, config, dt)
+    config = EmulationConfig(
+        observables=[obs], interaction_cutoff=0.0, with_modulation=with_modulation
+    )
 
-    expected_set = set(range(0, duration + 1, dt)) | {62, 111, 123}
-    expected = list(expected_set)
-    expected.sort()
+    with patch.object(sequence, "get_duration") as mock_get_duration:
 
-    assert all([a == b for a, b in zip(target_times, expected)])
+        mock_get_duration.return_value = duration
+
+        target_times = _get_target_times(sequence, config, dt)
+
+        expected_set = set(range(0, duration + 1, dt))
+        expected_set |= {62, 111, 123}  # evaluation times
+
+        expected = sorted(list(expected_set))
+
+        assert target_times == expected
+
+        # get_duration called with the correct 'include_fall_time'
+        mock_get_duration.assert_called_once_with(include_fall_time=with_modulation)
