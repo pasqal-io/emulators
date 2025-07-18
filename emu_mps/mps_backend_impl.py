@@ -26,7 +26,7 @@ from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
-from emu_base.noise import pick_well_prepared_qubits
+from emu_base.noise import pick_dark_qubits
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 import emu_mps.optimatrix as optimat
 from emu_mps.solver_utils import (
@@ -194,7 +194,7 @@ class MPSBackendImpl:
         # has_state_preparation_error
         if self.config.noise_model.state_prep_error > 0.0:
             self.well_prepared_qubits_filter = torch.logical_not(
-                pick_well_prepared_qubits(
+                pick_dark_qubits(
                     self.config.noise_model.state_prep_error, self.qubit_count
                 )
             )

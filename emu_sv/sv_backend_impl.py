@@ -10,7 +10,7 @@ from resource import RUSAGE_SELF, getrusage
 
 from pulser.backend import Results, Observable, State, EmulationConfig
 from emu_base import PulserData
-from emu_base.noise import pick_well_prepared_qubits
+from emu_base.noise import pick_dark_qubits
 
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
@@ -118,7 +118,7 @@ class BaseSVBackendImpl:
 
     def init_dark_qubits(self) -> None:
         if self._config.noise_model.state_prep_error > 0.0:
-            self.well_prepared_qubits_filter = pick_well_prepared_qubits(
+            self.well_prepared_qubits_filter = pick_dark_qubits(
                 self._config.noise_model.state_prep_error, self.nqubits
             )
         else:

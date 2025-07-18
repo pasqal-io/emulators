@@ -16,6 +16,26 @@ from emu_sv.lindblad_operator import RydbergLindbladian
 dtype = torch.float64
 
 
+# def choose(state_vector_version, density_matrix_version):
+#     def result(self, *, state: StateVector | DensityMatrix, **kwargs):
+#         if isinstance(state, StateVector):
+#             return state_vector_version(self, state=state, **kwargs)
+#         elif isinstance(state, DensityMatrix):
+#             return density_matrix_version(self, state=state, **kwargs)
+#         else:
+#             raise Exception("blabla")
+
+#     return result
+
+
+# choose_energy_variance_impl = choose(
+#     energy_variance_sv_impl, energy_variance_sv_den_mat_impl
+# )
+# choose_correlation_matrix_impl = choose(
+#     correlation_matrix_sv_impl, correlation_matrix_sv_den_mat_impl
+# )
+
+
 def choose_qubit_occupation_impl(
     self: Occupation,
     *,

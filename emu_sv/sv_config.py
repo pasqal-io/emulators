@@ -121,22 +121,22 @@ class SVConfig(EmulationConfig):
 
             if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    (choose_qubit_occupation_impl),
+                    choose_qubit_occupation_impl,
                     obs_copy,
                 )
             if isinstance(obs, CorrelationMatrix):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    (choose_correlation_matrix_impl),
+                    choose_correlation_matrix_impl,
                     obs_copy,
                 )
             if isinstance(obs, EnergyVariance):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    (choose_energy_variance_impl),
+                    choose_energy_variance_impl,
                     obs_copy,
                 )
             elif isinstance(obs, EnergySecondMoment):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    (choose_energy_second_moment_impl),
+                    choose_energy_second_moment_impl,
                     obs_copy,
                 )
             obs_list.append(obs_copy)

@@ -344,33 +344,27 @@ def test_end_to_end_afm_ring() -> None:
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     torch.manual_seed(seed)
 
-    with patch(
-        "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
-    ) as pick_well_prepared_qubits_mock:
-        pick_well_prepared_qubits_mock.return_value = torch.logical_not(
+    with patch("emu_mps.mps_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
+        pick_dark_qubits_mock.return_value = torch.logical_not(
             torch.tensor([True, True, True, False])
         )
         result = simulate_line(4, state_prep_error=0.1)
         final_state = result.state[-1]
-        pick_well_prepared_qubits_mock.assert_called_with(0.1, 4)
+        pick_dark_qubits_mock.assert_called_with(0.1, 4)
 
     assert get_proba(final_state, "1110") == approx(0.56, abs=1e-2)
     assert get_proba(final_state, "1010") == approx(0.43, abs=1e-2)
 
     # A dark qubit at the end of the line gives the same result as a line with one less qubit.
-    with patch(
-        "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
-    ) as pick_well_prepared_qubits_mock:
+    with patch("emu_mps.mps_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
         result = simulate_line(3)
         final_state = result.state[-1]
-        pick_well_prepared_qubits_mock.assert_not_called()
+        pick_dark_qubits_mock.assert_not_called()
         assert get_proba(final_state, "111") == approx(0.56, abs=1e-2)
         assert get_proba(final_state, "101") == approx(0.43, abs=1e-2)
 
-    with patch(
-        "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
-    ) as pick_well_prepared_qubits_mock:
-        pick_well_prepared_qubits_mock.return_value = torch.logical_not(
+    with patch("emu_mps.mps_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
+        pick_dark_qubits_mock.return_value = torch.logical_not(
             torch.tensor([True, False, True, True])
         )
         result = simulate_line(4, state_prep_error=0.1)
@@ -383,10 +377,8 @@ def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     final_state = result.state[-1]
     assert get_proba(final_state, "11") == approx(0.95, abs=1e-2)
 
-    with patch(
-        "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
-    ) as pick_well_prepared_qubits_mock:
-        pick_well_prepared_qubits_mock.return_value = torch.logical_not(
+    with patch("emu_mps.mps_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
+        pick_dark_qubits_mock.return_value = torch.logical_not(
             torch.tensor([False, True, True, False])
         )
         result = simulate_line(4, state_prep_error=0.1)
@@ -395,11 +387,9 @@ def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     assert get_proba(final_state, "0110") == approx(0.95, abs=1e-2)
 
     # FIXME: When n-1 qubits are dark, the simulation fails!
-    with patch(
-        "emu_mps.mps_backend_impl.pick_well_prepared_qubits"
-    ) as pick_well_prepared_qubits_mock:
+    with patch("emu_mps.mps_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
         with pytest.raises(ValueError) as exception_info:
-            pick_well_prepared_qubits_mock.return_value = torch.logical_not(
+            pick_dark_qubits_mock.return_value = torch.logical_not(
                 torch.tensor([False, False, True, False])
             )
             result = simulate_line(4, state_prep_error=0.1)

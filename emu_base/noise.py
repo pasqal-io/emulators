@@ -1,7 +1,7 @@
 import torch
 
 
-def pick_well_prepared_qubits(eta: float, n: int) -> torch.Tensor:
+def pick_dark_qubits(eta: float, n: int) -> torch.Tensor:
     """
     Randomly pick n booleans such that ℙ(True) = eta
 
