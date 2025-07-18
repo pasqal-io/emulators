@@ -17,7 +17,7 @@ gpu = False if device == "cpu" else True
 
 def test_creating_state() -> None:
     # test constructor
-    single_qubit_state = StateVector(torch.tensor([factor] * 2, dtype=dtype))
+    single_qubit_state = StateVector(torch.tensor([factor] * 2, dtype=dtype), gpu=gpu)
     assert single_qubit_state.n_qudits == 1
     assert math.isclose(1.0, single_qubit_state.norm(), rel_tol=1e-5)
 
@@ -31,16 +31,16 @@ def test_creating_state() -> None:
     # test make()
     nqubits = 3
     state = StateVector.make(num_sites=nqubits)  # create |00..0>
-    zero_state_tensor = torch.tensor([0] * 2**nqubits, dtype=dtype)
+    zero_state_tensor = torch.tensor([0] * 2**nqubits, dtype=dtype, device=device)
     zero_state_tensor[0] = 1
     zero_state = StateVector(zero_state_tensor)
     assert state.overlap(zero_state) == 1.0
 
     # test zero()
     nqubits = 3
-    state = StateVector.zero(num_sites=nqubits, gpu=False)  # create |00..0>
+    state = StateVector.zero(num_sites=nqubits, gpu=gpu)  # create |00..0>
     tensor = state.vector
-    expected = torch.tensor([0] * 2**nqubits, dtype=dtype)
+    expected = torch.tensor([0] * 2**nqubits, dtype=dtype, device=device)
     assert torch.allclose(expected, tensor)
 
 
@@ -105,7 +105,7 @@ def test_sample() -> None:
     torch.manual_seed(seed)
 
     tensor = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
-    state = StateVector(tensor, gpu=False)
+    state = StateVector(tensor, gpu=gpu)
     sampling = state.sample(num_shots=1000)
 
     assert sampling["111"] == 485

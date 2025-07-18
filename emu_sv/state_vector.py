@@ -8,7 +8,7 @@ import torch
 
 from emu_sv.utils import index_to_bitstring
 
-from emu_base import DEVICE_COUNT
+from emu_base import DEVICE_COUNT, apply_measurement_errors
 from pulser.backend import State
 from pulser.backend.state import Eigenstate
 
@@ -155,7 +155,6 @@ class StateVector(State[complex, torch.Tensor]):
         Returns:
             the measured bitstrings, by count
         """
-        assert p_false_neg == p_false_pos == 0.0, "Error rates must be 0.0"
 
         probabilities = torch.abs(self.vector) ** 2
 
@@ -166,7 +165,12 @@ class StateVector(State[complex, torch.Tensor]):
             [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes]
         )
 
-        # NOTE: false positives and negatives
+        if p_false_neg > 0 or p_false_pos > 0:
+            counts = apply_measurement_errors(
+                counts,
+                p_false_pos=p_false_pos,
+                p_false_neg=p_false_neg,
+            )
         return counts
 
     def __add__(self, other: State) -> StateVector:

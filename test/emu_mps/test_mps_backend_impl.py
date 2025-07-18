@@ -1,4 +1,9 @@
-from emu_mps.mps_backend_impl import MPSBackendImpl, NoisyMPSBackendImpl
+from emu_mps.mps_backend_impl import (
+    MPSBackendImpl,
+    NoisyMPSBackendImpl,
+    DMRGBackendImpl,
+    SwipeDirection,
+)
 from emu_mps.mps_backend_impl import (
     permute_atom_order,
     permute_bitstrings,
@@ -58,6 +63,22 @@ def create_noisy_victim(dt=10, noise_model=None):
     )
     victim.has_lindblad_noise = True
     return victim
+
+
+def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
+    config = MPSConfig(dt=dt, optimize_qubit_ordering=False)
+    mock_pulser_data = MagicMock()
+    mock_pulser_data.qubit_count = QUBIT_COUNT
+    mock_pulser_data.qubit_ids = tuple([i for i in range(QUBIT_COUNT)])
+    mock_pulser_data.full_interaction_matrix = torch.eye(QUBIT_COUNT)
+    mock_pulser_data.masked_interaction_matrix = torch.eye(QUBIT_COUNT)
+    mock_pulser_data.slm_end_time = 10.0
+
+    dmrg_obj = constructor(config, mock_pulser_data)
+
+    assert dmrg_obj.qubit_count == QUBIT_COUNT
+    assert dmrg_obj.current_time == 0.0
+    return dmrg_obj
 
 
 @patch("emu_mps.mps_backend_impl.pick_well_prepared_qubits")
@@ -380,3 +401,91 @@ def test_permute_results(list: bool) -> None:
         torch.equal(actual, expe)
         for actual, expe in zip(mock_results._results[2], expected_corr)
     )
+
+
+@patch("emu_mps.mps_backend_impl.new_left_bath")
+@patch("emu_mps.mps_backend_impl.minimize_energy_pair")
+@patch("emu_mps.mps_backend_impl.update_H")
+@patch("emu_mps.mps_backend_impl.make_H")
+@patch("emu_mps.mps_backend_impl.right_baths")
+def test_progress_at_random_middle_mpssite(
+    mock_right_baths,
+    mock_make_H,
+    mock_update_H,
+    mock_minimize,
+    mock_new_left_bath,
+):
+    mock_make_H.return_value = MagicMock(factors=[None] * QUBIT_COUNT)
+    mock_update_H.return_value = None
+    mock_right_baths.return_value = [torch.zeros(1, 1, 1)] * (QUBIT_COUNT - 1)
+    mock_new_left_bath.return_value = torch.zeros(1)
+
+    dmrg = create_dmrg_mock()
+    dmrg.timestep_index = 0
+    dmrg.timestep_count = 2
+
+    dmrg.hamiltonian = MagicMock(factors=[None] * QUBIT_COUNT)
+    dmrg.state = MagicMock(factors=[None] * QUBIT_COUNT, orthogonality_center=1)
+    dmrg.sweep_index = dmrg.state.orthogonality_center
+
+    # at the 2nd MPS site (orthogonality_center = 1), the left bath must be a list of 1 element
+    # while the right bath being a list of 3 elements
+    dmrg.left_baths = [torch.zeros(1)]
+    dmrg.right_baths = [torch.zeros(1)] * 3
+
+    new_left_factor = torch.tensor([[1.0]])
+    new_right_factor = torch.tensor([[2.0]])
+    current_energy = 2.3
+    mock_minimize.return_value = (new_left_factor, new_right_factor, current_energy)
+
+    dmrg.progress()
+
+    mock_minimize.assert_called_once()
+    assert dmrg.current_energy == current_energy
+    assert dmrg.sweep_index == 2
+    assert dmrg.state.orthogonality_center == 2
+    assert len(dmrg.left_baths) == 2
+    assert len(dmrg.right_baths) == 2
+    assert dmrg.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+
+
+@patch("emu_mps.mps_backend_impl.new_left_bath")
+@patch("emu_mps.mps_backend_impl.minimize_energy_pair")
+@patch("emu_mps.mps_backend_impl.update_H")
+@patch("emu_mps.mps_backend_impl.make_H")
+@patch("emu_mps.mps_backend_impl.right_baths")
+def test_progress_at_right_mps_boundary(
+    mock_right_baths, mock_make_H, mock_update_H, mock_minimize, mock_new_left_bath
+):
+    mock_make_H.return_value = MagicMock(factors=[None] * QUBIT_COUNT)
+    mock_update_H.return_value = None
+    mock_right_baths.return_value = [torch.zeros(1, 1, 1)] * (QUBIT_COUNT - 1)
+    mock_new_left_bath.return_value = torch.zeros(1)
+
+    dmrg = create_dmrg_mock()
+    dmrg.timestep_index = 0
+    dmrg.timestep_count = 2
+
+    dmrg.state = MagicMock(factors=[None] * QUBIT_COUNT, orthogonality_center=3)
+    dmrg.sweep_index = dmrg.state.orthogonality_center
+
+    dmrg.hamiltonian = MagicMock(factors=[None] * QUBIT_COUNT)
+    # at the 4th MPS site (orthogonality_center = 3), the left bath must be a list of 3 elements
+    # while the right bath being a list of a single element
+    dmrg.left_baths = [torch.zeros(1)] * 3
+    dmrg.right_baths = [torch.zeros(1)]
+
+    new_left_factor = torch.tensor([[1.0]])
+    new_right_factor = torch.tensor([[2.0]])
+    current_energy = 0.5
+    mock_minimize.return_value = (new_left_factor, new_right_factor, current_energy)
+
+    dmrg.progress()
+
+    mock_minimize.assert_called_once()
+    assert dmrg.current_energy == pytest.approx(0.5)
+    assert dmrg.sweep_index == 4
+    assert dmrg.state.orthogonality_center == 4
+    assert len(dmrg.left_baths) == 4
+    assert len(dmrg.right_baths) == 0
+    assert dmrg.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
