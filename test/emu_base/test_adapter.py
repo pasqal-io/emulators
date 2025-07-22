@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import re
 
-from pulser.backend import EmulationConfig
+from pulser.backend import EmulationConfig, Observable
 from pulser.noise_model import NoiseModel
 from pulser import Register
 from pulser.math import AbstractArray
@@ -17,6 +17,7 @@ from emu_base.pulser_adapter import (
     _get_qubit_positions,
     _get_amp_factors,
     _get_delta_offset,
+    _get_target_times,
     PulserData,
     HamiltonianType,
 )
@@ -31,6 +32,8 @@ sequence.register.qubits = {
     key: AbstractArray(torch.tensor([i, 0.0, 0.0], dtype=torch.float64))
     for i, key in enumerate(TEST_QUBIT_IDS)
 }
+
+mock_observable = MagicMock(spec=Observable, evaluation_times=None)
 
 expected_amp_factors = {
     0: torch.tensor([1.5, 1.0, 0.4]),
@@ -937,6 +940,7 @@ def test_parsed_sequence(mock_pulser_sample):
     ops = _get_all_lindblad_noise_operators(noise_model)
 
     config = EmulationConfig(
+        observables=[mock_observable],
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
@@ -1026,6 +1030,7 @@ def test_laser_waist(mock_pulser_sample, mock_qubit_positions):
     )
 
     config = EmulationConfig(
+        observables=[mock_observable],
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
@@ -1088,6 +1093,7 @@ def test_supported_noise_types(
     )
 
     config = EmulationConfig(
+        observables=[mock_observable],
         noise_model=noise_model,
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
@@ -1115,3 +1121,31 @@ def test_supported_noise_types(
     # regex to the rescue
     match = re.match(regex_string, str(exc.value))
     assert set(match.groups()) == unsupported_noises
+
+
+@pytest.mark.parametrize("with_modulation", [True, False])
+def test_get_target_times_with_obs_eval_time(with_modulation):
+    duration = 123
+    dt = 3
+
+    obs = MagicMock(spec=Observable, evaluation_times=[0.5, 0.9])
+
+    config = EmulationConfig(
+        observables=[obs], interaction_cutoff=0.0, with_modulation=with_modulation
+    )
+
+    with patch.object(sequence, "get_duration") as mock_get_duration:
+
+        mock_get_duration.return_value = duration
+
+        target_times = _get_target_times(sequence, config, dt)
+
+        expected_set = set(range(0, duration + 1, dt))
+        expected_set |= {62, 111, 123}  # evaluation times
+
+        expected = sorted(list(expected_set))
+
+        assert target_times == expected
+
+        # get_duration called with the correct 'include_fall_time'
+        mock_get_duration.assert_called_once_with(include_fall_time=with_modulation)
