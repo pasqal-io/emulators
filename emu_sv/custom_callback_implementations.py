@@ -1,5 +1,3 @@
-from typing import Callable
-from pyparsing import Any
 import torch
 
 from pulser.backend import (
@@ -16,25 +14,6 @@ from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 
 dtype = torch.float64
-
-
-def choose(
-    state_vector_version: Callable,
-    density_matrix_version: Callable,
-) -> Callable:
-    """Returns the observable result function that chooses the correct
-    implementation based on the type of state (StateVector or DensityMatrix).
-    """
-
-    def result(self: Any, *, state: StateVector | DensityMatrix, **kwargs: Any) -> Any:
-        if isinstance(state, StateVector):
-            return state_vector_version(self, state=state, **kwargs)
-        elif isinstance(state, DensityMatrix):
-            return density_matrix_version(self, state=state, **kwargs)
-        else:
-            raise TypeError(f"Unsupported state: {type(state).__name__}")
-
-    return result
 
 
 def qubit_occupation_sv_impl(

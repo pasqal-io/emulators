@@ -5,8 +5,9 @@ import sys
 from types import MethodType
 from typing import Any, ClassVar
 
+from emu_sv.utils import choose
+
 from emu_sv.custom_callback_implementations import (
-    choose,
     qubit_occupation_sv_impl,
     qubit_occupation_sv_den_mat_impl,
     correlation_matrix_sv_impl,
