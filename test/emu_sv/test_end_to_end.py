@@ -509,6 +509,106 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     assert torch.allclose(result.state[-1].matrix, expected_state, atol=1e-4)
 
 
+def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+    natoms = 4
+    dt = 10
+    state_prep_error = 0.00001
+    times = [1.0]
+    total_time = 250  # bitstring at the end: "1111":1000
+    pulse = pulser.Pulse.ConstantAmplitude(
+        4 * 3.14151, pulser.waveforms.ConstantWaveform(total_time, 0.0), 0.0
+    )
+
+    reg = pulser.Register.rectangle(1, natoms, spacing=100, prefix="q")
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(pulse, "ising_global")
+    noise_model = pulser.noise_model.NoiseModel(
+        state_prep_error=state_prep_error, runs=1, samples_per_run=1
+    )
+    sv_config = SVConfig(
+        dt=dt,
+        krylov_tolerance=1e-5,
+        observables=[
+            StateResult(evaluation_times=times),
+            BitStrings(evaluation_times=times, num_shots=1000),
+            Occupation(evaluation_times=times),
+        ],
+        noise_model=noise_model,
+        gpu=gpu,
+    )
+
+    with patch("emu_sv.sv_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
+        pick_dark_qubits_mock.return_value = torch.tensor([False, False, False, True])
+
+        backend = SVBackend(seq, config=sv_config)
+        result = backend.run()
+
+        final_state = result.state[-1]
+        expected = StateVector.zero(natoms, gpu=gpu)
+        expected.vector[-2] = 1.0j  # |1110> state
+
+        assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
+        pick_dark_qubits_mock.assert_called_with(state_prep_error, natoms)
+
+        probabilities = result.bitstrings[-1]
+
+    assert probabilities["1110"] == 1000
+
+    with patch("emu_sv.sv_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
+        pick_dark_qubits_mock.return_value = torch.tensor([False, False, True, False])
+
+        backend = SVBackend(seq, config=sv_config)
+        result = backend.run()
+
+        final_state = result.state[-1]
+        expected = StateVector.zero(natoms, gpu=gpu)
+        expected.vector[-3] = 1.0j  # |1101> state
+
+        assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
+        pick_dark_qubits_mock.assert_called_with(state_prep_error, natoms)
+
+        probabilities = result.bitstrings[-1]
+
+    assert probabilities["1101"] == 1000
+
+    with patch("emu_sv.sv_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
+        pick_dark_qubits_mock.return_value = torch.tensor([False, True, False, False])
+
+        backend = SVBackend(seq, config=sv_config)
+        result = backend.run()
+
+        final_state = result.state[-1]
+        expected = StateVector.zero(natoms, gpu=gpu)
+        expected.vector[11] = 1.0j  # |1011> state
+
+        assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
+        pick_dark_qubits_mock.assert_called_with(state_prep_error, natoms)
+
+        probabilities = result.bitstrings[-1]
+
+    assert probabilities["1011"] == 1000
+
+    with patch("emu_sv.sv_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
+        pick_dark_qubits_mock.return_value = torch.tensor([True, False, False, False])
+
+        backend = SVBackend(seq, config=sv_config)
+        result = backend.run()
+
+        final_state = result.state[-1]
+        expected = StateVector.zero(natoms, gpu=gpu)
+        expected.vector[7] = 1.0j  # |0111> state
+
+        assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
+        pick_dark_qubits_mock.assert_called_with(state_prep_error, natoms)
+
+        probabilities = result.bitstrings[-1]
+
+    assert probabilities["0111"] == 1000
+
+
 def test_end_to_end_1D_sv_measure_errors() -> None:
     torch.manual_seed(seed)
     random.seed(seed)
