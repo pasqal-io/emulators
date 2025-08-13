@@ -829,6 +829,5 @@ def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
     if pulser_data.has_lindblad_noise:
         return NoisyMPSBackendImpl(config, pulser_data)
     if config.adiabatic_evolution:
-        print("passed in dmrg")
         return DMRGBackendImpl(config, pulser_data)
     return MPSBackendImpl(config, pulser_data)
