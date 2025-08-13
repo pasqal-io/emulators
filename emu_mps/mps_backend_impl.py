@@ -702,6 +702,17 @@ class DMRGBackendImpl(MPSBackendImpl):
         max_sweeps: int = 999,
         residual_tolerance: float = 1e-7,
     ):
+        if pulser_data.has_lindblad_noise is True:
+            raise RuntimeError("DMRG solver does not currently support Lindblad noise.")
+
+        if (
+            mps_config.noise_model is not None
+            and mps_config.noise_model.noise_types != ()
+        ):
+            raise RuntimeError(
+                "DMRG solver does not currently support noise types"
+                f"you are using: {mps_config.noise_model.noise_types}"
+            )
         super().__init__(mps_config, pulser_data)
         self.init()
         self.state.orthogonalize(0)
@@ -761,12 +772,12 @@ class DMRGBackendImpl(MPSBackendImpl):
             self.right_baths.pop()
             self.sweep_index += 1
 
-        elif (
-            self.sweep_index == self.qubit_count - 2
-            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-        ):
-            self.sweep_index += 1
-            self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+            if (
+                self.sweep_index == self.qubit_count - 2
+                and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+            ):
+                self.sweep_index += 1
+                self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
         elif (
             self.sweep_index > 1 and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
@@ -788,6 +799,11 @@ class DMRGBackendImpl(MPSBackendImpl):
             self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
             self.sweep_count += 1
             self.sweep_complete()
+
+        else:
+            raise Exception("Did not expect this")
+
+        self.save_simulation()
 
     def sweep_complete(self) -> None:
         # This marks the end of one full sweep: checking convergence

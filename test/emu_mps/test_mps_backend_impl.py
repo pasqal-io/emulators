@@ -473,14 +473,14 @@ def test_progress_at_right_mps_boundary(
     dmrg.timestep_index = 0
     dmrg.timestep_count = 2
 
-    dmrg.state = MagicMock(factors=[None] * QUBIT_COUNT, orthogonality_center=3)
+    dmrg.state = MagicMock(factors=[None] * QUBIT_COUNT, orthogonality_center=2)
     dmrg.sweep_index = dmrg.state.orthogonality_center
 
     dmrg.hamiltonian = MagicMock(factors=[None] * QUBIT_COUNT)
-    # at the 4th MPS site (orthogonality_center = 3), the left bath must be a list of 3 elements
-    # while the right bath being a list of a single element
-    dmrg.left_baths = [torch.zeros(1)] * 3
-    dmrg.right_baths = [torch.zeros(1)]
+    # at the 3rd MPS site (orthogonality_center = 2), the left bath must be a list of 2 elements
+    # while the right bath being a list of two elements
+    dmrg.left_baths = [torch.zeros(1)] * 2
+    dmrg.right_baths = [torch.zeros(1)] * 2
 
     new_left_factor = torch.tensor([[1.0]])
     new_right_factor = torch.tensor([[2.0]])
@@ -492,7 +492,7 @@ def test_progress_at_right_mps_boundary(
     mock_minimize.assert_called_once()
     assert dmrg.current_energy == pytest.approx(0.5)
     assert dmrg.sweep_index == 4
-    assert dmrg.state.orthogonality_center == 4
+    assert dmrg.state.orthogonality_center == 3
     assert len(dmrg.left_baths) == 3
     assert len(dmrg.right_baths) == 1
     assert dmrg.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
