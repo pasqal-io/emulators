@@ -53,6 +53,7 @@ class MPSConfig(EmulationConfig):
         autosave_dt: minimum time interval in seconds between two autosaves.
             Saving the simulation state is only possible at specific times,
             therefore this interval is only a lower bound.
+        adiabatic_evolution: to trigger the DMRG solver during adiabatic simulations.
         kwargs: arguments that are passed to the base class
 
     Examples:
@@ -81,6 +82,7 @@ class MPSConfig(EmulationConfig):
         log_file: pathlib.Path | None = None,
         autosave_prefix: str = "emu_mps_save_",
         autosave_dt: int = 600,  # 10 minutes
+        adiabatic_evolution: bool = False,
         **kwargs: Any,
     ):
         kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
@@ -97,6 +99,7 @@ class MPSConfig(EmulationConfig):
             log_file=log_file,
             autosave_prefix=autosave_prefix,
             autosave_dt=autosave_dt,
+            adiabatic_evolution=adiabatic_evolution,
             **kwargs,
         )
         if self.optimize_qubit_ordering:
@@ -144,6 +147,7 @@ class MPSConfig(EmulationConfig):
             "log_file",
             "autosave_prefix",
             "autosave_dt",
+            "adiabatic_evolution",
         }
 
     def monkeypatch_observables(self) -> None:

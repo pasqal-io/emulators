@@ -747,21 +747,30 @@ class DMRGBackendImpl(MPSBackendImpl):
         self.current_energy = energy
 
         # updating baths and orthogonality center
-        if self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
+        if (
+            self.sweep_index < self.qubit_count - 2
+            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+        ):
             self.left_baths.append(
                 new_left_bath(
                     self.get_current_left_bath(),
                     self.state.factors[left_idx],
-                    self.hamiltonian.factors[right_idx],
+                    self.hamiltonian.factors[left_idx],
                 ).to(self.state.factors[right_idx].device)
             )
             self.right_baths.pop()
             self.sweep_index += 1
 
-            if self.sweep_index == self.qubit_count - 1:
-                self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+        elif (
+            self.sweep_index == self.qubit_count - 2
+            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+        ):
+            self.sweep_index += 1
+            self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
-        elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
+        elif (
+            self.sweep_index > 1 and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
+        ):
             self.right_baths.append(
                 new_right_bath(
                     self.get_current_right_bath(),
@@ -772,19 +781,24 @@ class DMRGBackendImpl(MPSBackendImpl):
             self.left_baths.pop()
             self.sweep_index -= 1
 
-            if self.sweep_index == 0:
-                self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
-                self.sweep_count += 1
-                self.sweep_complete()
+        elif (
+            self.sweep_index == 1 and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
+        ):
+            self.sweep_index -= 1
+            self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+            self.sweep_count += 1
+            self.sweep_complete()
 
     def sweep_complete(self) -> None:
         # This marks the end of one full sweep: checking convergence
         if self.convergence_check(self.energy_tolerance):
+            self.current_time = self.target_time
             self.timestep_complete()
         elif self.sweep_count + 1 > self.max_sweeps:
-            # not converged: restart a new sweep
+            # not converged
             raise RuntimeError(f"DMRG did not converge after {self.max_sweeps} sweeps")
         else:
+            # not converged for the current sweep. restart
             self.previous_energy = self.current_energy
 
         assert self.sweep_index == 0
@@ -798,5 +812,7 @@ def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
 
     if pulser_data.has_lindblad_noise:
         return NoisyMPSBackendImpl(config, pulser_data)
-
+    if config.adiabatic_evolution:
+        print("passed in dmrg")
+        return DMRGBackendImpl(config, pulser_data)
     return MPSBackendImpl(config, pulser_data)

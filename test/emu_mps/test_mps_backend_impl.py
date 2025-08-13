@@ -493,6 +493,6 @@ def test_progress_at_right_mps_boundary(
     assert dmrg.current_energy == pytest.approx(0.5)
     assert dmrg.sweep_index == 4
     assert dmrg.state.orthogonality_center == 4
-    assert len(dmrg.left_baths) == 4
-    assert len(dmrg.right_baths) == 0
+    assert len(dmrg.left_baths) == 3
+    assert len(dmrg.right_baths) == 1
     assert dmrg.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
