@@ -72,6 +72,7 @@ def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
     mock_pulser_data.qubit_ids = tuple([i for i in range(QUBIT_COUNT)])
     mock_pulser_data.full_interaction_matrix = torch.eye(QUBIT_COUNT)
     mock_pulser_data.masked_interaction_matrix = torch.eye(QUBIT_COUNT)
+    mock_pulser_data.has_lindblad_noise = False
     mock_pulser_data.slm_end_time = 10.0
 
     dmrg_obj = constructor(config, mock_pulser_data)

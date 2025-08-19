@@ -29,6 +29,7 @@ from emu_mps.mps_config import MPSConfig
 from emu_base.noise import pick_dark_qubits
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 import emu_mps.optimatrix as optimat
+from emu_mps.solver import Solver
 from emu_mps.solver_utils import (
     evolve_pair,
     evolve_single,
@@ -702,14 +703,13 @@ class DMRGBackendImpl(MPSBackendImpl):
         max_sweeps: int = 999,
         residual_tolerance: float = 1e-7,
     ):
-        if pulser_data.has_lindblad_noise is True:
-            raise RuntimeError("DMRG solver does not currently support Lindblad noise.")
+        if pulser_data.has_lindblad_noise:
+            raise NotImplementedError(
+                "DMRG solver does not currently support Lindblad noise."
+            )
 
-        if (
-            mps_config.noise_model is not None
-            and mps_config.noise_model.noise_types != ()
-        ):
-            raise RuntimeError(
+        if mps_config.noise_model.noise_types != ():
+            raise NotImplementedError(
                 "DMRG solver does not currently support noise types"
                 f"you are using: {mps_config.noise_model.noise_types}"
             )
@@ -828,6 +828,6 @@ def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
 
     if pulser_data.has_lindblad_noise:
         return NoisyMPSBackendImpl(config, pulser_data)
-    if config.adiabatic_evolution:
+    if config.solver == Solver.DMRG:
         return DMRGBackendImpl(config, pulser_data)
     return MPSBackendImpl(config, pulser_data)
