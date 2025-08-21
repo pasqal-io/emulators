@@ -739,66 +739,54 @@ class DMRGBackendImpl(MPSBackendImpl):
             SwipeDirection.RIGHT_TO_LEFT,
         ), "Unknown Swipe direction"
 
-        if self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
-            left_idx, right_idx = idx, idx + 1
-        elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
-            left_idx, right_idx = idx - 1, idx
-
         orth_center_right = self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
         new_L, new_R, energy = minimize_energy_pair(
-            state_factors=self.state.factors[left_idx : right_idx + 1],
-            ham_factors=self.hamiltonian.factors[left_idx : right_idx + 1],
+            state_factors=self.state.factors[idx : idx + 2],
+            ham_factors=self.hamiltonian.factors[idx : idx + 2],
             baths=(self.left_baths[-1], self.right_baths[-1]),
             orth_center_right=orth_center_right,
             config=self.config,
             residual_tolerance=self.residual_tolerance,
         )
-        self.state.factors[left_idx], self.state.factors[right_idx] = new_L, new_R
-        self.state.orthogonality_center = right_idx if orth_center_right else left_idx
+        self.state.factors[idx], self.state.factors[idx + 1] = new_L, new_R
+        self.state.orthogonality_center = idx + 1 if orth_center_right else idx
         self.current_energy = energy
 
         # updating baths and orthogonality center
-        if (
-            self.sweep_index < self.qubit_count - 2
-            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-        ):
-            self.left_baths.append(
-                new_left_bath(
-                    self.get_current_left_bath(),
-                    self.state.factors[left_idx],
-                    self.hamiltonian.factors[left_idx],
-                ).to(self.state.factors[right_idx].device)
-            )
-            self.right_baths.pop()
-            self.sweep_index += 1
+        if self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
 
-            if (
-                self.sweep_index == self.qubit_count - 2
-                and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-            ):
+            if self.sweep_index < self.qubit_count - 2:
+                self.left_baths.append(
+                    new_left_bath(
+                        self.get_current_left_bath(),
+                        self.state.factors[idx],
+                        self.hamiltonian.factors[idx],
+                    ).to(self.state.factors[idx + 1].device)
+                )
+                self.right_baths.pop()
                 self.sweep_index += 1
+
+            if self.sweep_index == self.qubit_count - 2:
                 self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
-        elif (
-            self.sweep_index > 1 and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
-        ):
-            self.right_baths.append(
-                new_right_bath(
-                    self.get_current_right_bath(),
-                    self.state.factors[right_idx],
-                    self.hamiltonian.factors[right_idx],
-                ).to(self.state.factors[left_idx].device)
-            )
-            self.left_baths.pop()
-            self.sweep_index -= 1
+        elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
 
-        elif (
-            self.sweep_index == 1 and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
-        ):
-            self.sweep_index -= 1
-            self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
-            self.sweep_count += 1
-            self.sweep_complete()
+            if self.sweep_index > 0:
+                self.right_baths.append(
+                    new_right_bath(
+                        self.get_current_right_bath(),
+                        self.state.factors[idx + 1],
+                        self.hamiltonian.factors[idx + 1],
+                    ).to(self.state.factors[idx].device)
+                )
+                self.left_baths.pop()
+                self.sweep_index -= 1
+
+            if self.sweep_index == 0:
+                self.state.orthogonalize(0)
+                self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+                self.sweep_count += 1
+                self.sweep_complete()
 
         else:
             raise Exception("Did not expect this")

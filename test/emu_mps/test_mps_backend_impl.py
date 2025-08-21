@@ -492,7 +492,7 @@ def test_progress_at_right_mps_boundary(
 
     mock_minimize.assert_called_once()
     assert dmrg.current_energy == pytest.approx(0.5)
-    assert dmrg.sweep_index == 4
+    assert dmrg.sweep_index == 3
     assert dmrg.state.orthogonality_center == 3
     assert len(dmrg.left_baths) == 3
     assert len(dmrg.right_baths) == 1
