@@ -703,10 +703,6 @@ class DMRGBackendImpl(MPSBackendImpl):
         max_sweeps: int = 999,
         residual_tolerance: float = 1e-7,
     ):
-        if pulser_data.has_lindblad_noise:
-            raise NotImplementedError(
-                "DMRG solver does not currently support Lindblad noise."
-            )
 
         if mps_config.noise_model.noise_types != ():
             raise NotImplementedError(
@@ -763,7 +759,7 @@ class DMRGBackendImpl(MPSBackendImpl):
         self.save_simulation()
 
     def _left_to_right_update(self, idx: int) -> None:
-        if self.sweep_index < self.qubit_count - 2:
+        if idx < self.qubit_count - 2:
             self.left_baths.append(
                 new_left_bath(
                     self.get_current_left_bath(),
@@ -778,7 +774,7 @@ class DMRGBackendImpl(MPSBackendImpl):
             self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
     def _right_to_left_update(self, idx: int) -> None:
-        if self.sweep_index > 0:
+        if idx > 0:
             self.right_baths.append(
                 new_right_bath(
                     self.get_current_right_bath(),

@@ -54,7 +54,11 @@ class MPSConfig(EmulationConfig):
         autosave_dt: minimum time interval in seconds between two autosaves.
             Saving the simulation state is only possible at specific times,
             therefore this interval is only a lower bound.
-        solver: triggers one of the available solvers in the software. Default to TDVP.
+        solver: chooses the solver algorithm to run a sequence.
+            Two options are currently available:
+            ``TDVP`` (default), which performs ordinary time evolution,
+            and ``DMRG``, which adiabatically follows the ground state
+            of a given adiabatic pulse.
         kwargs: arguments that are passed to the base class
 
     Examples:
