@@ -514,6 +514,7 @@ def test_left_to_right_update(
     mock_minimize.return_value = (torch.tensor([[1.0]]), torch.tensor([[2.0]]), 0.5)
 
     dmrg = create_dmrg_mock()
+    dmrg.init()
     dmrg.sweep_index = 1
     dmrg.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
     dmrg.left_baths = [torch.zeros(1)]
@@ -554,6 +555,7 @@ def test_right_to_left_update(
     )
 
     dmrg = create_dmrg_mock()
+    dmrg.init()
     dmrg.sweep_index = 2
     dmrg.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
     dmrg.left_baths = [torch.zeros(1, 1, 1, dtype=torch.complex128)] * 2

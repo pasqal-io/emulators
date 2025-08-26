@@ -56,7 +56,7 @@ class MPSConfig(EmulationConfig):
             therefore this interval is only a lower bound.
         solver: chooses the solver algorithm to run a sequence.
             Two options are currently available:
-            ``TDVP`` (default), which performs ordinary time evolution,
+            ``TDVP``, which performs ordinary time evolution,
             and ``DMRG``, which adiabatically follows the ground state
             of a given adiabatic pulse.
         kwargs: arguments that are passed to the base class

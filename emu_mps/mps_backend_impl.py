@@ -253,6 +253,7 @@ class MPSBackendImpl:
         initial_state.truncate()
         initial_state *= 1 / initial_state.norm()
         self.state = initial_state
+        self.state.orthogonalize(0)
 
     def init_hamiltonian(self) -> None:
         """
@@ -710,8 +711,6 @@ class DMRGBackendImpl(MPSBackendImpl):
                 f"you are using: {mps_config.noise_model.noise_types}"
             )
         super().__init__(mps_config, pulser_data)
-        self.init()
-        self.state.orthogonalize(0)
         self.previous_energy: Optional[float] = None
         self.current_energy: Optional[float] = None
         self.sweep_count: int = 0
