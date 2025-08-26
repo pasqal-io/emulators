@@ -29,6 +29,7 @@ from emu_mps.mps_config import MPSConfig
 from emu_base.noise import pick_dark_qubits
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 import emu_mps.optimatrix as optimat
+from emu_mps.solver import Solver
 from emu_mps.solver_utils import (
     evolve_pair,
     evolve_single,
@@ -252,6 +253,7 @@ class MPSBackendImpl:
         initial_state.truncate()
         initial_state *= 1 / initial_state.norm()
         self.state = initial_state
+        self.state.orthogonalize(0)
 
     def init_hamiltonian(self) -> None:
         """
@@ -702,9 +704,13 @@ class DMRGBackendImpl(MPSBackendImpl):
         max_sweeps: int = 999,
         residual_tolerance: float = 1e-7,
     ):
+
+        if mps_config.noise_model.noise_types != ():
+            raise NotImplementedError(
+                "DMRG solver does not currently support noise types"
+                f"you are using: {mps_config.noise_model.noise_types}"
+            )
         super().__init__(mps_config, pulser_data)
-        self.init()
-        self.state.orthogonalize(0)
         self.previous_energy: Optional[float] = None
         self.current_energy: Optional[float] = None
         self.sweep_count: int = 0
@@ -728,63 +734,72 @@ class DMRGBackendImpl(MPSBackendImpl):
             SwipeDirection.RIGHT_TO_LEFT,
         ), "Unknown Swipe direction"
 
-        if self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
-            left_idx, right_idx = idx, idx + 1
-        elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
-            left_idx, right_idx = idx - 1, idx
-
         orth_center_right = self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
         new_L, new_R, energy = minimize_energy_pair(
-            state_factors=self.state.factors[left_idx : right_idx + 1],
-            ham_factors=self.hamiltonian.factors[left_idx : right_idx + 1],
+            state_factors=self.state.factors[idx : idx + 2],
+            ham_factors=self.hamiltonian.factors[idx : idx + 2],
             baths=(self.left_baths[-1], self.right_baths[-1]),
             orth_center_right=orth_center_right,
             config=self.config,
             residual_tolerance=self.residual_tolerance,
         )
-        self.state.factors[left_idx], self.state.factors[right_idx] = new_L, new_R
-        self.state.orthogonality_center = right_idx if orth_center_right else left_idx
+        self.state.factors[idx], self.state.factors[idx + 1] = new_L, new_R
+        self.state.orthogonality_center = idx + 1 if orth_center_right else idx
         self.current_energy = energy
 
         # updating baths and orthogonality center
         if self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
+            self._left_to_right_update(idx)
+        elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
+            self._right_to_left_update(idx)
+        else:
+            raise Exception("Did not expect this")
+
+        self.save_simulation()
+
+    def _left_to_right_update(self, idx: int) -> None:
+        if idx < self.qubit_count - 2:
             self.left_baths.append(
                 new_left_bath(
                     self.get_current_left_bath(),
-                    self.state.factors[left_idx],
-                    self.hamiltonian.factors[right_idx],
-                ).to(self.state.factors[right_idx].device)
+                    self.state.factors[idx],
+                    self.hamiltonian.factors[idx],
+                ).to(self.state.factors[idx + 1].device)
             )
             self.right_baths.pop()
             self.sweep_index += 1
 
-            if self.sweep_index == self.qubit_count - 1:
-                self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+        if self.sweep_index == self.qubit_count - 2:
+            self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
-        elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
+    def _right_to_left_update(self, idx: int) -> None:
+        if idx > 0:
             self.right_baths.append(
                 new_right_bath(
                     self.get_current_right_bath(),
-                    self.state.factors[right_idx],
-                    self.hamiltonian.factors[right_idx],
-                ).to(self.state.factors[left_idx].device)
+                    self.state.factors[idx + 1],
+                    self.hamiltonian.factors[idx + 1],
+                ).to(self.state.factors[idx].device)
             )
             self.left_baths.pop()
             self.sweep_index -= 1
 
-            if self.sweep_index == 0:
-                self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
-                self.sweep_count += 1
-                self.sweep_complete()
+        if self.sweep_index == 0:
+            self.state.orthogonalize(0)
+            self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+            self.sweep_count += 1
+            self.sweep_complete()
 
     def sweep_complete(self) -> None:
         # This marks the end of one full sweep: checking convergence
         if self.convergence_check(self.energy_tolerance):
+            self.current_time = self.target_time
             self.timestep_complete()
         elif self.sweep_count + 1 > self.max_sweeps:
-            # not converged: restart a new sweep
+            # not converged
             raise RuntimeError(f"DMRG did not converge after {self.max_sweeps} sweeps")
         else:
+            # not converged for the current sweep. restart
             self.previous_energy = self.current_energy
 
         assert self.sweep_index == 0
@@ -798,5 +813,6 @@ def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
 
     if pulser_data.has_lindblad_noise:
         return NoisyMPSBackendImpl(config, pulser_data)
-
+    if config.solver == Solver.DMRG:
+        return DMRGBackendImpl(config, pulser_data)
     return MPSBackendImpl(config, pulser_data)

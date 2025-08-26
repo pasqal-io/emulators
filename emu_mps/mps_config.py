@@ -4,6 +4,7 @@ from types import MethodType
 import copy
 
 from emu_base import DEVICE_COUNT
+from emu_mps.solver import Solver
 from emu_mps.custom_callback_implementations import (
     energy_mps_impl,
     energy_second_moment_mps_impl,
@@ -53,6 +54,11 @@ class MPSConfig(EmulationConfig):
         autosave_dt: minimum time interval in seconds between two autosaves.
             Saving the simulation state is only possible at specific times,
             therefore this interval is only a lower bound.
+        solver: chooses the solver algorithm to run a sequence.
+            Two options are currently available:
+            ``TDVP``, which performs ordinary time evolution,
+            and ``DMRG``, which adiabatically follows the ground state
+            of a given adiabatic pulse.
         kwargs: arguments that are passed to the base class
 
     Examples:
@@ -81,6 +87,7 @@ class MPSConfig(EmulationConfig):
         log_file: pathlib.Path | None = None,
         autosave_prefix: str = "emu_mps_save_",
         autosave_dt: int = 600,  # 10 minutes
+        solver: Solver = Solver.TDVP,
         **kwargs: Any,
     ):
         kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
@@ -97,6 +104,7 @@ class MPSConfig(EmulationConfig):
             log_file=log_file,
             autosave_prefix=autosave_prefix,
             autosave_dt=autosave_dt,
+            solver=solver,
             **kwargs,
         )
         if self.optimize_qubit_ordering:
@@ -144,6 +152,7 @@ class MPSConfig(EmulationConfig):
             "log_file",
             "autosave_prefix",
             "autosave_dt",
+            "solver",
         }
 
     def monkeypatch_observables(self) -> None:
