@@ -33,7 +33,7 @@ All emulators (backends) share a convenient way to define observables to be trac
     options:
         show_source: false
 
-## QubitDensity
+## Occupation
 ::: pulser.backend.default_observables.Occupation
     options:
         show_source: false
