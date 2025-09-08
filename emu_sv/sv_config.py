@@ -5,13 +5,17 @@ import sys
 from types import MethodType
 from typing import Any, ClassVar
 
+from emu_sv.utils import choose
+
 from emu_sv.custom_callback_implementations import (
+    qubit_occupation_sv_impl,
+    qubit_occupation_sv_den_mat_impl,
     correlation_matrix_sv_impl,
     correlation_matrix_sv_den_mat_impl,
     energy_second_moment_sv_impl,
+    energy_second_moment_den_mat_impl,
     energy_variance_sv_impl,
-    qubit_occupation_sv_impl,
-    qubit_occupation_sv_den_mat_impl,
+    energy_variance_sv_den_mat_impl,
 )
 
 from pulser.backend import (
@@ -103,10 +107,6 @@ class SVConfig(EmulationConfig):
                 "Warning: The runs and samples_per_run "
                 "values of the NoiseModel are ignored!"
             )
-        if "SPAM" in self.noise_model.noise_types:
-            raise NotImplementedError(
-                "SPAM errors are currently not supported in emu-sv."
-            )
 
     def _expected_kwargs(self) -> set[str]:
         return super()._expected_kwargs() | {
@@ -127,34 +127,27 @@ class SVConfig(EmulationConfig):
 
             if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    (
-                        qubit_occupation_sv_impl
-                        if self.noise_model.noise_types == ()
-                        else qubit_occupation_sv_den_mat_impl
-                    ),
+                    choose(qubit_occupation_sv_impl, qubit_occupation_sv_den_mat_impl),
                     obs_copy,
                 )
             if isinstance(obs, CorrelationMatrix):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    (
-                        correlation_matrix_sv_impl
-                        if self.noise_model.noise_types == ()
-                        else correlation_matrix_sv_den_mat_impl
+                    choose(
+                        correlation_matrix_sv_impl, correlation_matrix_sv_den_mat_impl
                     ),
                     obs_copy,
                 )
             if isinstance(obs, EnergyVariance):
-                if self.noise_model.noise_types != ():
-                    raise Exception("Not implemented for density matrix")
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    energy_variance_sv_impl, obs_copy
+                    choose(energy_variance_sv_impl, energy_variance_sv_den_mat_impl),
+                    obs_copy,
                 )
             elif isinstance(obs, EnergySecondMoment):
-                if self.noise_model.noise_types != ():
-                    raise Exception("Not implemented for density matrix")
-
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    energy_second_moment_sv_impl, obs_copy
+                    choose(
+                        energy_second_moment_sv_impl, energy_second_moment_den_mat_impl
+                    ),
+                    obs_copy,
                 )
             obs_list.append(obs_copy)
         self.observables = tuple(obs_list)

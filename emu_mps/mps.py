@@ -7,11 +7,10 @@ from typing import List, Optional, Sequence, TypeVar, Mapping
 import torch
 
 from pulser.backend.state import State, Eigenstate
-from emu_base import DEVICE_COUNT
+from emu_base import DEVICE_COUNT, apply_measurement_errors
 from emu_mps import MPSConfig
 from emu_mps.algebra import add_factors, scale_factors
 from emu_mps.utils import (
-    apply_measurement_errors,
     assign_devices,
     truncate_impl,
     tensor_trace,
@@ -154,7 +153,7 @@ class MPS(State[complex, torch.Tensor]):
 
         for i in range(rl_swipe_start, desired_orthogonality_center, -1):
             q, r = torch.linalg.qr(
-                self.factors[i].view(self.factors[i].shape[0], -1).mT,
+                self.factors[i].contiguous().view(self.factors[i].shape[0], -1).mT,
             )
             self.factors[i] = q.mT.view(-1, 2, self.factors[i].shape[2])
             self.factors[i - 1] = torch.tensordot(

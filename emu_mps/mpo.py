@@ -1,5 +1,4 @@
 from __future__ import annotations
-import itertools
 from typing import Any, List, Sequence, Optional
 
 import torch
@@ -10,24 +9,6 @@ from emu_mps.algebra import add_factors, scale_factors, zip_right
 from pulser.backend.operator import FullOp, QuditOp
 from emu_mps.mps import MPS
 from emu_mps.utils import new_left_bath, assign_devices
-
-
-def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:
-    for tensorop in operations:
-        target_qids = (factor[1] for factor in tensorop[1])
-        target_qids_list = list(itertools.chain(*target_qids))
-        target_qids_set = set(target_qids_list)
-        if len(target_qids_set) < len(target_qids_list):
-            # Either the qubit id has been defined twice in an operation:
-            for qids in target_qids:
-                if len(set(qids)) < len(qids):
-                    raise ValueError("Duplicate atom ids in argument list.")
-            # Or it was defined in two different operations
-            raise ValueError("Each qubit can be targeted by only one operation.")
-        if max(target_qids_set) >= nqubits:
-            raise ValueError(
-                "The operation targets more qubits than there are in the register."
-            )
 
 
 class MPO(Operator[complex, torch.Tensor, MPS]):
@@ -175,8 +156,6 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
         Returns:
             the operator in MPO form.
         """
-
-        _validate_operator_targets(operations, n_qudits)
 
         basis = set(eigenstates)
 

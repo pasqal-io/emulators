@@ -1,6 +1,7 @@
 from abc import abstractmethod
 import time
 import typing
+import torch
 
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
@@ -8,6 +9,7 @@ from pulser import Sequence
 
 from pulser.backend import Results, Observable, State, EmulationConfig
 from emu_base import PulserData, get_max_rss
+from emu_base.noise import pick_dark_qubits
 
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
@@ -67,6 +69,8 @@ class BaseSVBackendImpl:
     This class is used to handle the state vector and density matrix evolution.
     """
 
+    well_prepared_qubits_filter: typing.Optional[torch.Tensor]
+
     def __init__(self, config: SVConfig, pulser_data: PulserData):
         self._config = config
         self._pulser_data = pulser_data
@@ -76,6 +80,7 @@ class BaseSVBackendImpl:
         self.phi = pulser_data.phi
         self.nsteps = pulser_data.omega.shape[0]
         self.nqubits = pulser_data.omega.shape[1]
+        self.full_interaction_matrix = pulser_data.full_interaction_matrix
         self.state: State
         self.time = time.time()
         self.results = Results(atom_order=(), total_duration=self.target_times[-1])
@@ -85,7 +90,6 @@ class BaseSVBackendImpl:
             timestep_count=self.nsteps,
         )
         self._current_H: None | RydbergLindbladian | RydbergHamiltonian = None
-
         if self._config.initial_state is not None and (
             self._config.initial_state.n_qudits != self.nqubits
         ):
@@ -93,6 +97,31 @@ class BaseSVBackendImpl:
                 "Mismatch in number of atoms: initial state has "
                 f"{self._config.initial_state.n_qudits} and the sequence has {self.nqubits}"
             )
+        self.init_dark_qubits()
+
+        if (
+            self._config.initial_state is not None
+            and self._config.noise_model.state_prep_error > 0.0
+        ):
+            raise NotImplementedError(
+                "Initial state and state preparation error can not be together."
+            )
+
+    def init_dark_qubits(self) -> None:
+        if self._config.noise_model.state_prep_error > 0.0:
+            self.well_prepared_qubits_filter = pick_dark_qubits(
+                self._config.noise_model.state_prep_error, self.nqubits
+            )
+        else:
+            self.well_prepared_qubits_filter = None
+
+        if self.well_prepared_qubits_filter is not None:
+
+            self.full_interaction_matrix[self.well_prepared_qubits_filter, :] = 0.0
+            self.full_interaction_matrix[:, self.well_prepared_qubits_filter] = 0.0
+            self.omega[:, self.well_prepared_qubits_filter] = 0.0
+            self.delta[:, self.well_prepared_qubits_filter] = 0.0
+            self.phi[:, self.well_prepared_qubits_filter] = 0.0
 
     def step(self, step_idx: int) -> None:
         """One step of the evolution"""
@@ -143,7 +172,7 @@ class SVBackendImpl(BaseSVBackendImpl):
 
     def __init__(self, config: SVConfig, pulser_data: PulserData):
         """
-        For running sequences without noise. The state will evolve accoring
+        For running sequences without noise. The state will evolve according
         to e^(-iH t)
 
         Args:
@@ -169,7 +198,7 @@ class SVBackendImpl(BaseSVBackendImpl):
             self.omega[step_idx],
             self.delta[step_idx],
             self.phi[step_idx],
-            self._pulser_data.full_interaction_matrix,
+            self.full_interaction_matrix,
             self.state.vector,
             self._config.krylov_tolerance,
         )
@@ -206,7 +235,7 @@ class NoisySVBackendImpl(BaseSVBackendImpl):
             self.omega[step_idx],
             self.delta[step_idx],
             self.phi[step_idx],
-            self._pulser_data.full_interaction_matrix,
+            self.full_interaction_matrix,
             self.state.matrix,
             self._config.krylov_tolerance,
             self.pulser_lindblads,

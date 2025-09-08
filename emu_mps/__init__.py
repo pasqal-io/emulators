@@ -9,7 +9,7 @@ from pulser.backend import (
     StateResult,
     EnergySecondMoment,
 )
-from .mps_config import MPSConfig
+from .mps_config import MPSConfig, Solver
 from .mpo import MPO
 from .mps import MPS, inner
 from .mps_backend import MPSBackend
@@ -23,6 +23,7 @@ __all__ = [
     "MPS",
     "inner",
     "MPSConfig",
+    "Solver",
     "MPSBackend",
     "StateResult",
     "BitStrings",
@@ -37,4 +38,4 @@ __all__ = [
     "EntanglementEntropy",
 ]
 
-__version__ = "2.2.0"
+__version__ = "2.3.0"

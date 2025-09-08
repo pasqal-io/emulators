@@ -126,3 +126,22 @@ def test_applyto_expect_DenseOperator(zero: str, one: str) -> None:
     res = operator.expect(state_from_string)
     expected = state_torch.mH @ mult_state.T
     assert torch.isclose(res, expected)
+
+
+def test_wrong_basis_string_state():
+    operations = [
+        (
+            1.0,
+            [
+                ({"X": 2.0}, [0, 2]),
+                ({"Z": 3.0}, [1]),
+            ],
+        )
+    ]
+
+    with pytest.raises(ValueError) as ve:
+        DenseOperator.from_operator_repr(
+            eigenstates=("g", "1"), n_qudits=3, operations=operations
+        )
+    msg = "Every QuditOp key must be made up of two eigenstates among ('g', '1'); instead, got 'X'."
+    assert str(ve.value) == msg
