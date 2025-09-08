@@ -43,5 +43,5 @@ jobs:
       - run: pip install -r test_requirements.txt
       - run: pip install -e .
       - run: pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv --cov=optimatrix
-      - run: pytest --nbmake **/**/**/*.ipynb
+      - run: pytest --nbmake -k ipynb
       - run: readme-cov
