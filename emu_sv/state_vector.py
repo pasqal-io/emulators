@@ -134,7 +134,7 @@ class StateVector(State[complex, torch.Tensor]):
         ), "States do not have the same shape"
 
         # by our internal convention inner and norm return to cpu
-        return torch.vdot(self.vector, other.vector).cpu()
+        return torch.vdot(self.vector, other.vector.to(self.vector.device)).cpu()
 
     def sample(
         self,

@@ -1,6 +1,11 @@
 from collections import Counter
 import random
 import torch
+import os
+
+unix_like = os.name != "nt"
+if unix_like:
+    from resource import RUSAGE_SELF, getrusage
 
 
 def deallocate_tensor(t: torch.Tensor) -> None:
@@ -35,6 +40,20 @@ def deallocate_tensor(t: torch.Tensor) -> None:
     if t._base is not None:
         t._base.resize_(0)
         t._base.set_(source=replacement_storage)
+
+
+def get_max_rss(gpu: bool) -> float:
+    if gpu:
+        max_mem_per_device = (
+            torch.cuda.max_memory_allocated(device) * 1e-6
+            for device in range(torch.cuda.device_count())
+        )
+        max_mem = max(max_mem_per_device)
+    elif unix_like:
+        max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+    else:
+        return 0.0
+    return max_mem
 
 
 def readout_with_error(c: str, *, p_false_pos: float, p_false_neg: float) -> str:

@@ -10,7 +10,6 @@ import uuid
 from copy import deepcopy
 from collections import Counter
 from enum import Enum, auto
-from resource import RUSAGE_SELF, getrusage
 from types import MethodType
 from typing import Any, Optional
 
@@ -18,7 +17,7 @@ import torch
 from pulser import Sequence
 from pulser.backend import EmulationConfig, Observable, Results, State
 
-from emu_base import DEVICE_COUNT, PulserData
+from emu_base import DEVICE_COUNT, PulserData, get_max_rss
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.utils import deallocate_tensor
 
@@ -70,14 +69,7 @@ class Statistics(Observable):
         """Calculates the observable to store in the Results."""
         assert isinstance(state, MPS)
         duration = self.data[-1]
-        if state.factors[0].is_cuda:
-            max_mem_per_device = (
-                torch.cuda.max_memory_allocated(device) * 1e-6
-                for device in range(torch.cuda.device_count())
-            )
-            max_mem = max(max_mem_per_device)
-        else:
-            max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+        max_mem = get_max_rss(state.factors[0].is_cuda)
 
         config.logger.info(
             f"step = {len(self.data)}/{self.timestep_count}, "

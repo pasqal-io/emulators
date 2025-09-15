@@ -558,8 +558,12 @@ def test_right_to_left_update(
     dmrg.init()
     dmrg.sweep_index = 2
     dmrg.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
-    dmrg.left_baths = [torch.zeros(1, 1, 1, dtype=torch.complex128)] * 2
-    dmrg.right_baths = [torch.zeros(1, 1, 1, dtype=torch.complex128)]
+    dmrg.left_baths = [
+        torch.zeros(1, 1, 1, dtype=torch.complex128, device=dmrg.state.factors[0].device)
+    ] * 2
+    dmrg.right_baths = [
+        torch.zeros(1, 1, 1, dtype=torch.complex128, device=dmrg.state.factors[0].device)
+    ]
 
     dmrg._right_to_left_update(idx=1)
 
