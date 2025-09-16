@@ -1,8 +1,8 @@
 import time
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch, PropertyMock
 from collections import Counter
 from typing import Any
-
+import numpy as np
 import pulser
 import pytest
 import torch
@@ -344,30 +344,31 @@ def test_end_to_end_afm_ring() -> None:
 
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     torch.manual_seed(seed)
-
-    with patch("emu_mps.mps_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
-        pick_dark_qubits_mock.return_value = torch.logical_not(
-            torch.tensor([True, True, True, False])
-        )
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
+    ) as bad_atoms_mock:
+        bad_atoms_mock.return_value = np.array([0.2, 0.3, 0.4, 0.08])
         result = simulate_line(4, state_prep_error=0.1)
         final_state = result.state[-1]
-        pick_dark_qubits_mock.assert_called_with(0.1, 4)
 
     assert get_proba(final_state, "1110") == approx(0.56, abs=1e-2)
     assert get_proba(final_state, "1010") == approx(0.43, abs=1e-2)
 
     # A dark qubit at the end of the line gives the same result as a line with one less qubit.
-    with patch("emu_mps.mps_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.HamiltonianData.bad_atoms",
+        new_callable=PropertyMock,
+    ) as bad_atoms_mock:
         result = simulate_line(3)
         final_state = result.state[-1]
-        pick_dark_qubits_mock.assert_not_called()
-        assert get_proba(final_state, "111") == approx(0.56, abs=1e-2)
-        assert get_proba(final_state, "101") == approx(0.43, abs=1e-2)
 
-    with patch("emu_mps.mps_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
-        pick_dark_qubits_mock.return_value = torch.logical_not(
-            torch.tensor([True, False, True, True])
-        )
+    assert get_proba(final_state, "111") == approx(0.56, abs=1e-2)
+    assert get_proba(final_state, "101") == approx(0.43, abs=1e-2)
+
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
+    ) as bad_atoms_mock:
+        bad_atoms_mock.return_value = np.array([0.2, 0.01, 0.3, 0.4])
         result = simulate_line(4, state_prep_error=0.1)
         final_state = result.state[-1]
 
@@ -378,21 +379,27 @@ def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     final_state = result.state[-1]
     assert get_proba(final_state, "11") == approx(0.95, abs=1e-2)
 
-    with patch("emu_mps.mps_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
-        pick_dark_qubits_mock.return_value = torch.logical_not(
-            torch.tensor([False, True, True, False])
-        )
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
+    ) as bad_atoms_mock:
+        bad_atoms_mock.return_value = np.array([0.05, 0.2, 0.3, 0.06])
         result = simulate_line(4, state_prep_error=0.1)
         final_state = result.state[-1]
-
+    print(final_state)
     assert get_proba(final_state, "0110") == approx(0.95, abs=1e-2)
 
     # FIXME: When n-1 qubits are dark, the simulation fails!
-    with patch("emu_mps.mps_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.HamiltonianData.bad_atoms",
+        new_callable=PropertyMock,
+    ) as bad_atoms_mock:
         with pytest.raises(ValueError) as exception_info:
-            pick_dark_qubits_mock.return_value = torch.logical_not(
-                torch.tensor([False, False, True, False])
-            )
+            bad_atoms_mock.return_value = {
+                "q0": True,
+                "q1": True,
+                "q2": False,
+                "q3": True,
+            }
             result = simulate_line(4, state_prep_error=0.1)
             final_state = result.state[-1]
 
