@@ -24,6 +24,7 @@ from emu_mps import (
     CorrelationMatrix,
 )
 
+from emu_base import unix_like
 import pulser.noise_model
 from pulser.backend import Results
 
@@ -570,6 +571,8 @@ def test_initial_state_copy() -> None:
 
 
 def test_end_to_end_afm_ring_with_noise() -> None:
+    if not unix_like:
+        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -600,6 +603,8 @@ def test_end_to_end_afm_ring_with_noise() -> None:
 
 
 def test_end_to_end_spontaneous_emission() -> None:
+    if not unix_like:
+        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -665,6 +670,8 @@ def test_end_to_end_spontaneous_emission() -> None:
 
 
 def test_end_to_end_spontaneous_emission_rate() -> None:
+    if not unix_like:
+        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 

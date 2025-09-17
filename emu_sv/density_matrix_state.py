@@ -80,7 +80,9 @@ class DensityMatrix(State[complex, torch.Tensor]):
             self.matrix.shape == other.matrix.shape
         ), "States do not have the same number of sites"
 
-        return torch.vdot(self.matrix.flatten(), other.matrix.flatten())
+        return torch.vdot(
+            self.matrix.flatten(), other.matrix.to(self.matrix.device).flatten()
+        )
 
     @classmethod
     def from_state_vector(cls, state: StateVector) -> DensityMatrix:
