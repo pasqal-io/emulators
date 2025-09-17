@@ -1,7 +1,7 @@
 import torch
 from typing import Callable, Tuple
 
-DEFAULT_MAX_KRYLOV_DIM: int = 100
+DEFAULT_MAX_KRYLOV_DIM: int = 200
 
 
 def _lowest_eigen_pair(

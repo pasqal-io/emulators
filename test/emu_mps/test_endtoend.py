@@ -28,6 +28,7 @@ import pulser.noise_model
 from pulser.backend import Results
 
 from emu_mps.mps_backend_impl import MPSBackendImpl
+from emu_mps.solver import Solver
 from emu_mps.solver_utils import right_baths
 from test.utils_testing import (
     pulser_afm_sequence_grid,
@@ -62,6 +63,7 @@ def simulate(
     given_fidelity_state: bool = True,
     interaction_cutoff: float = 0,
     eval_times: list[float] = [1.0],
+    solver: Solver = Solver.TDVP,
 ) -> Results:
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
@@ -102,6 +104,7 @@ def simulate(
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
         optimize_qubit_ordering=False,
+        solver=solver,
     )
 
     backend = MPSBackend(seq, config=mps_config)
@@ -339,6 +342,109 @@ def test_end_to_end_afm_ring() -> None:
 
     assert approx(second_moment_energy, abs=0.45) == 13350.5
     assert approx(second_moment_energy, rel=1e-4) == 13350.5
+
+
+def test_dmrg_afm_ring() -> None:
+    torch.manual_seed(seed)
+
+    num_qubits = 10
+    seq = pulser_afm_sequence_ring(
+        num_qubits=num_qubits,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=t_rise,
+        t_fall=t_fall,
+    )
+
+    result = simulate(seq, solver=Solver.DMRG)
+
+    final_time = -1
+    bitstrings = result.bitstrings[final_time]
+    occupation = result.occupation[final_time]
+    energy = result.energy[final_time]
+    energy_variance = result.energy_variance[final_time]
+    second_moment_energy = result.energy_second_moment[final_time]
+    state_fin = result.state[final_time]
+    fidelity_fin = result.fidelity_1[final_time]
+    max_bond_dim = state_fin.get_max_bond_dim()
+    fidelity_st = create_antiferromagnetic_mps(num_qubits)
+    occupation_even_sites = occupation[0::2]
+    occupation_odd_sites = occupation[1::2]
+
+    assert max_bond_dim == 4
+    # check that the output state is the AFM state
+    assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
+    assert bitstrings["1010101010"] == 977
+
+    # check that the number operator should return 1 on even sites and 0 elsewhere
+    assert torch.allclose(
+        occupation_even_sites, torch.tensor(1, dtype=torch.float64), atol=1e-3
+    )
+    assert torch.allclose(
+        occupation_odd_sites, torch.tensor(0, dtype=torch.float64), atol=1e-2
+    )
+
+    assert torch.allclose(energy, torch.tensor(-124.0612, dtype=torch.float64), atol=1e-4)
+
+    # check that energy variance should effectively be 0
+    assert torch.allclose(
+        energy_variance, torch.tensor(0, dtype=torch.float64), atol=1e-5
+    )
+
+    assert torch.allclose(
+        second_moment_energy, torch.tensor(15391, dtype=torch.float64), atol=1e-1
+    )
+
+
+def test_dmrg_afm_square_grid() -> None:
+    torch.manual_seed(seed)
+
+    seq = pulser_afm_sequence_grid(
+        rows=3,
+        columns=3,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=t_rise,
+        t_fall=t_fall,
+    )
+
+    result = simulate(seq, solver=Solver.DMRG)
+
+    final_time = -1
+    bitstrings = result.bitstrings[final_time]
+    occupation = result.occupation[final_time]
+    energy = result.energy[final_time]
+    energy_variance = result.energy_variance[final_time]
+    state_fin = result.state[final_time]
+    fidelity_fin = result.fidelity_1[final_time]
+    max_bond_dim = state_fin.get_max_bond_dim()
+    fidelity_st = create_antiferromagnetic_mps(9)
+    occupation_even_sites = occupation[0::2]
+    occupation_odd_sites = occupation[1::2]
+
+    assert max_bond_dim == 4
+    # check that the output state is the AFM state
+    assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
+    assert bitstrings["101010101"] == 992
+
+    # check that the number operator should return 1 on even sites and 0 elsewhere
+    assert torch.allclose(
+        occupation_even_sites, torch.tensor(1, dtype=torch.float64), atol=1e-2
+    )
+    assert torch.allclose(
+        occupation_odd_sites, torch.tensor(0, dtype=torch.float64), atol=1e-2
+    )
+
+    assert torch.allclose(energy, torch.tensor(-118.7510, dtype=torch.float64), atol=1e-4)
+
+    # check that energy variance should effectively be 0
+    assert torch.allclose(
+        energy_variance, torch.tensor(0, dtype=torch.float64), atol=1e-5
+    )
 
 
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
