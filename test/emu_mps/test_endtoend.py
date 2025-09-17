@@ -448,6 +448,44 @@ def test_dmrg_afm_square_grid() -> None:
     )
 
 
+def test_dmrg_large_detuning() -> None:
+    # at very large detuning, the state should be stuck in the initial state
+    # DMRG should exactly capture the product state of 9 qubits
+    torch.manual_seed(seed)
+
+    seq = pulser_afm_sequence_grid(
+        rows=3,
+        columns=3,
+        Omega_max=0,
+        U=U,
+        delta_0=-50,
+        delta_f=delta_f,
+        t_rise=t_rise,
+        t_fall=t_fall,
+    )
+
+    result = simulate(seq, solver=Solver.DMRG)
+
+    final_time = -1
+    bitstrings = result.bitstrings[final_time]
+    occupation = result.occupation[final_time]
+    energy_variance = result.energy_variance[final_time]
+    state_fin = result.state[final_time]
+    max_bond_dim = state_fin.get_max_bond_dim()
+
+    # check that the final state remains classical
+    assert max_bond_dim == 1
+    # check that it remains the initial state ["000000000"]
+    assert bitstrings["000000000"] == 1000
+
+    assert torch.allclose(occupation, torch.tensor(0, dtype=torch.float64), atol=1e-2)
+
+    # check that energy variance should effectively be 0
+    assert torch.allclose(
+        energy_variance, torch.tensor(0, dtype=torch.float64), atol=1e-5
+    )
+
+
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     torch.manual_seed(seed)
 
