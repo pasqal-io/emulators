@@ -693,8 +693,7 @@ class DMRGBackendImpl(MPSBackendImpl):
         mps_config: MPSConfig,
         pulser_data: PulserData,
         energy_tolerance: float = 1e-5,
-        max_sweeps: int = 999,
-        residual_tolerance: float = 1e-7,
+        max_sweeps: int = 2000,
     ):
 
         if mps_config.noise_model.noise_types != ():
@@ -708,7 +707,6 @@ class DMRGBackendImpl(MPSBackendImpl):
         self.sweep_count: int = 0
         self.energy_tolerance: float = energy_tolerance
         self.max_sweeps: int = max_sweeps
-        self.residual_tolerance: float = residual_tolerance
 
     def convergence_check(self, energy_tolerance: float) -> bool:
         if self.previous_energy is None or self.current_energy is None:
@@ -733,7 +731,7 @@ class DMRGBackendImpl(MPSBackendImpl):
             baths=(self.left_baths[-1], self.right_baths[-1]),
             orth_center_right=orth_center_right,
             config=self.config,
-            residual_tolerance=self.residual_tolerance,
+            residual_tolerance=self.config.precision,
         )
         self.state.factors[idx], self.state.factors[idx + 1] = new_L, new_R
         self.state.orthogonality_center = idx + 1 if orth_center_right else idx
