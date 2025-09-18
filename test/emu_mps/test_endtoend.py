@@ -378,6 +378,9 @@ def test_dmrg_afm_ring() -> None:
     # check that the output state is the AFM state
     assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
     assert bitstrings["1010101010"] == 977
+    assert torch.allclose(
+        fidelity_fin, torch.tensor(0.9735, dtype=torch.float64), atol=1e-3
+    )
 
     # check that the number operator should return 1 on even sites and 0 elsewhere
     assert torch.allclose(
@@ -431,6 +434,9 @@ def test_dmrg_afm_square_grid() -> None:
     # check that the output state is the AFM state
     assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
     assert bitstrings["101010101"] == 992
+    assert torch.allclose(
+        fidelity_fin, torch.tensor(0.9868, dtype=torch.float64), atol=1e-3
+    )
 
     # check that the number operator should return 1 on even sites and 0 elsewhere
     assert torch.allclose(
@@ -471,12 +477,14 @@ def test_dmrg_large_detuning() -> None:
     occupation = result.occupation[final_time]
     energy_variance = result.energy_variance[final_time]
     state_fin = result.state[final_time]
+    fidelity_fin = result.fidelity_1[final_time]
     max_bond_dim = state_fin.get_max_bond_dim()
 
     # check that the final state remains classical
     assert max_bond_dim == 1
     # check that it remains the initial state ["000000000"]
     assert bitstrings["000000000"] == 1000
+    assert torch.allclose(fidelity_fin, torch.tensor(0, dtype=torch.float64), atol=1e-3)
 
     assert torch.allclose(occupation, torch.tensor(0, dtype=torch.float64), atol=1e-2)
 
