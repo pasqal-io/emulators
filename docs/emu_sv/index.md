@@ -1,6 +1,6 @@
 # Welcome to emu-sv
 
-You have found the documentation for emu-sv. The emulator **emu-sv** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io) that lets you run quantum algorithms on a simulated device, using GPU acceleration if available. More in depth, emu-sv is designed to **emu**late the dynamics of programmable arrays of neutral atoms, using the **s**tate **v**ector representation. While benchmarking is incomplete as of this writing, early results suggest that emu-sv is faster and more accurate than tensor-network based emulators up to ~25 qubits.
+You have found the documentation for emu-sv. The emulator **emu-sv** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io) that lets you run quantum algorithms on a simulated device, using GPU acceleration if available. More in depth, emu-sv is designed to **emu**late the dynamics of programmable arrays of neutral atoms, using the **s**tate **v**ector representation. While benchmarking is incomplete as of this writing, early results suggest that emu-sv is faster and more accurate than tensor-network based emulators up to ~27 qubits.
 
 ## Supported features
 
