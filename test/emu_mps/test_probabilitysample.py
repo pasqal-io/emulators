@@ -18,6 +18,12 @@ def test_sampling_ghz5_mps():
     ghz_mps = MPS(ghz_state_factors(num_qubits, device=device), eigenstates=("0", "1"))
     bitstrings = ghz_mps.sample(num_shots=shots)
 
+    # print(bitstrings.get("11"))
+    # print(bitstrings.get("00"))
+
+    # assert bitstrings.get("11") == 1
+    # assert bitstrings.get("00") == 2
+
     assert bitstrings.get("11111") == 505
     assert bitstrings.get("00000") == 495
 
@@ -39,5 +45,7 @@ def test_not_orthogonalized_state():
     )
     bell = MPS([l_factor1, l_factor2, l_factor3], eigenstates=("0", "1"))
     bitstrings = bell.sample(num_shots=shots)
+    print(bitstrings.get("111"))
+    print(bitstrings.get("000"))
     assert bitstrings.get("111") == 489
     assert bitstrings.get("000") == 511
