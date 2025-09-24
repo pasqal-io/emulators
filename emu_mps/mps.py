@@ -247,28 +247,30 @@ class MPS(State[complex, torch.Tensor]):
                 )
 
                 # Probability of measuring qubit == 0 for each shot in the batch
-                probas = (
-                    torch.linalg.vector_norm(batched_accumulator[:, -1, :], dim=1) ** 2
-                )
+                p1 = torch.linalg.vector_norm(batched_accumulator[:, -1, :], dim=1) ** 2
+
+                p0 = 1 - p1
 
                 outcomes = (
                     rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
                         factor.device
                     )
-                    < probas
+                    > p0
                 )
-                batch_outcomes[:, qubit] = ~outcomes
+
+                batch_outcomes[:, qubit] = outcomes
 
                 # Batch collapse qubit
-                tmp = torch.stack((outcomes, ~outcomes), dim=1).to(dtype=torch.complex128)
+                tmp = torch.stack((~outcomes, outcomes), dim=1).to(dtype=torch.complex128)
 
                 batched_accumulator = (
                     torch.tensordot(batched_accumulator, tmp, dims=([1], [1]))
                     .diagonal(dim1=0, dim2=2)
                     .transpose(1, 0)
-                )
+                )  # improve using @,
+
                 batched_accumulator /= torch.sqrt(
-                    (outcomes) * probas + (~outcomes) * (1 - probas)
+                    (outcomes) * p1 + (~outcomes) * p0
                 ).unsqueeze(1)
 
             shots_done += batch_size
