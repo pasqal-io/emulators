@@ -37,8 +37,8 @@ def _get_target_times(
     sequence: pulser.Sequence, config: EmulationConfig, dt: int
 ) -> list[int]:
     sequence_duration = sequence.get_duration(include_fall_time=config.with_modulation)
-    # the end value is exclusive, so add +1
-    observable_times = set(range(0, sequence_duration + 1, dt))
+
+    observable_times = set(range(0, sequence_duration, dt))
     observable_times.add(sequence_duration)
     for obs in config.observables:
         times: Sequence[float]
