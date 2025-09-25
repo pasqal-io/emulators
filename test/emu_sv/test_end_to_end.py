@@ -2,6 +2,7 @@ import math
 import random
 from unittest.mock import ANY, MagicMock, patch
 import pytest
+import numpy as np
 import torch
 from pytest import approx
 from typing import Any
@@ -514,7 +515,7 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
     random.seed(0xDEADBEEF)
     natoms = 4
     dt = 10
-    state_prep_error = 0.00001
+    state_prep_error = 0.1
     times = [1.0]
     total_time = 250  # bitstring at the end: "1111":1000
     pulse = pulser.Pulse.ConstantAmplitude(
@@ -540,8 +541,10 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
         gpu=gpu,
     )
 
-    with patch("emu_sv.sv_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
-        pick_dark_qubits_mock.return_value = torch.tensor([False, False, False, True])
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
+    ) as bad_atoms_mock:
+        bad_atoms_mock.return_value = np.array([0.2, 0.3, 0.4, 0.08])
 
         backend = SVBackend(seq, config=sv_config)
         result = backend.run()
@@ -551,14 +554,15 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
         expected.vector[-2] = 1.0j  # |1110> state
 
         assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
-        pick_dark_qubits_mock.assert_called_with(state_prep_error, natoms)
 
         probabilities = result.bitstrings[-1]
 
     assert probabilities["1110"] == 1000
 
-    with patch("emu_sv.sv_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
-        pick_dark_qubits_mock.return_value = torch.tensor([False, False, True, False])
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
+    ) as bad_atoms_mock:
+        bad_atoms_mock.return_value = np.array([0.2, 0.3, 0.08, 0.4])
 
         backend = SVBackend(seq, config=sv_config)
         result = backend.run()
@@ -568,14 +572,15 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
         expected.vector[-3] = 1.0j  # |1101> state
 
         assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
-        pick_dark_qubits_mock.assert_called_with(state_prep_error, natoms)
 
         probabilities = result.bitstrings[-1]
 
     assert probabilities["1101"] == 1000
 
-    with patch("emu_sv.sv_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
-        pick_dark_qubits_mock.return_value = torch.tensor([False, True, False, False])
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
+    ) as bad_atoms_mock:
+        bad_atoms_mock.return_value = np.array([0.2, 0.08, 0.3, 0.4])
 
         backend = SVBackend(seq, config=sv_config)
         result = backend.run()
@@ -585,14 +590,15 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
         expected.vector[11] = 1.0j  # |1011> state
 
         assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
-        pick_dark_qubits_mock.assert_called_with(state_prep_error, natoms)
 
         probabilities = result.bitstrings[-1]
 
     assert probabilities["1011"] == 1000
 
-    with patch("emu_sv.sv_backend_impl.pick_dark_qubits") as pick_dark_qubits_mock:
-        pick_dark_qubits_mock.return_value = torch.tensor([True, False, False, False])
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
+    ) as bad_atoms_mock:
+        bad_atoms_mock.return_value = np.array([0.08, 0.2, 0.3, 0.4])
 
         backend = SVBackend(seq, config=sv_config)
         result = backend.run()
@@ -602,7 +608,6 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
         expected.vector[7] = 1.0j  # |0111> state
 
         assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
-        pick_dark_qubits_mock.assert_called_with(state_prep_error, natoms)
 
         probabilities = result.bitstrings[-1]
 

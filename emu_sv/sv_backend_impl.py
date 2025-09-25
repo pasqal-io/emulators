@@ -9,7 +9,6 @@ from pulser import Sequence
 
 from pulser.backend import Results, Observable, State, EmulationConfig
 from emu_base import PulserData, get_max_rss
-from emu_base.noise import pick_dark_qubits
 
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
@@ -109,8 +108,9 @@ class BaseSVBackendImpl:
 
     def init_dark_qubits(self) -> None:
         if self._config.noise_model.state_prep_error > 0.0:
-            self.well_prepared_qubits_filter = pick_dark_qubits(
-                self._config.noise_model.state_prep_error, self.nqubits
+            d = self._pulser_data.hamiltonian.bad_atoms
+            self.well_prepared_qubits_filter = torch.tensor(
+                [d[x] for x in self._pulser_data.qubit_ids]
             )
         else:
             self.well_prepared_qubits_filter = None
