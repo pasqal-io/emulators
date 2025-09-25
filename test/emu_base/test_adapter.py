@@ -3,6 +3,7 @@ import math
 import pytest
 from unittest.mock import patch, MagicMock
 
+import pulser
 from pulser.backend import EmulationConfig, Observable
 from pulser.noise_model import NoiseModel
 from pulser.math import AbstractArray
@@ -846,3 +847,35 @@ def test_get_target_times_with_obs_eval_time(with_modulation):
 
         # get_duration called with the correct 'include_fall_time'
         mock_get_duration.assert_called_once_with(include_fall_time=with_modulation)
+
+
+def test_non_lindbladian_noise():
+    q_dict = {
+        0: [-4.0, 0.0],
+        1: [4.0, 0.0],
+    }
+    reg = pulser.Register(q_dict)
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+
+    seq.declare_channel("ch0", "rydberg_global")
+
+    seq.add(
+        pulser.Pulse.ConstantDetuning(
+            pulser.BlackmanWaveform(200, torch.pi / 5), 0.0, 0.0
+        ),
+        "ch0",
+    )
+
+    noise = NoiseModel(
+        amp_sigma=1.0,
+        detuning_sigma=1.0,
+        temperature=10.0,
+        trap_depth=1.0,
+        trap_waist=1.0,
+        state_prep_error=0.5,
+        runs=1,
+    )
+    config = EmulationConfig(interaction_cutoff=0.0, noise_model=noise)
+
+    # this should not error
+    PulserData(sequence=seq, config=config, dt=10)
