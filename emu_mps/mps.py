@@ -18,6 +18,7 @@ from emu_mps.utils import (
 )
 
 ArgScalarType = TypeVar("ArgScalarType")
+dtype = torch.complex128
 
 
 class MPS(State[complex, torch.Tensor]):
@@ -70,6 +71,7 @@ class MPS(State[complex, torch.Tensor]):
 
         self.factors = factors
         self.num_sites = len(factors)
+        self.dim = len(self.eigenstates)  # instead of d in orthogonalize function
         assert self.num_sites > 1  # otherwise, do state vector
 
         assert (orthogonality_center is None) or (
@@ -110,10 +112,7 @@ class MPS(State[complex, torch.Tensor]):
 
         if len(eigenstates) == 2:
             return cls(
-                [
-                    torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)
-                    for _ in range(num_sites)
-                ],
+                [torch.tensor([[[1.0], [0.0]]], dtype=dtype) for _ in range(num_sites)],
                 config=config,
                 num_gpus_to_use=num_gpus_to_use,
                 orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
@@ -122,7 +121,7 @@ class MPS(State[complex, torch.Tensor]):
         elif len(eigenstates) == 3:  # (x,g,r)
             return cls(
                 [
-                    torch.tensor([[[1.0], [0.0], [0.0]]], dtype=torch.complex128)
+                    torch.tensor([[[0.0], [1.0], [0.0]]], dtype=dtype)
                     for _ in range(num_sites)
                 ],
                 config=config,
@@ -158,7 +157,8 @@ class MPS(State[complex, torch.Tensor]):
 
         for i in range(lr_swipe_start, desired_orthogonality_center):
             q, r = torch.linalg.qr(self.factors[i].view(-1, self.factors[i].shape[2]))
-            self.factors[i] = q.view(self.factors[i].shape[0], 2, -1)
+
+            self.factors[i] = q.view(self.factors[i].shape[0], self.dim, -1)
             self.factors[i + 1] = torch.tensordot(
                 r.to(self.factors[i + 1].device), self.factors[i + 1], dims=1
             )
@@ -173,7 +173,8 @@ class MPS(State[complex, torch.Tensor]):
             q, r = torch.linalg.qr(
                 self.factors[i].contiguous().view(self.factors[i].shape[0], -1).mT,
             )
-            self.factors[i] = q.mT.view(-1, 2, self.factors[i].shape[2])
+
+            self.factors[i] = q.mT.view(-1, self.dim, self.factors[i].shape[2])
             self.factors[i - 1] = torch.tensordot(
                 self.factors[i - 1], r.to(self.factors[i - 1].device), ([2], [1])
             )
@@ -236,7 +237,7 @@ class MPS(State[complex, torch.Tensor]):
         while shots_done < num_shots:
             batch_size = min(max_batch_size, num_shots - shots_done)
             batched_accumulator = torch.ones(
-                batch_size, 1, dtype=torch.complex128, device=self.factors[0].device
+                batch_size, 1, dtype=dtype, device=self.factors[0].device
             )
 
             batch_outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.bool)
@@ -261,7 +262,9 @@ class MPS(State[complex, torch.Tensor]):
                 batch_outcomes[:, qubit] = outcomes
 
                 # Batch collapse qubit
-                tmp = torch.stack((~outcomes, outcomes), dim=1).to(dtype=torch.complex128)
+                tmp = torch.stack([~outcomes] * (self.dim - 1) + [outcomes], dim=1).to(
+                    dtype=torch.complex128
+                )
 
                 batched_accumulator = (
                     torch.tensordot(batched_accumulator, tmp, dims=([1], [1]))
@@ -285,108 +288,6 @@ class MPS(State[complex, torch.Tensor]):
                 p_false_neg=p_false_neg,
             )
         return bitstrings
-
-    # def sample(
-    #     self,
-    #     *,
-    #     num_shots: int,
-    #     one_state: Eigenstate | None = None,
-    #     p_false_pos: float = 0.0,
-    #     p_false_neg: float = 0.0,
-    # ) -> Counter[str]:
-    #     """
-    #     Samples bitstrings, collapsing each measured site to a one-hot basis vector.
-    #     Last local index (or '1' in eigenstates if present) -> bit '1', others -> '0'.
-    #     """
-    #     assert one_state in {None, "r", "1"}
-    #     # keep existing orthogonalization behaviour
-    #     self.orthogonalize(0)
-
-    #     device0 = self.factors[0].device
-    #     rnd_matrix = torch.rand(num_shots, self.num_sites, device=device0)
-
-    #     bitstrings: Counter[str] = Counter()
-    #     max_batch_size = 32
-
-    #     # decide which local index corresponds to logical '1'
-    #     try:
-    #         one_index = self.eigenstates.index("1")
-    #     except ValueError:
-    #         one_index = None  # will fallback to last index per-site
-
-    #     shots_done = 0
-    #     while shots_done < num_shots:
-    #         batch_size = min(max_batch_size, num_shots - shots_done)
-    #         batched_accumulator = torch.ones(
-    #             batch_size, 1, dtype=torch.complex128, device=device0
-    #         )
-
-    #         batch_outcomes = torch.empty(
-    #             batch_size, self.num_sites, dtype=torch.bool, device=device0
-    #         )
-
-    #         for qubit, factor in enumerate(self.factors):
-    #             # contract left bond -> (batch, site_dim, right_bond)
-    #             batched_accumulator = torch.tensordot(
-    #                 batched_accumulator.to(factor.device), factor, dims=1
-    #             )
-
-    #             # --- CHANGED: compute per-basis probabilities for this site (batch, site_dim)
-    #             local_probas = torch.linalg.vector_norm(batched_accumulator, dim=2) ** 2
-
-    #             # sample basis index for each shot in the batch using thresholds + cumsum
-    #             thresholds = rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
-    #                 factor.device
-    #             )
-    #             cuml = torch.cumsum(local_probas, dim=1)
-    #             comp = (
-    #                 thresholds.unsqueeze(1) < cuml
-    #             )  # first True along dim=1 is selected
-    #             chosen_idx = comp.to(dtype=torch.int64).argmax(dim=1)  # (batch,)
-
-    #             # choose which index maps to logical '1' (fallback to last index if not found)
-    #             this_one_index = (
-    #                 one_index if one_index is not None else (factor.shape[1] - 1)
-    #             )
-    #             batch_outcomes[:, qubit] = chosen_idx == this_one_index
-
-    #             # collapse to the measured one-hot vector (tmp), same collapse pattern as before
-    #             tmp = torch.nn.functional.one_hot(
-    #                 chosen_idx, num_classes=factor.shape[1]
-    #             ).to(
-    #                 dtype=torch.complex128, device=factor.device
-    #             )  # (batch, site_dim)
-
-    #             batched_accumulator = (
-    #                 torch.tensordot(batched_accumulator, tmp, dims=([1], [1]))
-    #                 .diagonal(dim1=0, dim2=2)
-    #                 .transpose(1, 0)
-    #             )  # -> (batch, right_bond)
-
-    #             # normalize using chosen basis probability (numeric-safe)
-    #             chosen_prob = local_probas[
-    #                 torch.arange(batch_size, device=factor.device), chosen_idx
-    #             ]
-    #             chosen_prob = torch.where(
-    #                 chosen_prob == 0,
-    #                 torch.tensor(1.0, dtype=chosen_prob.dtype, device=chosen_prob.device),
-    #                 chosen_prob,
-    #             )
-    #             batched_accumulator /= torch.sqrt(chosen_prob).unsqueeze(1)
-
-    #         shots_done += batch_size
-
-    #         # convert outcomes to bitstrings and count (move to CPU for the string ops)
-    #         for outcome in batch_outcomes.cpu():
-    #             bitstrings.update(["".join("0" if x == 0 else "1" for x in outcome)])
-
-    #     if p_false_neg > 0 or p_false_pos > 0:
-    #         bitstrings = apply_measurement_errors(
-    #             bitstrings,
-    #             p_false_pos=p_false_pos,
-    #             p_false_neg=p_false_neg,
-    #         )
-    #     return bitstrings
 
     def norm(self) -> torch.Tensor:
         """Computes the norm of the MPS."""
@@ -542,11 +443,11 @@ class MPS(State[complex, torch.Tensor]):
         else:
             raise ValueError("Unsupported basis provided")
 
-        basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)  # ground state
-        basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state
+        basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=dtype)  # ground state
+        basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=dtype)  # excited state
 
         accum_mps = MPS(
-            [torch.zeros((1, 2, 1), dtype=torch.complex128)] * n_qudits,
+            [torch.zeros((1, 2, 1), dtype=dtype)] * n_qudits,
             orthogonality_center=0,
             eigenstates=eigenstates,
         )
@@ -575,9 +476,7 @@ class MPS(State[complex, torch.Tensor]):
             else self.orthogonalize(0)
         )
 
-        result = torch.zeros(
-            self.num_sites, single_qubit_operators.shape[0], dtype=torch.complex128
-        )
+        result = torch.zeros(self.num_sites, single_qubit_operators.shape[0], dtype=dtype)
 
         center_factor = self.factors[orthogonality_center]
         for qubit_index in range(orthogonality_center, self.num_sites):
@@ -640,7 +539,7 @@ class MPS(State[complex, torch.Tensor]):
         """
         assert operator.shape == (2, 2)
 
-        result = torch.zeros(self.num_sites, self.num_sites, dtype=torch.complex128)
+        result = torch.zeros(self.num_sites, self.num_sites, dtype=dtype)
 
         for left in range(0, self.num_sites):
             self.orthogonalize(left)
