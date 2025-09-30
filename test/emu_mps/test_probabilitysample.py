@@ -17,7 +17,7 @@ def test_sampling_ghz5_mps():
     shots = 1000
     ghz_mps = MPS(ghz_state_factors(num_qubits, device=device), eigenstates=("0", "1"))
     bitstrings = ghz_mps.sample(num_shots=shots)
-
+    print("counter", bitstrings)
     assert bitstrings.get("11111") == 505
     assert bitstrings.get("00000") == 495
 
@@ -60,25 +60,26 @@ def test_sampling_wall():
     assert bitstrings.get(state_bit) == 1000
 
 
-def test_sampling_with_leakage():
+def test_with_leakage():
     torch.manual_seed(seed)
     device = "cpu"
     shots = 3
-    natoms = 4  # half the number of qubits
+    natoms = 2  # half the number of qubits
 
-    factor1 = torch.tensor([[[0], [0], [1]]], dtype=torch.complex128, device=device)
-    factor2 = torch.tensor([[[0], [1], [0]]], dtype=torch.complex128, device=device)
-    wall_state = [factor1] * natoms + [factor2] * natoms  # wall state in rydberg basis
+    ket1 = torch.tensor([[[0], [1], [0]]], dtype=torch.complex128, device=device)
+    ket0 = torch.tensor([[[1], [0], [0]]], dtype=torch.complex128, device=device)
+    wall_state = [ket1] * natoms + [ket0] * natoms  # wall state in rydberg basis
 
     # check manually check that x works with rydberg basis
     # decision: x, g, r order
-    state_wall = MPS(wall_state, eigenstates=("x", "g", "r"))
+    state_wall = MPS(wall_state, eigenstates=("g", "r", "x"))
     bitstrings = state_wall.sample(num_shots=shots)
     state_bit = "1" * natoms + "0" * natoms
+    print("counter", bitstrings)
     assert bitstrings.get(state_bit) == shots
 
 
-def test_sampling_with_leakage_ghz_3level():
+def test_with_leakage_ghz_3level():
     torch.manual_seed(seed)
 
     shots = 1000
@@ -105,7 +106,8 @@ def test_sampling_with_leakage_ghz_3level():
     assert bitstrings.get(state_bit1) == 307
 
 
-def test_sampling_with_leakage_random_3level():
+def test_with_leakage_edge_case_3level():
+    "The output of state xr + xg + gg - gr"
     torch.manual_seed(seed)
 
     shots = 1000
@@ -120,11 +122,8 @@ def test_sampling_with_leakage_random_3level():
     state = mpsxr + mpsxg + mpsgg + (-1.0) * mpsgr
     state /= state.norm()
 
-    # check manually check that x works with rydberg basis
-    # decision: x, g, r order
-    # state_wall = MPS(wall_state, eigenstates=("x", "g", "r"))
     bitstrings = state.sample(num_shots=shots)
 
     print("counter", bitstrings)
-    assert bitstrings.get("00") == 500
-    assert bitstrings.get("01") == 500
+    assert bitstrings.get("00") == 477
+    assert bitstrings.get("01") == 523

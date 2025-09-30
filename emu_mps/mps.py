@@ -118,10 +118,10 @@ class MPS(State[complex, torch.Tensor]):
                 orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
                 eigenstates=eigenstates,
             )
-        elif len(eigenstates) == 3:  # (x,g,r)
+        elif len(eigenstates) == 3:  # (g,r,x)
             return cls(
                 [
-                    torch.tensor([[[0.0], [1.0], [0.0]]], dtype=dtype)
+                    torch.tensor([[[1.0], [0.0], [0.0]]], dtype=dtype)
                     for _ in range(num_sites)
                 ],
                 config=config,
@@ -248,22 +248,29 @@ class MPS(State[complex, torch.Tensor]):
                 )
 
                 # Probability of measuring qubit == 0 for each shot in the batch
-                p1 = torch.linalg.vector_norm(batched_accumulator[:, -1, :], dim=1) ** 2
 
-                p0 = 1 - p1
-
-                outcomes = (
-                    rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
-                        factor.device
+                n = 0
+                pn = 0.0
+                outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.bool)
+                while n < self.dim:
+                    pn += (
+                        torch.linalg.vector_norm(batched_accumulator[:, n, :], dim=1) ** 2
                     )
-                    > p0
-                )
+
+                    outcomes = (
+                        rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
+                            factor.device
+                        )
+                        < pn
+                    )
+
+                    n += 1
 
                 batch_outcomes[:, qubit] = outcomes
 
                 # Batch collapse qubit
                 tmp = torch.stack([~outcomes] * (self.dim - 1) + [outcomes], dim=1).to(
-                    dtype=torch.complex128
+                    dtype=dtype
                 )
 
                 batched_accumulator = (
@@ -272,16 +279,15 @@ class MPS(State[complex, torch.Tensor]):
                     .transpose(1, 0)
                 )  # improve using @,
 
-                batched_accumulator /= torch.sqrt(
-                    (outcomes) * p1 + (~outcomes) * p0
-                ).unsqueeze(1)
+                batched_accumulator /= torch.sqrt(torch.tensor(pn)).unsqueeze(1)
 
             shots_done += batch_size
-
+            print("batch outcomes", batch_outcomes)
             for outcome in batch_outcomes:
                 bitstrings.update(["".join("0" if x == 0 else "1" for x in outcome)])
 
-        if p_false_neg > 0 or p_false_pos > 0:
+        # for 2 level systems
+        if p_false_neg > 0 or p_false_pos > 0 and self.dim == 2:
             bitstrings = apply_measurement_errors(
                 bitstrings,
                 p_false_pos=p_false_pos,
