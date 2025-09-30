@@ -22,7 +22,7 @@ classifiers=[
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pulser-core==1.5.*",
+  "pulser-core==1.6.*",
   "torch==2.8.0"]
 dynamic = ["version"]
 

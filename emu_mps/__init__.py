@@ -14,7 +14,6 @@ from .mpo import MPO
 from .mps import MPS, inner
 from .mps_backend import MPSBackend
 from .observables import EntanglementEntropy
-from emu_base import aggregate
 
 
 __all__ = [
@@ -34,8 +33,7 @@ __all__ = [
     "Energy",
     "EnergyVariance",
     "EnergySecondMoment",
-    "aggregate",
     "EntanglementEntropy",
 ]
 
-__version__ = "2.3.0"
+__version__ = "2.4.0"

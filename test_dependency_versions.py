@@ -11,10 +11,9 @@ file_dir = Path(__file__).parent
 def extract_version_from_file(filepath: Path, pattern: str) -> Optional[str]:
     with open(filepath, "r") as f:
         for line in f:
-            if re.search(pattern, line):
-                match = re.search(r"([0-9]+(?:\.[0-9*]+){2})", line)
-                if match:
-                    return match.group()
+            match = re.search(pattern + r'\s*>?=*\s*"?([0-9]+(?:\.[0-9*]+){2})"?', line)
+            if match:
+                return match.group(1)
     return None
 
 
@@ -34,20 +33,20 @@ mps_dep = extract_version_from_file(file_dir / "ci/emu_mps/pyproject.toml", "emu
 print(f" - emu-mps depends on emu-base version {mps_dep}")
 
 # emu_base version
-base_version = extract_version_from_file(file_dir / "emu_base/__init__.py", "version")
+base_version = extract_version_from_file(file_dir / "emu_base/__init__.py", "__version__")
 print(f" - emu-base is version {base_version}")
 
 # emu_sv version
-sv_version = extract_version_from_file(file_dir / "emu_sv/__init__.py", "version")
+sv_version = extract_version_from_file(file_dir / "emu_sv/__init__.py", "__version__")
 print(f" - emu-sv is version {sv_version}")
 
 # emu_mps version
-mps_version = extract_version_from_file(file_dir / "emu_mps/__init__.py", "version")
+mps_version = extract_version_from_file(file_dir / "emu_mps/__init__.py", "__version__")
 print(f" - emu-mps is version {mps_version}")
 
 # citation version
 
-citation_version = extract_version_from_file(file_dir / "CITATION.cff", "^version")
+citation_version = extract_version_from_file(file_dir / "CITATION.cff", "^version:")
 print(f" - citation version is {citation_version}")
 
 if (
@@ -84,6 +83,17 @@ print(f" - The root package depends on pulser-core version {pulser_root_dep}")
 if pulser_root_dep != pulser_base_dep:
     fail(f"{pulser_root_dep} != {pulser_base_dep}")
 
+# pulser_core in .pre-commit-config.yaml
+pulser_pre_commit_version = extract_version_from_file(
+    file_dir / ".pre-commit-config.yaml", "pulser-core"
+)
+print(f" - pre-commit uses pulser_core version {pulser_pre_commit_version}")
+
+if pulser_pre_commit_version != pulser_root_dep:
+    fail(
+        f" - pulser-core in .pre-commit version {pulser_pre_commit_version}"
+        f" != pulser-core in pyproject.toml {pulser_root_dep}"
+    )
 
 print("Checking torch:")
 
