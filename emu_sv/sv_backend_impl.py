@@ -108,9 +108,9 @@ class BaseSVBackendImpl:
 
     def init_dark_qubits(self) -> None:
         if self._config.noise_model.state_prep_error > 0.0:
-            d = self._pulser_data.hamiltonian.bad_atoms
+            bad_atoms = self._pulser_data.hamiltonian.bad_atoms
             self.well_prepared_qubits_filter = torch.tensor(
-                [bool(d[x]) for x in self._pulser_data.qubit_ids]
+                [bool(bad_atoms[x]) for x in self._pulser_data.qubit_ids]
             )
         else:
             self.well_prepared_qubits_filter = None

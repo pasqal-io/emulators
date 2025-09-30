@@ -537,7 +537,7 @@ def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
         bad_atoms_mock.return_value = np.array([0.05, 0.2, 0.3, 0.06])
         result = simulate_line(4, state_prep_error=0.1)
         final_state = result.state[-1]
-    print(final_state)
+
     assert get_proba(final_state, "0110") == approx(0.95, abs=1e-2)
 
     # FIXME: When n-1 qubits are dark, the simulation fails!

@@ -185,9 +185,9 @@ class MPSBackendImpl:
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
         if self.config.noise_model.state_prep_error > 0.0:
-            d = self.pulser_data.hamiltonian.bad_atoms
+            bad_atoms = self.pulser_data.hamiltonian.bad_atoms
             self.well_prepared_qubits_filter = torch.logical_not(
-                torch.tensor(list(bool(x) for x in d.values()))
+                torch.tensor(list(bool(x) for x in bad_atoms.values()))
             )
         else:
             self.well_prepared_qubits_filter = None
