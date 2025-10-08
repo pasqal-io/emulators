@@ -24,6 +24,7 @@ nav:
     - Notebooks:
       - Index: emu_mps/notebooks/index.md
       - Getting started: emu_mps/notebooks/getting_started.ipynb
+      - Getting with started with dmrg: emu_mps/notebooks/dmrg_usecase.ipynb
       - Running with noise: emu_mps/notebooks/noise.ipynb
     - Advanced Topics:
       - Index: emu_mps/advanced/index.md
