@@ -12,7 +12,7 @@
         <link rel="prev" href="../">
       
       
-        <link rel="next" href="../noise/">
+        <link rel="next" href="../dmrg_usecase/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -935,6 +935,8 @@
       
         
       
+        
+      
     
     
     
@@ -1169,6 +1171,29 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dmrg_usecase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    DMRG tutorial: Getting started
+    
+  </span>
+  
+
+      </a>
     </li>
   
 
@@ -2287,7 +2312,8 @@ For more information about this specific pulse sequence, please refer to the <a 
 </div>
 </clipboard-copy>
 </div>
-<div class="highlight-ipynb hl-python"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<div class="highlight-ipynb hl-python"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">emu_mps</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">MPS</span><span class="p">,</span>
     <span class="n">MPSConfig</span><span class="p">,</span>
@@ -2302,7 +2328,8 @@ For more information about this specific pulse sequence, please refer to the <a 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pulser.devices</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnalogDevice</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-1">import matplotlib.pyplot as plt
+<div class="clipboard-copy-txt" id="cell-1">from typing import Any
+import matplotlib.pyplot as plt
 from emu_mps import (
     MPS,
     MPSConfig,
@@ -2385,9 +2412,169 @@ The qubits will be labeled starting from the bottom-left corner and moving count
 </div>
 </clipboard-copy>
 </div>
-<div class="highlight-ipynb hl-python"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">square_perimeter_points</span><span class="p">,</span> <span class="n">afm_sequence_from_register</span>
+<div class="highlight-ipynb hl-python"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">afm_sequence_from_register</span><span class="p">(</span>
+    <span class="n">reg</span><span class="p">:</span> <span class="n">pulser</span><span class="o">.</span><span class="n">Register</span><span class="p">,</span>
+    <span class="n">Omega_max</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">delta_0</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">delta_f</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">t_rise</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">t_fall</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">factor_sweep</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">device</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">pulser</span><span class="o">.</span><span class="n">devices</span><span class="o">.</span><span class="n">MockDevice</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pulser</span><span class="o">.</span><span class="n">Sequence</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Sequence that creates AntiFerromagnetic State (AFM) for 1d chain of atoms using pulser.</span>
+<span class="sd">    This function constructs a sequence of pulses to transition a system of qubits</span>
+<span class="sd">    distributed in a 1d chain (represented by `reg`) into an AFM state using a specified device.</span>
+<span class="sd">    The sequence consists of three phases: a rise, a sweep, and a fall.</span>
+<span class="sd">    For more information, check Pulser</span>
+<span class="sd">    [tutorial](https://pulser.readthedocs.io/en/stable/tutorials/afm_prep.html)."""</span>
+
+    <span class="n">t_sweep</span> <span class="o">=</span> <span class="p">(</span><span class="n">delta_f</span> <span class="o">-</span> <span class="n">delta_0</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span> <span class="o">*</span> <span class="mi">1000</span> <span class="o">*</span> <span class="n">factor_sweep</span>
+    <span class="n">rise</span> <span class="o">=</span> <span class="n">pulser</span><span class="o">.</span><span class="n">Pulse</span><span class="o">.</span><span class="n">ConstantDetuning</span><span class="p">(</span>
+        <span class="n">pulser</span><span class="o">.</span><span class="n">waveforms</span><span class="o">.</span><span class="n">RampWaveform</span><span class="p">(</span><span class="n">t_rise</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">Omega_max</span><span class="p">),</span> <span class="n">delta_0</span><span class="p">,</span> <span class="mf">0.0</span>
+    <span class="p">)</span>
+    <span class="n">sweep</span> <span class="o">=</span> <span class="n">pulser</span><span class="o">.</span><span class="n">Pulse</span><span class="o">.</span><span class="n">ConstantAmplitude</span><span class="p">(</span>
+        <span class="n">Omega_max</span><span class="p">,</span> <span class="n">pulser</span><span class="o">.</span><span class="n">waveforms</span><span class="o">.</span><span class="n">RampWaveform</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">t_sweep</span><span class="p">),</span> <span class="n">delta_0</span><span class="p">,</span> <span class="n">delta_f</span><span class="p">),</span> <span class="mf">0.0</span>
+    <span class="p">)</span>
+    <span class="n">fall</span> <span class="o">=</span> <span class="n">pulser</span><span class="o">.</span><span class="n">Pulse</span><span class="o">.</span><span class="n">ConstantDetuning</span><span class="p">(</span>
+        <span class="n">pulser</span><span class="o">.</span><span class="n">waveforms</span><span class="o">.</span><span class="n">RampWaveform</span><span class="p">(</span><span class="n">t_fall</span><span class="p">,</span> <span class="n">Omega_max</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">delta_f</span><span class="p">,</span> <span class="mf">0.0</span>
+    <span class="p">)</span>
+
+    <span class="n">seq</span> <span class="o">=</span> <span class="n">pulser</span><span class="o">.</span><span class="n">Sequence</span><span class="p">(</span><span class="n">reg</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>
+    <span class="n">seq</span><span class="o">.</span><span class="n">declare_channel</span><span class="p">(</span><span class="s2">"ising_global"</span><span class="p">,</span> <span class="s2">"rydberg_global"</span><span class="p">)</span>
+    <span class="n">seq</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">rise</span><span class="p">,</span> <span class="s2">"ising_global"</span><span class="p">)</span>
+    <span class="n">seq</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">sweep</span><span class="p">,</span> <span class="s2">"ising_global"</span><span class="p">)</span>
+    <span class="n">seq</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">fall</span><span class="p">,</span> <span class="s2">"ising_global"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">seq</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">square_perimeter_points</span><span class="p">(</span><span class="n">L</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Calculate the coordinates of the points located on the perimeter of a square of size L.</span>
+<span class="sd">    The square is centered at the origin (0, 0) with sides parallel to the axes.</span>
+<span class="sd">    The points are ordered starting from the bottom-left corner and moving</span>
+<span class="sd">    counter-clockwise around the square. The order is important when measuare the bitstrings</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        L (int): The length of the side of the square. L should be a positive integer.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        np.ndarray: An array of shape (4*L-4, 2) containing the coordinates of the perimeter points.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; square_perimeter_points(3)</span>
+<span class="sd">        array([[-1, -1],</span>
+<span class="sd">               [-1,  0],</span>
+<span class="sd">               [-1,  1],</span>
+<span class="sd">               [ 0,  1],</span>
+<span class="sd">               [ 1,  1],</span>
+<span class="sd">               [ 1,  0],</span>
+<span class="sd">               [ 1, -1],</span>
+<span class="sd">               [ 0, -1]])</span>
+<span class="sd">    """</span>
+    <span class="n">pairOrodd</span> <span class="o">=</span> <span class="n">L</span> <span class="o">%</span> <span class="mi">2</span>
+    <span class="n">toGrid</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">L</span> <span class="o">/</span> <span class="mi">2</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">pairOrodd</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">axis</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">toGrid</span><span class="p">,</span> <span class="n">toGrid</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">axis</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">toGrid</span><span class="p">,</span> <span class="n">toGrid</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">coord</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">axis</span><span class="p">:</span>  <span class="c1"># from left, first column of the perimeter</span>
+        <span class="n">coord</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">axis</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">i</span><span class="p">])</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">axis</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+        <span class="n">coord</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">i</span><span class="p">,</span> <span class="n">axis</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">axis</span><span class="p">):</span>
+        <span class="n">coord</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">axis</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">i</span><span class="p">])</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">axis</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">coord</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">i</span><span class="p">,</span> <span class="n">axis</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">coord</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-2">from utils import square_perimeter_points, afm_sequence_from_register</div>
+<div class="clipboard-copy-txt" id="cell-2">def afm_sequence_from_register(
+    reg: pulser.Register,
+    Omega_max: float,
+    delta_0: float,
+    delta_f: float,
+    t_rise: int,
+    t_fall: int,
+    factor_sweep: int,
+    device: Any = pulser.devices.MockDevice,
+) -&gt; pulser.Sequence:
+    """Sequence that creates AntiFerromagnetic State (AFM) for 1d chain of atoms using pulser.
+    This function constructs a sequence of pulses to transition a system of qubits
+    distributed in a 1d chain (represented by `reg`) into an AFM state using a specified device.
+    The sequence consists of three phases: a rise, a sweep, and a fall.
+    For more information, check Pulser
+    [tutorial](https://pulser.readthedocs.io/en/stable/tutorials/afm_prep.html)."""
+
+    t_sweep = (delta_f - delta_0) / (2 * np.pi * 10) * 1000 * factor_sweep
+    rise = pulser.Pulse.ConstantDetuning(
+        pulser.waveforms.RampWaveform(t_rise, 0.0, Omega_max), delta_0, 0.0
+    )
+    sweep = pulser.Pulse.ConstantAmplitude(
+        Omega_max, pulser.waveforms.RampWaveform(int(t_sweep), delta_0, delta_f), 0.0
+    )
+    fall = pulser.Pulse.ConstantDetuning(
+        pulser.waveforms.RampWaveform(t_fall, Omega_max, 0.0), delta_f, 0.0
+    )
+
+    seq = pulser.Sequence(reg, device)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(rise, "ising_global")
+    seq.add(sweep, "ising_global")
+    seq.add(fall, "ising_global")
+
+    return seq
+
+
+def square_perimeter_points(L: int) -&gt; np.ndarray:
+    """
+    Calculate the coordinates of the points located on the perimeter of a square of size L.
+    The square is centered at the origin (0, 0) with sides parallel to the axes.
+    The points are ordered starting from the bottom-left corner and moving
+    counter-clockwise around the square. The order is important when measuare the bitstrings
+
+    Args:
+        L (int): The length of the side of the square. L should be a positive integer.
+
+    Returns:
+        np.ndarray: An array of shape (4*L-4, 2) containing the coordinates of the perimeter points.
+
+    Example:
+        &gt;&gt;&gt; square_perimeter_points(3)
+        array([[-1, -1],
+               [-1,  0],
+               [-1,  1],
+               [ 0,  1],
+               [ 1,  1],
+               [ 1,  0],
+               [ 1, -1],
+               [ 0, -1]])
+    """
+    pairOrodd = L % 2
+    toGrid = int(math.floor(L / 2))
+    if pairOrodd == 0:
+        axis = list(range(-toGrid, toGrid, 1))
+    else:
+        axis = list(range(-toGrid, toGrid + 1, 1))
+    coord = []
+    for i in axis:  # from left, first column of the perimeter
+        coord.append([axis[0], i])
+
+    for i in axis[1:-1]:
+        coord.append([i, axis[-1]])
+
+    for i in reversed(axis):
+        coord.append([axis[-1], i])
+
+    for i in reversed(axis[1:-1]):
+        coord.append([i, axis[0]])
+
+    return np.array(coord)</div>
 </div>
 </div>
 </div>
