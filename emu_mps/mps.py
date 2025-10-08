@@ -248,41 +248,29 @@ class MPS(State[complex, torch.Tensor]):
                 )
 
                 # Probability of measuring qubit == 0 for each shot in the batch
+                probas = (
+                    torch.linalg.vector_norm(batched_accumulator[:, 0, :], dim=1) ** 2
+                )
 
-                n = 0
-                pn = 0.0
-                outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.bool)
-                while n < self.dim:
-                    pn += (
-                        torch.linalg.vector_norm(batched_accumulator[:, n, :], dim=1) ** 2
+                outcomes = (
+                    rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
+                        factor.device
                     )
-
-                    outcomes = (
-                        rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
-                            factor.device
-                        )
-                        < pn
-                    )
-
-                    n += 1
+                    > probas
+                )
 
                 batch_outcomes[:, qubit] = outcomes
 
-                # Batch collapse qubit
-                tmp = torch.stack([~outcomes] * (self.dim - 1) + [outcomes], dim=1).to(
-                    dtype=dtype
-                )
+                # (batch_size, bond_dim)
+                batched_accumulator = batched_accumulator[
+                    torch.arange(batch_size), outcomes.to(torch.int), :
+                ]
 
-                batched_accumulator = (
-                    torch.tensordot(batched_accumulator, tmp, dims=([1], [1]))
-                    .diagonal(dim1=0, dim2=2)
-                    .transpose(1, 0)
-                )  # improve using @,
-
-                batched_accumulator /= torch.sqrt(torch.tensor(pn)).unsqueeze(1)
+                batched_accumulator /= torch.sqrt(
+                    ((~outcomes) * probas + outcomes * (1 - probas))
+                ).unsqueeze(1)
 
             shots_done += batch_size
-            print("batch outcomes", batch_outcomes)
             for outcome in batch_outcomes:
                 bitstrings.update(["".join("0" if x == 0 else "1" for x in outcome)])
 
