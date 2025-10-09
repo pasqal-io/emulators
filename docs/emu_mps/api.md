@@ -1,6 +1,6 @@
 # API specification
 
-The emu-mps API is based on the specification [here](../base_classes.md). Additionally, some additional observables are implemented specifically for emu-mps.
+The emu-mps API is based on the specification [here](../base_classes.md). Additionally, some observables are implemented specifically for emu-mps.
 
 The implementation of the base classes is as follows:
 
