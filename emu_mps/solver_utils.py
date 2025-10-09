@@ -51,9 +51,10 @@ def make_op(
         .view(left_ham_factor.shape[0], 4, 4, -1)
     )
 
-    op = lambda x: time_step * apply_effective_Hamiltonian(
-        x, combined_hamiltonian_factors, left_bath, right_bath
-    )
+    def op(x: torch.Tensor) -> torch.Tensor:
+        return time_step * apply_effective_Hamiltonian(
+            x, combined_hamiltonian_factors, left_bath, right_bath
+        )
 
     return combined_state_factors, right_device, op
 
@@ -205,17 +206,18 @@ def evolve_single(
 
     left_bath, right_bath = baths
 
-    op = (
-        lambda x: -_TIME_CONVERSION_COEFF
-        * 1j
-        * dt
-        * apply_effective_Hamiltonian(
-            x,
-            ham_factor,
-            left_bath,
-            right_bath,
+    def op(x: torch.Tensor) -> torch.Tensor:
+        return (
+            -_TIME_CONVERSION_COEFF
+            * 1j
+            * dt
+            * apply_effective_Hamiltonian(
+                x,
+                ham_factor,
+                left_bath,
+                right_bath,
+            )
         )
-    )
 
     return krylov_exp(
         op,

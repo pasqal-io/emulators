@@ -48,7 +48,9 @@ def test_double_krylov(N, tolerance):
         device=device,
     )
 
-    op = lambda x: -1j * dt * (ham * x)
+    def op(x):
+        return -1j * dt * (ham * x)
+
     lanczos_vectors_state, dS, lanczos_vectors_grad = double_krylov(
         op, state, grad, tolerance
     )

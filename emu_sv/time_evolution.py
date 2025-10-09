@@ -140,7 +140,10 @@ class EvolveStateVector(torch.autograd.Function):
             interaction_matrix=interaction_matrix,
             device=state.device,
         )
-        op = lambda x: -1j * dt * (ham * x)
+
+        def op(x: torch.Tensor) -> torch.Tensor:
+            return -1j * dt * (ham * x)
+
         res = krylov_exp(
             op,
             state,
@@ -273,7 +276,10 @@ class EvolveStateVector(torch.autograd.Function):
         )
 
         if any(ctx.needs_input_grad[1:5]):
-            op = lambda x: -1j * dt * (ham * x)
+
+            def op(x: torch.Tensor):
+                return -1j * dt * (ham * x)
+
             lanczos_vectors_state, dS, lanczos_vectors_grad = double_krylov(
                 op, state, grad_state_out, tolerance
             )
@@ -316,7 +322,10 @@ class EvolveStateVector(torch.autograd.Function):
                     grad_int_mat[i, j] = (-1j * dt * torch.tensordot(Vg.conj(), v)).real
 
         if ctx.needs_input_grad[5]:
-            op = lambda x: (1j * dt) * (ham * x)
+
+            def op(x: torch.Tensor):
+                return (1j * dt) * (ham * x)
+
             grad_state_in = krylov_exp(op, grad_state_out.detach(), tolerance, tolerance)
 
         return (
@@ -353,7 +362,9 @@ class EvolveDensityMatrix:
             device=density_matrix.device,
         )
 
-        op = lambda x: -1j * dt * (ham @ x)
+        def op(x: torch.Tensor) -> torch.Tensor:
+            return -1j * dt * (ham @ x)
+
         return (
             krylov_exp(
                 op,
