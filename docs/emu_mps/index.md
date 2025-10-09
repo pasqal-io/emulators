@@ -8,10 +8,8 @@ The following features are currently supported:
 
 - All Pulser sequences that use only the rydberg channel
 - MPS and MPO can be constructed using the abstract Pulser format.
-- The following noise types:
-    - [SPAM](https://pulser.readthedocs.io/en/stable/tutorials/spam.html)
-    - [Monte Carlo quantum jumps](https://pulser.readthedocs.io/en/stable/tutorials/effective_noise.html)
-    - A Gaussian laser waist for the global pulse channels.
+- All noise from the pulser `NoiseModel` except leakage
+    - Effective noise is included using [Monte Carlo quantum jumps](https://pulser.readthedocs.io/en/stable/tutorials/effective_noise.html)
 - The following [basis states](https://pulser.readthedocs.io/en/stable/conventions.html) in a sequence:
     - [ground-rydberg](https://pulser.readthedocs.io/en/stable/review.html#programmable-arrays-of-rydberg-atoms)
     - [XY](https://pulser.readthedocs.io/en/stable/tutorials/xy_spin_chain.html)
@@ -27,19 +25,19 @@ The following features are currently supported:
     - The qubit density (magnetization)
     - The correlation matrix
     - The mean, second moment and variance of the energy
+    - Entanglement entropy
 - Specification of
-    - initial state
-    - various precision parameters
-    - whether to run on cpu or gpu(s)
-    - the $U_{ij}$ coefficients from [here](./advanced/hamiltonian.md)
+    - Initial state
+    - Various precision parameters
+    - Whether to run on cpu or gpu(s)
+    - The $U_{ij}$ coefficients from [here](./advanced/hamiltonian.md)
     - A cutoff below which $U_{ij}$ are set to 0 (this makes the computation more memory efficient)
 
 ## Planned features
 
-- Parallel TDVP on multiple GPUs
-- More noise:
-    - the currently unsupported noises in the Pulser `NoiseModel`
-- Differentiability
+- More efficient use of GPU by storing tensors on CPU where possible.
+- Leakage noise.
+- Differentiability.
 
 ## More Info
 Please see the API specification for a list of available config options ([see here](api.md)).
