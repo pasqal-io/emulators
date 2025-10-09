@@ -6,10 +6,8 @@ You have found the documentation for emu-sv. The emulator **emu-sv** is a backen
 
 The following features are currently supported:
 
-- All Pulser sequences that use only the rydberg channel without complex phase
+- All Pulser sequences that use only the rydberg channel
 - States and Operators can be constructed using the abstract Pulser format.
-- The following noise types:
-    - None currently
 - The following [basis states](https://pulser.readthedocs.io/en/stable/conventions.html) in a sequence:
     - [ground-rydberg](https://pulser.readthedocs.io/en/stable/review.html#programmable-arrays-of-rydberg-atoms)
 - The following properties from a Pulser Sequence are also correctly applied:
@@ -24,16 +22,18 @@ The following features are currently supported:
     - The correlation matrix
     - The mean, second moment and variance of the energy
 - Specification of
-    - initial state
-    - various precision parameters
-    - whether to run on cpu or gpu(s)
+    - Initial state
+    - Various precision parameters
+    - Whether to run on cpu or gpu
+    - The $U_{ij}$ coefficients from [here](../emu_mps//advanced/hamiltonian.md)
+- All noise from the pulser `NoiseModel` except leakage
+    - Effective noise is included using the density matrix formalism
+- In the noiseless case, the emulator is differentiable
+
 
 ## Planned features
 
-- The noises from the pulser `NoiseModel` using the density matrix formalism
-- Differentiability
-- Complex phases in the pulse.
-- Overriding the interaction matrix
+- Leakage noise
 
 ## More Info
 Please see the API specification for a list of available config options ([see here](api.md)).
