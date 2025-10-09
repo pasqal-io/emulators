@@ -131,7 +131,8 @@ def test_krylov_exp_krylov_norm_tolerance():
     state[0, 0, 0] = 1
 
     # i.e. u = X1
-    op = lambda x: torch.pi * 0.5j * apply_effective_Hamiltonian(x, ham, bath, bath)
+    def op(x):
+        return torch.pi * 0.5j * apply_effective_Hamiltonian(x, ham, bath, bath)
 
     result = krylov_exp(op, state, exp_tolerance=1e-7, norm_tolerance=1e-12)
 
@@ -168,7 +169,8 @@ def test_krylov_exp_krylov_exp_tolerance():
     # This way we can test that the krylov exp terminates with the correct tolerance
     # on the weights of psi. Since 1/14! < 1e-10, this means we expect the algorithm
     # to terminate after step 13
-    op = lambda x: 1.0j * apply_effective_Hamiltonian(x, ham, left_bath, right_bath)
+    def op(x):
+        return 1.0j * apply_effective_Hamiltonian(x, ham, left_bath, right_bath)
 
     result = krylov_exp(op, state, norm_tolerance=1e-7, exp_tolerance=1e-10)
 

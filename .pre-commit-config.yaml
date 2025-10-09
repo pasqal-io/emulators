@@ -22,9 +22,15 @@ repos:
         entry: pflake8
         additional_dependencies: [pyproject-flake8]
 
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
+    hooks:
+      - id: ruff
+        args: [--fix, --ignore,  E741]
+
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.16.0
     hooks:
       - id: mypy
         exclude: examples|test|ci
-        additional_dependencies: [torch==2.8.0, "pulser-core==1.5.*"]  # The version in pyproject.toml must match
+        additional_dependencies: [torch==2.8.0, "pulser-core==1.6.*"]  # The version in pyproject.toml must match

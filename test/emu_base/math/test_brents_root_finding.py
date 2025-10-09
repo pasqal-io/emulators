@@ -41,7 +41,8 @@ def find_root_brents_instrumented(
 
 
 def test_find_root_polynomial():
-    P = lambda x: (x + 3) * (x - 1) ** 2
+    def P(x):
+        return (x + 3) * (x - 1) ** 2
 
     actual_root, call_count = find_root_brents_instrumented(P, start=-4, end=4 / 3.0)
 
