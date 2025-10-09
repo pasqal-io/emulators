@@ -23,7 +23,7 @@ classifiers=[
 ]
 dependencies = [
   "pulser-core==1.6.*",
-  "torch==2.8.0"]
+  "torch>=2.8.0"]
 dynamic = ["version"]
 
 [project.urls]
