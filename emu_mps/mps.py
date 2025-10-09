@@ -248,26 +248,44 @@ class MPS(State[complex, torch.Tensor]):
                 )
 
                 # Probability of measuring qubit == 0 for each shot in the batch
-                probas = (
-                    torch.linalg.vector_norm(batched_accumulator[:, 0, :], dim=1) ** 2
-                )
+                # n = 0
+                # def select(p0,p1,rand_matrix,shots_done,qubit):
 
+                # while n < self.dim:
+                #     probn = torch.linalg.vector_norm(batched_accumulator[:, n, :], dim=1) ** 2
+                #     outcomes = torch.tensor(
+                #         [
+                #             0 if rnd_matrix[shots_done + i, qubit] < probn[i] else 1
+                #             for i in range(batch_size)
+                #         ],
+                #         dtype=torch.int,
+                #         device=factor.device,
+                #     )
+                #     n += 1
+                # outcomes = (
+                #     rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
+                #         factor.device
+                #     )
+                #     > probas
+                # )
+                # outcomes = outcomes.to(torch.int)
+                prob0 = torch.linalg.vector_norm(batched_accumulator[:, 0, :], dim=1) ** 2
                 outcomes = (
                     rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
                         factor.device
                     )
-                    > probas
+                    > prob0
                 )
-
+                outcomes = outcomes.to(torch.int)
                 batch_outcomes[:, qubit] = outcomes
 
                 # (batch_size, bond_dim)
                 batched_accumulator = batched_accumulator[
-                    torch.arange(batch_size), outcomes.to(torch.int), :
+                    torch.arange(batch_size), outcomes, :
                 ]
 
                 batched_accumulator /= torch.sqrt(
-                    ((~outcomes) * probas + outcomes * (1 - probas))
+                    ((1 - outcomes) * prob0 + outcomes * (1 - prob0))
                 ).unsqueeze(1)
 
             shots_done += batch_size
