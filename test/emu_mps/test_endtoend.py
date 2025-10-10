@@ -328,8 +328,8 @@ def test_end_to_end_afm_ring() -> None:
     assert max_bond_dim == 29
     assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
 
-    assert bitstrings["1010101010"] == 129
-    assert bitstrings["0101010101"] == 135
+    assert bitstrings["1010101010"] == 131
+    assert bitstrings["0101010101"] == 165
 
     # Comparing against EMU-SV -- state vector emulator
     assert approx(occupation, abs=1e-3) == [0.5782] * 10
@@ -377,7 +377,7 @@ def test_dmrg_afm_ring() -> None:
     assert max_bond_dim == 4
     # check that the output state is the AFM state
     assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
-    assert bitstrings["1010101010"] == 977
+    assert bitstrings["1010101010"] == 968
     assert torch.allclose(
         fidelity_fin, torch.tensor(0.9735, dtype=torch.float64), atol=1e-3
     )
@@ -433,7 +433,7 @@ def test_dmrg_afm_square_grid() -> None:
     assert max_bond_dim == 4
     # check that the output state is the AFM state
     assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
-    assert bitstrings["101010101"] == 992
+    assert bitstrings["101010101"] == 986
     assert torch.allclose(
         fidelity_fin, torch.tensor(0.9868, dtype=torch.float64), atol=1e-3
     )
@@ -650,8 +650,8 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     final_state = result.state[-1]
     max_bond_dim = final_state.get_max_bond_dim()
 
-    assert bitstrings["101010"] == 454
-    assert bitstrings["010101"] == 500
+    assert bitstrings["101010"] == 483
+    assert bitstrings["010101"] == 460
     assert max_bond_dim == 8
 
 

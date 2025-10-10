@@ -225,8 +225,6 @@ class MPS(State[complex, torch.Tensor]):
         assert one_state in {None, "r", "1"}
         self.orthogonalize(0)
 
-        rnd_matrix = torch.rand(num_shots, self.num_sites).to(self.factors[0].device)
-
         bitstrings: Counter[str] = Counter()
 
         # Shots are performed in batches.
@@ -234,63 +232,35 @@ class MPS(State[complex, torch.Tensor]):
         max_batch_size = 32
 
         shots_done = 0
+
         while shots_done < num_shots:
             batch_size = min(max_batch_size, num_shots - shots_done)
             batched_accumulator = torch.ones(
                 batch_size, 1, dtype=dtype, device=self.factors[0].device
             )
 
-            batch_outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.bool)
-
+            batch_outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.long)
+            rangebatch = torch.arange(batch_size)
             for qubit, factor in enumerate(self.factors):
                 batched_accumulator = torch.tensordot(
                     batched_accumulator.to(factor.device), factor, dims=1
                 )
 
                 # Probability of measuring qubit == 0 for each shot in the batch
-                # n = 0
-                # def select(p0,p1,rand_matrix,shots_done,qubit):
+                probn = torch.linalg.vector_norm(batched_accumulator, dim=2) ** 2
 
-                # while n < self.dim:
-                #     probn = torch.linalg.vector_norm(batched_accumulator[:, n, :], dim=1) ** 2
-                #     outcomes = torch.tensor(
-                #         [
-                #             0 if rnd_matrix[shots_done + i, qubit] < probn[i] else 1
-                #             for i in range(batch_size)
-                #         ],
-                #         dtype=torch.int,
-                #         device=factor.device,
-                #     )
-                #     n += 1
-                # outcomes = (
-                #     rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
-                #         factor.device
-                #     )
-                #     > probas
-                # )
-                # outcomes = outcomes.to(torch.int)
-                prob0 = torch.linalg.vector_norm(batched_accumulator[:, 0, :], dim=1) ** 2
-                outcomes = (
-                    rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
-                        factor.device
-                    )
-                    > prob0
-                )
-                outcomes = outcomes.to(torch.int)
+                # list of: 0,1 for |g>,|r> or 0,1,2 for |g>,|r>,|x>
+                outcomes = torch.multinomial(probn, num_samples=1).reshape(-1)
+
                 batch_outcomes[:, qubit] = outcomes
 
                 # (batch_size, bond_dim)
-                batched_accumulator = batched_accumulator[
-                    torch.arange(batch_size), outcomes, :
-                ]
-
-                batched_accumulator /= torch.sqrt(
-                    ((1 - outcomes) * prob0 + outcomes * (1 - prob0))
-                ).unsqueeze(1)
+                batched_accumulator = batched_accumulator[rangebatch, outcomes, :]
 
             shots_done += batch_size
+
             for outcome in batch_outcomes:
-                bitstrings.update(["".join("0" if x == 0 else "1" for x in outcome)])
+                bitstrings.update(["".join("1" if x == 1 else "0" for x in outcome)])
 
         # for 2 level systems
         if p_false_neg > 0 or p_false_pos > 0 and self.dim == 2:
@@ -299,6 +269,9 @@ class MPS(State[complex, torch.Tensor]):
                 p_false_pos=p_false_pos,
                 p_false_neg=p_false_neg,
             )
+        if p_false_pos > 0 and self.dim > 2:
+            raise NotImplementedError("Not implemented for qudits > 2 levels")
+
         return bitstrings
 
     def norm(self) -> torch.Tensor:
@@ -429,7 +402,7 @@ class MPS(State[complex, torch.Tensor]):
         return self.__rmul__(scalar)
 
     @classmethod
-    def _from_state_amplitudes(
+    def _from_state_amplitudes(  # make a 3 level version, change orthogonalization, check the norm.
         cls,
         *,
         eigenstates: Sequence[Eigenstate],
@@ -452,25 +425,54 @@ class MPS(State[complex, torch.Tensor]):
             one = "r"
         elif basis == {"0", "1"}:
             one = "1"
+        elif basis == {"g", "r", "x"}:
+            pass
         else:
             raise ValueError("Unsupported basis provided")
+        dim = len(eigenstates)
+        if dim == 2:
+            basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=dtype)  # ground state
+            basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=dtype)  # excited state
+            basis_x = torch.tensor([[[0.0], [0.0], [1.0]]], dtype=dtype)  # leakage state
 
-        basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=dtype)  # ground state
-        basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=dtype)  # excited state
+            accum_mps = MPS(
+                [torch.zeros((1, 2, 1), dtype=dtype)] * n_qudits,
+                orthogonality_center=0,
+                eigenstates=eigenstates,
+            )
 
-        accum_mps = MPS(
-            [torch.zeros((1, 2, 1), dtype=dtype)] * n_qudits,
-            orthogonality_center=0,
-            eigenstates=eigenstates,
-        )
+            for state, amplitude in amplitudes.items():
+                factors = [basis_1 if ch == one else basis_0 for ch in state]
+                accum_mps += amplitude * MPS(factors, eigenstates=eigenstates)
+            norm = accum_mps.norm()
+            if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
+                print("\nThe state is not normalized, normalizing it for you.")
+                accum_mps *= 1 / norm
+        elif dim == 3:
+            basis_0 = torch.tensor([[[1.0], [0.0], [0.0]]], dtype=dtype)  # ground state
+            basis_1 = torch.tensor([[[0.0], [1.0], [0.0]]], dtype=dtype)  # excited state
+            basis_x = torch.tensor([[[0.0], [0.0], [1.0]]], dtype=dtype)  # leakage state
 
-        for state, amplitude in amplitudes.items():
-            factors = [basis_1 if ch == one else basis_0 for ch in state]
-            accum_mps += amplitude * MPS(factors, eigenstates=eigenstates)
-        norm = accum_mps.norm()
-        if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
-            print("\nThe state is not normalized, normalizing it for you.")
-            accum_mps *= 1 / norm
+            accum_mps = MPS(
+                [torch.zeros((1, 3, 1), dtype=dtype)] * n_qudits,
+                orthogonality_center=0,
+                eigenstates=eigenstates,
+            )
+
+            for state, amplitude in amplitudes.items():
+                factors = []
+                for ch in state:
+                    if ch == "r":
+                        factors.append(basis_1)
+                    elif ch == "x":
+                        factors.append(basis_x)
+                    else:
+                        factors.append(basis_0)
+                accum_mps += amplitude * MPS(factors, eigenstates=eigenstates)
+            norm = accum_mps.norm()
+            if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
+                print("\nThe state is not normalized, normalizing it for you.")
+                accum_mps *= 1 / norm
 
         return accum_mps, amplitudes
 
