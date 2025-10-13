@@ -433,7 +433,6 @@ class MPS(State[complex, torch.Tensor]):
         if dim == 2:
             basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=dtype)  # ground state
             basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=dtype)  # excited state
-            basis_x = torch.tensor([[[0.0], [0.0], [1.0]]], dtype=dtype)  # leakage state
 
             accum_mps = MPS(
                 [torch.zeros((1, 2, 1), dtype=dtype)] * n_qudits,

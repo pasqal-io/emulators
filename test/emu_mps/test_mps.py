@@ -9,6 +9,11 @@ from emu_mps import MPS, inner, MPO
 
 from test.utils_testing import ghz_state_factors
 
+dtype = torch.complex128
+tol = 1e-12
+down = torch.tensor([[[1], [0]]], dtype=dtype)
+up = torch.tensor([[[0], [1]]], dtype=dtype)
+
 
 def check_orthogonality_center(state: MPS, expected_ortho_center: int):
     assert state.orthogonality_center == expected_ortho_center
@@ -19,7 +24,7 @@ def check_orthogonality_center(state: MPS, expected_ortho_center: int):
 
         assert torch.allclose(
             contracted,
-            torch.eye(f.shape[2], dtype=torch.complex128, device=contracted.device),
+            torch.eye(f.shape[2], dtype=dtype, device=contracted.device),
         )
 
     for qubit_index in range(expected_ortho_center + 1, state.num_sites):
@@ -28,12 +33,12 @@ def check_orthogonality_center(state: MPS, expected_ortho_center: int):
 
         assert torch.allclose(
             contracted,
-            torch.eye(f.shape[0], dtype=torch.complex128, device=contracted.device),
+            torch.eye(f.shape[0], dtype=dtype, device=contracted.device),
         )
 
 
 def test_init():
-    factor1 = torch.tensor([[[0, 1, 0, 0], [0, 0, 0, 0]]], dtype=torch.complex128)
+    factor1 = torch.tensor([[[0, 1, 0, 0], [0, 0, 0, 0]]], dtype=dtype)
     factor2 = torch.tensor(
         [
             [[0, 1, 0, 0, 0], [0, 0, 0, 0, 0]],
@@ -41,11 +46,11 @@ def test_init():
             [[0, 1, 0, 0, 0], [0, 0, 0, 0, 0]],
             [[0, 1, 0, 0, 0], [0, 0, 0, 0, 0]],
         ],
-        dtype=torch.complex128,
+        dtype=dtype,
     )
     factor3 = torch.tensor(
         [[[0], [0]], [[0], [0]], [[0], [0]], [[1], [0]], [[0], [0]]],
-        dtype=torch.complex128,
+        dtype=dtype,
     )
     state = MPS(
         [factor1, factor2, factor3],
@@ -60,9 +65,7 @@ def test_init():
             abs(
                 torch.tensordot(
                     factor,
-                    torch.tensor(
-                        [[[1], [0]]], dtype=torch.complex128, device=factor.device
-                    ),
+                    torch.tensor([[[1], [0]]], dtype=dtype, device=factor.device),
                     dims=3,
                 )
             )
@@ -84,18 +87,18 @@ def test_init():
 
 def test_inner():
     n_qubits = 3
-    l_factor1 = torch.tensor([[[1, 0], [0, 1j]]], dtype=torch.complex128)
+    l_factor1 = torch.tensor([[[1, 0], [0, 1j]]], dtype=dtype)
     l_factor2 = torch.tensor(
         [[[1, 0], [0, 0]], [[0, 0], [0, 1]]],
-        dtype=torch.complex128,
+        dtype=dtype,
     )
     l_factor3 = torch.tensor(
         [[[1], [0]], [[0], [1]]],
-        dtype=torch.complex128,
+        dtype=dtype,
     )
     r_factor = torch.tensor(
         [[[0], [1]]],
-        dtype=torch.complex128,
+        dtype=dtype,
     )
 
     ones = MPS(
@@ -112,18 +115,19 @@ def test_inner():
     assert abs(inner(bell, bell) - 2) < 1e-10
 
 
-def test_maxbondim():
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_maxbondim(basis):
     bell_state = MPS(
         ghz_state_factors(3),
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
     assert 2 == bell_state.get_max_bond_dim()
-
-
-dtype = torch.complex128
-tol = 1e-12
-down = torch.tensor([[[1], [0]]], dtype=dtype)
-up = torch.tensor([[[0], [1]]], dtype=dtype)
 
 
 def test_wrong_external_links():
@@ -162,6 +166,12 @@ def test_wrong_external_links():
 
 
 def get_bit(i: int, bit_index: int) -> int:
+    """Return 1 if the bit at bit_index in i is set, else 0.
+    bit_index 0 is the least significant bit."""
+    if not isinstance(i, int) or not isinstance(bit_index, int):
+        raise TypeError("i and bit_index must be integers")
+    if bit_index < 0:
+        raise ValueError("bit_index must be >= 0")
     return int(bool(i & (1 << bit_index)))
 
 
@@ -252,12 +262,37 @@ def test_rmul():
         # Scaling doesn't orthogonalize.
         assert scaled_mps.orthogonality_center is mps.orthogonality_center is None
 
+        num_sites = 5
+    # this test should work for all states
+    mps = MPS(
+        [up for _ in range(num_sites)],
+        eigenstates=("g", "r", "x"),
+    )
+    for scale in [3.0, 2j, -1 / 4]:
+        scaled_mps = scale * mps
+        assert inner(mps, scaled_mps) == pytest.approx(scale, tol)
+        assert inner(scaled_mps, mps) == pytest.approx(scale.conjugate(), tol)
+        assert inner(scaled_mps, scaled_mps) == pytest.approx(abs(scale) ** 2, tol)
+
+        # Scaling doesn't orthogonalize.
+        assert scaled_mps.orthogonality_center is mps.orthogonality_center is None
+
 
 def test_catch_err_when_lmul():
     num_sites = 3
     mps = MPS(
         [down for _ in range(num_sites)],
         eigenstates=("0", "1"),
+    )
+    with pytest.raises(TypeError) as ve:
+        mps * 3.0
+    msg = "unsupported operand type(s) for *: 'MPS' and 'float'"
+    assert str(ve.value) == msg
+
+    num_sites = 3
+    mps = MPS(
+        [down for _ in range(num_sites)],
+        eigenstates=("g", "r", "x"),
     )
     with pytest.raises(TypeError) as ve:
         mps * 3.0
@@ -292,6 +327,32 @@ def test_from_string_bell_state():
     assert get_bitstring_coeff(afm_mps_state, 0b111) == pytest.approx(1.0 / math.sqrt(2))
 
 
+def test_from_string_afm_state_3level_system():
+    afm_string_state = {"rrr": 1.0 / math.sqrt(2), "ggg": 1.0 / math.sqrt(2)}
+    afm_mps_state = MPS.from_state_amplitudes(
+        eigenstates=("r", "g", "x"), amplitudes=afm_string_state
+    )
+
+    assert get_bitstring_coeff(afm_mps_state, 0b000) == pytest.approx(1.0 / math.sqrt(2))
+    assert get_bitstring_coeff(afm_mps_state, 0b111) == pytest.approx(1.0 / math.sqrt(2))
+
+
+def test_from_string_afm_state_3level_system_leak():
+    afm_string_state = {
+        "rr": 1.0 / math.sqrt(3),
+        "gg": 1.0 / math.sqrt(3),
+        "xx": 1.0 / math.sqrt(3),
+    }
+    afm_mps_state = MPS.from_state_amplitudes(
+        eigenstates=("r", "g", "x"), amplitudes=afm_string_state
+    )
+    print(get_bitstring_coeff(afm_mps_state, 0b11))
+    print(get_bitstring_coeff(afm_mps_state, 0b00))
+    assert get_bitstring_coeff(afm_mps_state, 0b11) == pytest.approx(1.0 / math.sqrt(3))
+    assert get_bitstring_coeff(afm_mps_state, 0b00) == pytest.approx(1.0 / math.sqrt(3))
+    # assert get_bitstring_coeff(afm_mps_state, 0b22) == pytest.approx(0.0)
+
+
 @pytest.mark.parametrize(
     ("zero", "one"),
     (("g", "r"), ("0", "1")),
@@ -310,7 +371,7 @@ def test_from_string_not_normalized_state(mock_print, zero, one):
         afm_mps_state_normalized.factors[0],
         torch.tensor(
             [[0.0995, 0.0], [0.0, 0.9950]],
-            dtype=torch.complex128,
+            dtype=dtype,
             device=afm_mps_state_normalized.factors[0].device,
         ),
         rtol=0,
@@ -320,7 +381,7 @@ def test_from_string_not_normalized_state(mock_print, zero, one):
         afm_mps_state_normalized.factors[1],
         torch.tensor(
             [[[1.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 1.0]]],
-            dtype=torch.complex128,
+            dtype=dtype,
             device=afm_mps_state_normalized.factors[1].device,
         ),
     )
@@ -328,7 +389,7 @@ def test_from_string_not_normalized_state(mock_print, zero, one):
         afm_mps_state_normalized.factors[2],
         torch.tensor(
             [[[1.0], [0.0]], [[0.0], [1.0]]],
-            dtype=torch.complex128,
+            dtype=dtype,
             device=afm_mps_state_normalized.factors[2].device,
         ),
     )
@@ -347,14 +408,22 @@ def test_wrong_basis_string_state():
     assert str(ve.value) == msg
 
 
-def test_orthogonalize():
-    f1 = torch.rand(1, 2, 2, dtype=torch.complex128)
-    f2 = torch.rand(2, 2, 3, dtype=torch.complex128)
-    f3 = torch.rand(3, 2, 1, dtype=torch.complex128)
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_orthogonalize(basis):
+    dim = len(basis)
 
+    f1 = torch.rand(1, dim, 2, dtype=dtype)
+    f2 = torch.rand(2, dim, 3, dtype=dtype)
+    f3 = torch.rand(3, dim, 1, dtype=dtype)
     state = MPS(
         [f1, f2, f3],
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
 
     state.orthogonalize(1)
@@ -367,14 +436,22 @@ def test_orthogonalize():
     check_orthogonality_center(state, 0)
 
 
-def test_norm():
-    f1 = torch.rand(1, 2, 2, dtype=torch.complex128)
-    f2 = torch.rand(2, 2, 3, dtype=torch.complex128)
-    f3 = torch.rand(3, 2, 1, dtype=torch.complex128)
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_norm(basis):
+    dim = len(basis)
 
+    f1 = torch.rand(1, dim, 2, dtype=dtype)
+    f2 = torch.rand(2, dim, 3, dtype=dtype)
+    f3 = torch.rand(3, dim, 1, dtype=dtype)
     state = MPS(
         [f1, f2, f3],
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
 
     assert state.norm() == pytest.approx(math.sqrt(inner(state, state).real))
@@ -382,18 +459,24 @@ def test_norm():
     check_orthogonality_center(state, 0)
 
 
-def test_expect_batch():
-    f1 = torch.rand(1, 2, 2, dtype=torch.complex128)
-    f2 = torch.rand(2, 2, 3, dtype=torch.complex128)
-    f3 = torch.rand(3, 2, 1, dtype=torch.complex128)
-
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_expect_batch(basis):
+    dim = len(basis)
+    f1 = torch.rand(1, dim, 2, dtype=dtype)
+    f2 = torch.rand(2, dim, 3, dtype=dtype)
+    f3 = torch.rand(3, dim, 1, dtype=dtype)
     state = MPS(
         [f1, f2, f3],
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
-
-    op0 = torch.rand(2, 2, dtype=torch.complex128)
-    op1 = torch.rand(2, 2, dtype=torch.complex128)
+    op0 = torch.rand(dim, dim, dtype=dtype)
+    op1 = torch.rand(dim, dim, dtype=dtype)
 
     ops = torch.stack([op0, op1])
 
@@ -424,11 +507,25 @@ def test_expect_batch():
     assert expected_11.item() == pytest.approx(actual[1][1].item())
 
 
-def test_apply():
-    state = MPS.make(4)
-    hadamard = (
-        1.0 / math.sqrt(2) * torch.tensor([[1, 1], [1, -1]], dtype=torch.complex128)
-    )
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_apply(basis):
+
+    state = MPS.make(4, eigenstates=basis)
+
+    if len(basis) == 2:
+        hadamard = 1.0 / math.sqrt(2) * torch.tensor([[1, 1], [1, -1]], dtype=dtype)
+    if len(basis) == 3:
+        hadamard = (
+            1.0
+            / math.sqrt(2)
+            * torch.tensor([[1, 1, 0], [1, -1, 0], [0, 0, 0]], dtype=dtype)
+        )
     state.apply(1, hadamard)
     state.apply(2, hadamard)
 
@@ -440,10 +537,18 @@ def test_apply():
     check_orthogonality_center(state, 2)
 
 
-def test_apply_random_orthogonality_center():
-    state = MPS.make(4)
-    r1 = torch.rand(2, 2, dtype=torch.complex128)
-    r2 = torch.rand(2, 2, dtype=torch.complex128)
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_apply_random_orthogonality_center(basis):
+    dim = len(basis)
+    state = MPS.make(4, eigenstates=basis)
+    r1 = torch.rand(dim, dim, dtype=dtype)
+    r2 = torch.rand(dim, dim, dtype=dtype)
     state.apply(1, r1)
     state.apply(2, r2)
 
@@ -454,11 +559,11 @@ def test_correlation_matrix_random():
     qubit_count = 5
     state = MPS(
         [
-            torch.rand(1, 2, 3, dtype=torch.complex128),
-            torch.rand(3, 2, 5, dtype=torch.complex128),
-            torch.rand(5, 2, 12, dtype=torch.complex128),
-            torch.rand(12, 2, 2, dtype=torch.complex128),
-            torch.rand(2, 2, 1, dtype=torch.complex128),
+            torch.rand(1, 2, 3, dtype=dtype),
+            torch.rand(3, 2, 5, dtype=dtype),
+            torch.rand(5, 2, 12, dtype=dtype),
+            torch.rand(12, 2, 2, dtype=dtype),
+            torch.rand(2, 2, 1, dtype=dtype),
         ],
         eigenstates=("r", "g"),
     )
@@ -466,7 +571,7 @@ def test_correlation_matrix_random():
     correlation_matrix_nn = state.get_correlation_matrix()
 
     correlation_matrix_zz = state.get_correlation_matrix(
-        operator=torch.tensor([[1, 0], [0, -1]], dtype=torch.complex128)
+        operator=torch.tensor([[1, 0], [0, -1]], dtype=dtype)
     )
 
     def nn(index1, index2):
@@ -504,6 +609,7 @@ def test_correlation_matrix_random():
         (("0", "1"), {4 * "0": 1.0}),
         (("r", "g"), {4 * "r": 1.0}),
         (("r", "g"), {4 * "g": 1.0}),
+        (("r", "g", "x"), {4 * "x": 1.0}),
     ],
 )
 def test_to_abstr_repr(eig, ampl) -> None:
@@ -519,6 +625,7 @@ def test_to_abstr_repr(eig, ampl) -> None:
     [
         (("0", "1"), {4 * "r": 1.0}),
         (("r", "g"), {4 * "1": 1.0}),
+        (("r", "g", "x"), {4 * "1": 1.0}),
     ],
 )
 def test_constructor(eig, ampl) -> None:
