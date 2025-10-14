@@ -8,6 +8,8 @@ The following features are currently supported:
 
 - All Pulser sequences that use only the rydberg channel
 - States and Operators can be constructed using the abstract Pulser format.
+- All noise from the pulser `NoiseModel` except leakage
+    - Effective noise is included using the density matrix formalism
 - The following [basis states](https://pulser.readthedocs.io/en/stable/conventions.html) in a sequence:
     - [ground-rydberg](https://pulser.readthedocs.io/en/stable/review.html#programmable-arrays-of-rydberg-atoms)
 - The following properties from a Pulser Sequence are also correctly applied:
@@ -26,8 +28,6 @@ The following features are currently supported:
     - Various precision parameters
     - Whether to run on cpu or gpu
     - The $U_{ij}$ coefficients from [here](../emu_mps//advanced/hamiltonian.md)
-- All noise from the pulser `NoiseModel` except leakage
-    - Effective noise is included using the density matrix formalism
 - In the noiseless case, the emulator is differentiable
 
 
