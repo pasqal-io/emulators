@@ -30,7 +30,7 @@ nav:
       - Index: emu_mps/advanced/index.md
       - QPU Hamiltonian: emu_mps/advanced/hamiltonian.md
       - MPS Representation: emu_mps/advanced/mps/index.md
-      - TDVP Summary: emu_mps/advanced/tdvp.md
+      - Algorithms Summary: emu_mps/advanced/algorithms.md
       - Errors in TDVP: emu_mps/advanced/errors.md
       - Noise: emu_mps/advanced/noise.md
       - Config: emu_mps/advanced/config.md

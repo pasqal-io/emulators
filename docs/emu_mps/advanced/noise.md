@@ -28,7 +28,7 @@ where:
 
 ## Time Evolution Mechanism
 
-The system undergoes deterministic time evolution from time $t$ to $t + \delta t$ using TDVP ([see here](tdvp.md)) with the effective Hamiltonian. At the end of each evolution step, the norm of the evolved quantum state $\vert \psi (t + \delta t)\rangle$ is compared to a collapse threshold, which is a random number between $0$ and $1$:
+The system undergoes deterministic time evolution from time $t$ to $t + \delta t$ using TDVP ([see here](algorithms.md)) with the effective Hamiltonian. At the end of each evolution step, the norm of the evolved quantum state $\vert \psi (t + \delta t)\rangle$ is compared to a collapse threshold, which is a random number between $0$ and $1$:
 
 - **If the square of the norm of the evolved state is greater than the random number**, the system successfully evolves under the effective Hamiltonian $H_{\text{eff}}$ to time $t + \delta t$, and proceeds to the next time step.
 - **If the square of the norm of the evolved state is less than the random number**, a **quantum jump** occurs. This can be understood as a simulation of a noise event (e.g. spontaneous emission, dephasing, etc.).
