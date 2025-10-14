@@ -25,10 +25,18 @@ def qubit_occupation_mps_impl(
     """
     Custom implementation of the occupation ❬ψ|nᵢ|ψ❭ for the EMU-MPS.
     """
-    # ask the state the dimension and create the op accordingly
-    op = torch.tensor(
-        [[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.complex128, device=state.factors[0].device
-    )
+    if state.dim == 2:
+        op = torch.tensor(
+            [[[0.0, 0.0], [0.0, 1.0]]],
+            dtype=torch.complex128,
+            device=state.factors[0].device,
+        )
+    elif state.dim == 3:
+        op = torch.tensor(
+            [[[0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]]],
+            dtype=torch.complex128,
+            device=state.factors[0].device,
+        )
     return state.expect_batch(op).real.view(-1).cpu()
 
 

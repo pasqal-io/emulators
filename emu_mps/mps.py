@@ -71,7 +71,7 @@ class MPS(State[complex, torch.Tensor]):
 
         self.factors = factors
         self.num_sites = len(factors)
-        self.dim = len(self.eigenstates)  # instead of d in orthogonalize function
+        self.dim = len(self.eigenstates)
         assert self.num_sites > 1  # otherwise, do state vector
 
         assert (orthogonality_center is None) or (
@@ -246,7 +246,7 @@ class MPS(State[complex, torch.Tensor]):
                     batched_accumulator.to(factor.device), factor, dims=1
                 )
 
-                # Probability of measuring qubit == 0 for each shot in the batch
+                # Probability of measuring all qubits for each shot in the batch
                 probn = torch.linalg.vector_norm(batched_accumulator, dim=2) ** 2
 
                 # list of: 0,1 for |g>,|r> or 0,1,2 for |g>,|r>,|x>
@@ -545,12 +545,12 @@ class MPS(State[complex, torch.Tensor]):
         in basis ("r", "g").
 
         Args:
-            operator: a 2x2 Torch tensor to use
+            operator: a 2x2 (or 3x3) Torch tensor to use
 
         Returns:
             the corresponding correlation matrix
         """
-        assert operator.shape == (2, 2)
+        assert operator.shape == (self.dim, self.dim), "Operator has wrong shape"
 
         result = torch.zeros(self.num_sites, self.num_sites, dtype=dtype)
 
