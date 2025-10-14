@@ -11,8 +11,11 @@ from test.utils_testing import ghz_state_factors
 
 dtype = torch.complex128
 tol = 1e-12
-down = torch.tensor([[[1], [0]]], dtype=dtype)
-up = torch.tensor([[[0], [1]]], dtype=dtype)
+down_2level = torch.tensor([[[1], [0]]], dtype=dtype)
+up_2level = torch.tensor([[[0], [1]]], dtype=dtype)
+
+down_3level = torch.tensor([[[1], [0], [0]]], dtype=dtype)
+up_3level = torch.tensor([[[0], [1], [0]]], dtype=dtype)
 
 
 def check_orthogonality_center(state: MPS, expected_ortho_center: int):
@@ -190,15 +193,25 @@ def get_bitstring_coeff(mps: MPS, bitstring: int) -> float | complex:
     return acc.item()
 
 
-def test_add_to_make_ghz_state():
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_add_to_make_ghz_state(basis):
     num_sites = 5  # number of sites
+
+    down = down_3level if len(basis) == 3 else down_2level
+    up = up_3level if len(basis) == 3 else up_2level
     mps_down = MPS(
         [down for _ in range(num_sites)],
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
     mps_up = MPS(
         [up for _ in range(num_sites)],
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
 
     # make a |000〉+ |111〉state
@@ -218,15 +231,24 @@ def test_add_to_make_ghz_state():
     assert norm == pytest.approx(math.sqrt(2), tol)
 
 
-def test_add_to_make_w_state():
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_add_to_make_w_state(basis):
     num_sites = 7
     states = []
+    down = down_3level if len(basis) == 3 else down_2level
+    up = up_3level if len(basis) == 3 else up_2level
     for i in range(num_sites):
         factors = [up if (j == i) else down for j in range(num_sites)]
         states.append(
             MPS(
                 factors,
-                eigenstates=("0", "1"),
+                eigenstates=basis,
             )
         )
 
@@ -246,12 +268,20 @@ def test_add_to_make_w_state():
     assert norm == pytest.approx(math.sqrt(num_sites), tol)
 
 
-def test_rmul():
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_rmul(basis):
     num_sites = 5
     # this test should work for all states
+    up = up_3level if len(basis) == 3 else up_2level
     mps = MPS(
         [up for _ in range(num_sites)],
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
     for scale in [3.0, 2j, -1 / 4]:
         scaled_mps = scale * mps
@@ -263,36 +293,21 @@ def test_rmul():
         assert scaled_mps.orthogonality_center is mps.orthogonality_center is None
 
         num_sites = 5
-    # this test should work for all states
-    mps = MPS(
-        [up for _ in range(num_sites)],
-        eigenstates=("g", "r", "x"),
-    )
-    for scale in [3.0, 2j, -1 / 4]:
-        scaled_mps = scale * mps
-        assert inner(mps, scaled_mps) == pytest.approx(scale, tol)
-        assert inner(scaled_mps, mps) == pytest.approx(scale.conjugate(), tol)
-        assert inner(scaled_mps, scaled_mps) == pytest.approx(abs(scale) ** 2, tol)
-
-        # Scaling doesn't orthogonalize.
-        assert scaled_mps.orthogonality_center is mps.orthogonality_center is None
 
 
-def test_catch_err_when_lmul():
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_catch_err_when_lmul(basis):
     num_sites = 3
+    down = down_3level if len(basis) == 3 else down_2level
     mps = MPS(
         [down for _ in range(num_sites)],
-        eigenstates=("0", "1"),
-    )
-    with pytest.raises(TypeError) as ve:
-        mps * 3.0
-    msg = "unsupported operand type(s) for *: 'MPS' and 'float'"
-    assert str(ve.value) == msg
-
-    num_sites = 3
-    mps = MPS(
-        [down for _ in range(num_sites)],
-        eigenstates=("g", "r", "x"),
+        eigenstates=basis,
     )
     with pytest.raises(TypeError) as ve:
         mps * 3.0
@@ -300,14 +315,22 @@ def test_catch_err_when_lmul():
     assert str(ve.value) == msg
 
 
-def test_mps_algebra():
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_mps_algebra(basis):
     num_sites = 5
     # this test should work for all states
+    up = up_3level if len(basis) == 3 else up_2level
     mps = MPS(
         [up for _ in range(num_sites)],
         orthogonality_center=0,
         num_gpus_to_use=0,
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
     mps_sum = mps + mps + 0.5 * mps + (1 / 3) * mps
     mps_rmul = (1 + 1 + 0.5 + 1 / 3) * mps
@@ -565,7 +588,7 @@ def test_correlation_matrix_random():
             torch.rand(12, 2, 2, dtype=dtype),
             torch.rand(2, 2, 1, dtype=dtype),
         ],
-        eigenstates=("r", "g"),
+        eigenstates=("0", "1"),
     )
 
     correlation_matrix_nn = state.get_correlation_matrix()
