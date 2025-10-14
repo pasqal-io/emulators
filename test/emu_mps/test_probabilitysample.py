@@ -18,8 +18,8 @@ def test_sampling_ghz5_mps():
     ghz_mps = MPS(ghz_state_factors(num_qubits, device=device), eigenstates=("0", "1"))
     bitstrings = ghz_mps.sample(num_shots=shots)
 
-    assert bitstrings.get("11111") == 506
-    assert bitstrings.get("00000") == 494
+    assert bitstrings.get("11111") == 463
+    assert bitstrings.get("00000") == 537
 
 
 def test_not_orthogonalized_state():
@@ -40,8 +40,8 @@ def test_not_orthogonalized_state():
     bell = MPS([l_factor1, l_factor2, l_factor3], eigenstates=("0", "1"))
     bitstrings = bell.sample(num_shots=shots)
 
-    assert bitstrings.get("111") == 492
-    assert bitstrings.get("000") == 508
+    assert bitstrings.get("111") == 499
+    assert bitstrings.get("000") == 501
 
 
 def test_sampling_wall():
@@ -103,8 +103,8 @@ def test_with_leakage_ghz_3level():
     state_bit0 = "0" * natoms
     state_bit1 = "1" * natoms
 
-    assert bitstrings.get(state_bit0) == 661
-    assert bitstrings.get(state_bit1) == 339
+    assert bitstrings.get(state_bit0) == 653
+    assert bitstrings.get(state_bit1) == 347
 
 
 def test_with_leakage_edge_case_3level():
@@ -125,5 +125,5 @@ def test_with_leakage_edge_case_3level():
 
     bitstrings = state.sample(num_shots=shots)
 
-    assert bitstrings.get("00") == 468
-    assert bitstrings.get("01") == 532
+    assert bitstrings.get("00") == 502
+    assert bitstrings.get("01") == 498

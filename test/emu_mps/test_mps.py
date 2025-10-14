@@ -10,6 +10,7 @@ from emu_mps import MPS, inner, MPO
 from test.utils_testing import ghz_state_factors
 
 dtype = torch.complex128
+device = "cpu"
 tol = 1e-12
 down_2level = torch.tensor([[[1], [0]]], dtype=dtype)
 up_2level = torch.tensor([[[0], [1]]], dtype=dtype)
@@ -369,8 +370,7 @@ def test_from_string_afm_state_3level_system_leak():
     afm_mps_state = MPS.from_state_amplitudes(
         eigenstates=("r", "g", "x"), amplitudes=afm_string_state
     )
-    print(get_bitstring_coeff(afm_mps_state, 0b11))
-    print(get_bitstring_coeff(afm_mps_state, 0b00))
+
     assert get_bitstring_coeff(afm_mps_state, 0b11) == pytest.approx(1.0 / math.sqrt(3))
     assert get_bitstring_coeff(afm_mps_state, 0b00) == pytest.approx(1.0 / math.sqrt(3))
     # assert get_bitstring_coeff(afm_mps_state, 0b22) == pytest.approx(0.0)
