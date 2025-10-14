@@ -111,26 +111,26 @@ class MPS(State[complex, torch.Tensor]):
             raise ValueError("For 1 qubit states, do state vector")
 
         if len(eigenstates) == 2:
-            return cls(
-                [torch.tensor([[[1.0], [0.0]]], dtype=dtype) for _ in range(num_sites)],
-                config=config,
-                num_gpus_to_use=num_gpus_to_use,
-                orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
-                eigenstates=eigenstates,
-            )
+            ground_state = [
+                torch.tensor([[[1.0], [0.0]]], dtype=dtype) for _ in range(num_sites)
+            ]
+
         elif len(eigenstates) == 3:  # (g,r,x)
-            return cls(
-                [
-                    torch.tensor([[[1.0], [0.0], [0.0]]], dtype=dtype)
-                    for _ in range(num_sites)
-                ],
-                config=config,
-                num_gpus_to_use=num_gpus_to_use,
-                orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
-                eigenstates=eigenstates,
-            )
+            ground_state = [
+                torch.tensor([[[1.0], [0.0], [0.0]]], dtype=dtype)
+                for _ in range(num_sites)
+            ]
+
         else:
             raise ValueError("Unsupported qudit provided. Upto 3 levels supported.")
+
+        return cls(
+            ground_state,
+            config=config,
+            num_gpus_to_use=num_gpus_to_use,
+            orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
+            eigenstates=eigenstates,
+        )
 
     def __repr__(self) -> str:
         result = "["
@@ -246,7 +246,7 @@ class MPS(State[complex, torch.Tensor]):
                     batched_accumulator.to(factor.device), factor, dims=1
                 )
 
-                # Probability of measuring all qubits for each shot in the batch
+                # Probabilities for each state in the basis
                 probn = torch.linalg.vector_norm(batched_accumulator, dim=2) ** 2
 
                 # list of: 0,1 for |g>,|r> or 0,1,2 for |g>,|r>,|x>
@@ -402,7 +402,7 @@ class MPS(State[complex, torch.Tensor]):
         return self.__rmul__(scalar)
 
     @classmethod
-    def _from_state_amplitudes(  # make a 3 level version, change orthogonalization, check the norm.
+    def _from_state_amplitudes(
         cls,
         *,
         eigenstates: Sequence[Eigenstate],
@@ -426,7 +426,7 @@ class MPS(State[complex, torch.Tensor]):
         elif basis == {"0", "1"}:
             one = "1"
         elif basis == {"g", "r", "x"}:
-            pass
+            one = "r"
         else:
             raise ValueError("Unsupported basis provided")
         dim = len(eigenstates)
@@ -434,44 +434,30 @@ class MPS(State[complex, torch.Tensor]):
             basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=dtype)  # ground state
             basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=dtype)  # excited state
 
-            accum_mps = MPS(
-                [torch.zeros((1, 2, 1), dtype=dtype)] * n_qudits,
-                orthogonality_center=0,
-                eigenstates=eigenstates,
-            )
-
-            for state, amplitude in amplitudes.items():
-                factors = [basis_1 if ch == one else basis_0 for ch in state]
-                accum_mps += amplitude * MPS(factors, eigenstates=eigenstates)
-            norm = accum_mps.norm()
-            if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
-                print("\nThe state is not normalized, normalizing it for you.")
-                accum_mps *= 1 / norm
         elif dim == 3:
             basis_0 = torch.tensor([[[1.0], [0.0], [0.0]]], dtype=dtype)  # ground state
             basis_1 = torch.tensor([[[0.0], [1.0], [0.0]]], dtype=dtype)  # excited state
             basis_x = torch.tensor([[[0.0], [0.0], [1.0]]], dtype=dtype)  # leakage state
 
-            accum_mps = MPS(
-                [torch.zeros((1, 3, 1), dtype=dtype)] * n_qudits,
-                orthogonality_center=0,
-                eigenstates=eigenstates,
-            )
-
-            for state, amplitude in amplitudes.items():
-                factors = []
-                for ch in state:
-                    if ch == "r":
-                        factors.append(basis_1)
-                    elif ch == "x":
-                        factors.append(basis_x)
-                    else:
-                        factors.append(basis_0)
-                accum_mps += amplitude * MPS(factors, eigenstates=eigenstates)
-            norm = accum_mps.norm()
-            if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
-                print("\nThe state is not normalized, normalizing it for you.")
-                accum_mps *= 1 / norm
+        accum_mps = MPS(
+            [torch.zeros((1, dim, 1), dtype=dtype)] * n_qudits,
+            orthogonality_center=0,
+            eigenstates=eigenstates,
+        )
+        for state, amplitude in amplitudes.items():
+            factors = []
+            for ch in state:
+                if ch == one:
+                    factors.append(basis_1)
+                elif ch == "x":
+                    factors.append(basis_x)
+                else:
+                    factors.append(basis_0)
+            accum_mps += amplitude * MPS(factors, eigenstates=eigenstates)
+        norm = accum_mps.norm()
+        if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
+            print("\nThe state is not normalized, normalizing it for you.")
+            accum_mps *= 1 / norm
 
         return accum_mps, amplitudes
 
