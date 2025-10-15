@@ -29,7 +29,7 @@ In the `emu-mps` context, we use DMRG to replicate the dynamics of an `adiabatic
 ### The algorithm
 Emu-mps implements a `two-site DMRG`. The algorithm repeatedly optimizes two neighbouring MPS tensors, while controlling the `bond dimension` by truncating the singular values up to some precision configured by the user. To be more precise:
 
-- At each two-site step the MPS tensors are contracted over the common index, and the effective Hamiltonian for that two-site block is minimized using the `Lanczos eigensolver`.
+- At each two-site step the MPS tensors are contracted over the common index, and the effective Hamiltonian for that two-site block is minimized using the `Lanczos eigensolver`[[4]](https://arxiv.org/pdf/cond-mat/0510321).
 - The optimized block is split back into two tensors via `SVD`. This is where the truncation procedure takes place.
 - The algorithm performs `left-to-right` and `right-to-left` sweeps until the ground-state energy converges.
 
