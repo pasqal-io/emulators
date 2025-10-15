@@ -6,7 +6,18 @@ import torch
 
 
 class EntanglementEntropy(Observable):
-    """Entanglement Entropy subclass used only in emu_mps"""
+    """Entanglement Entropy of the state partition at qubit `mps_site`.
+
+    Args:
+        mps_site: the qubit index at which the bipartition is made.
+            All qubits with index $\\leq$ `mps_site` are put in the left partition.
+        evaluation_times: The relative times at which to store the state.
+            If left as `None`, uses the ``default_evaluation_times`` of the
+            backend's ``EmulationConfig``.
+        tag_suffix: An optional suffix to append to the tag. Needed if
+            multiple instances of the same observable are given to the
+            same EmulationConfig.
+    """
 
     def __init__(
         self,
