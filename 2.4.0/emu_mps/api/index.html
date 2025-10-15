@@ -1219,6 +1219,15 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#entanglement-entropy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Entanglement Entropy
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2088,6 +2097,15 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#entanglement-entropy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Entanglement Entropy
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2121,7 +2139,8 @@
 
 
 <h1 id="api-specification">API specification</h1>
-<p>The emu-mps API is based on the specification <a href="../../base_classes/">here</a>. Concretely, the classes are as follows:</p>
+<p>The emu-mps API is based on the specification <a href="../../base_classes/">here</a>. Additionally, some observables are implemented specifically for emu-mps.</p>
+<p>The implementation of the base classes is as follows:</p>
 <h2 id="mpsbackend">MPSBackend</h2>
 
 
@@ -5403,6 +5422,120 @@ The returned MPS is:</p>
     </div>
 
 </div>
+
+
+
+  </div>
+
+    </div>
+
+</div><p>The following observables are defined specifically in emu-mps:</p>
+<h2 id="entanglement-entropy">Entanglement Entropy</h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pulser.backend.observable.Observable">Observable</span></code></p>
+
+
+        <p>Entanglement Entropy of the state partition at qubit <code>mps_site</code>.</p>
+
+
+<table>
+      <thead>
+        <tr>
+          <th><span class="doc-section-title">PARAMETER</span></th>
+          <th><span>DESCRIPTION</span></th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>mps_site</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>the qubit index at which the bipartition is made.
+All qubits with index <span class="arithmatex">\(\leq\)</span> <code>mps_site</code> are put in the left partition.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="int">int</span></code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>evaluation_times</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>The relative times at which to store the state.
+If left as <code>None</code>, uses the <code>default_evaluation_times</code> of the
+backend's <code>EmulationConfig</code>.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="typing.Sequence">Sequence</span>[<span title="float">float</span>] | None</code>
+                  </span>
+                  <span class="doc-param-default">
+                    <b>DEFAULT:</b>
+                      <code>None</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>tag_suffix</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>An optional suffix to append to the tag. Needed if
+multiple instances of the same observable are given to the
+same EmulationConfig.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="str">str</span> | None</code>
+                  </span>
+                  <span class="doc-param-default">
+                    <b>DEFAULT:</b>
+                      <code>None</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
 
 
 

@@ -3104,12 +3104,12 @@ str(reference_hamiltonian(3)) == str(mpo_factors_product(*cores))</div>
 <span class="n">cores</span> <span class="o">=</span> <span class="n">general_make_H</span><span class="p">(</span><span class="n">inter_matri</span><span class="p">,</span><span class="n">single_terms</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="s2">"Matrix S:"</span><span class="p">)</span>
 <span class="n">display</span><span class="p">(</span><span class="n">cores</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-<span class="n">display</span><span class="p">(</span><span class="n">Latex</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Matrix $L_1$:"</span><span class="p">))</span>
+<span class="n">display</span><span class="p">(</span><span class="n">Latex</span><span class="p">(</span><span class="s2">"Matrix $L_1$:"</span><span class="p">))</span>
 
 <span class="n">display</span><span class="p">(</span><span class="n">cores</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
 <span class="nb">print</span><span class="p">(</span><span class="s2">"Matrix M:"</span><span class="p">)</span>
 <span class="n">display</span><span class="p">(</span><span class="n">cores</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
-<span class="n">display</span><span class="p">(</span><span class="n">Latex</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Matrix $R_1$:"</span><span class="p">))</span>
+<span class="n">display</span><span class="p">(</span><span class="n">Latex</span><span class="p">(</span><span class="s2">"Matrix $R_1$:"</span><span class="p">))</span>
 <span class="n">display</span><span class="p">(</span><span class="n">cores</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
 <span class="nb">print</span><span class="p">(</span><span class="s2">"Matrix E:"</span><span class="p">)</span>
 <span class="n">display</span><span class="p">(</span><span class="n">cores</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
@@ -3119,12 +3119,12 @@ inter_matri = general_interaction_matrix(5)
 cores = general_make_H(inter_matri,single_terms)
 print("Matrix S:")
 display(cores[0])
-display(Latex(f"Matrix $L_1$:"))
+display(Latex("Matrix $L_1$:"))
 
 display(cores[1])
 print("Matrix M:")
 display(cores[2])
-display(Latex(f"Matrix $R_1$:"))
+display(Latex("Matrix $R_1$:"))
 display(cores[3])
 print("Matrix E:")
 display(cores[4])</div>

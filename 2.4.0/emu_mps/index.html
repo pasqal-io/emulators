@@ -1572,10 +1572,8 @@
 <ul>
 <li>All Pulser sequences that use only the rydberg channel</li>
 <li>MPS and MPO can be constructed using the abstract Pulser format.</li>
-<li>The following noise types:<ul>
-<li><a href="https://pulser.readthedocs.io/en/stable/tutorials/spam.html">SPAM</a></li>
-<li><a href="https://pulser.readthedocs.io/en/stable/tutorials/effective_noise.html">Monte Carlo quantum jumps</a></li>
-<li>A Gaussian laser waist for the global pulse channels.</li>
+<li>All noise from the pulser <code>NoiseModel</code> except leakage<ul>
+<li>Effective noise is included using <a href="https://pulser.readthedocs.io/en/stable/tutorials/effective_noise.html">Monte Carlo quantum jumps</a></li>
 </ul>
 </li>
 <li>The following <a href="https://pulser.readthedocs.io/en/stable/conventions.html">basis states</a> in a sequence:<ul>
@@ -1597,25 +1595,23 @@
 <li>The qubit density (magnetization)</li>
 <li>The correlation matrix</li>
 <li>The mean, second moment and variance of the energy</li>
+<li>Entanglement entropy</li>
 </ul>
 </li>
 <li>Specification of<ul>
-<li>initial state</li>
-<li>various precision parameters</li>
-<li>whether to run on cpu or gpu(s)</li>
-<li>the <span class="arithmatex">\(U_{ij}\)</span> coefficients from <a href="advanced/hamiltonian/">here</a></li>
+<li>Initial state</li>
+<li>Various precision parameters</li>
+<li>Whether to run on cpu or gpu(s)</li>
+<li>The <span class="arithmatex">\(U_{ij}\)</span> coefficients from <a href="advanced/hamiltonian/">here</a></li>
 <li>A cutoff below which <span class="arithmatex">\(U_{ij}\)</span> are set to 0 (this makes the computation more memory efficient)</li>
 </ul>
 </li>
 </ul>
 <h2 id="planned-features">Planned features</h2>
 <ul>
-<li>Parallel TDVP on multiple GPUs</li>
-<li>More noise:<ul>
-<li>the currently unsupported noises in the Pulser <code>NoiseModel</code></li>
-</ul>
-</li>
-<li>Differentiability</li>
+<li>More efficient use of GPU by storing tensors on CPU where possible.</li>
+<li>Leakage noise.</li>
+<li>Differentiability.</li>
 </ul>
 <h2 id="more-info">More Info</h2>
 <p>Please see the API specification for a list of available config options (<a href="api/">see here</a>).

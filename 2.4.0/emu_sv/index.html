@@ -1567,10 +1567,10 @@
 <h2 id="supported-features">Supported features</h2>
 <p>The following features are currently supported:</p>
 <ul>
-<li>All Pulser sequences that use only the rydberg channel without complex phase</li>
+<li>All Pulser sequences that use only the rydberg channel</li>
 <li>States and Operators can be constructed using the abstract Pulser format.</li>
-<li>The following noise types:<ul>
-<li>None currently</li>
+<li>All noise from the pulser <code>NoiseModel</code> except leakage<ul>
+<li>Effective noise is included using the density matrix formalism</li>
 </ul>
 </li>
 <li>The following <a href="https://pulser.readthedocs.io/en/stable/conventions.html">basis states</a> in a sequence:<ul>
@@ -1593,18 +1593,17 @@
 </ul>
 </li>
 <li>Specification of<ul>
-<li>initial state</li>
-<li>various precision parameters</li>
-<li>whether to run on cpu or gpu(s)</li>
+<li>Initial state</li>
+<li>Various precision parameters</li>
+<li>Whether to run on cpu or gpu</li>
+<li>The <span class="arithmatex">\(U_{ij}\)</span> coefficients from <a href="../emu_mps/advanced/hamiltonian/">here</a></li>
 </ul>
 </li>
+<li>In the noiseless case, the emulator is differentiable</li>
 </ul>
 <h2 id="planned-features">Planned features</h2>
 <ul>
-<li>The noises from the pulser <code>NoiseModel</code> using the density matrix formalism</li>
-<li>Differentiability</li>
-<li>Complex phases in the pulse.</li>
-<li>Overriding the interaction matrix</li>
+<li>Leakage noise</li>
 </ul>
 <h2 id="more-info">More Info</h2>
 <p>Please see the API specification for a list of available config options (<a href="api/">see here</a>).
