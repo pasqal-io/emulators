@@ -7,6 +7,9 @@ The following config values to emu-mps relate to the functioning of the currentl
 - max_bond_dim
 - max_krylov_dim
 - extra_krylov_tolerance
+- num_gpus_to_use
+- autosave_dt
+- optimize_qubit_ordering
 - solver
 
 ## dt
@@ -40,6 +43,24 @@ Note that the number of iterations the Lanczos algorithm needs to converge to th
 ## extra_krylov_tolerance
 
 In addition to the above hard cap on the number of basis vectors, the algorithm will also attempt to estimate the error incurred by computing the matrix exponential using only the current basis vectors. In principle, it is not needed to compute the time-evolution more precisely than `precision` since extra precision will be lost in the truncation. However, in practice it turns out that existing error estimates tend to underestimate the error. `extra_krylov_tolerance` is a fudge factor for how big the desired precision should be compared to `precision`. Its default value is `1e-3`.
+
+## num_gpus_to_use
+
+The `num_gpus_to_use` parameter sets the number of GPUs over which the MPS tensors are distributed during the simulation.
+Setting `num_gpus_to_use = 0` runs the entire computation on the CPU.
+Using multiple GPUs can reduce memory usage per GPU, though the overall runtime remains similar.
+
+**Example:**
+num_gpus_to_use = 2  # use 2 GPUs if available, otherwise fallback to 1 or CPU
+
+## optimize_qubit_ordering
+The `optimize_qubit_ordering` parameter enables the reordering of qubits in the register. This can be useful in cases where the initial qubit ordering (chosen by the user) is not optimal. In such cases, setting `optimize_qubit_ordering = True` re-orders the qubits more efficiently, and that has been shown to improve performance and accuracy. The default value is `False`.
+
+**Note:** enabling this option disables certain features.
+
+## autosave_dt
+The `autosave_dt` parameter defines the minimum time interval between two automatic saves of the MPS state. It is given in seconds with a default value `600` ($10$ minutes).
+Saving the quantum state for later use (for e.g. to resume the simulation) will only occur at times that are multiples of `autosave_dt`.
 
 ## solver
 The `solver` parameter selects the algorithm used to evolve the system using a Pulser sequence. The `Solver` class is then defined with two possible values:
