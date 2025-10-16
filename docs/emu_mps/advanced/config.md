@@ -56,7 +56,7 @@ num_gpus_to_use = 2  # use 2 GPUs if available, otherwise fallback to 1 or CPU
 ## optimize_qubit_ordering
 The `optimize_qubit_ordering` parameter enables the reordering of qubits in the register. This can be useful in cases where the initial qubit ordering (chosen by the user) is not optimal. In such cases, setting `optimize_qubit_ordering = True` re-orders the qubits more efficiently, and that has been shown to improve performance and accuracy. The default value is `False`.
 
-**Note:** enabling this option disables certain features.
+**Note:** enabling this option is not compatible with certain features, such as reading a user-provided initial state.
 
 ## autosave_dt
 The `autosave_dt` parameter defines the minimum time interval between two automatic saves of the MPS state. It is given in seconds with a default value `600` ($10$ minutes).
