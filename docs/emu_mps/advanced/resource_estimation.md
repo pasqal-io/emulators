@@ -19,11 +19,19 @@ $$
 $$
 
 in which case an MPS will take __more__ memory than a state vector. Let $\chi$ denote the value of `max_bond_dim`.
-When $\chi<2^{N/2}$, the bond dimensions in the center all cap at that fixed value of `max_bond_dim`.  Since each tensor in the MPS has 2 bonds of size at most $\chi$, and a physical index of size $p=2$, where each element in the tensor takes $s=16$ bytes (2 8-byte floats to store a complex number), the memory consumption of the state reads
+When $\chi<2^{N/2}$, the bond dimensions in the center all cap at that fixed value of `max_bond_dim`.  Since each tensor in the MPS has 2 bonds of size at most $\chi$, and a physical index of size $p=2$ in the qubit ($2$-level system) case, where each element in the tensor takes $s=16$ bytes ($2$ $8$-byte floats to store a complex number), the memory consumption of the state reads
 
 $$
-|\psi| < spN\chi^2 = 32N\chi^2
+|\psi| < spN\chi^2 = 32N\chi^2.
 $$
+
+and more generally,
+
+$$
+|\psi| < 16pN\chi^2
+$$
+
+for the qudit (p-level system) case.
 
 Note that this is a strict over-estimation because the outer bonds in the MPS will be much smaller than $\chi$.
 
@@ -40,7 +48,7 @@ Note that the baths take up more memory than the state, always, and potentially 
 
 ### Contribution from the Krylov space
 
-The remainder of the memory consumption is to compute the time-evolution of qubit pairs in TDVP. This is done by contracting 2 tensors from the MPS together into a single 2-qubit tensor, and time-evolving it by applying an effective Hamiltonian constructed from the baths and the Hamiltonian MPO. Each 2-qubit tensor has a size bounded by $sp^2\chi^2$, so the memory of the Krylov vectors used in the Lanczos algorithm reads
+The remainder of the memory consumption is to compute the time-evolution of qubit pairs in the TDVP or DMRG algorithms. This is done by contracting 2 tensors from the MPS together into a single 2-qubit tensor, and time-evolving (or minimizing) it by applying an effective Hamiltonian constructed from the baths and the Hamiltonian MPO. Each 2-qubit tensor has a size bounded by $sp^2\chi^2$, so the memory of the Krylov vectors used in the Lanczos algorithm reads
 
 $$
 |\mathrm{krylov}| \leq ksp^2\chi^2 = 64k\chi^2
@@ -68,15 +76,19 @@ $$
 
 Note that this estimate is **pessimistic**, since not all $k$ Krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $\chi$ is probably attained at the center qubit.
 
-To test the accuracy of the above memory estimations, we run the TDVP time evolution algorithm, fixing the bond dimension to a particular desired value.
-For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $chi$, we collect the maximum resident size, or RSS, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=30$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of qubit number and bond dimensions.
+Both **TDVP** and **DMRG** rely on the same bath construction and effective Hamiltonian machinery, so their memory requirements are expected to scale similarly with $N$ and $\chi$.
+
+To test the accuracy of the above memory estimations, we benchmarked the **TDVP** algorithm by fixing the bond dimension to a particular desired value.
+For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $\chi$, we collect the maximum resident size, or RSS, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=30$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of system sizes and bond dimensions.
 
 <img src="../../benchmarks/benchmark_plots/RSS_vs_N.png"  width="49.7%">
 <img src="../../benchmarks/benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
 
 Finally, having established an estimate for the memory consumption, it makes sense to explore what are the available regimes of qubits/bond dimension can be reached for a given hardware capability.
-Since all heavy simulations will be run on an NVIDIA A100 (on Pasqal's DGX cluster), we have 40 GB of available memory.
+Since all heavy simulations will be run on an NVIDIA A100 (on Pasqal's DGX cluster), we have $40$ GB of available memory.
 Therefore, above, we show (right image) the contour lines of the RSS estimate $m(N,\chi,k=30) < 40$ GB for particular useful values of the total memory, allowing to quickly estimate the memory footprint of an emu-mps emulation.
+
+Although these results are shown for **TDVP**, a similar analysis could be performed for **DMRG**, and we expect the resulting memory scaling to be comparable.
 
 ### An example
 
@@ -85,7 +97,7 @@ For example, the results from the [case study](convergence.md) were obtained usi
 
 ## Estimating the runtime of a simulation
 
-Similarly to the previous section, here, we briefly estimate the complexity of the two-site TDVP algorithm we use to time evolve the state in a single pulse sequence step.
+Similarly to the previous section, here, we briefly estimate the complexity of both the two-site TDVP and DMRG algorithms we use to time evolve or minimize the state in a single pulse sequence step.
 As before, the two relevant computational steps are
 
 - Computing the baths
@@ -115,22 +127,25 @@ In steps, it is composed by applying:
 - the right bath: $O(p^2h\chi^3)$
 
 As before, for an all-to-all Rydberg interaction we expect $h\sim N$. Moreover, the effective Hamiltonian application needs to be done $k$ times, to build the appropriate Krylov subspace, and for every pair.
-Finally, to complete the time evolution and bring back the tensors of the state into an MPS form, a final singular value decomposition is required.
+Finally, to complete the time evolution or the energy minimization and bring back the tensors of the state into an MPS form, a final singular value decomposition is required.
 For every pair, this requires $O(N\chi^3)$ to be done.
 Overall, the expected complexity is thus $O(kN^2\chi^3) + O(kN^3\chi^2) + O(N\chi^3)$.
 
 ### Benchmarking runtime
-From the previous complexity estimations, we thus expect the complexity of the two-sites TDVP algorithm to have two main contributions
+From the previous complexity estimations, we expect the computational complexity of both the two-site TDVP and DMRG algorithms to have two main contributions
 
-$$\Delta t_{\text{TDVP}}(N,\chi,k)\sim \alpha N^2\chi^3 + \beta N^3\chi^2$$
+$$\Delta t(N,\chi,k)\sim \alpha N^2\chi^3 + \beta N^3\chi^2$$
 
-To check such estimation, as before, we run TDVP multiple times, measuring the average runtime to perform a step.
+As previously discussed, both algorithms rely on the same bath construction and effective Hamiltonian machinery, so their scaling with the system size $N$ and bond dimension $\chi$ should be comparable.
+
+The study below focuses on **TDVP**, where we ran multiple simulations and measured the average runtime per time step. A similar analysis could be carried out for **DMRG**, and we expect it to lead to similar results.
+
 Below, we show the obtained results for different number of atoms in a register $N$ at fixed bond dimension $\chi$ (left), and at different fixed $N$ but increasing the bond dimension (left). On top of these data points, we also plot the resulting fit of the complexity estimation presented in the equation above. Remarkably, with just two parameters $\alpha$ and $\beta$ with get good agreement.
 
 <img src="../../benchmarks/benchmark_plots/runtime_vs_N.png"  width="49.7%">
 <img src="../../benchmarks/benchmark_plots/runtime_vs_bond_dim.png"  width="49.7%">
 
-To wrap up, and to provide an useful tool for runtime estimation for emu-mps, the time to perform a **single**  time step in a sequence can be conveniently visualized (below) for both $N$ and $\chi$ on contour lines.
+To wrap up, and to provide a practical tool for runtime estimation for emu-mps, the time required to perform a **single**  time step in a sequence can be conveniently visualized (below) for both $N$ and $\chi$ on contour lines.
 
 <img src="../../benchmarks/benchmark_plots/emumps_runtime_map.png"  width="49.7%">
 
