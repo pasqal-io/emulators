@@ -35,6 +35,7 @@ from test.utils_testing import (
     pulser_afm_sequence_grid,
     pulser_afm_sequence_ring,
     pulser_XY_sequence_slm_mask,
+    cpu_multinomial_wrapper,
 )
 
 seed = 1337
@@ -109,6 +110,8 @@ def simulate(
     )
 
     backend = MPSBackend(seq, config=mps_config)
+    # Patch multinomial during the simulation
+
     result = backend.run()
 
     return result
@@ -312,8 +315,8 @@ def test_end_to_end_afm_ring() -> None:
         t_rise=t_rise,
         t_fall=t_fall,
     )
-
-    result = simulate(seq)
+    with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
+        result = simulate(seq)
 
     final_time = -1
     bitstrings = result.bitstrings[final_time]
@@ -359,7 +362,8 @@ def test_dmrg_afm_ring() -> None:
         t_fall=t_fall,
     )
 
-    result = simulate(seq, solver=Solver.DMRG)
+    with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
+        result = simulate(seq, solver=Solver.DMRG)
 
     final_time = -1
     bitstrings = result.bitstrings[final_time]
@@ -643,8 +647,8 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     noise_model = pulser.noise_model.NoiseModel(
         depolarizing_rate=0.3,  # High enough to trigger a jump.
     )
-
-    result = simulate(seq, noise_model=noise_model)
+    with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
+        result = simulate(seq, noise_model=noise_model)
 
     bitstrings = result.bitstrings[-1]
     final_state = result.state[-1]

@@ -12,8 +12,8 @@ _real_multinomial = torch.multinomial
 
 def cpu_multinomial_wrapper(probs: torch.Tensor, num_samples: int, replacement=False):
     """
-    For independent device tests. This is a function that intercepts
-    calls to torch.multinomial, moves `probs` to CPU, applies the real
+    For independent device *(cpu or gpu) tests. This is a function that
+    intercepts calls to torch.multinomial, moves `probs` to CPU, applies the real
     torch.multinomial there, and moves the result back
     to the original device.
     """
