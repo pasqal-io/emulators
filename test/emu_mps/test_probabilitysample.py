@@ -2,7 +2,7 @@ import torch
 
 from emu_mps import MPS
 
-from utils_testing import cpu_multinomial_wrapper, ghz_state_factors
+from test.utils_testing import cpu_multinomial_wrapper, ghz_state_factors
 
 from unittest.mock import patch
 
