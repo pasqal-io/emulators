@@ -6,6 +6,25 @@ import numpy as np
 import pulser
 import math
 
+# for testing purposes, reference to the real multinomial
+_real_multinomial = torch.multinomial
+
+
+def cpu_multinomial_wrapper(probs: torch.Tensor, num_samples: int, replacement=False):
+    """
+    For independent device tests. This is a function that intercepts
+    calls to torch.multinomial, moves `probs` to CPU, applies the real
+    torch.multinomial there, and moves the result back
+    to the original device.
+    """
+    # Move to CPU (detach: no gradient tracking issues)
+    probs_cpu = probs.detach().cpu()
+    # real multinomial on CPU
+    out_cpu = _real_multinomial(probs_cpu, num_samples, replacement)
+    # Move back to the device of original `probs`
+    out = out_cpu.to(probs.device)
+    return out
+
 
 def ghz_state_factors(
     nqubits: int,

@@ -81,7 +81,6 @@ class MPS(State[complex, torch.Tensor]):
 
         if num_gpus_to_use is not None:
             assign_devices(self.factors, min(DEVICE_COUNT, num_gpus_to_use))
-        self._dim = len(self.eigenstates)
 
     @property
     def n_qudits(self) -> int:
