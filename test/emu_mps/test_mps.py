@@ -10,7 +10,7 @@ from emu_mps import MPS, inner, MPO
 from test.utils_testing import ghz_state_factors
 
 dtype = torch.complex128
-device = "cpu"
+
 tol = 1e-12
 down_2level = torch.tensor([[[1], [0]]], dtype=dtype)
 up_2level = torch.tensor([[[0], [1]]], dtype=dtype)
@@ -123,12 +123,12 @@ def test_inner():
     "basis",
     (
         ("0", "1"),
-        ("r", "g", "x"),
+        ("g", "r", "x"),
     ),
 )
 def test_maxbondim(basis):
     bell_state = MPS(
-        ghz_state_factors(3),
+        ghz_state_factors(3, dim=len(basis)),
         eigenstates=basis,
     )
     assert 2 == bell_state.get_max_bond_dim()

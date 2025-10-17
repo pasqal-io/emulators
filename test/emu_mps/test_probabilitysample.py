@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from emu_mps import MPS
@@ -6,26 +7,39 @@ from test.utils_testing import cpu_multinomial_wrapper, ghz_state_factors
 
 from unittest.mock import patch
 
+
 seed = 1337  # any number will do
 device = "cpu"  # 'cuda'
 
 dtype = torch.complex128
 
 
-def test_sampling_ghz5_mps():
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("r", "g", "x"),
+    ),
+)
+def test_sampling_ghz5_mps(basis):
     torch.manual_seed(seed)
     num_qubits = 5
     shots = 1000
     ghz_mps = MPS(
-        ghz_state_factors(num_qubits, device=device),
-        eigenstates=("0", "1"),
+        ghz_state_factors(num_qubits, len(basis), device=device),
+        eigenstates=basis,
+        num_gpus_to_use=0,
     )
     # Mock torch.multinomial inside the MPS.sample
     with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
         bitstrings = ghz_mps.sample(num_shots=shots)
 
-    assert bitstrings.get("11111") == 463
-    assert bitstrings.get("00000") == 537
+    if len(basis) == 2:
+        assert bitstrings.get("11111") == 463
+        assert bitstrings.get("00000") == 537
+    if len(basis) == 3:
+        assert bitstrings.get("11111") == 503
+        assert bitstrings.get("00000") == 497
 
 
 def test_not_orthogonalized_state():

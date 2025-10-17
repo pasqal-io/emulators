@@ -71,8 +71,13 @@ class MPS(State[complex, torch.Tensor]):
 
         self.factors = factors
         self.num_sites = len(factors)
-        self.dim = len(self.eigenstates)
         assert self.num_sites > 1  # otherwise, do state vector
+
+        self.dim = len(self.eigenstates)
+        assert all(factors[i].shape[1] == self.dim for i in range(self.num_sites)), (
+            "All tensors should have the same physical dimension as the number "
+            "of eigenstates"
+        )
 
         assert (orthogonality_center is None) or (
             0 <= orthogonality_center < self.num_sites

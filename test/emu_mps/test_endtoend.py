@@ -386,7 +386,8 @@ def test_dmrg_afm_ring() -> None:
         fidelity_fin, torch.tensor(0.9735, dtype=torch.float64), atol=1e-3
     )
 
-    # check that the number operator should return 1 on even sites and 0 elsewhere
+    # check that the number operator should return 1 on even sites
+    # and 0 elsewhere
     assert torch.allclose(
         occupation_even_sites, torch.tensor(1, dtype=torch.float64), atol=1e-3
     )
