@@ -439,7 +439,8 @@ def test_progress_at_random_middle_mpssite(
     dmrg.state = MagicMock(factors=[None] * QUBIT_COUNT, orthogonality_center=1)
     dmrg.sweep_index = dmrg.state.orthogonality_center
 
-    # at the 2nd MPS site (orthogonality_center = 1), the left bath must be a list of 1 element
+    # at the 2nd MPS site (orthogonality_center = 1), the left bath must be a
+    # list of 1 element
     # while the right bath being a list of 3 elements
     dmrg.left_baths = [torch.zeros(1)]
     dmrg.right_baths = [torch.zeros(1)] * 3
@@ -481,7 +482,8 @@ def test_progress_at_right_mps_boundary(
     dmrg.sweep_index = dmrg.state.orthogonality_center
 
     dmrg.hamiltonian = MagicMock(factors=[None] * QUBIT_COUNT)
-    # at the 3rd MPS site (orthogonality_center = 2), the left bath must be a list of 2 elements
+    # at the 3rd MPS site (orthogonality_center = 2), the left bath must be a
+    # list of 2 elements
     # while the right bath being a list of two elements
     dmrg.left_baths = [torch.zeros(1)] * 2
     dmrg.right_baths = [torch.zeros(1)] * 2

@@ -9,7 +9,8 @@ from emu_base.math.brents_root_finding import find_root_brents
 test_tolerance = 1e-10
 
 """
-Returns the result of `find_root_brents` but also the number of times `f` was called.
+Returns the result of `find_root_brents` but also the number of times `f`
+was called.
 """
 
 
