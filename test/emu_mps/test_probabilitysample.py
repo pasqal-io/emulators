@@ -75,7 +75,7 @@ def test_sampling_wall():
     half_atoms = 4  # half the number of qubits
 
     factor1 = torch.tensor([[[0], [1]]], dtype=torch.complex128, device=device)
-    factor2 = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128, device=device)
+    factor2 = torch.tensor([[[1], [0]]], dtype=torch.complex128, device=device)
     wall_state = [factor1] * half_atoms + [factor2] * half_atoms
 
     state_wall = MPS(wall_state, eigenstates=("0", "1"))

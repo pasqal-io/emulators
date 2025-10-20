@@ -1,11 +1,7 @@
 from __future__ import annotations
-
 import math
-
 from collections import Counter
-
 from typing import List, Optional, Sequence, TypeVar, Mapping
-
 
 import torch
 
@@ -136,7 +132,7 @@ class MPS(State[complex, torch.Tensor]):
         else:
             raise ValueError(
                 "Unsupported basis provided. The supported "
-                "basis are:{('0','1'),('r','g'),('r','g','x')}"
+                "bases are:{('0','1'),('r','g'),('r','g','x')}"
             )
 
         return cls(
@@ -254,7 +250,7 @@ class MPS(State[complex, torch.Tensor]):
                 batch_size, 1, dtype=dtype, device=self.factors[0].device
             )
 
-            batch_outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.long)
+            batch_outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.int)
             rangebatch = torch.arange(batch_size)
             for qubit, factor in enumerate(self.factors):
                 batched_accumulator = torch.tensordot(
