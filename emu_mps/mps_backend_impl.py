@@ -209,7 +209,8 @@ class MPSBackendImpl:
         if initial_state is None:
             self.state = MPS.make(
                 self.qubit_count,
-                config=self.config,
+                precision=self.config.precision,
+                max_bond_dim=self.config.max_bond_dim,
                 num_gpus_to_use=self.config.num_gpus_to_use,
             )
             return
@@ -236,7 +237,8 @@ class MPSBackendImpl:
         initial_state = MPS(
             # Deep copy of every tensor of the initial state.
             [f.detach().clone() for f in initial_state.factors],
-            config=self.config,
+            precision=self.config.precision,
+            max_bond_dim=self.config.max_bond_dim,
             num_gpus_to_use=self.config.num_gpus_to_use,
             eigenstates=initial_state.eigenstates,
         )

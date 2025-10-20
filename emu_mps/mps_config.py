@@ -4,6 +4,8 @@ from types import MethodType
 import copy
 
 from emu_base import DEVICE_COUNT
+from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
+from emu_mps.mpo import MPO
 from emu_mps.solver import Solver
 from emu_mps.custom_callback_implementations import (
     energy_mps_impl,
@@ -71,13 +73,15 @@ class MPSConfig(EmulationConfig):
 
     # Whether to warn if unexpected kwargs are received
     _enforce_expected_kwargs: ClassVar[bool] = True
+    _state_type = MPS
+    _operator_type = MPO
 
     def __init__(
         self,
         *,
         dt: int = 10,
-        precision: float = 1e-5,
-        max_bond_dim: int = 1024,
+        precision: float = DEFAULT_PRECISION,
+        max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
         num_gpus_to_use: int = DEVICE_COUNT,

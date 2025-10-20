@@ -1,8 +1,6 @@
 from typing import List, Optional
 import torch
 
-from emu_mps import MPSConfig
-
 
 def new_left_bath(
     bath: torch.Tensor, state: torch.Tensor, op: torch.Tensor
@@ -59,8 +57,7 @@ def split_tensor(
 
 
 def truncate_impl(
-    factors: list[torch.Tensor],
-    config: MPSConfig,
+    factors: list[torch.Tensor], precision: float, max_bond_dim: int
 ) -> None:
     """
     Eigenvalues-based truncation of a matrix product.
@@ -76,8 +73,8 @@ def truncate_impl(
 
         l, r = split_tensor(
             factors[i].view(factor_shape[0], -1),
-            max_error=config.precision,
-            max_rank=config.max_bond_dim,
+            max_error=precision,
+            max_rank=max_bond_dim,
             orth_center_right=False,
         )
 

@@ -8,7 +8,6 @@ import torch
 
 from pulser.backend.state import State, Eigenstate
 from emu_base import DEVICE_COUNT, apply_measurement_errors
-from emu_mps import MPSConfig
 from emu_mps.algebra import add_factors, scale_factors
 from emu_mps.utils import (
     assign_devices,
@@ -18,6 +17,9 @@ from emu_mps.utils import (
 )
 
 ArgScalarType = TypeVar("ArgScalarType")
+
+DEFAULT_PRECISION = 1e-5
+DEFAULT_MAX_BOND_DIM = 1024
 
 
 class MPS(State[complex, torch.Tensor]):
@@ -35,7 +37,8 @@ class MPS(State[complex, torch.Tensor]):
         /,
         *,
         orthogonality_center: Optional[int] = None,
-        config: Optional[MPSConfig] = None,
+        precision: float = DEFAULT_PRECISION,
+        max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
         num_gpus_to_use: Optional[int] = DEVICE_COUNT,
         eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
@@ -52,12 +55,14 @@ class MPS(State[complex, torch.Tensor]):
                 of the data to this constructor, or some shared objects.
             orthogonality_center: the orthogonality center of the MPS, or None (in which case
                 it will be orthogonalized when needed)
-            config: the emu-mps config object passed to the run method
+            precision: the precision with which to keep this MPS
+            max_bond_dim: the maximum bond dimension to allow for this MPS
             num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu, None=keep the existing device assignment.
         """
         super().__init__(eigenstates=eigenstates)
-        self.config = config if config is not None else MPSConfig()
+        self.precision = precision
+        self.max_bond_dim = max_bond_dim
         assert all(
             factors[i - 1].shape[2] == factors[i].shape[0] for i in range(1, len(factors))
         ), "The dimensions of consecutive tensors should match"
@@ -86,7 +91,8 @@ class MPS(State[complex, torch.Tensor]):
     def make(
         cls,
         num_sites: int,
-        config: Optional[MPSConfig] = None,
+        precision: float = DEFAULT_PRECISION,
+        max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
         num_gpus_to_use: int = DEVICE_COUNT,
         eigenstates: Sequence[Eigenstate] = ["0", "1"],
     ) -> MPS:
@@ -95,12 +101,11 @@ class MPS(State[complex, torch.Tensor]):
 
         Args:
             num_sites: the number of qubits
-            config: the MPSConfig
+            precision: the precision with which to keep this MPS
+            max_bond_dim: the maximum bond dimension to allow for this MPS
             num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu
         """
-        config = config if config is not None else MPSConfig()
-
         if num_sites <= 1:
             raise ValueError("For 1 qubit states, do state vector")
 
@@ -109,7 +114,8 @@ class MPS(State[complex, torch.Tensor]):
                 torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)
                 for _ in range(num_sites)
             ],
-            config=config,
+            precision=precision,
+            max_bond_dim=max_bond_dim,
             num_gpus_to_use=num_gpus_to_use,
             orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
             eigenstates=eigenstates,
@@ -172,7 +178,9 @@ class MPS(State[complex, torch.Tensor]):
         An in-place operation.
         """
         self.orthogonalize(self.num_sites - 1)
-        truncate_impl(self.factors, config=self.config)
+        truncate_impl(
+            self.factors, precision=self.precision, max_bond_dim=self.max_bond_dim
+        )
         self.orthogonality_center = 0
 
     def get_max_bond_dim(self) -> int:
@@ -358,7 +366,8 @@ class MPS(State[complex, torch.Tensor]):
         new_tt = add_factors(self.factors, other.factors)
         result = MPS(
             new_tt,
-            config=self.config,
+            precision=self.precision,
+            max_bond_dim=self.max_bond_dim,
             num_gpus_to_use=None,
             orthogonality_center=None,  # Orthogonality is lost.
             eigenstates=self.eigenstates,
@@ -384,7 +393,8 @@ class MPS(State[complex, torch.Tensor]):
         factors = scale_factors(self.factors, scalar, which=which)
         return MPS(
             factors,
-            config=self.config,
+            precision=self.precision,
+            max_bond_dim=self.max_bond_dim,
             num_gpus_to_use=None,
             orthogonality_center=self.orthogonality_center,
             eigenstates=self.eigenstates,

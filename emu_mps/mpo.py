@@ -7,7 +7,7 @@ from pulser.backend import State, Operator
 from emu_base import DEVICE_COUNT
 from emu_mps.algebra import add_factors, scale_factors, zip_right
 from pulser.backend.operator import FullOp, QuditOp
-from emu_mps.mps import MPS
+from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
 from emu_mps.utils import new_left_bath, assign_devices
 
 
@@ -62,7 +62,8 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
         factors = zip_right(
             self.factors,
             other.factors,
-            config=other.config,
+            precision=other.precision,
+            max_bond_dim=other.max_bond_dim,
         )
         return MPS(factors, orthogonality_center=0, eigenstates=other.eigenstates)
 
@@ -107,7 +108,12 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
             the composed operator
         """
         assert isinstance(other, MPO), "MPO can only be applied to another MPO"
-        factors = zip_right(self.factors, other.factors)
+        factors = zip_right(
+            self.factors,
+            other.factors,
+            precision=DEFAULT_PRECISION,
+            max_bond_dim=DEFAULT_MAX_BOND_DIM,
+        )
         return MPO(factors)
 
     def expect(self, state: State) -> torch.Tensor:

@@ -57,7 +57,7 @@ def test_inner_and_overlap() -> None:
     expected = torch.dot(tensor1, tensor2)
 
     assert torch.allclose(inner_prod, expected)
-    assert torch.allclose(ovrlp, expected)
+    assert torch.allclose(ovrlp, torch.abs(expected) ** 2)
 
 
 def test_norm() -> None:
@@ -121,8 +121,7 @@ def test_from_amplitudes() -> None:
     expected_state = StateVector(torch.tensor([factor, 0, 0, factor], dtype=dtype))
 
     result = state.overlap(expected_state)
-    assert math.isclose(result.real, 1.0, rel_tol=1e-5)
-    assert math.isclose(result.imag, 0.0, rel_tol=1e-5)
+    assert math.isclose(result, 1.0, rel_tol=1e-5)
 
 
 @pytest.mark.parametrize(
