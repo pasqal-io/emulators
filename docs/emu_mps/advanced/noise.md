@@ -13,7 +13,7 @@ Our implementation supports different types of noise:
 - **eff_noise**: general effective noise channel defined by the set of collapse operators **eff_noise_opers** and their corresponding rates **eff_noise_rates**.
 - **SPAM errors**: parameterized by **state_prep_error**, **p_false_pos** and **p_false_neg**.
 
- Users can refer to the [Pulser documentation](https://pulser.readthedocs.io/en/stable/tutorials/noisy_sim.html) for a detailed overview of the different noise models currently available. Currently, emu-mps does not support the **amplitude noise**, **Doppler noise** and **leakage**.
+ Users can refer to the [Pulser documentation](https://pulser.readthedocs.io/en/stable/tutorials/noisy_sim.html) for a detailed overview of the different noise models currently available. Currently, emu-mps does not support the **leakage**.
 
 ## Effective Hamiltonian
 The non-hermitian **effective Hamiltonian** used in noisy emu-mps simulations includes both the physical Hamiltonian $H_{physical}$, which governs the noiseless evolution of the system, and a term representing noise:
@@ -28,7 +28,7 @@ where:
 
 ## Time Evolution Mechanism
 
-The system undergoes deterministic time evolution from time $t$ to $t + \delta t$ using TDVP ([see here](tdvp.md)) with the effective Hamiltonian. At the end of each evolution step, the norm of the evolved quantum state $\vert \psi (t + \delta t)\rangle$ is compared to a collapse threshold, which is a random number between $0$ and $1$:
+The system undergoes deterministic time evolution from time $t$ to $t + \delta t$ using TDVP ([see here](algorithms.md)) with the effective Hamiltonian. At the end of each evolution step, the norm of the evolved quantum state $\vert \psi (t + \delta t)\rangle$ is compared to a collapse threshold, which is a random number between $0$ and $1$:
 
 - **If the square of the norm of the evolved state is greater than the random number**, the system successfully evolves under the effective Hamiltonian $H_{\text{eff}}$ to time $t + \delta t$, and proceeds to the next time step.
 - **If the square of the norm of the evolved state is less than the random number**, a **quantum jump** occurs. This can be understood as a simulation of a noise event (e.g. spontaneous emission, dephasing, etc.).
@@ -56,8 +56,9 @@ Upon completion of the current time step, the time evolution continues with the 
 To better understand how the quantum jump process describes a physical event (noise) which occurs during time evolution, let us consider a two-level system initially in the state $\vert \psi(t)\rangle = \alpha\vert g\rangle + \beta \vert e\rangle$, where $\alpha$ and $\beta$ are complex coefficients. By setting both the amplitude and detuning to zero, $\Omega = \delta = 0$, we can then ask what happens in a single step depending on whether a **spontaneously emitted photon** occurs or not. For this, we examine a single quantum jump operator $L = \sqrt{\Gamma}\vert g\rangle\langle e\vert$, and an effective Hamiltonian $H_{eff} = -i(\Gamma/2)\vert e\rangle\langle e\vert$.
 
 If a quantum jump occurs in a time step $\delta t$, then the state following the jump becomes
-$$
-\vert \psi(t+\delta t)\rangle \ = \ \frac{L\vert\psi(t)\rangle}{\vert\vert L \vert \psi(t)\rangle\vert\vert} \ = \ \vert g\rangle.
-$$
+
+\[
+\vert \psi(t + \delta t)\rangle = \frac{L \vert \psi(t) \rangle}{\| L \vert \psi(t) \rangle \|} = \vert g \rangle.
+\]
 
 In other words, when a spontaneous emission event occurs, the evolved state of the system collapses onto the ground state $\vert g\rangle$. This demonstrates how noisy events, like spontaneous emission, can alter the dynamics of a quantum system, even in the absence of direct observation of emitted photons.

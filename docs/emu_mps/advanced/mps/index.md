@@ -24,7 +24,7 @@ As a consequence, the real power of the MPS representation is that the bond dime
 
 ## Truncation of the state
 
-After each 2-site evolution ([see here](../tdvp.md)), an SvD is applied to split the state vector for the 2-site subsystem back into two tensors for the MPS. The number of singular values give the dimension of the bond connecting the 2 qubits in the MPS. To keep the memory consumption of the state in check, the set of singular values is truncated as per the `precision` and `max_bond_dim` arguments in the [config](../config.md).
+After each 2-site evolution ([see here](../algorithms.md)), an SvD is applied to split the state vector for the 2-site subsystem back into two tensors for the MPS. The number of singular values give the dimension of the bond connecting the 2 qubits in the MPS. To keep the memory consumption of the state in check, the set of singular values is truncated as per the `precision` and `max_bond_dim` arguments in the [config](../config.md).
 
 Of these two parameters, `precision` is the most physically relevant. Whenever truncation occurs, the smallest singular values are thrown away until doing so would increase the norm distance between the original and truncated states above `precision`. Notice that this does not give any guarantees on the state size after truncation. However, for a given `precision`, clear bounds can be given on the truncation error incurred by the simulation ([see here](../errors.md)) in terms of norm distance. This in turn can be used to derive upper bounds on the error incurred in various observables outputted by the simulation.
 
