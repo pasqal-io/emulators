@@ -110,7 +110,6 @@ def simulate(
     )
 
     backend = MPSBackend(seq, config=mps_config)
-    # Patch multinomial during the simulation
 
     result = backend.run()
 

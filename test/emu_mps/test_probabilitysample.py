@@ -93,8 +93,6 @@ def test_with_leakage():
     ket0 = torch.tensor([[[1], [0], [0]]], dtype=torch.complex128, device=device)  # |g>
     wall_state = [ket1] * natoms + [ket0] * natoms  # wall state in rydberg basis
 
-    # check manually check that x works with rydberg basis
-    # decision: x, g, r order
     state_wall = MPS(wall_state, eigenstates=("g", "r", "x"))
     bitstrings = state_wall.sample(num_shots=shots)
     state_bit = "1" * natoms + "0" * natoms
@@ -106,15 +104,15 @@ def test_with_leakage_ghz_3level(mocked_results=None):
     torch.manual_seed(seed)
 
     shots = 1000
-    natoms = 3  # half the number of qubits
+    half_atoms = 3  # half the number of qubits
 
     factorg = torch.tensor([[[1], [0], [0]]], dtype=torch.complex128, device=device)
     factorr = torch.tensor([[[0], [1], [0]]], dtype=torch.complex128, device=device)
     factorx = torch.tensor([[[0], [0], [1]]], dtype=torch.complex128, device=device)
     wall_state = (
-        MPS([factorx] * natoms, eigenstates=("x", "g", "r"))
-        + MPS([factorg] * natoms, eigenstates=("x", "g", "r"))
-        + MPS([factorr] * natoms, eigenstates=("x", "g", "r"))
+        MPS([factorx] * half_atoms, eigenstates=("x", "g", "r"))
+        + MPS([factorg] * half_atoms, eigenstates=("x", "g", "r"))
+        + MPS([factorr] * half_atoms, eigenstates=("x", "g", "r"))
     )
     wall_state /= wall_state.norm()
 
@@ -122,8 +120,8 @@ def test_with_leakage_ghz_3level(mocked_results=None):
     with patch("torch.multinomial", side_effect=cpu_multinomial_wrapper):
         bitstrings = wall_state.sample(num_shots=shots)
 
-    state_bit0 = "0" * natoms
-    state_bit1 = "1" * natoms
+    state_bit1 = "1" * half_atoms
+    state_bit0 = "0" * half_atoms
 
     assert bitstrings.get(state_bit0) == 653
     assert bitstrings.get(state_bit1) == 347

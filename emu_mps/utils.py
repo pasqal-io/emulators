@@ -208,15 +208,6 @@ def get_extended_site_index(
     raise ValueError(f"Index {desired_index} does not exist")
 
 
-n_operator: torch.Tensor = torch.tensor(
-    [
-        [0, 0],
-        [0, 1],
-    ],
-    dtype=torch.complex128,
-)
-
-
 def tensor_trace(tensor: torch.Tensor, dim1: int, dim2: int) -> torch.Tensor:
     """
     Contract two legs of a single tensor.

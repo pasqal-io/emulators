@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import math
+
 from collections import Counter
+
 from typing import List, Optional, Sequence, TypeVar, Mapping
+
 
 import torch
 
@@ -14,8 +17,8 @@ from emu_mps.utils import (
     assign_devices,
     truncate_impl,
     tensor_trace,
-    n_operator,
 )
+
 
 ArgScalarType = TypeVar("ArgScalarType")
 dtype = torch.complex128
@@ -41,7 +44,7 @@ class MPS(State[complex, torch.Tensor]):
         eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
         """
-        This constructor creates a MPS directly from a list of tensors. It i
+        This constructor creates a MPS directly from a list of tensors. It is
         for internal use only.
 
         Args:
@@ -78,6 +81,11 @@ class MPS(State[complex, torch.Tensor]):
             "All tensors should have the same physical dimension as the number "
             "of eigenstates"
         )
+
+        self.n_operator = torch.zeros(
+            self.dim, self.dim, dtype=dtype, device=self.factors[0].device
+        )
+        self.n_operator[1, 1] = 1.0
 
         assert (orthogonality_center is None) or (
             0 <= orthogonality_center < self.num_sites
@@ -126,7 +134,10 @@ class MPS(State[complex, torch.Tensor]):
             ]
 
         else:
-            raise ValueError("Unsupported qudit provided. Upto 3 levels supported.")
+            raise ValueError(
+                "Unsupported basis provided. The supported "
+                "basis are:{('0','1'),('r','g'),('r','g','x')}"
+            )
 
         return cls(
             ground_state,
@@ -324,8 +335,11 @@ class MPS(State[complex, torch.Tensor]):
     def entanglement_entropy(self, mps_site: int) -> torch.Tensor:
         """
         Returns
-        the Von Neumann entanglement entropy of the state `mps` at the bond between sites b and b+1
+        the Von Neumann entanglement entropy of the state `mps` at the bond
+        between sites b and b+1
+
         S = -Σᵢsᵢ² log(sᵢ²)),
+
         where sᵢ are the singular values at the chosen bond.
         """
         self.orthogonalize(mps_site)
@@ -527,7 +541,7 @@ class MPS(State[complex, torch.Tensor]):
         )
 
     def get_correlation_matrix(
-        self, *, operator: torch.Tensor = n_operator
+        self, operator: torch.Tensor | None = None
     ) -> torch.Tensor:
         """
         Efficiently compute the symmetric correlation matrix
@@ -540,6 +554,10 @@ class MPS(State[complex, torch.Tensor]):
         Returns:
             the corresponding correlation matrix
         """
+
+        if operator is None:
+            operator = self.n_operator
+
         assert operator.shape == (self.dim, self.dim), "Operator has wrong shape"
 
         result = torch.zeros(self.num_sites, self.num_sites, dtype=dtype)
