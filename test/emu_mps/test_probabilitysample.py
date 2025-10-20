@@ -30,7 +30,7 @@ def test_sampling_ghz5_mps(basis):
         eigenstates=basis,
         num_gpus_to_use=0,
     )
-    # Mock torch.multinomial inside the MPS.sample
+
     with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
         bitstrings = ghz_mps.sample(num_shots=shots)
 
@@ -60,7 +60,7 @@ def test_not_orthogonalized_state():
         [l_factor1, l_factor2, l_factor3],
         eigenstates=("0", "1"),
     )
-    # Mock torch.multinomial inside the MPS.sample
+
     with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
         bitstrings = bell.sample(num_shots=shots)
 
@@ -71,15 +71,15 @@ def test_not_orthogonalized_state():
 def test_sampling_wall():
     torch.manual_seed(seed)
     shots = 1000
-    natoms = 4  # half the number of qubits
+    half_atoms = 4  # half the number of qubits
 
     factor1 = torch.tensor([[[0], [1]]], dtype=torch.complex128, device=device)
     factor2 = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128, device=device)
-    wall_state = [factor1] * natoms + [factor2] * natoms
+    wall_state = [factor1] * half_atoms + [factor2] * half_atoms
 
     state_wall = MPS(wall_state, eigenstates=("0", "1"))
     bitstrings = state_wall.sample(num_shots=shots)
-    state_bit = "1" * natoms + "0" * natoms
+    state_bit = "1" * half_atoms + "0" * half_atoms
 
     assert bitstrings.get(state_bit) == 1000
 
@@ -87,15 +87,15 @@ def test_sampling_wall():
 def test_with_leakage():
     torch.manual_seed(seed)
     shots = 1000
-    natoms = 4  # half the number of qubits
+    half_atoms = 4  # half the number of qubits
 
     ket1 = torch.tensor([[[0], [1], [0]]], dtype=torch.complex128, device=device)  # |r>
     ket0 = torch.tensor([[[1], [0], [0]]], dtype=torch.complex128, device=device)  # |g>
-    wall_state = [ket1] * natoms + [ket0] * natoms  # wall state in rydberg basis
+    wall_state = [ket1] * half_atoms + [ket0] * half_atoms  # wall state in rydberg basis
 
     state_wall = MPS(wall_state, eigenstates=("g", "r", "x"))
     bitstrings = state_wall.sample(num_shots=shots)
-    state_bit = "1" * natoms + "0" * natoms
+    state_bit = "1" * half_atoms + "0" * half_atoms
 
     assert bitstrings.get(state_bit) == shots
 
@@ -116,7 +116,6 @@ def test_with_leakage_ghz_3level(mocked_results=None):
     )
     wall_state /= wall_state.norm()
 
-    # Mock torch.multinomial inside the MPS.sample
     with patch("torch.multinomial", side_effect=cpu_multinomial_wrapper):
         bitstrings = wall_state.sample(num_shots=shots)
 
@@ -143,7 +142,6 @@ def test_with_leakage_edge_case_3level():
     state = mpsxr + mpsxg + mpsgg + (-1.0) * mpsgr
     state /= state.norm()
 
-    # torch.multinomial to use the CPU wrapper
     with patch("torch.multinomial", new=cpu_multinomial_wrapper):
         bitstrings = state.sample(num_shots=shots)
 

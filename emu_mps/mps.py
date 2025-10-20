@@ -277,7 +277,6 @@ class MPS(State[complex, torch.Tensor]):
             for outcome in batch_outcomes:
                 bitstrings.update(["".join("1" if x == 1 else "0" for x in outcome)])
 
-        # for 2 level systems
         if p_false_neg > 0 or p_false_pos > 0 and self.dim == 2:
             bitstrings = apply_measurement_errors(
                 bitstrings,
