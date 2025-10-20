@@ -53,15 +53,15 @@ def ghz_state_factors(
         )
         core_mid = torch.tensor(
             [
-                [[1.0, 0.0], [0.0, 0.0]],
-                [[0.0, 0.0], [0.0, 1.0]],
+                [[1, 0], [0, 0]],
+                [[0, 0], [0, 1]],
             ],
             dtype=dtype,
             device=device,
         )
         # similar to core_mid, except no bond to the right
         core3 = torch.tensor(
-            [[[1.0], [0.0]], [[0.0], [1.0]]],
+            [[[1], [0]], [[0], [1]]],
             dtype=dtype,
             device=device,
         )
@@ -88,6 +88,7 @@ def ghz_state_factors(
                 device=device,
             )
         )
+
         core_mid = torch.tensor(
             [
                 [
