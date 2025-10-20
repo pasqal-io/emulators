@@ -35,15 +35,17 @@ class MPSConfig(EmulationConfig):
     See the API for that class for a list of available options.
 
     Args:
-        dt: the timestep size that the solver uses. Note that observables are
+        dt: The timestep size that the solver uses. Note that observables are
             only calculated if the evaluation_times are divisible by dt.
-        precision: up to what precision the state is truncated
-        max_bond_dim: the maximum bond dimension that the state is allowed to have.
+        precision: Up to what precision the state is truncated.
+            Defaults to `1e-5`.
+        max_bond_dim: The maximum bond dimension that the state is allowed to have.
+            Defaults to `1024`.
         max_krylov_dim:
-            the size of the krylov subspace that the Lanczos algorithm maximally builds
+            The size of the krylov subspace that the Lanczos algorithm maximally builds
         extra_krylov_tolerance:
-            the Lanczos algorithm uses this*precision as the convergence tolerance
-        num_gpus_to_use: during the simulation, distribute the state over this many GPUs
+            The Lanczos algorithm uses this*precision as the convergence tolerance
+        num_gpus_to_use: During the simulation, distribute the state over this many GPUs
             0=all factors to cpu. As shown in the benchmarks, using multiple GPUs might
             alleviate memory pressure per GPU, but the runtime should be similar.
         optimize_qubit_ordering: Optimize the register ordering. Improves performance and
@@ -53,15 +55,15 @@ class MPSConfig(EmulationConfig):
         log_level: How much to log. Set to `logging.WARN` to get rid of the timestep info.
         log_file: If specified, log to this file rather than stout.
         autosave_prefix: filename prefix for autosaving simulation state to file
-        autosave_dt: minimum time interval in seconds between two autosaves.
+        autosave_dt: Minimum time interval in seconds between two autosaves.
             Saving the simulation state is only possible at specific times,
             therefore this interval is only a lower bound.
-        solver: chooses the solver algorithm to run a sequence.
+        solver: Chooses the solver algorithm to run a sequence.
             Two options are currently available:
             ``TDVP``, which performs ordinary time evolution,
             and ``DMRG``, which adiabatically follows the ground state
             of a given adiabatic pulse.
-        kwargs: arguments that are passed to the base class
+        kwargs: Arguments that are passed to the base class
 
     Examples:
         >>> num_gpus_to_use = 2 #use 2 gpus if available, otherwise 1 or cpu
