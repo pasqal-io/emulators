@@ -84,9 +84,7 @@ def _extract_omega_delta_phi(
     elif "XY" in sequence_dict and len(sequence_dict) == 1:
         locals_a_d_p = sequence_dict["XY"]
     else:
-        raise ValueError(
-            "Only `ground-rydberg` and `mw_global` channels " "are supported."
-        )
+        raise ValueError("Only `ground-rydberg` and `mw_global` channels are supported.")
     for i in range(nsamples):
         t = (target_times[i] + target_times[i + 1]) / 2
         # The sampled values correspond to the start of each interval

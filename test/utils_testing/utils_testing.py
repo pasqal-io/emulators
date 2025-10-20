@@ -12,7 +12,7 @@ _real_multinomial = torch.multinomial
 
 def cpu_multinomial_wrapper(probs: torch.Tensor, num_samples: int, replacement=False):
     """
-    For independent device *(cpu or gpu) tests. This is a function that
+    For independent device (cpu or gpu) tests. This is a function that
     intercepts calls to torch.multinomial, moves `probs` to CPU, applies the real
     torch.multinomial there, and moves the result back
     to the original device.
@@ -40,10 +40,10 @@ def ghz_state_factors(
             * torch.tensor(
                 [
                     [
-                        [1.0 + 0.0j, 0.0 + 0.0j],
+                        [1.0, 0.0],
                         [
-                            0.0 + 0.0j,
-                            1.0 + 0.0j,
+                            0.0,
+                            1.0,
                         ],
                     ]
                 ],
@@ -53,15 +53,15 @@ def ghz_state_factors(
         )
         core_mid = torch.tensor(
             [
-                [[1.0 + 0.0j, 0.0 + 0.0j], [0.0 + 0.0j, 0.0 + 0.0j]],
-                [[0.0 + 0.0j, 0.0 + 0.0j], [0.0 + 0.0j, 1.0 + 0.0j]],
+                [[1.0, 0.0], [0.0, 0.0]],
+                [[0.0, 0.0], [0.0, 1.0]],
             ],
             dtype=dtype,
             device=device,
         )
         # similar to core_mid, except no bond to the right
         core3 = torch.tensor(
-            [[[1.0 + 0.0j], [0.0 + 0.0j]], [[0.0 + 0.0j], [1.0 + 0.0j]]],
+            [[[1.0], [0.0]], [[0.0], [1.0]]],
             dtype=dtype,
             device=device,
         )
@@ -73,14 +73,14 @@ def ghz_state_factors(
             * torch.tensor(
                 [
                     [
-                        [1.0 + 0.0j, 0.0 + 0.0j],
+                        [1.0, 0.0],
                         [
-                            0.0 + 0.0j,
-                            1.0 + 0.0j,
+                            0.0,
+                            1.0,
                         ],
                         [
-                            0.0 + 0.0j,
-                            0.0 + 0.0j,
+                            0.0,
+                            0.0,
                         ],
                     ]
                 ],
@@ -91,14 +91,14 @@ def ghz_state_factors(
         core_mid = torch.tensor(
             [
                 [
-                    [1.0 + 0.0j, 0.0 + 0.0j],
-                    [0.0 + 0.0j, 0.0 + 0.0j],
-                    [0.0 + 0.0j, 0.0 + 0.0j],
+                    [1.0, 0.0],
+                    [0.0, 0.0],
+                    [0.0, 0.0],
                 ],
                 [
-                    [0.0 + 0.0j, 0.0 + 0.0j],
-                    [0.0 + 0.0j, 1.0 + 0.0j],
-                    [0.0 + 0.0j, 0.0 + 0.0j],
+                    [0.0, 0.0],
+                    [0.0, 1.0],
+                    [0.0, 0.0],
                 ],
             ],
             dtype=dtype,
@@ -107,14 +107,14 @@ def ghz_state_factors(
         core3 = torch.tensor(
             [
                 [
-                    [1.0 + 0.0j],
-                    [0.0 + 0.0j],
-                    [0.0 + 0.0j],
+                    [1.0],
+                    [0.0],
+                    [0.0],
                 ],
                 [
-                    [0.0 + 0.0j],
-                    [1.0 + 0.0j],
-                    [0.0 + 0.0j],
+                    [0.0],
+                    [1.0],
+                    [0.0],
                 ],
             ],
             dtype=dtype,

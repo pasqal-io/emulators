@@ -18,6 +18,7 @@ dtype = torch.complex128
     "basis",
     (
         ("0", "1"),
+        ("r", "g"),
         ("r", "g", "x"),
     ),
 )
@@ -91,9 +92,11 @@ def test_with_leakage():
 
     ket1 = torch.tensor([[[0], [1], [0]]], dtype=torch.complex128, device=device)  # |r>
     ket0 = torch.tensor([[[1], [0], [0]]], dtype=torch.complex128, device=device)  # |g>
-    wall_state = [ket1] * half_atoms + [ket0] * half_atoms  # wall state in rydberg basis
+    domain_wall_state = [ket1] * half_atoms + [
+        ket0
+    ] * half_atoms  # wall state in rydberg basis
 
-    state_wall = MPS(wall_state, eigenstates=("g", "r", "x"))
+    state_wall = MPS(domain_wall_state, eigenstates=("g", "r", "x"))
     bitstrings = state_wall.sample(num_shots=shots)
     state_bit = "1" * half_atoms + "0" * half_atoms
 
