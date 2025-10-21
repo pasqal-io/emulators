@@ -38,15 +38,7 @@ def ghz_state_factors(
             1
             / torch.sqrt(torch.tensor([2.0], device=device, dtype=dtype))
             * torch.tensor(
-                [
-                    [
-                        [1, 0],
-                        [
-                            0,
-                            1,
-                        ],
-                    ]
-                ],
+                [[[1, 0], [0, 1]]],
                 dtype=dtype,
                 device=device,
             )
@@ -71,19 +63,7 @@ def ghz_state_factors(
             1
             / torch.sqrt(torch.tensor([2.0], device=device, dtype=dtype))
             * torch.tensor(
-                [
-                    [
-                        [1, 0],
-                        [
-                            0,
-                            1,
-                        ],
-                        [
-                            0,
-                            0,
-                        ],
-                    ]
-                ],
+                [[[1, 0], [0, 1], [0, 0]]],
                 dtype=dtype,
                 device=device,
             )
@@ -91,32 +71,16 @@ def ghz_state_factors(
 
         core_mid = torch.tensor(
             [
-                [
-                    [1, 0],
-                    [0, 0],
-                    [0, 0],
-                ],
-                [
-                    [0, 0],
-                    [0, 1],
-                    [0, 0],
-                ],
+                [[1, 0], [0, 0], [0, 0]],
+                [[0, 0], [0, 1], [0, 0]],
             ],
             dtype=dtype,
             device=device,
         )
         core3 = torch.tensor(
             [
-                [
-                    [1],
-                    [0],
-                    [0],
-                ],
-                [
-                    [0],
-                    [1],
-                    [0],
-                ],
+                [[1], [0], [0]],
+                [[0], [1], [0]],
             ],
             dtype=dtype,
             device=device,
