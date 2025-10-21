@@ -433,13 +433,17 @@ class MPS(State[complex, torch.Tensor]):
         Returns:
             The resulting MPS representation of the state.s
         """
+
+        leak = ""
+        one = "r"
         basis = set(eigenstates)
+
         if basis == {"r", "g"}:
-            one = "r"
+            pass
         elif basis == {"0", "1"}:
             one = "1"
         elif basis == {"g", "r", "x"}:
-            one = "r"
+            leak = "x"
         else:
             raise ValueError("Unsupported basis provided")
         dim = len(eigenstates)
@@ -462,7 +466,7 @@ class MPS(State[complex, torch.Tensor]):
             for ch in state:
                 if ch == one:
                     factors.append(basis_1)
-                elif ch == "x":
+                elif ch == leak:
                     factors.append(basis_x)
                 else:
                     factors.append(basis_0)
