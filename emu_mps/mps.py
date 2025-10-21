@@ -265,7 +265,7 @@ class MPS(State[complex, torch.Tensor]):
 
                 batch_outcomes[:, qubit] = outcomes
 
-                # (batch_size, bond_dim)
+                # expected shape (batch_size, bond_dim)
                 batched_accumulator = batched_accumulator[rangebatch, outcomes, :]
 
             shots_done += batch_size
