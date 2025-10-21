@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from typing import Optional
 
 import torch
 import math
-
-from emu_mps import MPSConfig
 from emu_mps.utils import truncate_impl
 
 
@@ -119,7 +116,8 @@ def zip_right_step(
 def zip_right(
     top_factors: list[torch.Tensor],
     bottom_factors: list[torch.Tensor],
-    config: Optional[MPSConfig] = None,
+    precision: float,
+    max_bond_dim: int,
 ) -> list[torch.Tensor]:
     """
     Returns a new matrix product, resulting from applying `top` to `bottom`.
@@ -139,8 +137,6 @@ def zip_right(
         A final truncation sweep, from right to left,
         moves back the orthogonal center to the first element.
     """
-    config = config if config is not None else MPSConfig()
-
     if len(top_factors) != len(bottom_factors):
         raise ValueError("Cannot multiply two matrix products of different lengths.")
 
@@ -151,6 +147,6 @@ def zip_right(
         new_factors.append(res)
     new_factors[-1] @= slider[:, :, 0]
 
-    truncate_impl(new_factors, config=config)
+    truncate_impl(new_factors, precision=precision, max_bond_dim=max_bond_dim)
 
     return new_factors

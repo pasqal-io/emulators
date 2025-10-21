@@ -1,6 +1,7 @@
 import pytest
 import torch
 from itertools import product
+from emu_mps.mps import DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
 from emu_mps.algebra import add_factors, scale_factors, zip_right_step, zip_right
 
 dtype = torch.complex128
@@ -165,7 +166,12 @@ def test_zip_right_wrong_len():
     factors_1 = random_factors(6, (2, 2), linkdim=linkdim, dtype=dtype)
     factors_2 = random_factors(3, (2, 2), linkdim=linkdim, dtype=dtype)
     with pytest.raises(ValueError) as verr:
-        zip_right(factors_1, factors_2)
+        zip_right(
+            factors_1,
+            factors_2,
+            precision=DEFAULT_PRECISION,
+            max_bond_dim=DEFAULT_MAX_BOND_DIM,
+        )
     assert str(verr.value) == "Cannot multiply two matrix products of different lengths."
 
 
@@ -174,7 +180,12 @@ def test_zip_right_return_valid_mpo_factors():
     factors_1 = random_factors(6, (2, 2), linkdim=linkdim, dtype=dtype)
     factors_2 = random_factors(6, (2, 2), linkdim=linkdim, dtype=dtype)
 
-    new_factors = zip_right(factors_1, factors_2)
+    new_factors = zip_right(
+        factors_1,
+        factors_2,
+        precision=DEFAULT_PRECISION,
+        max_bond_dim=DEFAULT_MAX_BOND_DIM,
+    )
     assert len(new_factors) == 6
     assert new_factors[0].shape[:-1] == (1, 2, 2)
     assert new_factors[-1].shape[1:] == (2, 2, 1)
