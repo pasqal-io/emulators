@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import math
 from collections import Counter
 from typing import List, Optional, Sequence, TypeVar, Mapping
@@ -14,10 +13,11 @@ from emu_mps.utils import (
     assign_devices,
     truncate_impl,
     tensor_trace,
-    n_operator,
 )
 
+
 ArgScalarType = TypeVar("ArgScalarType")
+dtype = torch.complex128
 
 
 class MPS(State[complex, torch.Tensor]):
@@ -40,18 +40,21 @@ class MPS(State[complex, torch.Tensor]):
         eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
         """
-        This constructor creates a MPS directly from a list of tensors. It is for internal use only.
+        This constructor creates a MPS directly from a list of tensors. It is
+        for internal use only.
 
         Args:
             factors: the tensors for each site
-                WARNING: for efficiency in a lot of use cases, this list of tensors
-                IS NOT DEEP-COPIED. Therefore, the new MPS object is not necessarily
-                the exclusive owner of the list and its tensors. As a consequence,
-                beware of potential external modifications affecting the list or the tensors.
-                You are responsible for deciding whether to pass its own exclusive copy
-                of the data to this constructor, or some shared objects.
-            orthogonality_center: the orthogonality center of the MPS, or None (in which case
-                it will be orthogonalized when needed)
+                WARNING: for efficiency in a lot of use cases, this list of
+                tensors IS NOT DEEP-COPIED. Therefore, the new MPS object is
+                not necessarily the exclusive owner of the list and its
+                tensors. As a consequence, beware of potential external
+                modifications affecting the list or the tensors.
+                You are responsible for deciding whether to pass its own
+                exclusive copy of the data to this constructor, or some shared
+                objects.
+            orthogonality_center: the orthogonality center of the MPS, or None
+                (in which case it will be orthogonalized when needed)
             config: the emu-mps config object passed to the run method
             num_gpus_to_use: distribute the factors over this many GPUs
                 0=all factors to cpu, None=keep the existing device assignment.
@@ -68,6 +71,17 @@ class MPS(State[complex, torch.Tensor]):
         self.factors = factors
         self.num_sites = len(factors)
         assert self.num_sites > 1  # otherwise, do state vector
+
+        self.dim = len(self.eigenstates)
+        assert all(factors[i].shape[1] == self.dim for i in range(self.num_sites)), (
+            "All tensors should have the same physical dimension as the number "
+            "of eigenstates"
+        )
+
+        self.n_operator = torch.zeros(
+            self.dim, self.dim, dtype=dtype, device=self.factors[0].device
+        )
+        self.n_operator[1, 1] = 1.0
 
         assert (orthogonality_center is None) or (
             0 <= orthogonality_center < self.num_sites
@@ -104,11 +118,25 @@ class MPS(State[complex, torch.Tensor]):
         if num_sites <= 1:
             raise ValueError("For 1 qubit states, do state vector")
 
-        return cls(
-            [
-                torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)
+        if len(eigenstates) == 2:
+            ground_state = [
+                torch.tensor([[[1.0], [0.0]]], dtype=dtype) for _ in range(num_sites)
+            ]
+
+        elif len(eigenstates) == 3:  # (g,r,x)
+            ground_state = [
+                torch.tensor([[[1.0], [0.0], [0.0]]], dtype=dtype)
                 for _ in range(num_sites)
-            ],
+            ]
+
+        else:
+            raise ValueError(
+                "Unsupported basis provided. The supported "
+                "bases are:{('0','1'),('r','g'),('r','g','x')}"
+            )
+
+        return cls(
+            ground_state,
             config=config,
             num_gpus_to_use=num_gpus_to_use,
             orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
@@ -140,7 +168,8 @@ class MPS(State[complex, torch.Tensor]):
 
         for i in range(lr_swipe_start, desired_orthogonality_center):
             q, r = torch.linalg.qr(self.factors[i].view(-1, self.factors[i].shape[2]))
-            self.factors[i] = q.view(self.factors[i].shape[0], 2, -1)
+
+            self.factors[i] = q.view(self.factors[i].shape[0], self.dim, -1)
             self.factors[i + 1] = torch.tensordot(
                 r.to(self.factors[i + 1].device), self.factors[i + 1], dims=1
             )
@@ -155,7 +184,8 @@ class MPS(State[complex, torch.Tensor]):
             q, r = torch.linalg.qr(
                 self.factors[i].contiguous().view(self.factors[i].shape[0], -1).mT,
             )
-            self.factors[i] = q.mT.view(-1, 2, self.factors[i].shape[2])
+
+            self.factors[i] = q.mT.view(-1, self.dim, self.factors[i].shape[2])
             self.factors[i - 1] = torch.tensordot(
                 self.factors[i - 1], r.to(self.factors[i - 1].device), ([2], [1])
             )
@@ -182,7 +212,7 @@ class MPS(State[complex, torch.Tensor]):
         Returns:
             the largest bond dimension in the state
         """
-        return max((x.shape[2] for x in self.factors), default=0)
+        return max((factor.shape[2] for factor in self.factors), default=0)
 
     def sample(
         self,
@@ -206,8 +236,6 @@ class MPS(State[complex, torch.Tensor]):
         assert one_state in {None, "r", "1"}
         self.orthogonalize(0)
 
-        rnd_matrix = torch.rand(num_shots, self.num_sites).to(self.factors[0].device)
-
         bitstrings: Counter[str] = Counter()
 
         # Shots are performed in batches.
@@ -215,55 +243,45 @@ class MPS(State[complex, torch.Tensor]):
         max_batch_size = 32
 
         shots_done = 0
+
         while shots_done < num_shots:
             batch_size = min(max_batch_size, num_shots - shots_done)
             batched_accumulator = torch.ones(
-                batch_size, 1, dtype=torch.complex128, device=self.factors[0].device
+                batch_size, 1, dtype=dtype, device=self.factors[0].device
             )
 
-            batch_outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.bool)
-
+            batch_outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.int)
+            rangebatch = torch.arange(batch_size)
             for qubit, factor in enumerate(self.factors):
                 batched_accumulator = torch.tensordot(
                     batched_accumulator.to(factor.device), factor, dims=1
                 )
 
-                # Probability of measuring qubit == 0 for each shot in the batch
-                probas = (
-                    torch.linalg.vector_norm(batched_accumulator[:, 0, :], dim=1) ** 2
-                )
+                # Probabilities for each state in the basis
+                probn = torch.linalg.vector_norm(batched_accumulator, dim=2) ** 2
 
-                outcomes = (
-                    rnd_matrix[shots_done : shots_done + batch_size, qubit].to(
-                        factor.device
-                    )
-                    > probas
-                )
+                # list of: 0,1 for |g>,|r> or 0,1,2 for |g>,|r>,|x>
+                outcomes = torch.multinomial(probn, num_samples=1).reshape(-1)
+
                 batch_outcomes[:, qubit] = outcomes
 
-                # Batch collapse qubit
-                tmp = torch.stack((~outcomes, outcomes), dim=1).to(dtype=torch.complex128)
-
-                batched_accumulator = (
-                    torch.tensordot(batched_accumulator, tmp, dims=([1], [1]))
-                    .diagonal(dim1=0, dim2=2)
-                    .transpose(1, 0)
-                )
-                batched_accumulator /= torch.sqrt(
-                    (~outcomes) * probas + outcomes * (1 - probas)
-                ).unsqueeze(1)
+                # expected shape (batch_size, bond_dim)
+                batched_accumulator = batched_accumulator[rangebatch, outcomes, :]
 
             shots_done += batch_size
 
             for outcome in batch_outcomes:
-                bitstrings.update(["".join("0" if x == 0 else "1" for x in outcome)])
+                bitstrings.update(["".join("1" if x == 1 else "0" for x in outcome)])
 
-        if p_false_neg > 0 or p_false_pos > 0:
+        if p_false_neg > 0 or p_false_pos > 0 and self.dim == 2:
             bitstrings = apply_measurement_errors(
                 bitstrings,
                 p_false_pos=p_false_pos,
                 p_false_neg=p_false_neg,
             )
+        if p_false_pos > 0 and self.dim > 2:
+            raise NotImplementedError("Not implemented for qudits > 2 levels")
+
         return bitstrings
 
     def norm(self) -> torch.Tensor:
@@ -312,8 +330,11 @@ class MPS(State[complex, torch.Tensor]):
     def entanglement_entropy(self, mps_site: int) -> torch.Tensor:
         """
         Returns
-        the Von Neumann entanglement entropy of the state `mps` at the bond between sites b and b+1
+        the Von Neumann entanglement entropy of the state `mps` at the bond
+        between sites b and b+1
+
         S = -Σᵢsᵢ² log(sᵢ²)),
+
         where sᵢ are the singular values at the chosen bond.
         """
         self.orthogonalize(mps_site)
@@ -412,25 +433,43 @@ class MPS(State[complex, torch.Tensor]):
         Returns:
             The resulting MPS representation of the state.s
         """
+
+        leak = ""
+        one = "r"
         basis = set(eigenstates)
+
         if basis == {"r", "g"}:
-            one = "r"
+            pass
         elif basis == {"0", "1"}:
             one = "1"
+        elif basis == {"g", "r", "x"}:
+            leak = "x"
         else:
             raise ValueError("Unsupported basis provided")
+        dim = len(eigenstates)
+        if dim == 2:
+            basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=dtype)  # ground state
+            basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=dtype)  # excited state
 
-        basis_0 = torch.tensor([[[1.0], [0.0]]], dtype=torch.complex128)  # ground state
-        basis_1 = torch.tensor([[[0.0], [1.0]]], dtype=torch.complex128)  # excited state
+        elif dim == 3:
+            basis_0 = torch.tensor([[[1.0], [0.0], [0.0]]], dtype=dtype)  # ground state
+            basis_1 = torch.tensor([[[0.0], [1.0], [0.0]]], dtype=dtype)  # excited state
+            basis_x = torch.tensor([[[0.0], [0.0], [1.0]]], dtype=dtype)  # leakage state
 
         accum_mps = MPS(
-            [torch.zeros((1, 2, 1), dtype=torch.complex128)] * n_qudits,
+            [torch.zeros((1, dim, 1), dtype=dtype)] * n_qudits,
             orthogonality_center=0,
             eigenstates=eigenstates,
         )
-
         for state, amplitude in amplitudes.items():
-            factors = [basis_1 if ch == one else basis_0 for ch in state]
+            factors = []
+            for ch in state:
+                if ch == one:
+                    factors.append(basis_1)
+                elif ch == leak:
+                    factors.append(basis_x)
+                else:
+                    factors.append(basis_0)
             accum_mps += amplitude * MPS(factors, eigenstates=eigenstates)
         norm = accum_mps.norm()
         if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
@@ -453,9 +492,7 @@ class MPS(State[complex, torch.Tensor]):
             else self.orthogonalize(0)
         )
 
-        result = torch.zeros(
-            self.num_sites, single_qubit_operators.shape[0], dtype=torch.complex128
-        )
+        result = torch.zeros(self.num_sites, single_qubit_operators.shape[0], dtype=dtype)
 
         center_factor = self.factors[orthogonality_center]
         for qubit_index in range(orthogonality_center, self.num_sites):
@@ -503,7 +540,7 @@ class MPS(State[complex, torch.Tensor]):
         )
 
     def get_correlation_matrix(
-        self, *, operator: torch.Tensor = n_operator
+        self, operator: torch.Tensor | None = None
     ) -> torch.Tensor:
         """
         Efficiently compute the symmetric correlation matrix
@@ -511,14 +548,18 @@ class MPS(State[complex, torch.Tensor]):
         in basis ("r", "g").
 
         Args:
-            operator: a 2x2 Torch tensor to use
+            operator: a 2x2 (or 3x3) Torch tensor to use
 
         Returns:
             the corresponding correlation matrix
         """
-        assert operator.shape == (2, 2)
 
-        result = torch.zeros(self.num_sites, self.num_sites, dtype=torch.complex128)
+        if operator is None:
+            operator = self.n_operator
+
+        assert operator.shape == (self.dim, self.dim), "Operator has wrong shape"
+
+        result = torch.zeros(self.num_sites, self.num_sites, dtype=dtype)
 
         for left in range(0, self.num_sites):
             self.orthogonalize(left)

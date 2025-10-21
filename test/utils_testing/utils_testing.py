@@ -6,44 +6,85 @@ import numpy as np
 import pulser
 import math
 
+# for testing purposes, reference to the real multinomial
+_real_multinomial = torch.multinomial
+
+
+def cpu_multinomial_wrapper(probs: torch.Tensor, num_samples: int, replacement=False):
+    """
+    For independent device (cpu or gpu) tests. This is a function that
+    intercepts calls to torch.multinomial, moves `probs` to CPU, applies the real
+    torch.multinomial there, and moves the result back
+    to the original device.
+    """
+    # Move to CPU (detach: no gradient tracking issues)
+    probs_cpu = probs.detach().cpu()
+    # real multinomial on CPU
+    out_cpu = _real_multinomial(probs_cpu, num_samples, replacement)
+    # Move back to the device of original `probs`
+    out = out_cpu.to(probs.device)
+    return out
+
 
 def ghz_state_factors(
     nqubits: int,
+    dim=2,
     dtype: torch.dtype = torch.complex128,
     device: Optional[Union[str, torch.device]] = None,
 ) -> List[torch.Tensor]:
     assert nqubits >= 2
-    core_1 = (
-        1
-        / torch.sqrt(torch.tensor([2.0], device=device, dtype=dtype))
-        * torch.tensor(
+    if dim == 2:
+        core_1 = (
+            1
+            / torch.sqrt(torch.tensor([2.0], device=device, dtype=dtype))
+            * torch.tensor(
+                [[[1, 0], [0, 1]]],
+                dtype=dtype,
+                device=device,
+            )
+        )
+        core_mid = torch.tensor(
             [
-                [
-                    [1.0 + 0.0j, 0.00 + 0.0j],
-                    [
-                        0.00 + 0.0j,
-                        1.0 + 0.0j,
-                    ],
-                ]
+                [[1, 0], [0, 0]],
+                [[0, 0], [0, 1]],
             ],
             dtype=dtype,
             device=device,
         )
-    )
-    core_mid = torch.tensor(
-        [
-            [[1.0 + 0.0j, 0.0 + 0.0j], [0.0 + 0.0j, 0.0 + 0.0j]],
-            [[0.0 + 0.0j, 0.0 + 0.0j], [0.0 + 0.0j, 1.0 + 0.0j]],
-        ],
-        dtype=dtype,
-        device=device,
-    )
-    # similar to core_mid, except no bond to the right
-    core3 = torch.tensor(
-        [[[1.0 + 0.0j], [0.0 + 0.0j]], [[0.0 + 0.0j], [1.0 + 0.0j]]],
-        dtype=dtype,
-        device=device,
-    )
+        # similar to core_mid, except no bond to the right
+        core3 = torch.tensor(
+            [[[1], [0]], [[0], [1]]],
+            dtype=dtype,
+            device=device,
+        )
+
+    if dim == 3:
+        core_1 = (
+            1
+            / torch.sqrt(torch.tensor([2.0], device=device, dtype=dtype))
+            * torch.tensor(
+                [[[1, 0], [0, 1], [0, 0]]],
+                dtype=dtype,
+                device=device,
+            )
+        )
+
+        core_mid = torch.tensor(
+            [
+                [[1, 0], [0, 0], [0, 0]],
+                [[0, 0], [0, 1], [0, 0]],
+            ],
+            dtype=dtype,
+            device=device,
+        )
+        core3 = torch.tensor(
+            [
+                [[1], [0], [0]],
+                [[0], [1], [0]],
+            ],
+            dtype=dtype,
+            device=device,
+        )
 
     cores = [core_1]
     for _ in range(nqubits - 2):
