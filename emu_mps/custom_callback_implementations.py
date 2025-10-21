@@ -25,9 +25,9 @@ def qubit_occupation_mps_impl(
     """
     Custom implementation of the occupation ❬ψ|nᵢ|ψ❭ for the EMU-MPS.
     """
-    op = torch.tensor(
-        [[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.complex128, device=state.factors[0].device
-    )
+    dim = state.dim
+    op = torch.zeros(1, dim, dim, dtype=torch.complex128, device=state.factors[0].device)
+    op[0, 1, 1] = 1.0
     return state.expect_batch(op).real.view(-1).cpu()
 
 

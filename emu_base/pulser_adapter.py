@@ -90,7 +90,8 @@ def _extract_omega_delta_phi(
         # The sampled values correspond to the start of each interval
         # To maximize the order of the solver, we need the values in the middle
         if math.ceil(t) < max_duration:
-            # If we're not the final step, approximate this using linear interpolation
+            # If we're not the final step, approximate this using linear
+            # interpolation
             # Note that for dt even, t1=t2
             t1 = math.floor(t)
             t2 = math.ceil(t)

@@ -35,6 +35,7 @@ from test.utils_testing import (
     pulser_afm_sequence_grid,
     pulser_afm_sequence_ring,
     pulser_XY_sequence_slm_mask,
+    cpu_multinomial_wrapper,
 )
 
 seed = 1337
@@ -109,6 +110,7 @@ def simulate(
     )
 
     backend = MPSBackend(seq, config=mps_config)
+
     result = backend.run()
 
     return result
@@ -312,8 +314,8 @@ def test_end_to_end_afm_ring() -> None:
         t_rise=t_rise,
         t_fall=t_fall,
     )
-
-    result = simulate(seq)
+    with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
+        result = simulate(seq)
 
     final_time = -1
     bitstrings = result.bitstrings[final_time]
@@ -328,8 +330,8 @@ def test_end_to_end_afm_ring() -> None:
     assert max_bond_dim == 29
     assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
 
-    assert bitstrings["1010101010"] == 129
-    assert bitstrings["0101010101"] == 135
+    assert bitstrings["1010101010"] == 138
+    assert bitstrings["0101010101"] == 122
 
     # Comparing against EMU-SV -- state vector emulator
     assert approx(occupation, abs=1e-3) == [0.5782] * 10
@@ -359,7 +361,8 @@ def test_dmrg_afm_ring() -> None:
         t_fall=t_fall,
     )
 
-    result = simulate(seq, solver=Solver.DMRG)
+    with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
+        result = simulate(seq, solver=Solver.DMRG)
 
     final_time = -1
     bitstrings = result.bitstrings[final_time]
@@ -377,12 +380,13 @@ def test_dmrg_afm_ring() -> None:
     assert max_bond_dim == 4
     # check that the output state is the AFM state
     assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
-    assert bitstrings["1010101010"] == 977
+    assert bitstrings["1010101010"] == 974
     assert torch.allclose(
         fidelity_fin, torch.tensor(0.9735, dtype=torch.float64), atol=1e-3
     )
 
-    # check that the number operator should return 1 on even sites and 0 elsewhere
+    # check that the number operator should return 1 on even sites
+    # and 0 elsewhere
     assert torch.allclose(
         occupation_even_sites, torch.tensor(1, dtype=torch.float64), atol=1e-3
     )
@@ -433,7 +437,7 @@ def test_dmrg_afm_square_grid() -> None:
     assert max_bond_dim == 4
     # check that the output state is the AFM state
     assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
-    assert bitstrings["101010101"] == 992
+    assert bitstrings["101010101"] == 986
     assert torch.allclose(
         fidelity_fin, torch.tensor(0.9868, dtype=torch.float64), atol=1e-3
     )
@@ -643,15 +647,15 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     noise_model = pulser.noise_model.NoiseModel(
         depolarizing_rate=0.3,  # High enough to trigger a jump.
     )
-
-    result = simulate(seq, noise_model=noise_model)
+    with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
+        result = simulate(seq, noise_model=noise_model)
 
     bitstrings = result.bitstrings[-1]
     final_state = result.state[-1]
     max_bond_dim = final_state.get_max_bond_dim()
 
-    assert bitstrings["101010"] == 454
-    assert bitstrings["010101"] == 500
+    assert bitstrings["101010"] == 480
+    assert bitstrings["010101"] == 478
     assert max_bond_dim == 8
 
 
