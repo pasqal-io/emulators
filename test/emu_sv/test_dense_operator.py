@@ -6,7 +6,7 @@ from emu_sv import StateVector, DenseOperator
 
 dtype = torch.complex128
 X = torch.tensor([[0, 1], [1, 0]], dtype=dtype)
-Y = torch.tensor([[0, 1j], [-1j, 0]], dtype=dtype)
+Y = torch.tensor([[0, -1j], [1j, 0]], dtype=dtype)
 Z = torch.tensor([[1, 0], [0, -1]], dtype=dtype)
 Id = torch.tensor([[1, 0], [0, 1]], dtype=dtype)
 zero_state_torch = torch.tensor([[1, 0]], dtype=dtype)
@@ -21,7 +21,7 @@ def test_from_operator_repr_and_rmul_DenseOperator(zero: str, one: str) -> None:
         (
             1.0,
             [
-                ({zero + one: 1.0, one + zero: 1.0}, {0}),  # X
+                ({zero + one: 1.0, one + zero: -1.0}, {0}),  # iY
                 ({zero + zero: 1.0, one + one: -1.0}, {1}),  # Z
             ],
         )
@@ -32,7 +32,7 @@ def test_from_operator_repr_and_rmul_DenseOperator(zero: str, one: str) -> None:
         n_qudits=N,
         operations=operations,
     )
-    expected = torch.kron(X, Z)
+    expected = torch.kron(1j * Y, Z)
     assert torch.allclose(operator.matrix.cpu(), expected)
 
     # multiplying an operator by a number

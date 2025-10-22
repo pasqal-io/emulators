@@ -173,10 +173,10 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
                 "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128).view(
                     1, 2, 2, 1
                 ),
-                "gr": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128).view(
+                "rg": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128).view(
                     1, 2, 2, 1
                 ),
-                "rg": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128).view(
+                "gr": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128).view(
                     1, 2, 2, 1
                 ),
                 "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128).view(
@@ -190,10 +190,10 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
                 "00": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128).view(
                     1, 2, 2, 1
                 ),
-                "01": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128).view(
+                "10": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128).view(
                     1, 2, 2, 1
                 ),
-                "10": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128).view(
+                "01": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128).view(
                     1, 2, 2, 1
                 ),
                 "11": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128).view(
