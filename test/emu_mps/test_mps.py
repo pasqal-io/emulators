@@ -12,11 +12,11 @@ from test.utils_testing import ghz_state_factors
 dtype = torch.complex128
 
 tol = 1e-12
-down_2level = torch.tensor([[[1], [0]]], dtype=dtype)
-up_2level = torch.tensor([[[0], [1]]], dtype=dtype)
+down_2level = torch.tensor([[[1.0], [0.0]]], dtype=dtype)
+up_2level = torch.tensor([[[0.0], [1.0]]], dtype=dtype)
 
-down_3level = torch.tensor([[[1], [0], [0]]], dtype=dtype)
-up_3level = torch.tensor([[[0], [1], [0]]], dtype=dtype)
+down_3level = torch.tensor([[[1.0], [0.0], [0.0]]], dtype=dtype)
+up_3level = torch.tensor([[[0.0], [1.0], [0.0]]], dtype=dtype)
 
 
 def check_orthogonality_center(state: MPS, expected_ortho_center: int):
@@ -578,37 +578,63 @@ def test_apply_random_orthogonality_center(basis):
     check_orthogonality_center(state, 2)
 
 
-def test_correlation_matrix_random():
+@pytest.mark.parametrize(
+    "basis",
+    (
+        ("0", "1"),
+        ("g", "r"),
+        ("g", "r", "x"),
+    ),
+)
+def test_correlation_matrix_random(basis):
     qubit_count = 5
+    dim = len(basis)
     state = MPS(
         [
-            torch.rand(1, 2, 3, dtype=dtype),
-            torch.rand(3, 2, 5, dtype=dtype),
-            torch.rand(5, 2, 12, dtype=dtype),
-            torch.rand(12, 2, 2, dtype=dtype),
-            torch.rand(2, 2, 1, dtype=dtype),
+            torch.rand(1, dim, 3, dtype=dtype),
+            torch.rand(3, dim, 5, dtype=dtype),
+            torch.rand(5, dim, 12, dtype=dtype),
+            torch.rand(12, dim, 2, dtype=dtype),
+            torch.rand(2, dim, 1, dtype=dtype),
         ],
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
 
     correlation_matrix_nn = state.get_correlation_matrix()
 
+    z_op = torch.zeros(dim, dim, dtype=dtype)
+    z_op[0, 0] = 1.0
+    z_op[1, 1] = -1.0
+
     correlation_matrix_zz = state.get_correlation_matrix(
-        operator=torch.tensor([[1, 0], [0, -1]], dtype=dtype)
+        operator=torch.tensor(z_op, dtype=dtype)
     )
+    excited_excited = basis[1] + basis[1]
 
     def nn(index1, index2):
         return MPO.from_operator_repr(
-            eigenstates=("r", "g"),
+            eigenstates=basis,
             n_qudits=qubit_count,
-            operations=[(1.0, [({"rr": 1.0}, list({index1, index2}))])],
+            operations=[(1.0, [({excited_excited: 1.0}, list({index1, index2}))])],
         )
+
+    ground_ground = basis[0] + basis[0]
 
     def zz(index1, index2):
         return MPO.from_operator_repr(
-            eigenstates=("r", "g"),
+            eigenstates=basis,
             n_qudits=qubit_count,
-            operations=[(1.0, [({"gg": 1.0, "rr": -1.0}, list({index1, index2}))])],
+            operations=[
+                (
+                    1.0,
+                    [
+                        (
+                            {ground_ground: 1.0, excited_excited: -1.0},
+                            list({index1, index2}),
+                        )
+                    ],
+                )
+            ],
         )
 
     assert len(correlation_matrix_nn) == len(correlation_matrix_zz) == qubit_count

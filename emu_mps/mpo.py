@@ -10,6 +10,8 @@ from pulser.backend.operator import FullOp, QuditOp
 from emu_mps.mps import MPS
 from emu_mps.utils import new_left_bath, assign_devices
 
+dtype = torch.complex128
+
 
 class MPO(Operator[complex, torch.Tensor, MPS]):
     """
@@ -30,7 +32,8 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
             raise ValueError("For 1 qubit states, do state vector")
         if factors[0].shape[0] != 1 or factors[-1].shape[-1] != 1:
             raise ValueError(
-                "The dimension of the left (right) link of the first (last) tensor should be 1"
+                "The dimension of the left (right) link of the first (last) "
+                "tensor should be 1"
             )
         assert all(
             factors[i - 1].shape[-1] == factors[i].shape[0]
@@ -158,42 +161,60 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
         """
 
         basis = set(eigenstates)
-
+        dim = len(basis)
         operators_with_tensors: dict[str, torch.Tensor | QuditOp]
         if basis == {"r", "g"}:
-            # operators_with_tensors will now contain the basis for single qubit ops,
-            # and potentially user defined strings in terms of these
+            # operators_with_tensors will now contain the basis for single
+            # qubit ops, and potentially user defined strings in terms of these
             operators_with_tensors = {
-                "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128).view(
-                    1, 2, 2, 1
+                "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype).view(
+                    1, dim, dim, 1
                 ),
-                "gr": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128).view(
-                    1, 2, 2, 1
+                "gr": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype).view(
+                    1, dim, dim, 1
                 ),
-                "rg": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128).view(
-                    1, 2, 2, 1
+                "rg": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype).view(
+                    1, dim, dim, 1
                 ),
-                "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128).view(
-                    1, 2, 2, 1
+                "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype).view(
+                    1, dim, dim, 1
                 ),
             }
         elif basis == {"0", "1"}:
-            # operators_with_tensors will now contain the basis for single qubit ops,
-            # and potentially user defined strings in terms of these
+            # operators_with_tensors will now contain the basis for single
+            # qubit ops, and potentially user defined strings in terms of these
             operators_with_tensors = {
-                "00": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128).view(
-                    1, 2, 2, 1
+                "00": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype).view(
+                    1, dim, dim, 1
                 ),
-                "01": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128).view(
-                    1, 2, 2, 1
+                "01": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype).view(
+                    1, dim, dim, 1
                 ),
-                "10": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128).view(
-                    1, 2, 2, 1
+                "10": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype).view(
+                    1, dim, dim, 1
                 ),
-                "11": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128).view(
-                    1, 2, 2, 1
+                "11": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype).view(
+                    1, dim, dim, 1
                 ),
             }
+        elif basis == {"r", "g", "x"}:
+            # operators_with_tensors will now contain the basis for single
+            # qubit ops, and potentially user defined strings in terms of these
+            operators_with_tensors = {
+                "gg": torch.tensor(
+                    [[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "gr": torch.tensor(
+                    [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "rg": torch.tensor(
+                    [[0.0, 1.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "rr": torch.tensor(
+                    [[0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+            }
+
         else:
             raise ValueError("Unsupported basis provided")
 
@@ -206,16 +227,14 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
                 if isinstance(op, torch.Tensor):
                     return op
 
-                result = torch.zeros(1, 2, 2, 1, dtype=torch.complex128)
+                result = torch.zeros(1, dim, dim, 1, dtype=dtype)
                 for opstr, coeff in op.items():
                     tensor = replace_operator_string(operators_with_tensors[opstr])
                     operators_with_tensors[opstr] = tensor
                     result += tensor * coeff
                 return result
 
-            factors = [
-                torch.eye(2, 2, dtype=torch.complex128).view(1, 2, 2, 1)
-            ] * n_qudits
+            factors = [torch.eye(dim, dim, dtype=dtype).view(1, dim, dim, 1)] * n_qudits
 
             for op in tensorop:
                 factor = replace_operator_string(op[0])
