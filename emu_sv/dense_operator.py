@@ -138,8 +138,8 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
             # and potentially user defined strings in terms of {r, g} or {0, 1}
             operators_with_tensors |= {
                 "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype),
-                "gr": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype),
-                "rg": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype),
+                "rg": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype),
+                "gr": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype),
                 "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype),
             }
         elif set(eigenstates) == {"0", "1"}:
