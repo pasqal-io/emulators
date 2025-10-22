@@ -119,13 +119,7 @@ def test_inner():
     assert abs(inner(bell, bell) - 2) < 1e-10
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("g", "r", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r", "x")))
 def test_maxbondim(basis):
     bell_state = MPS(
         ghz_state_factors(3, dim=len(basis)),
@@ -232,13 +226,7 @@ def test_add_to_make_ghz_state(basis):
     assert norm == pytest.approx(math.sqrt(2), tol)
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_add_to_make_w_state(basis):
     num_sites = 7
     states = []
@@ -269,13 +257,7 @@ def test_add_to_make_w_state(basis):
     assert norm == pytest.approx(math.sqrt(num_sites), tol)
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_rmul(basis):
     num_sites = 5
     # this test should work for all states
@@ -431,13 +413,7 @@ def test_wrong_basis_string_state():
     assert str(ve.value) == msg
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_orthogonalize(basis):
     dim = len(basis)
 
@@ -459,13 +435,7 @@ def test_orthogonalize(basis):
     check_orthogonality_center(state, 0)
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_norm(basis):
     dim = len(basis)
 
@@ -482,13 +452,7 @@ def test_norm(basis):
     check_orthogonality_center(state, 0)
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_expect_batch(basis):
     dim = len(basis)
     f1 = torch.rand(1, dim, 2, dtype=dtype)
@@ -530,13 +494,7 @@ def test_expect_batch(basis):
     assert expected_11.item() == pytest.approx(actual[1][1].item())
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_apply(basis):
 
     state = MPS.make(4, eigenstates=basis)
@@ -560,13 +518,7 @@ def test_apply(basis):
     check_orthogonality_center(state, 2)
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_apply_random_orthogonality_center(basis):
     dim = len(basis)
     state = MPS.make(4, eigenstates=basis)
@@ -578,14 +530,7 @@ def test_apply_random_orthogonality_center(basis):
     check_orthogonality_center(state, 2)
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("g", "r"),
-        ("g", "r", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
 def test_correlation_matrix_random(basis):
     qubit_count = 5
     dim = len(basis)
