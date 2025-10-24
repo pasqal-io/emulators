@@ -394,7 +394,7 @@ class MPS(State[complex, torch.Tensor]):
         result.truncate()
         return result
 
-    def __rmul__(self, scalar: complex) -> MPS:
+    def __rmul__(self, scalar: complex | torch.Tensor) -> MPS:
         """
         Multiply an MPS by a scalar.
 
@@ -419,7 +419,7 @@ class MPS(State[complex, torch.Tensor]):
             eigenstates=self.eigenstates,
         )
 
-    def __imul__(self, scalar: complex) -> MPS:
+    def __imul__(self, scalar: complex | torch.Tensor) -> MPS:
         return self.__rmul__(scalar)
 
     @classmethod
