@@ -49,7 +49,7 @@ def add_factors(
 
 
 def scale_factors(
-    factors: list[torch.Tensor], scalar: complex, *, which: int
+    factors: list[torch.Tensor], scalar: complex | torch.Tensor, *, which: int
 ) -> list[torch.Tensor]:
     """
     Returns a new list of factors where the tensor at the given index is scaled by `scalar`.

@@ -46,12 +46,14 @@ def test_wrong_basis_string_state():
 )
 def test_from_operator_string(zero, one):
     x = {zero + one: 2.0, one + zero: 2.0}
+    y = {zero + one: 2.0, one + zero: -2.0}
     z = {zero + zero: 3.0, one + one: -3.0}
     operations = [
         (
             1.0,
             [
-                (x, [0, 2]),
+                (x, [0]),
+                (y, [2]),
                 (z, [1]),
             ],
         )
@@ -76,7 +78,9 @@ def test_from_operator_string(zero, one):
     assert torch.allclose(
         mpo.factors[2],
         torch.tensor(
-            [[0.0, 2.0], [2.0, 0.0]], dtype=torch.complex128, device=mpo.factors[2].device
+            [[0.0, 2.0], [-2.0, 0.0]],
+            dtype=torch.complex128,
+            device=mpo.factors[2].device,
         ).reshape(1, 2, 2, 1),
     )
 
