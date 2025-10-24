@@ -170,10 +170,10 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
                 "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype).view(
                     1, dim, dim, 1
                 ),
-                "gr": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype).view(
+                "gr": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype).view(
                     1, dim, dim, 1
                 ),
-                "rg": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype).view(
+                "rg": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype).view(
                     1, dim, dim, 1
                 ),
                 "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype).view(
@@ -187,10 +187,10 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
                 "00": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype).view(
                     1, dim, dim, 1
                 ),
-                "01": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype).view(
+                "01": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype).view(
                     1, dim, dim, 1
                 ),
-                "10": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype).view(
+                "10": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype).view(
                     1, dim, dim, 1
                 ),
                 "11": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype).view(
@@ -205,13 +205,28 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
                     [[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
                 ).view(1, dim, dim, 1),
                 "gr": torch.tensor(
-                    [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                    [[0.0, 1.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
                 ).view(1, dim, dim, 1),
                 "rg": torch.tensor(
-                    [[0.0, 1.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                    [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
                 ).view(1, dim, dim, 1),
                 "rr": torch.tensor(
                     [[0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "xx": torch.tensor(
+                    [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "xg": torch.tensor(
+                    [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "xr": torch.tensor(
+                    [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "gx": torch.tensor(
+                    [[0.0, 0.0, 1.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "rx": torch.tensor(
+                    [[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0, 0.0]], dtype=dtype
                 ).view(1, dim, dim, 1),
             }
 

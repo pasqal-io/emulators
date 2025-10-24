@@ -357,21 +357,24 @@ def make_H(
     The Hamiltonian H is given by:
     H = ∑ⱼΩⱼ[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] - ∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼC⁶/rᵢⱼ⁶ nᵢnⱼ
 
-    If noise is considered, the Hamiltonian includes an additional term to support
-    the Monte Carlo WaveFunction algorithm:
+    If noise is considered, the Hamiltonian includes an additional term to
+    support the Monte Carlo WaveFunction algorithm:
     H = ∑ⱼΩⱼ[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] - ∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼC⁶/rᵢⱼ⁶ nᵢnⱼ - 0.5i∑ₘ ∑ᵤ Lₘᵘ⁺ Lₘᵘ
-    where Lₘᵘ are the Lindblad operators representing the noise, m for noise channel
-    and u for the number of atoms
+    where Lₘᵘ are the Lindblad operators representing the noise,
+    m for noise channel and u for the number of atoms
 
-    make_H constructs an MPO of the appropriate size, but the single qubit terms are left at zero.
+    make_H constructs an MPO of the appropriate size, but the single qubit
+    terms are left at zero.
     To fill in the appropriate values, call update_H
 
     Args:
-        interaction_matrix (torch.Tensor): The interaction matrix describing the interactions
-        between qubits.
-        num_gpus_to_use (int): how many gpus to put the Hamiltonian on. See utils.assign_devices
+        interaction_matrix (torch.Tensor): The interaction matrix describing
+        the interactions between qubits.
+        num_gpus_to_use (int): how many gpus to put the Hamiltonian on.
+        See utils.assign_devices
     Returns:
-        MPO: A Matrix Product Operator (MPO) representing the specified Hamiltonian.
+        MPO: A Matrix Product Operator (MPO) representing the specified
+        Hamiltonian.
 
     Note:
     For more information about the Hamiltonian and its usage, refer to the

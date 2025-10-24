@@ -53,11 +53,13 @@ def test_from_operator_string(basis):
     dim = len(basis)
     zero = basis[0]
     one = basis[1]
-    assert zero == "0" or "g"
+
+    assert zero == "0" or "g"  # in this test the order of basis is important
     assert one == "1" or "r"
 
     x = {zero + one: 2.0, one + zero: 2.0}
     z = {zero + zero: 3.0, one + one: -3.0}
+
     operations = [
         (
             1.0,
@@ -76,6 +78,7 @@ def test_from_operator_string(basis):
     z_matrix[0, 0] = 1.0
     z_matrix[1, 1] = -1.0
     z_matrix = z_matrix.reshape(1, dim, dim, 1)
+
     assert torch.allclose(
         mpo.factors[0],
         2 * x_matrix,
@@ -87,6 +90,45 @@ def test_from_operator_string(basis):
     assert torch.allclose(
         mpo.factors[2],
         2 * x_matrix,
+    )
+
+
+def test_from_operator_string_with_leak():
+    basis = ("g", "r", "x")
+    dim = len(basis)
+    one_to_x_op = {basis[2] + basis[1]: 2.0}
+    zero_to_x_op = {basis[2] + basis[0]: 3.0}
+
+    operations = [
+        (
+            1.0,
+            [
+                (one_to_x_op, [0, 2]),
+                (zero_to_x_op, [1]),
+            ],
+        )
+    ]
+    mpo = MPO.from_operator_repr(eigenstates=basis, n_qudits=3, operations=operations)
+
+    one_to_x_matrix = torch.zeros(dim, dim, dtype=dtype, device=mpo.factors[0].device)
+    one_to_x_matrix[2, 1] = 1.0
+    one_to_x_matrix = one_to_x_matrix.reshape(1, dim, dim, 1)
+
+    zero_to_x_matrix = torch.zeros(dim, dim, dtype=dtype, device=mpo.factors[0].device)
+    zero_to_x_matrix[2, 0] = 1.0
+    zero_to_x_matrix = zero_to_x_matrix.reshape(1, dim, dim, 1)
+
+    assert torch.allclose(
+        mpo.factors[0],
+        2 * one_to_x_matrix,
+    )
+    assert torch.allclose(
+        mpo.factors[1],
+        3 * zero_to_x_matrix,
+    )
+    assert torch.allclose(
+        mpo.factors[2],
+        2 * one_to_x_matrix,
     )
 
 
@@ -225,7 +267,7 @@ def test_matmul(basis):
     assert all(
         torch.allclose(
             torch.tensordot(f.conj(), f, dims=([1, 2], [1, 2])),
-            torch.eye(f.shape[0], dtype=torch.complex128, device=f.device),
+            torch.eye(f.shape[0], dtype=dtype, device=f.device),
         )
         for f in matmul_mps.factors[1:] + mul_mps.factors[1:]
     )
