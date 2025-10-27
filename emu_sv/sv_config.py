@@ -70,7 +70,7 @@ class SVConfig(EmulationConfig):
         dt: int = 10,
         max_krylov_dim: int = 100,
         krylov_tolerance: float = 1e-10,
-        gpu: bool = True,
+        gpu: bool | None = None,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
