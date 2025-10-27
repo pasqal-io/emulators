@@ -44,7 +44,7 @@ class MPSConfig(EmulationConfig):
             The size of the krylov subspace that the Lanczos algorithm maximally builds
         extra_krylov_tolerance:
             The Lanczos algorithm uses this*precision as the convergence tolerance
-        num_gpus_to_use: number of GPUS to be used in a given simulation.
+        num_gpus_to_use: number of GPUs to be used in a given simulation.
             - if it is set to a number `n > 0`, the state will be distributed across `n` GPUs.
             - if it is set to `n = 0`, the entire simulation runs on the CPU.
             - if it is `None` (the default value), the backend internally chooses the number of GPUs
