@@ -44,8 +44,12 @@ class MPSConfig(EmulationConfig):
             The size of the krylov subspace that the Lanczos algorithm maximally builds
         extra_krylov_tolerance:
             The Lanczos algorithm uses this*precision as the convergence tolerance
-        num_gpus_to_use: During the simulation, distribute the state over this many GPUs
-            0=all factors to cpu. As shown in the benchmarks, using multiple GPUs might
+        num_gpus_to_use: number of GPUS to be used in a given simulation.
+            - if it is set to a number `n > 0`, the state will be distributed across `n` GPUs.
+            - if it is set to `n = 0`, the entire simulation runs on the CPU.
+            - if it is `None` (the default value), the backend internally chooses the number of GPUs
+            based on the hardware availability during runtime.
+        As shown in the benchmarks, using multiple GPUs might
             alleviate memory pressure per GPU, but the runtime should be similar.
         optimize_qubit_ordering: Optimize the register ordering. Improves performance and
             accuracy, but disables certain features.
