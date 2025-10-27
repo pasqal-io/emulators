@@ -155,12 +155,17 @@ class MPSBackendImpl:
             f"""To resume: `MPSBackend().resume("{self.autosave_file}")`"""
         )
         self.last_save_time = time.time()
+        requested_num_gpus = self.config.num_gpus_to_use
 
-        if self.config.num_gpus_to_use > DEVICE_COUNT:
+        if requested_num_gpus is None:
+            requested_num_gpus = DEVICE_COUNT
+
+        elif requested_num_gpus > DEVICE_COUNT:
             self.config.logger.warning(
-                f"Requested to use {self.config.num_gpus_to_use} GPU(s) "
+                f"Requested to use {requested_num_gpus} GPU(s) "
                 f"but only {DEVICE_COUNT if DEVICE_COUNT > 0 else 'cpu'} available"
             )
+        self.resolved_num_gpus = requested_num_gpus
 
     def __getstate__(self) -> dict:
         d = self.__dict__.copy()
@@ -211,7 +216,7 @@ class MPSBackendImpl:
                 self.qubit_count,
                 precision=self.config.precision,
                 max_bond_dim=self.config.max_bond_dim,
-                num_gpus_to_use=self.config.num_gpus_to_use,
+                num_gpus_to_use=self.resolved_num_gpus,
             )
             return
 
@@ -239,7 +244,7 @@ class MPSBackendImpl:
             [f.detach().clone() for f in initial_state.factors],
             precision=self.config.precision,
             max_bond_dim=self.config.max_bond_dim,
-            num_gpus_to_use=self.config.num_gpus_to_use,
+            num_gpus_to_use=self.resolved_num_gpus,
             eigenstates=initial_state.eigenstates,
         )
         initial_state.truncate()
@@ -259,7 +264,7 @@ class MPSBackendImpl:
                 else self.full_interaction_matrix
             ),
             hamiltonian_type=self.hamiltonian_type,
-            num_gpus_to_use=self.config.num_gpus_to_use,
+            num_gpus_to_use=self.resolved_num_gpus,
         )
 
         update_H(
@@ -447,7 +452,7 @@ class MPSBackendImpl:
             self.hamiltonian = make_H(
                 interaction_matrix=self.full_interaction_matrix,
                 hamiltonian_type=self.hamiltonian_type,
-                num_gpus_to_use=self.config.num_gpus_to_use,
+                num_gpus_to_use=self.resolved_num_gpus,
             )
 
         if not self.is_finished():

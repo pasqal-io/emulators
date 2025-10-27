@@ -3,7 +3,6 @@ from types import MethodType
 
 import copy
 
-from emu_base import DEVICE_COUNT
 from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
 from emu_mps.mpo import MPO
 from emu_mps.solver import Solver
@@ -86,7 +85,7 @@ class MPSConfig(EmulationConfig):
         max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
-        num_gpus_to_use: int = DEVICE_COUNT,
+        num_gpus_to_use: int | None = None,
         optimize_qubit_ordering: bool = False,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
