@@ -159,7 +159,6 @@ class MPSBackendImpl:
 
         if requested_num_gpus is None:
             requested_num_gpus = DEVICE_COUNT
-
         elif requested_num_gpus > DEVICE_COUNT:
             self.config.logger.warning(
                 f"Requested to use {requested_num_gpus} GPU(s) "
