@@ -105,6 +105,11 @@ class BaseSVBackendImpl:
             raise NotImplementedError(
                 "Initial state and state preparation error can not be together."
             )
+        requested_gpu = self._config.gpu
+        if requested_gpu is None:
+            requested_gpu = True
+
+        self.resolved_gpu = requested_gpu
 
     def init_dark_qubits(self) -> None:
         if self._config.noise_model.state_prep_error > 0.0:
@@ -180,13 +185,12 @@ class SVBackendImpl(BaseSVBackendImpl):
             pulser_data: The data for the sequence to be emulated.
         """
         super().__init__(config, pulser_data)
-
         self.state: StateVector = (
-            StateVector.make(self.nqubits, gpu=self._config.gpu)
+            StateVector.make(self.nqubits, gpu=self.resolved_gpu)
             if self._config.initial_state is None
             else StateVector(
                 self._config.initial_state.vector.clone(),
-                gpu=self._config.gpu,
+                gpu=self.resolved_gpu,
             )
         )
 
@@ -222,10 +226,10 @@ class NoisySVBackendImpl(BaseSVBackendImpl):
         self.pulser_lindblads = pulser_data.lindblad_ops
 
         self.state: DensityMatrix = (
-            DensityMatrix.make(self.nqubits, gpu=self._config.gpu)
+            DensityMatrix.make(self.nqubits, gpu=self.resolved_gpu)
             if self._config.initial_state is None
             else DensityMatrix(
-                self._config.initial_state.matrix.clone(), gpu=self._config.gpu
+                self._config.initial_state.matrix.clone(), gpu=self.resolved_gpu
             )
         )
 

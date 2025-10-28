@@ -3,7 +3,6 @@ from types import MethodType
 
 import copy
 
-from emu_base import DEVICE_COUNT
 from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
 from emu_mps.mpo import MPO
 from emu_mps.solver import Solver
@@ -45,8 +44,12 @@ class MPSConfig(EmulationConfig):
             The size of the krylov subspace that the Lanczos algorithm maximally builds
         extra_krylov_tolerance:
             The Lanczos algorithm uses this*precision as the convergence tolerance
-        num_gpus_to_use: During the simulation, distribute the state over this many GPUs
-            0=all factors to cpu. As shown in the benchmarks, using multiple GPUs might
+        num_gpus_to_use: number of GPUs to be used in a given simulation.
+            - if it is set to a number `n > 0`, the state will be distributed across `n` GPUs.
+            - if it is set to `n = 0`, the entire simulation runs on the CPU.
+            - if it is `None` (the default value), the backend internally chooses the number of GPUs
+            based on the hardware availability during runtime.
+        As shown in the benchmarks, using multiple GPUs might
             alleviate memory pressure per GPU, but the runtime should be similar.
         optimize_qubit_ordering: Optimize the register ordering. Improves performance and
             accuracy, but disables certain features.
@@ -86,7 +89,7 @@ class MPSConfig(EmulationConfig):
         max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
-        num_gpus_to_use: int = DEVICE_COUNT,
+        num_gpus_to_use: int | None = None,
         optimize_qubit_ordering: bool = False,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,

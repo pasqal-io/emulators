@@ -43,8 +43,11 @@ class SVConfig(EmulationConfig):
             the size of the krylov subspace that the Lanczos algorithm maximally builds
         krylov_tolerance:
             the Lanczos algorithm uses this as the convergence tolerance
-        gpu: Use 1 gpu if True, and a GPU is available, otherwise, cpu.
-            Will cause errors if True when a gpu is not available
+        gpu: choosing the number of gpus to use during the simulation
+            - if `gpu = True`, use 1 GPU to store the state.
+            (causes errors if True when GPU not available)
+            - if `gpu = False`, use CPU to run the entire simulation.
+            - if `gpu = None` (the default value), the backend internally chooses 1 GPU.
         interaction_cutoff: Set interaction coefficients below this value to `0`.
             Potentially improves runtime and memory consumption.
         log_level: How much to log. Set to `logging.WARN` to get rid of the timestep info.
@@ -70,7 +73,7 @@ class SVConfig(EmulationConfig):
         dt: int = 10,
         max_krylov_dim: int = 100,
         krylov_tolerance: float = 1e-10,
-        gpu: bool = True,
+        gpu: bool | None = None,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
