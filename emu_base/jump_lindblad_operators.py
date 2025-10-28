@@ -2,6 +2,8 @@ from pulser.noise_model import NoiseModel
 import torch
 import math
 
+dtype = torch.complex128
+
 
 def get_lindblad_operators(
     *, noise_type: str, noise_model: NoiseModel
@@ -11,7 +13,7 @@ def get_lindblad_operators(
     if noise_type == "relaxation":
         c = math.sqrt(noise_model.relaxation_rate)
         return [
-            torch.tensor([[0, c], [0, 0]], dtype=torch.complex128),
+            torch.tensor([[0, c], [0, 0]], dtype=dtype),
         ]
 
     if noise_type == "dephasing":
@@ -20,15 +22,15 @@ def get_lindblad_operators(
 
         c = math.sqrt(noise_model.dephasing_rate / 2)
         return [
-            torch.tensor([[-c, 0], [0, c]], dtype=torch.complex128),
+            torch.tensor([[-c, 0], [0, c]], dtype=dtype),
         ]
 
     if noise_type == "depolarizing":
         c = math.sqrt(noise_model.depolarizing_rate / 4)
         return [
-            torch.tensor([[0, c], [c, 0]], dtype=torch.complex128),
-            torch.tensor([[0, 1j * c], [-1j * c, 0]], dtype=torch.complex128),
-            torch.tensor([[-c, 0], [0, c]], dtype=torch.complex128),
+            torch.tensor([[0, c], [c, 0]], dtype=dtype),
+            torch.tensor([[0, 1j * c], [-1j * c, 0]], dtype=dtype),
+            torch.tensor([[-c, 0], [0, c]], dtype=dtype),
         ]
 
     if noise_type == "eff_noise":
@@ -47,14 +49,17 @@ def get_lindblad_operators(
     raise ValueError(f"Unknown noise type: {noise_type}")
 
 
-def compute_noise_from_lindbladians(lindbladians: list[torch.Tensor]) -> torch.Tensor:
+def compute_noise_from_lindbladians(
+    lindbladians: list[torch.Tensor], dim: int = 2
+) -> torch.Tensor:
     """
-    Compute the single-qubit Hamiltonian noise term -0.5i∑L†L from all the given lindbladians.
+    Compute the single-qubit Hamiltonian noise term -0.5i∑L†L from all the
+    given lindbladians.
     """
     assert all(
-        lindbladian.shape == (2, 2) for lindbladian in lindbladians
+        lindbladian.shape == (dim, dim) for lindbladian in lindbladians
     ), "Only single-qubit lindblad operators are supported"
 
-    zero = torch.zeros(2, 2, dtype=torch.complex128)
+    zero = torch.zeros(dim, dim, dtype=dtype)
 
     return -0.5j * sum((L.mH @ L for L in lindbladians), start=zero)

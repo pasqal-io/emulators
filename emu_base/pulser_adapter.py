@@ -150,6 +150,7 @@ class PulserData:
         )
 
         int_type = self.hamiltonian.interaction_type
+        self.dim = self.hamiltonian.dim
         if int_type == "ising":  # for local and global
             self.hamiltonian_type = HamiltonianType.Rydberg
         elif int_type == "XY":
