@@ -58,7 +58,7 @@ def test_from_operator_string(basis):
     assert one == "1" or "r"
 
     x = {zero + one: 2.0, one + zero: 2.0}
-    y = {zero + one: 2.0, one + zero: -2.0}
+    y = {zero + one: -2.0j, one + zero: 2.0j}
     z = {zero + zero: 3.0, one + one: -3.0}
 
     operations = [
@@ -76,6 +76,10 @@ def test_from_operator_string(basis):
     x_matrix[0, 1] = 1.0
     x_matrix[1, 0] = 1.0
     x_matrix = x_matrix.reshape(1, dim, dim, 1)
+    y_matrix = torch.zeros(dim, dim, dtype=dtype, device=mpo.factors[0].device)
+    y_matrix[0, 1] = -1.0j
+    y_matrix[1, 0] = 1.0j
+    y_matrix = y_matrix.reshape(1, dim, dim, 1)
     z_matrix = torch.zeros(dim, dim, dtype=dtype, device=mpo.factors[0].device)
     z_matrix[0, 0] = 1.0
     z_matrix[1, 1] = -1.0
@@ -91,7 +95,7 @@ def test_from_operator_string(basis):
     )
     assert torch.allclose(
         mpo.factors[2],
-        2 * x_matrix,
+        2 * y_matrix,
     )
 
 

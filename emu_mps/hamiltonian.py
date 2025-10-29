@@ -396,7 +396,6 @@ def make_H(
     [Pulser documentation](https://pulser.readthedocs.io/en/stable/conventions.html#hamiltonians).
 
     """
-    # which hamiltonian to use infer from the eigenstates
 
     if hamiltonian_type == HamiltonianType.Rydberg:
         return MPO(
