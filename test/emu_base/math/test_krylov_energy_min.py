@@ -8,8 +8,10 @@ dtype = torch.complex128
 
 
 def sigma_z(i: int, nqubits: int, dim: int) -> torch.Tensor:
-    s_z = torch.tensor([[1.0, 0.0], [0.0, -1.0]], dtype=dtype)
-    return single_gate(i, nqubits, s_z, dim)
+    s_z = torch.zeros(dim, dim, dtype=dtype)
+    s_z[0, 0] = 1.0
+    s_z[1, 1] = -1.0
+    return single_gate(i, nqubits, s_z)
 
 
 def build_Ising_hamiltonian(N: int, J: float, h: float) -> torch.Tensor:

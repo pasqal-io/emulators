@@ -205,7 +205,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         fac = torch.zeros(
             1, self.dim, self.dim, 4 if has_right_interaction else 2, dtype=dtype
         )
-        fac[0, :, :, 1] = Operators.id
+        fac[0, :, :, 1] = Operators.id if self.dim == 2 else Operators.id_3dim
         if has_right_interaction:
             fac[0, :2, :2, 2] = Operators.creation
             fac[0, :2, :2, 3] = Operators.creation.T
@@ -229,8 +229,8 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
             dtype=dtype,
         )
 
-        fac[0, :, :, 0] = Operators.id
-        fac[1, :, :, 1] = Operators.id
+        fac[0, :, :, 0] = Operators.id if self.dim == 2 else Operators.id_3dim
+        fac[1, :, :, 1] = Operators.id if self.dim == 2 else Operators.id_3dim
         if has_right_interaction:
             fac[1, :2, :2, -2] = Operators.creation
             fac[1, :2, :2, -1] = Operators.creation.T
@@ -248,8 +248,10 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         j = 2
         for current_left_interaction in current_left_interactions.nonzero().flatten():
             if left_interactions_to_keep[current_left_interaction]:
-                fac[i, :, :, j] = Operators.id
-                fac[i + 1, :, :, j + 1] = Operators.id
+                fac[i, :, :, j] = Operators.id if self.dim == 2 else Operators.id_3dim
+                fac[i + 1, :, :, j + 1] = (
+                    Operators.id if self.dim == 2 else Operators.id_3dim
+                )
                 j += 2
             i += 2
         return fac
@@ -267,8 +269,8 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
             dtype=dtype,
         )
 
-        fac[0, :, :, 0] = Operators.id
-        fac[1, :, :, 1] = Operators.id
+        fac[0, :, :, 0] = Operators.id if self.dim == 2 else Operators.id_3dim
+        fac[1, :, :, 1] = Operators.id if self.dim == 2 else Operators.id_3dim
 
         fac[2::2, :2, :2, 0] = (
             self.interaction_matrix[:n][current_left_interactions, n, None, None]
@@ -286,17 +288,19 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
             None, None, current_right_interactions, n
         ] * Operators.creation.T.unsqueeze(-1)
 
-        fac[2::2, :2, :2, 2::2] = (
-            self.interaction_matrix[:n, n + 1 :][current_left_interactions, :][
-                :, None, None, current_right_interactions
-            ]
-            * Operators.id[None, ..., None]
+        fac[2::2, :, :, 2::2] = self.interaction_matrix[:n, n + 1 :][
+            current_left_interactions, :
+        ][:, None, None, current_right_interactions] * (
+            Operators.id[None, ..., None]
+            if self.dim == 2
+            else Operators.id_3dim[None, ..., None]
         )
-        fac[3::2, :, :, 3::2] = (
-            self.interaction_matrix[:n, n + 1 :][current_left_interactions, :][
-                :, None, None, current_right_interactions
-            ]
-            * Operators.id[None, ..., None]
+        fac[3::2, :, :, 3::2] = self.interaction_matrix[:n, n + 1 :][
+            current_left_interactions, :
+        ][:, None, None, current_right_interactions] * (
+            Operators.id[None, ..., None]
+            if self.dim == 2
+            else Operators.id_3dim[None, ..., None]
         )
 
         return fac
@@ -318,8 +322,8 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
             dtype=dtype,
         )
 
-        fac[0, :, :, 0] = Operators.id
-        fac[1, :, :, 1] = Operators.id
+        fac[0, :, :, 0] = Operators.id if self.dim == 2 else Operators.id_3dim
+        fac[1, :, :, 1] = Operators.id if self.dim == 2 else Operators.id_3dim
         if has_left_interaction:
             fac[2, :2, :2, 0] = Operators.creation.T
             fac[3, :2, :2, 0] = Operators.creation
@@ -335,8 +339,10 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         j = 2
         for current_right_interaction in current_right_interactions.nonzero().flatten():
             if right_interactions_to_keep[current_right_interaction]:
-                fac[i, :, :, j] = Operators.id
-                fac[i + 1, :, :, j + 1] = Operators.id
+                fac[i, :, :, j] = Operators.id if self.dim == 2 else Operators.id_3dim
+                fac[i + 1, :, :, j + 1] = (
+                    Operators.id if self.dim == 2 else Operators.id_3dim
+                )
                 i += 2
             j += 2
         return fac
@@ -346,7 +352,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         fac = torch.zeros(
             4 if has_left_interaction else 2, self.dim, self.dim, 1, dtype=dtype
         )
-        fac[0, :, :, 0] = Operators.id
+        fac[0, :, :, 0] = Operators.id if self.dim == 2 else Operators.id_3dim
         if has_left_interaction:
             if self.qubit_count >= 3:
                 fac[2, :2, :2, 0] = Operators.creation.T
@@ -385,6 +391,8 @@ def make_H(
     Args:
         interaction_matrix (torch.Tensor): The interaction matrix describing
         the interactions between qubits.
+        hamiltonian_type: whether to use XY or Rydberg interation
+        dim: dimension of the basis (2 or 3)
         num_gpus_to_use (int): how many gpus to put the Hamiltonian on.
         See utils.assign_devices
     Returns:

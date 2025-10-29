@@ -17,7 +17,8 @@ from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 dtype = torch.complex128
 
 
-def single_gate(i: int, nqubits: int, g: torch.Tensor, dim: int):
+def single_gate(i: int, nqubits: int, g: torch.Tensor):
+    dim = g.shape[0]
     matrices = [torch.eye(dim, dim, dtype=dtype)] * nqubits
     matrices[i] = g
     return reduce(torch.kron, matrices)
@@ -27,26 +28,26 @@ def sigma_x(i: int, nqubits: int, dim: int) -> torch.Tensor:
     σ_x = torch.zeros(dim, dim, dtype=dtype)
     σ_x[0, 1] = 1.0
     σ_x[1, 0] = 1.0
-    return single_gate(i, nqubits, σ_x, dim)
+    return single_gate(i, nqubits, σ_x)
 
 
 def sigma_y(i: int, nqubits: int, dim: int) -> torch.Tensor:
     σ_y = torch.zeros(dim, dim, dtype=dtype)
     σ_y[0, 1] = torch.tensor(-1.0j, dtype=dtype)
     σ_y[1, 0] = torch.tensor(1.0j, dtype=dtype)
-    return single_gate(i, nqubits, σ_y, dim)
+    return single_gate(i, nqubits, σ_y)
 
 
 def pu(i: int, nqubits: int, dim: int):
     n = torch.zeros(dim, dim, dtype=dtype)
     n[1, 1] = 1.0
-    return single_gate(i, nqubits, n, dim)
+    return single_gate(i, nqubits, n)
 
 
 def creation_op(i: int, nqubits: int, dim: int):
     sig_plus = torch.zeros(dim, dim, dtype=dtype)
     sig_plus[0, 1] = 1.0
-    return single_gate(i, nqubits, sig_plus, dim)
+    return single_gate(i, nqubits, sig_plus)
 
 
 def n(i: int, j: int, nqubits: int, dim: int):
@@ -92,7 +93,7 @@ def sv_hamiltonian(
             / 2
         )
         h -= delta[i] * pu(i, n_qubits, dim).to(dtype=dtype, device=device)
-        h += single_gate(i, n_qubits, noise, dim)
+        h += single_gate(i, n_qubits, noise)
 
         if hamiltonian_type == HamiltonianType.Rydberg:
             for j in range(i + 1, n_qubits):
@@ -127,13 +128,12 @@ def create_omega_delta_phi(nqubits: int):
 @pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
 def test_2_qubit(basis):
     n_atoms = 2
+    dim = len(basis)
     if basis == ("g", "r") or ("g", "r", "x"):
         hamiltonian_type = HamiltonianType.Rydberg
-        dim = len(basis)
 
     elif basis == ("0", "1"):
         hamiltonian_type = HamiltonianType.XY
-        dim = len(basis)
 
     num_gpus = 0
     omega, delta, phi = create_omega_delta_phi(n_atoms)
@@ -187,13 +187,12 @@ def test_2_qubit(basis):
 @pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
 def test_noise(basis):
     n_atoms = 2
+    dim = len(basis)
     if basis == ("g", "r") or ("g", "r", "x"):
         hamiltonian_type = HamiltonianType.Rydberg
-        dim = len(basis)
 
     elif basis == ("0", "1"):
         hamiltonian_type = HamiltonianType.XY
-        dim = len(basis)
 
     num_gpus = 0
     omega = torch.tensor([0.0, 0.0], dtype=dtype)
@@ -245,13 +244,12 @@ def test_noise(basis):
 @pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
 def test_4_qubit(basis):
     n_atoms = 4
+    dim = len(basis)
     if basis == ("g", "r") or ("g", "r", "x"):
         hamiltonian_type = HamiltonianType.Rydberg
-        dim = len(basis)
 
     elif basis == ("0", "1"):
         hamiltonian_type = HamiltonianType.XY
-        dim = len(basis)
 
     num_gpus = 0
     omega, delta, phi = create_omega_delta_phi(n_atoms)
@@ -309,13 +307,13 @@ def test_4_qubit(basis):
 @pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
 def test_5_qubit(basis):
     n_atoms = 5
+    dim = len(basis)
     if basis == ("g", "r") or ("g", "r", "x"):
         hamiltonian_type = HamiltonianType.Rydberg
-        dim = len(basis)
 
     elif basis == ("0", "1"):
         hamiltonian_type = HamiltonianType.XY
-        dim = len(basis)
+
     num_gpus = 0
     omega, delta, phi = create_omega_delta_phi(n_atoms)
 
@@ -373,13 +371,12 @@ def test_5_qubit(basis):
 @pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
 def test_6_qubit_noise(basis):
     n_atoms = 6
+    dim = len(basis)
     if basis == ("g", "r") or ("g", "r", "x"):
         hamiltonian_type = HamiltonianType.Rydberg
-        dim = len(basis)
 
     elif basis == ("0", "1"):
         hamiltonian_type = HamiltonianType.XY
-        dim = len(basis)
 
     num_gpus = 0
     omega = torch.tensor([12.566370614359172] * n_atoms, dtype=dtype)
@@ -588,13 +585,12 @@ def test_differentiation():
 @pytest.mark.parametrize("basis", (("0", "1"), ("g", "r")))
 def test_truncation_random(basis):
     n_atoms = 9
+    dim = len(basis)
     if basis == ("g", "r"):
         hamiltonian_type = HamiltonianType.Rydberg
-        dim = len(basis)
 
     elif basis == ("0", "1"):
         hamiltonian_type = HamiltonianType.XY
-        dim = len(basis)
 
     num_gpus = 0
     omega = torch.tensor([12.566370614359172] * n_atoms, dtype=dtype)
@@ -645,13 +641,12 @@ def test_truncation_random(basis):
 @pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
 def test_truncation_nn(basis):
     n_atoms = 5
+    dim = len(basis)
     if basis == ("g", "r") or ("g", "r", "x"):
         hamiltonian_type = HamiltonianType.Rydberg
-        dim = len(basis)
 
     elif basis == ("0", "1"):
         hamiltonian_type = HamiltonianType.XY
-        dim = len(basis)
 
     omega = torch.zeros(n_atoms, dtype=dtype)
     delta = torch.zeros(n_atoms, dtype=dtype)
