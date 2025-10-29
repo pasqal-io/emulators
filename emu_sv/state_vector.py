@@ -275,7 +275,7 @@ class StateVector(State[complex, torch.Tensor]):
         return accum_state, amplitudes
 
     def overlap(self, other: StateVector, /) -> torch.Tensor:
-        return self.inner(other)
+        return torch.abs(self.inner(other)) ** 2
 
 
 def inner(left: StateVector, right: StateVector) -> torch.Tensor:

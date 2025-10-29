@@ -58,13 +58,15 @@ def test_from_operator_string(basis):
     assert one == "1" or "r"
 
     x = {zero + one: 2.0, one + zero: 2.0}
+    y = {zero + one: 2.0, one + zero: -2.0}
     z = {zero + zero: 3.0, one + one: -3.0}
 
     operations = [
         (
             1.0,
             [
-                (x, [0, 2]),
+                (x, [0]),
+                (y, [2]),
                 (z, [1]),
             ],
         )

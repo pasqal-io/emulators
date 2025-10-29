@@ -14,6 +14,7 @@ from emu_sv import (
     SVBackend,
     SVConfig,
     StateVector,
+    DenseOperator,
     CorrelationMatrix,
     EnergySecondMoment,
     EnergyVariance,
@@ -778,3 +779,39 @@ def test_spam_bitstring_class() -> None:
             ANY, p_false_pos=0.0, p_false_neg=0.5
         )
         assert results.bitstrings[-1] is bitstrings
+
+
+def test_run_after_deserialize():
+    reg = pulser.Register({"q0": (-5, 0), "q1": (5, 0)})
+
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("rydberg_global", "rydberg_global")
+    t = seq.declare_variable("t", dtype=int)
+
+    amp_wf = pulser.BlackmanWaveform(t, np.pi)
+    det_wf = pulser.RampWaveform(t, -5, 5)
+    seq.add(pulser.Pulse(amp_wf, det_wf, 0), "rydberg_global")
+    seq = seq.build(t=2000)
+
+    fidelity_state = StateVector.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rr": 1.0}
+    )
+    operations = [(1.0, [({"rg": 1.0, "gr": 1.0}, [0, 1])])]
+    op_to_measure = DenseOperator.from_operator_repr(
+        eigenstates=("r", "g"), n_qudits=2, operations=operations
+    )
+    fidelity = pulser.backend.Fidelity(state=fidelity_state, evaluation_times=[1.0])
+    expectation = pulser.backend.Expectation(op_to_measure, evaluation_times=[1.0])
+    mps_config = SVConfig(observables=[fidelity, expectation])
+    config_string = mps_config.to_abstract_repr()
+    config = SVConfig.from_abstract_repr(config_string)
+    mps_bknd = SVBackend(seq, config=config)
+    mps_results = mps_bknd.run()
+    assert torch.allclose(
+        mps_results.fidelity[-1], torch.tensor(0.1691, dtype=torch.float64), atol=1e-4
+    )
+    assert torch.allclose(
+        mps_results.expectation[-1],
+        torch.tensor(0.9728 + 0.0j, dtype=torch.torch.complex128),
+        atol=1e-4,
+    )
