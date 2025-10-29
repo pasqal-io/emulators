@@ -447,6 +447,67 @@ def test_6_qubit_noise(basis):
     )
 
 
+def test_6_qubit_3_level_noise():
+    n_atoms = 6
+    basis = ("g", "r", "x")
+    hamiltonian_type = HamiltonianType.Rydberg
+    dim = len(basis)
+
+    num_gpus = 0
+    omega = torch.tensor([12.566370614359172] * n_atoms, dtype=dtype)
+    delta = torch.tensor([10.771174812307862] * n_atoms, dtype=dtype)
+    phi = torch.tensor([torch.pi] * n_atoms, dtype=dtype)
+
+    interaction_matrix = torch.randn(n_atoms, n_atoms, dtype=torch.float64)
+    interaction_matrix = (interaction_matrix + interaction_matrix.T) / 2
+    interaction_matrix.fill_diagonal_(0)
+
+    lindbladians = [
+        torch.tensor([[-5.0, 4.0, 0.0], [2.0, 5.0, 1.0], [0.0, 0.0, 2.0]], dtype=dtype),
+        torch.tensor([[2.0, 3.0, 3.0], [1.5, 5.0j, 4.0], [0.0, 0.0, 5.0]], dtype=dtype),
+        torch.tensor(
+            [[-2.5j + 0.5, 2.3, 7.0], [1.0, 2.0, 9.0], [0.0, 0.0, 11.0]], dtype=dtype
+        ),
+    ]
+
+    noise = compute_noise_from_lindbladians(lindbladians, dim=dim)
+
+    ham = make_H(
+        interaction_matrix=interaction_matrix,
+        hamiltonian_type=hamiltonian_type,
+        dim=dim,
+        num_gpus_to_use=num_gpus,
+    )
+    update_H(
+        hamiltonian=ham,
+        omega=omega,
+        delta=delta,
+        phi=phi,
+        noise=noise,
+    )
+
+    sv = torch.einsum(
+        "abcd,defg,ghij,jklm,mnop,pqrs->abehknqcfilors",
+        *(ham.factors),
+    ).reshape(dim**n_atoms, dim**n_atoms)
+
+    dev = sv.device  # could be cpu or gpu depending on Config
+    expected = sv_hamiltonian(
+        interaction_matrix,
+        omega,
+        delta,
+        phi,
+        noise,
+        dim=dim,
+        hamiltonian_type=hamiltonian_type,
+    ).to(dev)
+
+    assert torch.allclose(
+        sv,
+        expected,
+    )
+
+
 def test_differentiation():
     """Basic test for torch grad."""
     # The interaction term of the Hamiltonian will not affect the differentiation.
@@ -581,35 +642,34 @@ def test_truncation_random(basis):
     )
 
 
-@pytest.mark.parametrize(
-    "hamiltonian_type",
-    [
-        HamiltonianType.Rydberg,
-        HamiltonianType.XY,
-    ],
-)
-def test_truncation_nn(hamiltonian_type):
-    if hamiltonian_type == HamiltonianType.Rydberg:
-        basis = ("r", "g")
-    elif hamiltonian_type == HamiltonianType.XY:
-        basis = ("1", "0")
-    n = 5
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
+def test_truncation_nn(basis):
+    n_atoms = 5
+    if basis == ("g", "r") or ("g", "r", "x"):
+        hamiltonian_type = HamiltonianType.Rydberg
+        dim = len(basis)
 
-    omega = torch.zeros(n, dtype=dtype)
-    delta = torch.zeros(n, dtype=dtype)
-    phi = torch.zeros(n, dtype=dtype)
+    elif basis == ("0", "1"):
+        hamiltonian_type = HamiltonianType.XY
+        dim = len(basis)
 
-    interaction_matrix = torch.diag(torch.tensor([1.0] * (n - 1), dtype=torch.float64), 1)
+    omega = torch.zeros(n_atoms, dtype=dtype)
+    delta = torch.zeros(n_atoms, dtype=dtype)
+    phi = torch.zeros(n_atoms, dtype=dtype)
+
+    interaction_matrix = torch.diag(
+        torch.tensor([1.0] * (n_atoms - 1), dtype=torch.float64), 1
+    )
     interaction_matrix = interaction_matrix + interaction_matrix.T
     ham = make_H(
         interaction_matrix=interaction_matrix,
         num_gpus_to_use=0,
         hamiltonian_type=hamiltonian_type,
-        dim=len(basis),
+        dim=dim,
     )
 
     sv = torch.einsum("abcd,defg,ghij,jklm,mnop->abehkncfilop", *(ham.factors)).reshape(
-        1 << n, 1 << n
+        dim**n_atoms, dim**n_atoms
     )
 
     dev = sv.device  # could be cpu or gpu depending on Config
@@ -618,8 +678,8 @@ def test_truncation_nn(hamiltonian_type):
         omega,
         delta,
         phi,
-        torch.zeros(2, 2),
-        dim=2,
+        torch.zeros(dim, dim),
+        dim=dim,
         hamiltonian_type=hamiltonian_type,
     ).to(dev)
 
@@ -630,11 +690,11 @@ def test_truncation_nn(hamiltonian_type):
     else:
         raise NotImplementedError("Extend the tests")
 
-    assert ham.factors[0].shape == (1, 2, 2, size)
-    assert ham.factors[1].shape == (size, 2, 2, size)
-    assert ham.factors[2].shape == (size, 2, 2, size)
-    assert ham.factors[3].shape == (size, 2, 2, size)
-    assert ham.factors[4].shape == (size, 2, 2, 1)
+    assert ham.factors[0].shape == (1, dim, dim, size)
+    assert ham.factors[1].shape == (size, dim, dim, size)
+    assert ham.factors[2].shape == (size, dim, dim, size)
+    assert ham.factors[3].shape == (size, dim, dim, size)
+    assert ham.factors[4].shape == (size, dim, dim, 1)
 
     assert torch.allclose(
         sv,
