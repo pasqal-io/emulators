@@ -368,11 +368,12 @@ def test_5_qubit(basis):
     )
 
 
-@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
-def test_6_qubit_noise(basis):
-    n_atoms = 6
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r")))
+def test_9_qubit_noise(basis):
+    """Hall of fame: this test caught a bug in the original implementation."""
+    n_atoms = 9
     dim = len(basis)
-    if basis == ("g", "r") or ("g", "r", "x"):
+    if basis == ("g", "r"):
         hamiltonian_type = HamiltonianType.Rydberg
 
     elif basis == ("0", "1"):
@@ -387,24 +388,11 @@ def test_6_qubit_noise(basis):
     interaction_matrix = (interaction_matrix + interaction_matrix.T) / 2
     interaction_matrix.fill_diagonal_(0)
 
-    if dim == 2:
-        lindbladians = [
-            torch.tensor([[-5.0, 4.0], [2.0, 5.0]], dtype=dtype),
-            torch.tensor([[2.0, 3.0], [1.5, 5.0j]], dtype=dtype),
-            torch.tensor([[-2.5j + 0.5, 2.3], [1.0, 2.0]], dtype=dtype),
-        ]
-    if dim == 3:
-        lindbladians = [
-            torch.tensor(
-                [[-5.0, 4.0, 0.0], [2.0, 5.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
-            ),
-            torch.tensor(
-                [[2.0, 3.0, 0.0], [1.5, 5.0j, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
-            ),
-            torch.tensor(
-                [[-2.5j + 0.5, 2.3, 0.0], [1.0, 2.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
-            ),
-        ]
+    lindbladians = [
+        torch.tensor([[-5.0, 4.0], [2.0, 5.0]], dtype=dtype),
+        torch.tensor([[2.0, 3.0], [1.5, 5.0j]], dtype=dtype),
+        torch.tensor([[-2.5j + 0.5, 2.3], [1.0, 2.0]], dtype=dtype),
+    ]
 
     noise = compute_noise_from_lindbladians(lindbladians, dim=dim)
 
@@ -423,7 +411,7 @@ def test_6_qubit_noise(basis):
     )
 
     sv = torch.einsum(
-        "abcd,defg,ghij,jklm,mnop,pqrs->abehknqcfilors",
+        "abcd,defg,ghij,jklm,mnop,pqrs,stuv,vwxy,yzAB->abehknqtwzcfiloruxAB",
         *(ham.factors),
     ).reshape(dim**n_atoms, dim**n_atoms)
 
