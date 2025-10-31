@@ -454,7 +454,6 @@ def update_H(
     c = torch.tensordot(delta, Operators.n, dims=0)
     b = torch.tensordot(omega * torch.sin(phi), Operators.sy, dims=0)
 
-    # single_qubit_terms = a + b - c + noise
     factors = hamiltonian.factors
 
     single_qubit_terms = torch.stack(nqubits * [noise])
