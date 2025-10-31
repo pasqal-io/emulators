@@ -23,7 +23,7 @@ def get_lindblad_operators(
 
         c = math.sqrt(noise_model.dephasing_rate / 2)
         dephasing = torch.zeros(dim, dim, dtype=dtype)
-        print(dephasing)
+
         dephasing[0, 0] = c
         dephasing[1, 1] = -c
 

@@ -551,9 +551,7 @@ def test_correlation_matrix_random(basis):
     z_op[0, 0] = 1.0
     z_op[1, 1] = -1.0
 
-    correlation_matrix_zz = state.get_correlation_matrix(
-        operator=torch.tensor(z_op, dtype=dtype)
-    )
+    correlation_matrix_zz = state.get_correlation_matrix(z_op)
     excited_excited = basis[1] + basis[1]
 
     def nn(index1, index2):
