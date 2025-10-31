@@ -413,7 +413,7 @@ def make_H(
 
     if hamiltonian_type == HamiltonianType.XY:
         return MPO(
-            list(XYHamiltonianMPOFactors(interaction_matrix)),
+            list(XYHamiltonianMPOFactors(interaction_matrix, dim=dim)),
             num_gpus_to_use=num_gpus_to_use,
         )
 

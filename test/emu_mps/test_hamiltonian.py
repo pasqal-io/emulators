@@ -432,11 +432,15 @@ def test_9_qubit_noise(basis):
     )
 
 
-def test_6_qubit_3_level_noise():
+@pytest.mark.parametrize("basis", (("0", "1", "x"), ("g", "r", "x")))
+def test_6_qubit_3_level_noise(basis):
     n_atoms = 6
-    basis = ("g", "r", "x")
-    hamiltonian_type = HamiltonianType.Rydberg
     dim = len(basis)
+    if basis == ("g", "r", "x"):
+        hamiltonian_type = HamiltonianType.Rydberg
+
+    elif basis == ("0", "1", "x"):
+        hamiltonian_type = HamiltonianType.XY
 
     num_gpus = 0
     omega = torch.tensor([12.566370614359172] * n_atoms, dtype=dtype)
@@ -475,6 +479,22 @@ def test_6_qubit_3_level_noise():
         "abcd,defg,ghij,jklm,mnop,pqrs->abehknqcfilors",
         *(ham.factors),
     ).reshape(dim**n_atoms, dim**n_atoms)
+
+    dev = sv.device  # could be cpu or gpu depending on Config
+    expected = sv_hamiltonian(
+        interaction_matrix,
+        omega,
+        delta,
+        phi,
+        noise,
+        dim=dim,
+        hamiltonian_type=hamiltonian_type,
+    ).to(dev)
+
+    assert torch.allclose(
+        sv,
+        expected,
+    )
 
     dev = sv.device  # could be cpu or gpu depending on Config
     expected = sv_hamiltonian(
