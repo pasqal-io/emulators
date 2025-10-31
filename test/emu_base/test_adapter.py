@@ -16,6 +16,8 @@ from emu_base.pulser_adapter import (
     HamiltonianType,
 )
 
+dtype = torch.complex128
+
 TEST_QUBIT_IDS = ["test_qubit_0", "test_qubit_1", "test_qubit_2"]
 TEST_C6 = 5420158.53
 TEST_C3 = 3700.0
@@ -279,7 +281,7 @@ def test_extract_omega_delta_phi_dt_2(
             [4.2857, 4.2857, 4.2857],
             [1.4286, 1.4286, 1.4286],
         ],
-        dtype=torch.complex128,
+        dtype=dtype,
     )
     expected_delta = torch.tensor(
         [
@@ -290,7 +292,7 @@ def test_extract_omega_delta_phi_dt_2(
             [1.4286, 1.4286, 1.4286],
             [7.1429, 7.1429, 7.1429],
         ],
-        dtype=torch.complex128,
+        dtype=dtype,
     )
     expected_phi = torch.tensor(
         [
@@ -301,7 +303,7 @@ def test_extract_omega_delta_phi_dt_2(
             [0.2000, 0.2000, 0.2000],
             [0.2000, 0.2000, 0.2000],
         ],
-        dtype=torch.complex128,
+        dtype=dtype,
     )
     assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
     assert torch.allclose(actual_delta, expected_delta, rtol=0, atol=1e-4)
@@ -386,7 +388,7 @@ def test_extract_omega_delta_phi_dt_1(
                 0.0,
             ],
         ],
-        dtype=torch.complex128,
+        dtype=dtype,
     ).T
     # the element omega[4,0] should not simply be multiplied by wais_amplitudes
     # it is the average of two samples, one of which should be multiplied, and the other not
@@ -439,7 +441,7 @@ def test_extract_omega_delta_phi_dt_1(
                 11.42857143,
             ],
         ],
-        dtype=torch.complex128,
+        dtype=dtype,
     ).T
     expected_phi = torch.tensor(
         [
@@ -457,7 +459,7 @@ def test_extract_omega_delta_phi_dt_1(
             [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
             [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
         ],
-        dtype=torch.complex128,
+        dtype=dtype,
     )
 
     assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
@@ -484,7 +486,7 @@ def test_autograd(mock_data):
             1.11111111,
             0.0,
         ],
-        dtype=torch.complex128,
+        dtype=dtype,
         requires_grad=True,
     )
     det_tensor = torch.tensor(
@@ -500,12 +502,12 @@ def test_autograd(mock_data):
             7.77777778,
             10.0,
         ],
-        dtype=torch.complex128,
+        dtype=dtype,
         requires_grad=True,
     )
     phase_tensor = torch.tensor(
         [0.2] * 10,
-        dtype=torch.complex128,
+        dtype=dtype,
         requires_grad=True,
     )
 
@@ -551,7 +553,7 @@ def test_autograd(mock_data):
         omega_value,
         dict_sample_atom2,
     )
-    expected = torch.zeros(TEST_DURATION, dtype=torch.complex128)
+    expected = torch.zeros(TEST_DURATION, dtype=dtype)
     expected[5] = 1
     assert torch.allclose(res[0], expected)
 
@@ -563,7 +565,7 @@ def test_get_all_lindblad_operators_no_noise():
 
 
 def test_get_all_lindblad_operators():
-    random_collapse = torch.rand(2, 2, dtype=torch.complex128)
+    random_collapse = torch.rand(2, 2, dtype=dtype)
 
     noise_model = NoiseModel(
         depolarizing_rate=0.16,
@@ -584,7 +586,7 @@ def test_get_all_lindblad_operators():
                 [0, 0.2],
                 [0.2, 0],
             ],
-            dtype=torch.complex128,
+            dtype=dtype,
         ),
     )
 
@@ -592,10 +594,10 @@ def test_get_all_lindblad_operators():
         ops[2],
         torch.tensor(
             [
-                [0, 0.2j],
-                [-0.2j, 0],
+                [0, -0.2j],
+                [0.2j, 0],
             ],
-            dtype=torch.complex128,
+            dtype=dtype,
         ),
     )
 
@@ -603,10 +605,10 @@ def test_get_all_lindblad_operators():
         ops[3],
         torch.tensor(
             [
-                [-0.2, 0],
-                [0, 0.2],
+                [0.2, 0],
+                [0, -0.2],
             ],
-            dtype=torch.complex128,
+            dtype=dtype,
         ),
     )
 
@@ -615,10 +617,10 @@ def test_get_all_lindblad_operators():
         ops[0],
         torch.tensor(
             [
-                [-0.05, 0],
-                [0, 0.05],
+                [0.05, 0],
+                [0, -0.05],
             ],
-            dtype=torch.complex128,
+            dtype=dtype,
         ),
     )
 
@@ -655,7 +657,7 @@ def test_parsed_sequence(mock_data):
             1.11111111,
             0.0,
         ],
-        dtype=torch.complex128,
+        dtype=dtype,
     )
     det_tensor = torch.tensor(
         [
@@ -670,9 +672,9 @@ def test_parsed_sequence(mock_data):
             7.77777778,
             10.0,
         ],
-        dtype=torch.complex128,
+        dtype=dtype,
     )
-    phase_tensor = torch.tensor([0.2] * 10, dtype=torch.complex128)
+    phase_tensor = torch.tensor([0.2] * 10, dtype=dtype)
 
     sequence.get_addressed_bases.return_value = [adressed_basis]
 
@@ -700,6 +702,7 @@ def test_parsed_sequence(mock_data):
     sample_instance.to_nested_dict.return_value = {"Local": mock_pulser_dict}
     mock_from_sequence = MagicMock()
     mock_data.from_sequence.return_value = mock_from_sequence
+    mock_from_sequence.dim = 2
     mock_from_sequence.noisy_samples = sample_instance
     mock_from_sequence.noisy_samples.max_duration = TEST_DURATION
     mock_from_sequence.interaction_type = adressed_basis
@@ -711,7 +714,7 @@ def test_parsed_sequence(mock_data):
     ]
     sequence._slm_mask_time = []
 
-    random_collapse = torch.rand(2, 2, dtype=torch.complex128)
+    random_collapse = torch.rand(2, 2, dtype=dtype)
     noise_model = NoiseModel(
         depolarizing_rate=0.16,
         dephasing_rate=0.005,
@@ -851,8 +854,8 @@ def test_get_target_times_with_obs_eval_time(with_modulation):
 
 def test_non_lindbladian_noise():
     q_dict = {
-        0: [-4.0, 0.0],
-        1: [4.0, 0.0],
+        "q0": [-4.0, 0.0],
+        "q1": [4.0, 0.0],
     }
     reg = pulser.Register(q_dict)
     seq = pulser.Sequence(reg, pulser.MockDevice)

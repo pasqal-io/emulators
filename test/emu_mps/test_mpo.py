@@ -4,23 +4,31 @@ import math
 
 from emu_mps import MPO, MPS
 
+dtype = torch.complex128
 
-def test_mul():
+
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
+def test_mul(basis):
     num_sites = 3
-
-    mps = MPS.make(num_sites)
+    dim = len(basis)
+    mps = MPS.make(num_sites, eigenstates=basis)
     factors = []
     for _ in range(num_sites):
-        tensor = torch.zeros(1, 2, 2, 1, dtype=torch.complex128)
+        tensor = torch.zeros(1, dim, dim, 1, dtype=dtype)
         tensor[0, 0, 1, 0] = 1
         tensor[0, 1, 0, 0] = 1
         factors.append(tensor)
     mpo = MPO(factors)
     out = mpo.apply_to(mps)
     for i in out.factors:
-        assert torch.allclose(
-            i, torch.tensor([[[0], [1]]], dtype=torch.complex128, device=i.device)
-        )
+        if dim == 2:
+            assert torch.allclose(
+                i, torch.tensor([[[0], [1]]], dtype=dtype, device=i.device)
+            )
+        else:
+            assert torch.allclose(
+                i, torch.tensor([[[0], [1], [0]]], dtype=dtype, device=i.device)
+            )
 
 
 def test_wrong_basis_string_state():
@@ -40,14 +48,19 @@ def test_wrong_basis_string_state():
     assert str(ve.value) == msg
 
 
-@pytest.mark.parametrize(
-    ("zero", "one"),
-    (("g", "r"), ("0", "1")),
-)
-def test_from_operator_string(zero, one):
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
+def test_from_operator_string(basis):
+    dim = len(basis)
+    zero = basis[0]
+    one = basis[1]
+
+    assert zero == "0" or "g"  # in this test the order of basis is important
+    assert one == "1" or "r"
+
     x = {zero + one: 2.0, one + zero: 2.0}
-    y = {zero + one: 2.0, one + zero: -2.0}
+    y = {zero + one: -2.0j, one + zero: 2.0j}
     z = {zero + zero: 3.0, one + one: -3.0}
+
     operations = [
         (
             1.0,
@@ -58,35 +71,77 @@ def test_from_operator_string(zero, one):
             ],
         )
     ]
-    mpo = MPO.from_operator_repr(
-        eigenstates=(one, zero), n_qudits=3, operations=operations
-    )
+    mpo = MPO.from_operator_repr(eigenstates=basis, n_qudits=3, operations=operations)
+    x_matrix = torch.zeros(dim, dim, dtype=dtype, device=mpo.factors[0].device)
+    x_matrix[0, 1] = 1.0
+    x_matrix[1, 0] = 1.0
+    x_matrix = x_matrix.reshape(1, dim, dim, 1)
+    y_matrix = torch.zeros(dim, dim, dtype=dtype, device=mpo.factors[0].device)
+    y_matrix[0, 1] = -1.0j
+    y_matrix[1, 0] = 1.0j
+    y_matrix = y_matrix.reshape(1, dim, dim, 1)
+    z_matrix = torch.zeros(dim, dim, dtype=dtype, device=mpo.factors[0].device)
+    z_matrix[0, 0] = 1.0
+    z_matrix[1, 1] = -1.0
+    z_matrix = z_matrix.reshape(1, dim, dim, 1)
+
     assert torch.allclose(
         mpo.factors[0],
-        torch.tensor(
-            [[0.0, 2.0], [2.0, 0.0]], dtype=torch.complex128, device=mpo.factors[0].device
-        ).reshape(1, 2, 2, 1),
+        2 * x_matrix,
     )
     assert torch.allclose(
         mpo.factors[1],
-        torch.tensor(
-            [[3.0, 0.0], [0.0, -3.0]],
-            dtype=torch.complex128,
-            device=mpo.factors[1].device,
-        ).reshape(1, 2, 2, 1),
+        3 * z_matrix,
     )
     assert torch.allclose(
         mpo.factors[2],
-        torch.tensor(
-            [[0.0, 2.0], [-2.0, 0.0]],
-            dtype=torch.complex128,
-            device=mpo.factors[2].device,
-        ).reshape(1, 2, 2, 1),
+        2 * y_matrix,
     )
 
 
-def test_wrong_external_links():
-    sitedims = (2, 2)
+def test_from_operator_string_with_leak():
+    basis = ("g", "r", "x")
+    dim = len(basis)
+    one_to_x_op = {basis[2] + basis[1]: 2.0}
+    zero_to_x_op = {basis[2] + basis[0]: 3.0}
+
+    operations = [
+        (
+            1.0,
+            [
+                (one_to_x_op, [0, 2]),
+                (zero_to_x_op, [1]),
+            ],
+        )
+    ]
+    mpo = MPO.from_operator_repr(eigenstates=basis, n_qudits=3, operations=operations)
+
+    one_to_x_matrix = torch.zeros(dim, dim, dtype=dtype, device=mpo.factors[0].device)
+    one_to_x_matrix[2, 1] = 1.0
+    one_to_x_matrix = one_to_x_matrix.reshape(1, dim, dim, 1)
+
+    zero_to_x_matrix = torch.zeros(dim, dim, dtype=dtype, device=mpo.factors[0].device)
+    zero_to_x_matrix[2, 0] = 1.0
+    zero_to_x_matrix = zero_to_x_matrix.reshape(1, dim, dim, 1)
+
+    assert torch.allclose(
+        mpo.factors[0],
+        2 * one_to_x_matrix,
+    )
+    assert torch.allclose(
+        mpo.factors[1],
+        3 * zero_to_x_matrix,
+    )
+    assert torch.allclose(
+        mpo.factors[2],
+        2 * one_to_x_matrix,
+    )
+
+
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
+def test_wrong_external_links(basis):
+    dim = len(basis)
+    sitedims = (dim, dim)
     factor1 = torch.rand(3, *sitedims, 5)
     factor2 = torch.rand(5, *sitedims, 5)
     good_left_factor = torch.rand(1, *sitedims, 3)
@@ -107,35 +162,41 @@ def test_wrong_external_links():
     assert str(ve.value) == msg
 
 
-def test_expect():
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
+def test_expect(basis):
+    dim = len(basis)
     nqubits = 5
 
-    def shape(index: int, size: int) -> tuple[int, int]:
+    def shape(index: int, size: int) -> tuple[int, ...]:
         if index == 0:
-            return (1,) + (2,) * size + (10,)
+            return (1,) + (dim,) * size + (10,)
         elif index == 4:
-            return (10,) + (2,) * size + (1,)
+            return (10,) + (dim,) * size + (1,)
         else:
-            return (10,) + (2,) * size + (10,)
+            return (10,) + (dim,) * size + (10,)
 
     state = MPS(
-        [torch.randn(*shape(i, 1), dtype=torch.complex128) for i in range(nqubits)],
-        eigenstates=("0", "1"),
+        [torch.randn(*shape(i, 1), dtype=dtype) for i in range(nqubits)],
+        eigenstates=basis,
     )
-    op = MPO([torch.randn(*shape(i, 2), dtype=torch.complex128) for i in range(nqubits)])
+    op = MPO([torch.randn(*shape(i, 2), dtype=dtype) for i in range(nqubits)])
     assert op.expect(state) == pytest.approx(state.inner(op.apply_to(state)))
 
 
-def test_add_expectation_values():
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
+def test_add_expectation_values(basis):
     """
     Test that the expectation value of MPOs, and the sum
     of expectation values of each MPO is equivalent.
     TODO: move to integration tests
     """
-    dtype = torch.complex128
+
     num_sites = 3
-    id_factor = torch.eye(2, 2, dtype=dtype).reshape(1, 2, 2, 1)
-    sigma_rr = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype).reshape(1, 2, 2, 1)
+    dim = len(basis)
+    id_factor = torch.eye(dim, dim, dtype=dtype).reshape(1, dim, dim, 1)
+    sigma_rr = torch.zeros(dim, dim, dtype=dtype)
+    sigma_rr[1, 1] = 1.0
+    sigma_rr = sigma_rr.reshape(1, dim, dim, 1)
 
     # arbitrary op list Oi
     mpo_list = []
@@ -147,11 +208,11 @@ def test_add_expectation_values():
     # arbitrary state |Ψ〉
     mps = MPS(
         [
-            torch.rand(1, 2, 2, dtype=dtype),
-            torch.rand(2, 2, 6, dtype=dtype),
-            torch.rand(6, 2, 1, dtype=dtype),
+            torch.rand(1, dim, 2, dtype=dtype),
+            torch.rand(2, dim, 6, dtype=dtype),
+            torch.rand(6, dim, 1, dtype=dtype),
         ],
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
 
     # compute 〈Ψ|O|Ψ〉= Σi〈Ψ|Oi|Ψ〉
@@ -162,17 +223,18 @@ def test_add_expectation_values():
     assert observable == pytest.approx(observable_expected, 1e-12)
 
 
-def test_matmul():
-    dtype = torch.complex128
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
+def test_matmul(basis):
+    dim = len(basis)
     # make random MPS
     mps = MPS(
         [
-            torch.rand(1, 2, 2, dtype=dtype),
-            torch.rand(2, 2, 6, dtype=dtype),
-            torch.rand(6, 2, 5, dtype=dtype),
-            torch.rand(5, 2, 1, dtype=dtype),
+            torch.rand(1, dim, 2, dtype=dtype),
+            torch.rand(2, dim, 6, dtype=dtype),
+            torch.rand(6, dim, 5, dtype=dtype),
+            torch.rand(5, dim, 1, dtype=dtype),
         ],
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
     # normalize
     mps = (1 / mps.norm()) * mps
@@ -180,19 +242,19 @@ def test_matmul():
     # make random MPO1
     mpo1 = MPO(
         [
-            torch.rand(1, 2, 2, 4, dtype=dtype),
-            torch.rand(4, 2, 2, 6, dtype=dtype),
-            torch.rand(6, 2, 2, 5, dtype=dtype),
-            torch.rand(5, 2, 2, 1, dtype=dtype),
+            torch.rand(1, dim, dim, 4, dtype=dtype),
+            torch.rand(4, dim, dim, 6, dtype=dtype),
+            torch.rand(6, dim, dim, 5, dtype=dtype),
+            torch.rand(5, dim, dim, 1, dtype=dtype),
         ]
     )
     # make random MPO2
     mpo2 = MPO(
         [
-            torch.rand(1, 2, 2, 7, dtype=dtype),
-            torch.rand(7, 2, 2, 6, dtype=dtype),
-            torch.rand(6, 2, 2, 8, dtype=dtype),
-            torch.rand(8, 2, 2, 1, dtype=dtype),
+            torch.rand(1, dim, dim, 7, dtype=dtype),
+            torch.rand(7, dim, dim, 6, dtype=dtype),
+            torch.rand(6, dim, dim, 8, dtype=dtype),
+            torch.rand(8, dim, dim, 1, dtype=dtype),
         ]
     )
 
@@ -211,23 +273,24 @@ def test_matmul():
     assert all(
         torch.allclose(
             torch.tensordot(f.conj(), f, dims=([1, 2], [1, 2])),
-            torch.eye(f.shape[0], dtype=torch.complex128, device=f.device),
+            torch.eye(f.shape[0], dtype=dtype, device=f.device),
         )
         for f in matmul_mps.factors[1:] + mul_mps.factors[1:]
     )
 
 
-def test_rmul():
-    dtype = torch.complex128
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
+def test_rmul(basis):
+    dim = len(basis)
     # make random MPS
     mps = MPS(
         [
-            torch.rand(1, 2, 2, dtype=dtype),
-            torch.rand(2, 2, 6, dtype=dtype),
-            torch.rand(6, 2, 5, dtype=dtype),
-            torch.rand(5, 2, 1, dtype=dtype),
+            torch.rand(1, dim, 2, dtype=dtype),
+            torch.rand(2, dim, 6, dtype=dtype),
+            torch.rand(6, dim, 5, dtype=dtype),
+            torch.rand(5, dim, 1, dtype=dtype),
         ],
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
     # normalize
     mps = (1 / mps.norm()) * mps
@@ -235,10 +298,10 @@ def test_rmul():
     # make random MPO
     mpo = MPO(
         [
-            torch.rand(1, 2, 2, 4, dtype=dtype),
-            torch.rand(4, 2, 2, 6, dtype=dtype),
-            torch.rand(6, 2, 2, 5, dtype=dtype),
-            torch.rand(5, 2, 2, 1, dtype=dtype),
+            torch.rand(1, dim, dim, 4, dtype=dtype),
+            torch.rand(4, dim, dim, 6, dtype=dtype),
+            torch.rand(6, dim, dim, 5, dtype=dtype),
+            torch.rand(5, dim, dim, 1, dtype=dtype),
         ]
     )
     # test 〈Ψ|a*O|Ψ〉== a〈Ψ|O|Ψ〉)

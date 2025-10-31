@@ -42,6 +42,8 @@ from emu_mps.utils import (
     new_left_bath,
 )
 
+dtype = torch.complex128
+
 
 class Statistics(Observable):
     def __init__(
@@ -117,7 +119,8 @@ class MPSBackendImpl:
         self.phi = pulser_data.phi
         self.timestep_count: int = self.omega.shape[0]
         self.has_lindblad_noise = pulser_data.has_lindblad_noise
-        self.lindblad_noise = torch.zeros(2, 2, dtype=torch.complex128)
+        self.dim = pulser_data.dim
+        self.lindblad_noise = torch.zeros(self.dim, self.dim, dtype=dtype)
         self.qubit_permutation = (
             optimat.minimize_bandwidth(pulser_data.full_interaction_matrix)
             if self.config.optimize_qubit_ordering
@@ -126,6 +129,7 @@ class MPSBackendImpl:
         self.full_interaction_matrix = optimat.permute_tensor(
             pulser_data.full_interaction_matrix, self.qubit_permutation
         )
+
         self.masked_interaction_matrix = optimat.permute_tensor(
             pulser_data.masked_interaction_matrix, self.qubit_permutation
         )
@@ -276,9 +280,7 @@ class MPSBackendImpl:
 
     def init_baths(self) -> None:
         self.left_baths = [
-            torch.ones(
-                1, 1, 1, dtype=torch.complex128, device=self.state.factors[0].device
-            )
+            torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
         ]
         self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
         assert len(self.right_baths) == self.qubit_count - 1
@@ -451,6 +453,7 @@ class MPSBackendImpl:
             self.hamiltonian = make_H(
                 interaction_matrix=self.full_interaction_matrix,
                 hamiltonian_type=self.hamiltonian_type,
+                dim=self.dim,
                 num_gpus_to_use=self.resolved_num_gpus,
             )
 
@@ -686,6 +689,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
             omega=self.omega[self.timestep_index - 1, :],  # Meh
             delta=self.delta[self.timestep_index - 1, :],
             phi=self.phi[self.timestep_index - 1, :],
+            noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
         )
 
         super().fill_results()

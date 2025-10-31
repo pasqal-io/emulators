@@ -12,11 +12,11 @@ from test.utils_testing import ghz_state_factors
 dtype = torch.complex128
 
 tol = 1e-12
-down_2level = torch.tensor([[[1], [0]]], dtype=dtype)
-up_2level = torch.tensor([[[0], [1]]], dtype=dtype)
+down_2level = torch.tensor([[[1.0], [0.0]]], dtype=dtype)
+up_2level = torch.tensor([[[0.0], [1.0]]], dtype=dtype)
 
-down_3level = torch.tensor([[[1], [0], [0]]], dtype=dtype)
-up_3level = torch.tensor([[[0], [1], [0]]], dtype=dtype)
+down_3level = torch.tensor([[[1.0], [0.0], [0.0]]], dtype=dtype)
+up_3level = torch.tensor([[[0.0], [1.0], [0.0]]], dtype=dtype)
 
 
 def check_orthogonality_center(state: MPS, expected_ortho_center: int):
@@ -119,13 +119,7 @@ def test_inner():
     assert abs(inner(bell, bell) - 2) < 1e-10
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("g", "r", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r", "x")))
 def test_maxbondim(basis):
     bell_state = MPS(
         ghz_state_factors(3, dim=len(basis)),
@@ -232,13 +226,7 @@ def test_add_to_make_ghz_state(basis):
     assert norm == pytest.approx(math.sqrt(2), tol)
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_add_to_make_w_state(basis):
     num_sites = 7
     states = []
@@ -269,13 +257,7 @@ def test_add_to_make_w_state(basis):
     assert norm == pytest.approx(math.sqrt(num_sites), tol)
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_rmul(basis):
     num_sites = 5
     # this test should work for all states
@@ -431,13 +413,7 @@ def test_wrong_basis_string_state():
     assert str(ve.value) == msg
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_orthogonalize(basis):
     dim = len(basis)
 
@@ -459,13 +435,7 @@ def test_orthogonalize(basis):
     check_orthogonality_center(state, 0)
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_norm(basis):
     dim = len(basis)
 
@@ -482,13 +452,7 @@ def test_norm(basis):
     check_orthogonality_center(state, 0)
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_expect_batch(basis):
     dim = len(basis)
     f1 = torch.rand(1, dim, 2, dtype=dtype)
@@ -530,13 +494,7 @@ def test_expect_batch(basis):
     assert expected_11.item() == pytest.approx(actual[1][1].item())
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_apply(basis):
 
     state = MPS.make(4, eigenstates=basis)
@@ -560,13 +518,7 @@ def test_apply(basis):
     check_orthogonality_center(state, 2)
 
 
-@pytest.mark.parametrize(
-    "basis",
-    (
-        ("0", "1"),
-        ("r", "g", "x"),
-    ),
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("r", "g", "x")))
 def test_apply_random_orthogonality_center(basis):
     dim = len(basis)
     state = MPS.make(4, eigenstates=basis)
@@ -578,37 +530,54 @@ def test_apply_random_orthogonality_center(basis):
     check_orthogonality_center(state, 2)
 
 
-def test_correlation_matrix_random():
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r"), ("g", "r", "x")))
+def test_correlation_matrix_random(basis):
     qubit_count = 5
+    dim = len(basis)
     state = MPS(
         [
-            torch.rand(1, 2, 3, dtype=dtype),
-            torch.rand(3, 2, 5, dtype=dtype),
-            torch.rand(5, 2, 12, dtype=dtype),
-            torch.rand(12, 2, 2, dtype=dtype),
-            torch.rand(2, 2, 1, dtype=dtype),
+            torch.rand(1, dim, 3, dtype=dtype),
+            torch.rand(3, dim, 5, dtype=dtype),
+            torch.rand(5, dim, 12, dtype=dtype),
+            torch.rand(12, dim, 2, dtype=dtype),
+            torch.rand(2, dim, 1, dtype=dtype),
         ],
-        eigenstates=("0", "1"),
+        eigenstates=basis,
     )
 
     correlation_matrix_nn = state.get_correlation_matrix()
 
-    correlation_matrix_zz = state.get_correlation_matrix(
-        operator=torch.tensor([[1, 0], [0, -1]], dtype=dtype)
-    )
+    z_op = torch.zeros(dim, dim, dtype=dtype)
+    z_op[0, 0] = 1.0
+    z_op[1, 1] = -1.0
+
+    correlation_matrix_zz = state.get_correlation_matrix(z_op)
+    excited_excited = basis[1] + basis[1]
 
     def nn(index1, index2):
         return MPO.from_operator_repr(
-            eigenstates=("r", "g"),
+            eigenstates=basis,
             n_qudits=qubit_count,
-            operations=[(1.0, [({"rr": 1.0}, list({index1, index2}))])],
+            operations=[(1.0, [({excited_excited: 1.0}, list({index1, index2}))])],
         )
+
+    ground_ground = basis[0] + basis[0]
 
     def zz(index1, index2):
         return MPO.from_operator_repr(
-            eigenstates=("r", "g"),
+            eigenstates=basis,
             n_qudits=qubit_count,
-            operations=[(1.0, [({"gg": 1.0, "rr": -1.0}, list({index1, index2}))])],
+            operations=[
+                (
+                    1.0,
+                    [
+                        (
+                            {ground_ground: 1.0, excited_excited: -1.0},
+                            list({index1, index2}),
+                        )
+                    ],
+                )
+            ],
         )
 
     assert len(correlation_matrix_nn) == len(correlation_matrix_zz) == qubit_count

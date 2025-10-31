@@ -25,6 +25,7 @@ from pulser.backend.default_observables import (
 )
 
 device = "cuda" if DEVICE_COUNT > 0 else "cpu"
+dtype = torch.complex128
 
 
 def test_custom_qubit_density() -> None:
@@ -98,8 +99,15 @@ def test_custom_energy_and_variance_and_second() -> None:
         interaction_matrix=interaction_matrix,
         num_gpus_to_use=DEVICE_COUNT,
         hamiltonian_type=HamiltonianType.Rydberg,
+        dim=len(basis),
     )
-    update_H(hamiltonian=h_rydberg, omega=omegas, delta=deltas, phi=phis)
+    update_H(
+        hamiltonian=h_rydberg,
+        omega=omegas,
+        delta=deltas,
+        phi=phis,
+        noise=torch.zeros(len(basis), len(basis), dtype=dtype),
+    )
 
     energy_obj = Energy()
     base_energy = energy_obj.apply(state=state, hamiltonian=h_rydberg).real.to("cpu")
