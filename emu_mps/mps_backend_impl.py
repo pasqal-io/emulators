@@ -27,7 +27,7 @@ from pulser.backend import EmulationConfig, Observable, Results, State
 
 from emu_base import DEVICE_COUNT, PulserData, get_max_rss
 from emu_base.math.brents_root_finding import BrentsRootFinder
-#from emu_base.utils import deallocate_tensor
+from emu_base.utils import deallocate_tensor
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 
 
@@ -57,6 +57,7 @@ from .permutators import (
     permute_occupations_and_correlations
 )
 
+#TODO add documentation where necessary
 
 class Statistics(Observable):
     """
@@ -549,7 +550,125 @@ class MPSBackendImpl:
         return results
 
 
-class NoisyMPSBackendImpl(MPSBackendImpl):
+class TDVPBackendImpl(MPSBackendImpl):
+    """
+    New implementation of an MPS using the TDVP method
+    """
+
+    def __init__(
+            self,
+            mps_config: MPSConfig,
+            pulser_data: PulserData,
+            energy_tolerance: float = 1e-5,
+            max_sweeps: int = 2000,
+    ):
+        super().__init__(mps_config, pulser_data)
+        self.energy_tolerance = energy_tolerance
+        self.max_sweeps = max_sweeps
+
+    def progress(self):
+        """
+        progress method for TDVP
+        """
+        if self.is_finished():
+            return
+
+        delta_time = self.target_time - self.current_time
+
+        assert self.qubit_count >= 1
+        if 1 <= self.qubit_count <= 2:
+            # Corner case: only 1 or 2 qubits
+            assert self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+            assert self.sweep_index == 0
+
+            if self.qubit_count == 1:
+                self._evolve(0, dt=delta_time)
+            else:
+                self._evolve(0, 1, dt=delta_time, orth_center_right=False)
+
+            self.sweep_complete()
+
+        elif (
+            self.sweep_index < self.qubit_count - 2
+            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+        ):
+            # Left-to-right swipe of TDVP
+            self._evolve(
+                self.sweep_index,
+                self.sweep_index + 1,
+                dt=delta_time / 2,
+                orth_center_right=True,
+            )
+            self.left_baths.append(
+                new_left_bath(
+                    self.get_current_left_bath(),
+                    self.state.factors[self.sweep_index],
+                    self.hamiltonian.factors[self.sweep_index],
+                ).to(self.state.factors[self.sweep_index + 1].device)
+            )
+            self._evolve(self.sweep_index + 1, dt=-delta_time / 2)
+            self.right_baths.pop()
+            self.sweep_index += 1
+
+        elif (
+            self.sweep_index == self.qubit_count - 2
+            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+        ):
+            # Time-evolution of the rightmost 2 tensors
+            self._evolve(
+                self.sweep_index,
+                self.sweep_index + 1,
+                dt=delta_time,
+                orth_center_right=False,
+            )
+            self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+
+        elif (
+            1 <= self.sweep_index and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
+        ):
+            # Right-to-left swipe of TDVP
+            assert self.sweep_index <= self.qubit_count - 2
+            self.right_baths.append(
+                new_right_bath(
+                    self.get_current_right_bath(),
+                    self.state.factors[self.sweep_index + 1],
+                    self.hamiltonian.factors[self.sweep_index + 1],
+                ).to(self.state.factors[self.sweep_index].device)
+            )
+            if not self.has_lindblad_noise:
+                # Free memory because it won't be used anymore
+                deallocate_tensor(self.right_baths[-2])
+
+            self._evolve(self.sweep_index, dt=-delta_time / 2)
+            self.left_baths.pop()
+
+            self._evolve(
+                self.sweep_index - 1,
+                self.sweep_index,
+                dt=delta_time / 2,
+                orth_center_right=False,
+            )
+            self.sweep_index -= 1
+
+            if self.sweep_index == 0:
+                self.sweep_complete()
+                self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+
+        else:
+            raise Exception("Didn't expect this")
+
+        self.save_simulation()
+
+
+    def sweep_complete(self):
+        """
+        Add docstring later
+        """
+        self.current_time = self.target_time
+        self.timestep_complete()
+
+
+class NoisyTDVPBackendImpl(TDVPBackendImpl):
     """
     Version of MPSBackendImpl with non-zero lindbladian noise.
     Implements the Monte-Carlo Wave Function jump method.
@@ -593,11 +712,10 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         self.set_jump_threshold(1.0)
 
 
-    def progress(self):
-        # needs to be filled later
-        pass
-
     def sweep_complete(self) -> None:
+        """
+        Add documentation
+        """
         previous_time = self.current_time
         self.current_time = self.target_time
         previous_norm_gap_before_jump = self.norm_gap_before_jump
@@ -665,29 +783,6 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         )
 
         super().fill_results()
-
-
-class TDVPBackendImpl(MPSBackendImpl):
-    """
-    New implementation of an MPS using the TDVP method
-    """
-
-    def __init__(
-            self,
-            mps_config: MPSConfig,
-            pulser_data: PulserData,
-            energy_tolerance: float = 1e-5,
-            max_sweeps: int = 2000,
-    ):
-        super().__init__(mps_config, pulser_data)
-        self.energy_tolerance = energy_tolerance
-        self.max_sweeps = max_sweeps
-
-    def progress(self):
-        pass
-
-    def sweep_complete(self):
-        pass
 
 
 class DMRGBackendImpl(MPSBackendImpl):
