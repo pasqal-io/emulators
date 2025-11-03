@@ -23,11 +23,12 @@ def _determine_cutoff_index(d: torch.Tensor, max_error: float) -> int:
     return 0  # type: ignore[no-any-return]
 
 
-def split_tensor(
+def split_matrix(
     m: torch.Tensor,
     max_error: float = 1e-5,
     max_rank: int = 1024,
     orth_center_right: bool = True,
+    preserve_norm: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Computes a low-rank approximation split of m using the Eckart-Young-Mirsky theorem.
@@ -41,8 +42,11 @@ def split_tensor(
             d.shape[0] - max_rank,
         )
         left = q[:, max_bond:]
-        right = q.T.conj() @ m
-        right = right[max_bond:, :]
+        right = left.T.conj() @ m
+        if preserve_norm:
+            old_norm2 = torch.sum(d)
+            new_norm2 = torch.sum(d[max_bond:])
+            right *= torch.sqrt(old_norm2 / new_norm2)
     else:
         d, q = torch.linalg.eigh(m.T.conj() @ m)
         max_bond = max(
@@ -50,8 +54,11 @@ def split_tensor(
             d.shape[0] - max_rank,
         )
         right = q[:, max_bond:].T.conj_physical()
-        left = m @ q
-        left = left[:, max_bond:]
+        left = m @ q[:, max_bond:]
+        if preserve_norm:
+            old_norm2 = torch.sum(d)
+            new_norm2 = torch.sum(d[max_bond:])
+            left *= torch.sqrt(old_norm2 / new_norm2)
 
     return left, right
 
@@ -71,7 +78,7 @@ def truncate_impl(
     for i in range(len(factors) - 1, 0, -1):
         factor_shape = factors[i].shape
 
-        l, r = split_tensor(
+        l, r = split_matrix(
             factors[i].view(factor_shape[0], -1),
             max_error=precision,
             max_rank=max_bond_dim,
