@@ -45,13 +45,16 @@ def get_lindblad_operators(
 
         return [depolarizing_x, depolarizing_y, depolarizing_z]
 
-    if noise_type == "eff_noise":
+    if noise_type == "eff_noise" or "leakeage":
         if not all(
             isinstance(op, torch.Tensor) and op.shape == (dim, dim)
             for op in noise_model.eff_noise_opers
         ):
+            for op in noise_model.eff_noise_opers:
+                print(op)
             raise ValueError(
-                "Only 2 by 2 or 3 by 3 effective noise operator matrices are supported"
+                "Only 2 by 2 or 3 by 3 effective noise operator matrices are "
+                "supported and torch tensors"
             )
 
         return [  # lindblad operators are coming from pulser
