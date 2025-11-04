@@ -44,7 +44,7 @@ def test_get_lindblad_op_with_rydberg_basis(interaction):
     )
 
     emu_mps_lindblad = get_lindblad_operators(
-        noise_type="eff_noise", noise_model=noise_model, interat_type=interaction
+        noise_type="eff_noise", noise_model=noise_model, interact_type=interaction
     )
 
     assert torch.allclose(emu_mps_lindblad[0], expected_emu_mps_operator)

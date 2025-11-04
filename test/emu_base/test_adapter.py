@@ -714,15 +714,13 @@ def test_parsed_sequence(mock_data):
     ]
     sequence._slm_mask_time = []
 
-    random_collapse = torch.rand(2, 2, dtype=dtype)
+    random_collapse = torch.rand(2, 2, dtype=dtype)  # coming from pulser
     noise_model = NoiseModel(
         depolarizing_rate=0.16,
         dephasing_rate=0.005,
         eff_noise_rates=(0.0036,),
         eff_noise_opers=(random_collapse,),
     )
-
-    ops = _get_all_lindblad_noise_operators(noise_model)
 
     config = EmulationConfig(
         observables=[mock_observable],
@@ -751,7 +749,12 @@ def test_parsed_sequence(mock_data):
         parsed_sequence.masked_interaction_matrix, cutoff_interaction_matrix
     )
     assert parsed_sequence.slm_end_time == 0.0
+
     assert parsed_sequence.hamiltonian_type == HamiltonianType.XY
+
+    ops = _get_all_lindblad_noise_operators(
+        noise_model, interact_type=parsed_sequence.hamiltonian.interaction_type
+    )
     assert len(parsed_sequence.lindblad_ops) == len(ops)
     for i in range(len(ops)):
         assert torch.allclose(ops[i], parsed_sequence.lindblad_ops[i])

@@ -20,7 +20,7 @@ _NON_LINDBLADIAN_NOISE = {"SPAM", "doppler", "amplitude", "detuning", "register"
 
 
 def _get_all_lindblad_noise_operators(
-    noise_model: NoiseModel | None, dim: int = 2
+    noise_model: NoiseModel | None, dim: int = 2, interact_type: str = "ising"
 ) -> list[torch.Tensor]:
     if noise_model is None:
         return []
@@ -30,7 +30,10 @@ def _get_all_lindblad_noise_operators(
         for noise_type in noise_model.noise_types
         if noise_type not in _NON_LINDBLADIAN_NOISE
         for op in get_lindblad_operators(
-            noise_type=noise_type, noise_model=noise_model, dim=dim
+            noise_type=noise_type,
+            noise_model=noise_model,
+            dim=dim,
+            interact_type=interact_type,
         )
     ]
 
@@ -161,7 +164,7 @@ class PulserData:
             raise ValueError(f"Unsupported basis: {int_type}")
 
         self.lindblad_ops = _get_all_lindblad_noise_operators(
-            config.noise_model, dim=self.dim
+            config.noise_model, dim=self.dim, interact_type=int_type
         )
         self.has_lindblad_noise: bool = self.lindblad_ops != []
 
