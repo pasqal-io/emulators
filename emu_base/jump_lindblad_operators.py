@@ -56,10 +56,7 @@ def get_lindblad_operators(
             )
         if interat_type == "ising":
             return [  # lindblad operators are coming from pulser
-                math.sqrt(rate)
-                * torch.flip(
-                    op if isinstance(op, torch.Tensor) else torch.tensor(op), (0, 1)
-                )
+                math.sqrt(rate) * torch.flip(torch.as_tensor(op), (0, 1))
                 for rate, op in zip(
                     noise_model.eff_noise_rates, noise_model.eff_noise_opers
                 )
