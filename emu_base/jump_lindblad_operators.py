@@ -59,14 +59,14 @@ def get_lindblad_operators(
                 "supported and it should be given as torch tensors "
             )
         if interact_type == "ising":
-            return [  # lindblad operators are coming from pulser
+            return [  # lindblad operators in pulser ising basis
                 math.sqrt(rate) * torch.flip(torch.as_tensor(op), (0, 1))
                 for rate, op in zip(
                     noise_model.eff_noise_rates, noise_model.eff_noise_opers
                 )
             ]
         elif interact_type == "XY":
-            return [  # lindblad operators are coming from pulser
+            return [  # lindblad operators in pulser XY basis
                 math.sqrt(rate) * torch.as_tensor(op)
                 for rate, op in zip(
                     noise_model.eff_noise_rates, noise_model.eff_noise_opers

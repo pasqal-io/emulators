@@ -714,12 +714,13 @@ def test_parsed_sequence(mock_data):
     ]
     sequence._slm_mask_time = []
 
-    random_collapse = torch.rand(2, 2, dtype=dtype)  # coming from pulser
+    random_collapse = torch.rand(2, 2, dtype=dtype)  # in pulser XY basis
+    effective_noise_rates = [0.0036]
     noise_model = NoiseModel(
         depolarizing_rate=0.16,
         dephasing_rate=0.005,
-        eff_noise_rates=(0.0036,),
-        eff_noise_opers=(random_collapse,),
+        eff_noise_rates=effective_noise_rates,
+        eff_noise_opers=[random_collapse],
     )
 
     config = EmulationConfig(
@@ -782,6 +783,8 @@ def test_parsed_sequence(mock_data):
     assert len(parsed_sequence.lindblad_ops) == len(ops)
     for i in range(len(ops)):
         assert torch.allclose(ops[i], parsed_sequence.lindblad_ops[i])
+
+    assert torch.allclose(ops[-1], math.sqrt(effective_noise_rates[0]) * random_collapse)
 
 
 @patch("emu_base.pulser_adapter.HamiltonianData")

@@ -56,7 +56,7 @@ def test_get_lindblad_op_with_invalid_eff_ops():
     basis1 = np.array([1.0, 0.0]).reshape(2, 1)
 
     eff_rate = [0.5]
-    eff_ops = [basis0 @ basis1.T]  # NumPy array, not a torch.Tensor |
+    eff_ops = [basis0 @ basis1.T]  # numpy array, not a torch.Tensor
 
     noise_model = NoiseModel(eff_noise_rates=eff_rate, eff_noise_opers=eff_ops)
 
