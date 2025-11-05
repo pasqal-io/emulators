@@ -24,7 +24,7 @@ def test_get_lindblad_operators_unknown_noise():
 @pytest.mark.parametrize("interaction", ("ising", "XY"))
 def test_get_lindblad_op_with_rydberg_basis(interaction):
     """This test solved a bug between XY and Rydberg bases when jump
-    operators are created"""
+    operators are created using pulser basis"""
 
     # pulser convention of basis
     if interaction == "ising":
@@ -56,7 +56,7 @@ def test_get_lindblad_op_with_invalid_eff_ops():
     basis1 = np.array([1.0, 0.0]).reshape(2, 1)
 
     eff_rate = [0.5]
-    eff_ops = [basis0 @ basis1.T]  # numpy array, not a torch.Tensor
+    eff_ops = [basis0 @ basis1.T]  # numpy array will raise an error
 
     noise_model = NoiseModel(eff_noise_rates=eff_rate, eff_noise_opers=eff_ops)
 

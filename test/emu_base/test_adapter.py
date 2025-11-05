@@ -736,7 +736,7 @@ def test_parsed_sequence(mock_data):
     )
 
     cutoff_interaction_matrix = torch.tensor(
-        [[0, 0, -0.4], [0, 0, 0], [-0.4, 0, 0]],
+        [[0.0, 0.0, -0.4], [0.0, 0.0, 0.0], [-0.4, 0.0, 0.0]],
         dtype=torch.float64,
     )
 
@@ -784,7 +784,9 @@ def test_parsed_sequence(mock_data):
     for i in range(len(ops)):
         assert torch.allclose(ops[i], parsed_sequence.lindblad_ops[i])
 
-    assert torch.allclose(ops[-1], math.sqrt(effective_noise_rates[0]) * random_collapse)
+    assert torch.allclose(  # the position of the elements are the same
+        ops[-1], math.sqrt(effective_noise_rates[0]) * random_collapse
+    )
 
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
