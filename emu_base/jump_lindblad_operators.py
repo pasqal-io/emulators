@@ -6,7 +6,11 @@ dtype = torch.complex128
 
 
 def get_lindblad_operators(
-    *, noise_type: str, noise_model: NoiseModel, dim: int = 2
+    *,
+    noise_type: str,
+    noise_model: NoiseModel,
+    interact_type: str = "ising",
+    dim: int = 2,
 ) -> list[torch.Tensor]:
 
     assert noise_type in noise_model.noise_types
@@ -51,14 +55,23 @@ def get_lindblad_operators(
             for op in noise_model.eff_noise_opers
         ):
             raise ValueError(
-                "Only 2 by 2 or 3 by 3 effective noise operator matrices are supported"
+                "Only 2 by 2 or 3 by 3 effective noise operator matrices are "
+                "supported and it should be given as torch tensors "
             )
-
-        return [  # lindblad operators are coming from pulser
-            math.sqrt(rate)
-            * torch.flip(op if isinstance(op, torch.Tensor) else torch.tensor(op), (0, 1))
-            for rate, op in zip(noise_model.eff_noise_rates, noise_model.eff_noise_opers)
-        ]
+        if interact_type == "ising":
+            return [  # lindblad operators in pulser ising basis
+                math.sqrt(rate) * torch.flip(torch.as_tensor(op), (0, 1))
+                for rate, op in zip(
+                    noise_model.eff_noise_rates, noise_model.eff_noise_opers
+                )
+            ]
+        elif interact_type == "XY":
+            return [  # lindblad operators in pulser XY basis
+                math.sqrt(rate) * torch.as_tensor(op)
+                for rate, op in zip(
+                    noise_model.eff_noise_rates, noise_model.eff_noise_opers
+                )
+            ]
 
     raise ValueError(f"Unknown noise type: {noise_type}")
 
