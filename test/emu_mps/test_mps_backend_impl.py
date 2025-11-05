@@ -304,7 +304,7 @@ def test_init_initial_state_default():
 
     assert len(victim.state.factors) == 3
     assert all(
-        torch.allclose(factor1, factor2)
+        torch.allclose(factor1, factor2.to("cpu"))
         for factor1, factor2 in zip(expected.factors, victim.state.factors)
     )
     assert victim.state.precision == 0.001
