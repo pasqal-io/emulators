@@ -19,7 +19,7 @@ from copy import deepcopy
 from enum import Enum, auto
 from types import MethodType
 from typing import Any, Optional
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 import torch
 from pulser import Sequence
@@ -118,7 +118,7 @@ class SwipeDirection(Enum):
 
 
 # pylint: disable=too-many-instance-attributes
-class MPSBackendImpl:
+class MPSBackendImpl(ABC):
     """
     MPS Backend implementation
     """
