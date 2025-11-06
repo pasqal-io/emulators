@@ -5,7 +5,7 @@ from emu_base import krylov_exp
 from emu_base.math.krylov_energy_min import krylov_energy_minimization
 from emu_base.utils import deallocate_tensor
 from emu_mps import MPS, MPO
-from emu_mps.utils import split_tensor
+from emu_mps.utils import split_matrix
 from emu_mps.mps_config import MPSConfig
 
 
@@ -181,11 +181,12 @@ def evolve_pair(
         is_hermitian=is_hermitian,
     ).view(left_bond_dim * dim, dim * right_bond_dim)
 
-    l, r = split_tensor(
+    l, r = split_matrix(
         evol,
         max_error=config.precision,
         max_rank=config.max_bond_dim,
         orth_center_right=orth_center_right,
+        preserve_norm=not is_hermitian,  # only relevant for computing jump times
     )
 
     return l.view(left_bond_dim, dim, -1), r.view(-1, dim, right_bond_dim).to(
@@ -267,7 +268,7 @@ def minimize_energy_pair(
     )
     updated_state = updated_state.view(left_bond_dim * 2, 2 * right_bond_dim)
 
-    l, r = split_tensor(
+    l, r = split_matrix(
         updated_state,
         max_error=config.precision,
         max_rank=config.max_bond_dim,
