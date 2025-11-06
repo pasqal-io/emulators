@@ -216,7 +216,6 @@ class MPSBackendImpl:
 
     def init_initial_state(self, initial_state: State | None = None) -> None:
         if initial_state is None:
-            # pass here the eigenstates with the leakage
             self.state = MPS.make(
                 self.qubit_count,
                 precision=self.config.precision,

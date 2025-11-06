@@ -968,3 +968,21 @@ def test_run_after_deserialize():
         torch.tensor(0.9728 + 0.0j, dtype=torch.torch.complex128),
         atol=1e-4,
     )
+
+
+def test_leakage():
+
+    from pulser import Register
+    from pulser.pulse import Pulse
+    from pulser.sequence import Sequence
+    from pulser.devices import MockDevice
+    from math import pi
+
+    natoms = 2
+    reg = Register.rectangle(1, natoms, spacing=8.0, prefix="q")
+
+    seq = Sequence(reg, MockDevice)
+    seq.declare_channel("ch0", "rydberg_global")
+    duration = 500
+    pulse = Pulse.ConstantPulse(duration, pi / 2, 0.0, 0.0)
+    seq.add(pulse, "ch0")

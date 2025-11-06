@@ -19,7 +19,9 @@ def get_lindblad_operators(
 
     if noise_type == "dephasing":
         if noise_model.hyperfine_dephasing_rate != 0.0:
-            raise NotImplementedError("hyperfine_dephasing_rate is unsupported")
+            raise NotImplementedError(  # this should be supported now
+                "hyperfine_dephasing_rate is unsupported"
+            )
 
         c = math.sqrt(noise_model.dephasing_rate / 2)
         dephasing = torch.zeros(dim, dim, dtype=dtype)
@@ -50,7 +52,7 @@ def get_lindblad_operators(
             isinstance(op, torch.Tensor) and op.shape == (dim, dim)
             for op in noise_model.eff_noise_opers
         ):
-            raise ValueError(
+            raise ValueError(  # use dim here to delete 2 by 2 or 3 by 3
                 "Only 2 by 2 or 3 by 3 effective noise operator matrices are "
                 "supported and it should be given as torch tensors or "
                 "numpy arrays "
