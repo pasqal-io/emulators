@@ -45,7 +45,7 @@ def test_flipping_right_elements():
     torch.manual_seed(42)
     n_atoms = 2
     dim = 3
-    # assume jumps given in pulser convention of basis
+    # assume jump operators given in pulser convention of basis
     eff_rate = [0.5] * n_atoms
     eff_ops0 = torch.rand(dim, dim, dtype=dtype, device=device)
     eff_ops1 = torch.rand(dim, dim, dtype=dtype, device=device)
@@ -63,8 +63,12 @@ def test_flipping_right_elements():
 
     expected0 = (eff_ops0.clone().detach()) * math.sqrt(eff_rate[0])
     expected1 = (eff_ops1.clone().detach()) * math.sqrt(eff_rate[1])
-    expected0[:2, :2] = torch.flip(expected0[:2, :2], (0, 1))
-    expected1[:2, :2] = torch.flip(expected1[:2, :2], (0, 1))
+    expected0[:2, :2] = torch.flip(  # flip for ising emu-mps basis
+        expected0[:2, :2], (0, 1)
+    )
+    expected1[:2, :2] = torch.flip(  # flip for ising emu-mps basis
+        expected1[:2, :2], (0, 1)
+    )
 
     assert len(emu_mps_lindblad) == len(eff_ops)
     assert torch.allclose(emu_mps_lindblad[0], expected0)
