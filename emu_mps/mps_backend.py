@@ -36,7 +36,7 @@ class MPSBackend(EmulatorBackend):
         impl.last_save_time = time.time()
         impl.config.init_logging()  # FIXME: might be best to take logger object out of config.
 
-        logging.getLogger("global_logger").warning(
+        logging.getLogger("emulators").warning(
             f"Resuming simulation from file {autosave_file}\n"
             f"Saving simulation state every {impl.config.autosave_dt} seconds"
         )

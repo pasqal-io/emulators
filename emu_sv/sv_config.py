@@ -92,20 +92,8 @@ class SVConfig(EmulationConfig):
         )
 
         self.monkeypatch_observables()
+        self.init_logging()
 
-        self.logger = logging.getLogger("global_logger")
-        if log_file is None:
-            logging.basicConfig(
-                level=log_level, format="%(message)s", stream=sys.stdout, force=True
-            )  # default to stream = sys.stderr
-        else:
-            logging.basicConfig(
-                level=log_level,
-                format="%(message)s",
-                filename=str(log_file),
-                filemode="w",
-                force=True,
-            )
         if (self.noise_model.runs != 1 and self.noise_model.runs is not None) or (
             self.noise_model.samples_per_run != 1
             and self.noise_model.samples_per_run is not None
@@ -160,15 +148,17 @@ class SVConfig(EmulationConfig):
         self.observables = tuple(obs_list)
 
     def init_logging(self) -> None:
+        self.logger = logging.getLogger("emulators")
+        self.logger.propagate = False
+
+        handler: logging.Handler
         if self.log_file is None:
-            logging.basicConfig(
-                level=self.log_level, format="%(message)s", stream=sys.stdout, force=True
-            )  # default to stream = sys.stderr
+            handler = logging.StreamHandler(sys.stdout)
         else:
-            logging.basicConfig(
-                level=self.log_level,
-                format="%(message)s",
-                filename=str(self.log_file),
-                filemode="w",
-                force=True,
-            )
+            handler = logging.FileHandler(self.log_file, mode="w")
+
+        handler.setLevel(self.log_level)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        for h in self.logger.handlers:
+            self.logger.removeHandler(h)
+        self.logger.addHandler(handler)
