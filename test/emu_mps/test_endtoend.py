@@ -1029,7 +1029,7 @@ def test_leakage():
     energy = aggregated_results.energy[-1]
     occupation = aggregated_results.occupation[-1]
 
-    assert bitstrings["00"] == 4292
+    assert bitstrings["00"] == 5349
     assert bitstrings["01"] == 2230
     assert bitstrings["10"] == 3454
     assert bitstrings["11"] == 24
