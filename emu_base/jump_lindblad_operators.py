@@ -51,29 +51,29 @@ def get_lindblad_operators(
 
         return [depolarizing_x, depolarizing_y, depolarizing_z]
 
-    if noise_type == "eff_noise" or "leakeage":
+    if noise_type == "eff_noise":
         if not all(
             isinstance(op, torch.Tensor) and op.shape == (dim, dim)
             for op in noise_model.eff_noise_opers
         ):
             raise ValueError(
-                "Only 2 by 2 or 3 by 3 effective noise operator matrices are "
+                f"Only {dim} by {dim} effective noise operator matrices are "
                 "supported and it should be given as torch tensors "
             )
+
+        lindblad_ops = [  # lindblad operators with XY pulser basis are fine
+            math.sqrt(rate) * torch.as_tensor(op)
+            for rate, op in zip(noise_model.eff_noise_rates, noise_model.eff_noise_opers)
+        ]
+
+        # pulser ising basis changing to emu-mps ising basis
         if interact_type == "ising":
-            return [  # lindblad operators in pulser ising basis
-                math.sqrt(rate) * torch.flip(torch.as_tensor(op), (0, 1))
-                for rate, op in zip(
-                    noise_model.eff_noise_rates, noise_model.eff_noise_opers
-                )
-            ]
-        elif interact_type == "XY":
-            return [  # lindblad operators in pulser XY basis
-                math.sqrt(rate) * torch.as_tensor(op)
-                for rate, op in zip(
-                    noise_model.eff_noise_rates, noise_model.eff_noise_opers
-                )
-            ]
+            for tensor in lindblad_ops:
+                tensor[:2, :2] = torch.flip(tensor[:2, :2], (0, 1))
+
+        return lindblad_ops
+    if noise_type == "leakage":  # leakage operators are eff_noise
+        return []
 
     raise ValueError(f"Unknown noise type: {noise_type}")
 

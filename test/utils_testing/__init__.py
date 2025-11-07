@@ -7,6 +7,7 @@ from .utils_testing import (
     pulser_XY_sequence_slm_mask,
     pulser_blackman,
     cpu_multinomial_wrapper,
+    pulser_contante_2pi_pulse_sequence,
 )
 from .utils_interaction_matrix import randn_interaction_matrix, nn_interaction_matrix
 from .utils_dense_hamiltonians import dense_rydberg_hamiltonian
@@ -25,4 +26,5 @@ __all__ = [
     "nn_interaction_matrix",
     "list_to_kron",
     "cpu_multinomial_wrapper",
+    "pulser_contante_2pi_pulse_sequence",
 ]

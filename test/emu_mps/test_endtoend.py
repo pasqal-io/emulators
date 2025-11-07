@@ -37,10 +37,12 @@ from test.utils_testing import (
     pulser_afm_sequence_ring,
     pulser_XY_sequence_slm_mask,
     cpu_multinomial_wrapper,
+    pulser_contante_2pi_pulse_sequence,
 )
 
 seed = 1337
 device = "cpu"  # "cuda"
+dtype = torch.complex128
 
 
 def create_antiferromagnetic_mps(num_qubits: int):
@@ -71,7 +73,7 @@ def simulate(
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
     else:
-        fidelity_state = MPS.make(len(seq.register.qubit_ids))
+        fidelity_state = MPS.make(len(seq.register.qubit_ids), eigenstates=("r", "g"))
 
     if state_prep_error > 0.0 or p_false_pos > 0.0 or p_false_neg > 0.0:
         assert noise_model is None, "Provide either noise_model or SPAM values"
@@ -108,6 +110,7 @@ def simulate(
         interaction_cutoff=interaction_cutoff,
         optimize_qubit_ordering=False,
         solver=solver,
+        num_gpus_to_use=0,
     )
 
     backend = MPSBackend(seq, config=mps_config)
@@ -133,8 +136,8 @@ def simulate_line(n, **kwargs):
 
 def get_proba(state: MPS, bitstring: str):
     # FIXME: use MPS factory method from bitstring
-    one = torch.tensor([[[0], [1]]], dtype=torch.complex128)
-    zero = torch.tensor([[[1], [0]]], dtype=torch.complex128)
+    one = torch.tensor([[[0], [1]]], dtype=dtype)
+    zero = torch.tensor([[[1], [0]]], dtype=dtype)
 
     factors = [one if bitstring[i] == "1" else zero for i in range(state.num_sites)]
 
@@ -179,7 +182,7 @@ def test_XY_3atoms() -> None:
             0.2344 - 0.0602j,
         ],
         device=final_state.factors[0].device,
-        dtype=torch.complex128,
+        dtype=dtype,
     )
 
     # pulser magnetization: [0.46024234949993825,0.4776498885102908,0.4602423494999386#
@@ -214,7 +217,7 @@ def test_XY_3atomswith_slm() -> None:
             2.6618e-15 + 5.4529e-16j,
         ],
         device=final_state.factors[0].device,
-        dtype=torch.complex128,
+        dtype=dtype,
     )
     # pulser magnetization: [0.22572457283642877,0.21208108307887844,0.06213666344288577
     q_density = result.occupation[-1]
@@ -290,7 +293,7 @@ def test_end_to_end_domain_wall_ring(
     energy_variance = result.energy_variance[ntime_step]
     expect_occup = torch.tensor([1, 1, 1, 0, 0, 0], dtype=torch.float64)
     correlation_matrix = result.correlation_matrix[ntime_step]
-    expect_corr = torch.outer(expect_occup, expect_occup).to(torch.complex128)
+    expect_corr = torch.outer(expect_occup, expect_occup).to(dtype)
 
     assert result.atom_order == seq.register.qubit_ids
     assert bitstrings["111000"] == 100
@@ -748,12 +751,10 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
         "ising_global",
     )
 
-    noise_model = pulser.noise_model.NoiseModel(
-        relaxation_rate=0.1,
-    )
+    noise_model = pulser.noise_model.NoiseModel(relaxation_rate=0.1)
 
     initial_state = emu_mps.MPS.from_state_amplitudes(
-        eigenstates=["r", "g"], amplitudes={"rr": 1.0}
+        eigenstates=["g", "r"], amplitudes={"rr": 1.0}
     )
     results = []
     for _ in range(100):
@@ -965,24 +966,73 @@ def test_run_after_deserialize():
     )
     assert torch.allclose(
         mps_results.expectation[-1],
-        torch.tensor(0.9728 + 0.0j, dtype=torch.torch.complex128),
+        torch.tensor(0.9728 + 0.0j, dtype=dtype),
         atol=1e-4,
     )
 
 
 def test_leakage():
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
 
-    from pulser import Register
-    from pulser.pulse import Pulse
-    from pulser.sequence import Sequence
-    from pulser.devices import MockDevice
-    from math import pi
-
-    natoms = 2
-    reg = Register.rectangle(1, natoms, spacing=8.0, prefix="q")
-
-    seq = Sequence(reg, MockDevice)
-    seq.declare_channel("ch0", "rydberg_global")
     duration = 500
-    pulse = Pulse.ConstantPulse(duration, pi / 2, 0.0, 0.0)
-    seq.add(pulse, "ch0")
+    natoms = 2
+    seq = pulser_contante_2pi_pulse_sequence(natoms, duration=duration)
+
+    # pulser convention of basis
+    basisx = torch.tensor([0.0, 0.0, 1.0], dtype=dtype).reshape(3, 1)
+    basisg = torch.tensor([0.0, 1.0, 0.0], dtype=dtype).reshape(3, 1)
+    basisr = torch.tensor([1.0, 0.0, 0.0], dtype=dtype).reshape(3, 1)
+
+    eff_rate = [1.0] * natoms
+    eff_ops1 = basisx @ basisg.T  # |x><g| operator
+    eff_ops2 = basisx @ basisr.T  # |x><r| operator
+    eff_ops = [eff_ops1, eff_ops2]
+
+    # eff_ops must be a torch.tensor if you want to work with emu_mps
+    noise_model = pulser.NoiseModel(
+        eff_noise_rates=eff_rate,
+        eff_noise_opers=eff_ops,
+        with_leakage=True,
+    )
+    dt = 10
+    eval_times = [1.0]
+
+    fidelity_state = MPS.from_state_amplitudes(
+        eigenstates=("r", "g", "x"), amplitudes={"xx": 1.0}
+    )
+
+    # hyperfine_defphasing_rate is not support, it should be now
+    config = MPSConfig(
+        num_gpus_to_use=0,
+        dt=dt,
+        observables=[
+            BitStrings(evaluation_times=eval_times, num_shots=1000),
+            Occupation(evaluation_times=eval_times),
+            Energy(evaluation_times=eval_times),
+            EnergySecondMoment(evaluation_times=eval_times),
+            Fidelity(evaluation_times=eval_times, state=fidelity_state),
+        ],
+        noise_model=noise_model,
+        optimize_qubit_ordering=False,
+    )
+    simul = MPSBackend(seq, config=config)
+
+    results = []
+    nruns = 10  # 10000 shots total
+    for _ in range(nruns):
+        with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
+            results.append(simul.run())
+
+    aggregated_results = pulser.backend.Results.aggregate(results)
+    bitstrings = aggregated_results.bitstrings[-1]
+    energy = aggregated_results.energy[-1]
+    occupation = aggregated_results.occupation[-1]
+
+    assert bitstrings["00"] == 4292
+    assert bitstrings["01"] == 2230
+    assert bitstrings["10"] == 3454
+    assert bitstrings["11"] == 24
+    assert energy == approx(-0.1409, abs=1e-2)
+    assert occupation == approx([0.3463, 0.2293], abs=1e-2)
+    assert aggregated_results.fidelity[-1] == approx(0.1, abs=1e-2)
