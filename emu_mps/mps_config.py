@@ -132,7 +132,9 @@ class MPSConfig(EmulationConfig):
             self.logger.warning(
                 "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
             )
-        self.optimize_qubit_ordering = self.check_permutable_observables()
+        self._backend_options[
+            "optimize_qubit_ordering"
+        ] &= self.check_permutable_observables()
 
     def _expected_kwargs(self) -> set[str]:
         return super()._expected_kwargs() | {
@@ -210,7 +212,7 @@ class MPSConfig(EmulationConfig):
         actual_obs = set([obs._base_tag for obs in self.observables])
         not_allowed = actual_obs.difference(allowed_permutable_obs)
         if not_allowed:
-            logging.getLogger("emulators").warning(
+            self.logger.warning(
                 f"emu-mps allows only {allowed_permutable_obs} observables with"
                 " `optimize_qubit_ordering = True`."
                 f" you provided unsupported {not_allowed}"
