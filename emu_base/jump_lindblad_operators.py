@@ -23,8 +23,8 @@ def get_lindblad_operators(
 
     if noise_type == "dephasing":
         if noise_model.hyperfine_dephasing_rate != 0.0:
-            raise NotImplementedError(  # this should be supported now
-                "hyperfine_dephasing_rate is unsupported"
+            raise NotImplementedError(
+                "hyperfine_dephasing_rate is supported only in the digital basis"
             )
 
         c = math.sqrt(noise_model.dephasing_rate / 2)
