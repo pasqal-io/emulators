@@ -733,7 +733,6 @@ def test_end_to_end_1D_dense_mat_measure_errors() -> None:
 
     final_time = -1
     bitstrings = result.bitstrings[final_time]
-    print(bitstrings)
     assert bitstrings["1" * int(num_qubits)] == 6589
     assert bitstrings["0" * int(num_qubits)] == 1
     assert bitstrings["1110"] == 724

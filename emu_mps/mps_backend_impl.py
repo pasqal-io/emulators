@@ -119,6 +119,7 @@ class MPSBackendImpl:
         self.phi = pulser_data.phi
         self.timestep_count: int = self.omega.shape[0]
         self.has_lindblad_noise = pulser_data.has_lindblad_noise
+        self.eigenstates = pulser_data.eigenstates
         self.dim = pulser_data.dim
         self.lindblad_noise = torch.zeros(self.dim, self.dim, dtype=dtype)
         self.qubit_permutation = (
@@ -220,6 +221,7 @@ class MPSBackendImpl:
                 precision=self.config.precision,
                 max_bond_dim=self.config.max_bond_dim,
                 num_gpus_to_use=self.resolved_num_gpus,
+                eigenstates=self.eigenstates,
             )
             return
 
@@ -268,6 +270,7 @@ class MPSBackendImpl:
             ),
             hamiltonian_type=self.hamiltonian_type,
             num_gpus_to_use=self.resolved_num_gpus,
+            dim=self.dim,
         )
 
         update_H(
@@ -342,6 +345,7 @@ class MPSBackendImpl:
                 config=self.config,
                 orth_center_right=orth_center_right,
                 is_hermitian=not self.has_lindblad_noise,
+                dim=self.dim,
             )
 
             self.state.orthogonality_center = r if orth_center_right else l
@@ -616,7 +620,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         # The below is used for batch computation of noise collapse weights.
         self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
 
-        self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
+        self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops, self.dim)
 
     def set_jump_threshold(self, bound: float) -> None:
         self.jump_threshold = random.uniform(0.0, bound)

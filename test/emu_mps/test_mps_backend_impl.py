@@ -25,6 +25,8 @@ _ATOL = 1e-10
 
 QUBIT_COUNT = 5
 
+dtype = torch.complex128
+
 
 def _create_victim(constructor, dt, noise_model):
     config = MPSConfig(
@@ -40,6 +42,7 @@ def _create_victim(constructor, dt, noise_model):
     mock_pulser_data.masked_interaction_matrix = torch.eye(QUBIT_COUNT)
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.hamiltonian = MagicMock()
+    mock_pulser_data.dim = 2
     victim = constructor(config, mock_pulser_data)
 
     assert victim.qubit_count == QUBIT_COUNT
@@ -75,6 +78,7 @@ def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
     mock_pulser_data.masked_interaction_matrix = torch.eye(QUBIT_COUNT)
     mock_pulser_data.has_lindblad_noise = False
     mock_pulser_data.slm_end_time = 10.0
+    mock_pulser_data.eigenstates = ("g", "r")
 
     dmrg_obj = constructor(config, mock_pulser_data)
 
@@ -237,8 +241,8 @@ def test_init_dark_qubits_with_state_prep_error():
 @patch("emu_mps.mps_backend_impl.compute_noise_from_lindbladians")
 def test_init_lindblad_noise_with_lindbladians(compute_noise_from_lindbladians_mock):
     victim = create_noisy_victim()
-    lindbladian1 = torch.tensor([[0, 1], [2, 3j]], dtype=torch.complex128)
-    lindbladian2 = torch.tensor([[4j, 5j], [6, 7]], dtype=torch.complex128)
+    lindbladian1 = torch.tensor([[0, 1], [2, 3j]], dtype=dtype)
+    lindbladian2 = torch.tensor([[4j, 5j], [6, 7]], dtype=dtype)
     victim.lindblad_ops = [lindbladian1, lindbladian2]
     victim.has_lindblad_noise = True
 
@@ -248,21 +252,24 @@ def test_init_lindblad_noise_with_lindbladians(compute_noise_from_lindbladians_m
     noise_mock.samples_per_run = 1
     compute_noise_from_lindbladians_mock.return_value = noise_mock
     victim.init_lindblad_noise()
+
     assert torch.allclose(
         victim.aggregated_lindblad_ops,
         torch.tensor(
             [
                 [
-                    [4, 6j],
-                    [-6j, 10],
+                    [4.0, 6.0j],
+                    [-6.0j, 10.0],
                 ],
-                [[52, 62], [62, 74]],
+                [[52.0, 62.0], [62.0, 74.0]],
             ],
-            dtype=torch.complex128,
+            dtype=dtype,
         ),
     )
 
-    compute_noise_from_lindbladians_mock.assert_called_with([lindbladian1, lindbladian2])
+    compute_noise_from_lindbladians_mock.assert_called_with(
+        [lindbladian1, lindbladian2], 2
+    )
     assert victim.lindblad_noise is noise_mock
 
 
@@ -293,6 +300,7 @@ def test_init_initial_state_default():
         "q3": False,
         "q4": False,
     }
+    victim.eigenstates = ("g", "r")
 
     victim.config.precision = 0.001
     victim.config.max_bond_dim = 100
@@ -330,8 +338,8 @@ def test_init_initial_state_provided_normalized():
 
     victim.well_prepared_qubits_filter = None
 
-    up = torch.tensor([[[0], [1]]], dtype=torch.complex128)
-    down = torch.tensor([[[1], [0]]], dtype=torch.complex128)
+    up = torch.tensor([[[0], [1]]], dtype=dtype)
+    down = torch.tensor([[[1], [0]]], dtype=dtype)
     victim.init_initial_state(
         0.123
         * MPS(
@@ -542,20 +550,16 @@ def test_right_to_left_update(
     mock_right_baths, mock_make_H, mock_update_H, mock_minimize, mock_new_left
 ):
     mock_make_H.return_value = MagicMock(
-        factors=[
-            torch.ones(1, 1, 1, 1, dtype=torch.complex128) for i in range(QUBIT_COUNT)
-        ]
+        factors=[torch.ones(1, 1, 1, 1, dtype=dtype) for i in range(QUBIT_COUNT)]
     )
 
     mock_update_H.return_value = None
-    mock_right_baths.return_value = [torch.zeros(1, dtype=torch.complex128)] * (
-        QUBIT_COUNT - 1
-    )
-    mock_new_left.return_value = torch.zeros(1, 1, 1, dtype=torch.complex128)
+    mock_right_baths.return_value = [torch.zeros(1, dtype=dtype)] * (QUBIT_COUNT - 1)
+    mock_new_left.return_value = torch.zeros(1, 1, 1, dtype=dtype)
 
     mock_minimize.return_value = (
-        torch.zeros(1, 1, dtype=torch.complex128),
-        torch.zeros(1, 1, dtype=torch.complex128),
+        torch.zeros(1, 1, dtype=dtype),
+        torch.zeros(1, 1, dtype=dtype),
         0.5,
     )
 
@@ -564,10 +568,10 @@ def test_right_to_left_update(
     dmrg.sweep_index = 2
     dmrg.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
     dmrg.left_baths = [
-        torch.zeros(1, 1, 1, dtype=torch.complex128, device=dmrg.state.factors[0].device)
+        torch.zeros(1, 1, 1, dtype=dtype, device=dmrg.state.factors[0].device)
     ] * 2
     dmrg.right_baths = [
-        torch.zeros(1, 1, 1, dtype=torch.complex128, device=dmrg.state.factors[0].device)
+        torch.zeros(1, 1, 1, dtype=dtype, device=dmrg.state.factors[0].device)
     ]
 
     dmrg._right_to_left_update(idx=1)

@@ -153,6 +153,7 @@ class PulserData:
         self.omega, self.delta, self.phi = _extract_omega_delta_phi(
             self.hamiltonian.noisy_samples, self.qubit_ids, self.target_times
         )
+        self.eigenstates = self.hamiltonian.eigenbasis
 
         int_type = self.hamiltonian.interaction_type
         self.dim = self.hamiltonian.dim
