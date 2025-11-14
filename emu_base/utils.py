@@ -2,10 +2,31 @@ from collections import Counter
 import random
 import torch
 import os
+import logging
+import sys
+from pathlib import Path
 
 unix_like = os.name != "nt"
 if unix_like:
     from resource import RUSAGE_SELF, getrusage
+
+
+def init_logging(log_level: int, log_file: Path | None) -> logging.Logger:
+    logger = logging.getLogger("emulators")
+    logger.propagate = False
+
+    handler: logging.Handler
+    if log_file is None:
+        handler = logging.StreamHandler(sys.stdout)
+    else:
+        handler = logging.FileHandler(log_file, mode="w")
+
+    handler.setLevel(log_level)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    for h in logger.handlers:
+        logger.removeHandler(h)
+    logger.addHandler(handler)
+    return logger
 
 
 def deallocate_tensor(t: torch.Tensor) -> None:

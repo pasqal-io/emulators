@@ -1,10 +1,10 @@
 import copy
 import logging
 import pathlib
-import sys
 from types import MethodType
 from typing import Any, ClassVar
 
+from emu_base import init_logging
 from emu_sv.utils import choose
 from emu_sv.state_vector import StateVector
 from emu_sv.dense_operator import DenseOperator
@@ -92,7 +92,7 @@ class SVConfig(EmulationConfig):
         )
 
         self.monkeypatch_observables()
-        self.init_logging()
+        self.logger = init_logging(log_level, log_file)
 
         if (self.noise_model.runs != 1 and self.noise_model.runs is not None) or (
             self.noise_model.samples_per_run != 1
@@ -146,19 +146,3 @@ class SVConfig(EmulationConfig):
                 )
             obs_list.append(obs_copy)
         self.observables = tuple(obs_list)
-
-    def init_logging(self) -> None:
-        self.logger = logging.getLogger("emulators")
-        self.logger.propagate = False
-
-        handler: logging.Handler
-        if self.log_file is None:
-            handler = logging.StreamHandler(sys.stdout)
-        else:
-            handler = logging.FileHandler(self.log_file, mode="w")
-
-        handler.setLevel(self.log_level)
-        handler.setFormatter(logging.Formatter("%(message)s"))
-        for h in self.logger.handlers:
-            self.logger.removeHandler(h)
-        self.logger.addHandler(handler)

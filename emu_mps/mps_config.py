@@ -3,6 +3,7 @@ from types import MethodType
 
 import copy
 
+from emu_base import init_logging
 from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
 from emu_mps.mpo import MPO
 from emu_mps.solver import Solver
@@ -24,7 +25,6 @@ from pulser.backend import (
 )
 import logging
 import pathlib
-import sys
 
 
 class MPSConfig(EmulationConfig):
@@ -123,7 +123,7 @@ class MPSConfig(EmulationConfig):
         ), f"autosave_dt must be larger than {MIN_AUTOSAVE_DT} seconds"
 
         self.monkeypatch_observables()
-        self.init_logging()
+        self.logger = init_logging(log_level, log_file)
 
         if (self.noise_model.runs != 1 and self.noise_model.runs is not None) or (
             self.noise_model.samples_per_run != 1
@@ -179,22 +179,6 @@ class MPSConfig(EmulationConfig):
                 )
             obs_list.append(obs_copy)
         self.observables = tuple(obs_list)
-
-    def init_logging(self) -> None:
-        self.logger = logging.getLogger("emulators")
-        self.logger.propagate = False
-
-        handler: logging.Handler
-        if self.log_file is None:
-            handler = logging.StreamHandler(sys.stdout)
-        else:
-            handler = logging.FileHandler(self.log_file, mode="w")
-
-        handler.setLevel(self.log_level)
-        handler.setFormatter(logging.Formatter("%(message)s"))
-        for h in self.logger.handlers:
-            self.logger.removeHandler(h)
-        self.logger.addHandler(handler)
 
     def check_permutable_observables(self) -> bool:
         allowed_permutable_obs = set(
