@@ -2,7 +2,7 @@ from __future__ import annotations
 import math
 from collections import Counter
 from typing import List, Optional, Sequence, TypeVar, Mapping
-
+import logging
 import torch
 
 from pulser.backend.state import State, Eigenstate
@@ -481,7 +481,9 @@ class MPS(State[complex, torch.Tensor]):
             accum_mps += amplitude * MPS(factors, eigenstates=eigenstates)
         norm = accum_mps.norm()
         if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
-            print("\nThe state is not normalized, normalizing it for you.")
+            logging.getLogger("emulators").warning(
+                "\nThe state is not normalized, normalizing it for you."
+            )
             accum_mps *= 1 / norm
 
         return accum_mps, amplitudes

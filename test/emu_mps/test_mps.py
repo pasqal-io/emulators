@@ -1,11 +1,9 @@
-import io
 import math
-from unittest.mock import patch
 
 import pytest
 import torch
 
-from emu_mps import MPS, inner, MPO
+from emu_mps import MPS, inner, MPO, MPSConfig
 
 from test.utils_testing import ghz_state_factors
 
@@ -362,15 +360,16 @@ def test_from_string_afm_state_3level_system_leak():
     ("zero", "one"),
     (("g", "r"), ("0", "1")),
 )
-@patch("sys.stdout", new_callable=io.StringIO)
-def test_from_string_not_normalized_state(mock_print, zero, one):
+def test_from_string_not_normalized_state(capfd, zero, one):
+    MPSConfig()
     afm_not_normalized = {one * 3: 1 / math.sqrt(2), zero * 3: 0.1 / math.sqrt(2)}
 
     afm_mps_state_normalized = MPS.from_state_amplitudes(
         eigenstates=(one, zero), amplitudes=afm_not_normalized
     )
 
-    assert "The state is not normalized, normalizing it for you" in mock_print.getvalue()
+    out, _ = capfd.readouterr()
+    assert "The state is not normalized, normalizing it for you" in out
 
     assert torch.allclose(
         afm_mps_state_normalized.factors[0],

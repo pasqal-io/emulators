@@ -3,6 +3,7 @@ from types import MethodType
 
 import copy
 
+from emu_base import init_logging
 from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
 from emu_mps.mpo import MPO
 from emu_mps.solver import Solver
@@ -24,7 +25,6 @@ from pulser.backend import (
 )
 import logging
 import pathlib
-import sys
 
 
 class MPSConfig(EmulationConfig):
@@ -90,7 +90,7 @@ class MPSConfig(EmulationConfig):
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
         num_gpus_to_use: int | None = None,
-        optimize_qubit_ordering: bool = False,
+        optimize_qubit_ordering: bool = True,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
@@ -116,8 +116,6 @@ class MPSConfig(EmulationConfig):
             solver=solver,
             **kwargs,
         )
-        if self.optimize_qubit_ordering:
-            self.check_permutable_observables()
 
         MIN_AUTOSAVE_DT = 10
         assert (
@@ -125,20 +123,8 @@ class MPSConfig(EmulationConfig):
         ), f"autosave_dt must be larger than {MIN_AUTOSAVE_DT} seconds"
 
         self.monkeypatch_observables()
+        self.logger = init_logging(log_level, log_file)
 
-        self.logger = logging.getLogger("global_logger")
-        if log_file is None:
-            logging.basicConfig(
-                level=log_level, format="%(message)s", stream=sys.stdout, force=True
-            )  # default to stream = sys.stderr
-        else:
-            logging.basicConfig(
-                level=log_level,
-                format="%(message)s",
-                filename=str(log_file),
-                filemode="w",
-                force=True,
-            )
         if (self.noise_model.runs != 1 and self.noise_model.runs is not None) or (
             self.noise_model.samples_per_run != 1
             and self.noise_model.samples_per_run is not None
@@ -146,6 +132,9 @@ class MPSConfig(EmulationConfig):
             self.logger.warning(
                 "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
             )
+        self._backend_options[
+            "optimize_qubit_ordering"
+        ] &= self.check_permutable_observables()
 
     def _expected_kwargs(self) -> set[str]:
         return super()._expected_kwargs() | {
@@ -191,21 +180,7 @@ class MPSConfig(EmulationConfig):
             obs_list.append(obs_copy)
         self.observables = tuple(obs_list)
 
-    def init_logging(self) -> None:
-        if self.log_file is None:
-            logging.basicConfig(
-                level=self.log_level, format="%(message)s", stream=sys.stdout, force=True
-            )  # default to stream = sys.stderr
-        else:
-            logging.basicConfig(
-                level=self.log_level,
-                format="%(message)s",
-                filename=str(self.log_file),
-                filemode="w",
-                force=True,
-            )
-
-    def check_permutable_observables(self) -> None:
+    def check_permutable_observables(self) -> bool:
         allowed_permutable_obs = set(
             [
                 "bitstrings",
@@ -221,10 +196,10 @@ class MPSConfig(EmulationConfig):
         actual_obs = set([obs._base_tag for obs in self.observables])
         not_allowed = actual_obs.difference(allowed_permutable_obs)
         if not_allowed:
-            raise ValueError(
+            self.logger.warning(
                 f"emu-mps allows only {allowed_permutable_obs} observables with"
                 " `optimize_qubit_ordering = True`."
                 f" you provided unsupported {not_allowed}"
-                " To use other observables, please set"
-                " `optimize_qubit_ordering = False` in `MPSConfig()`."
+                " using `optimize_qubit_ordering = False` instead."
             )
+        return not_allowed == set()
