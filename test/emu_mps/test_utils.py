@@ -8,7 +8,7 @@ from emu_mps.utils import (
     assign_devices,
     extended_mpo_factors,
     extended_mps_factors,
-    split_tensor,
+    split_matrix,
     get_extended_site_index,
     tensor_trace,
 )
@@ -21,10 +21,10 @@ from emu_mps.utils import (
         (False),
     ],
 )
-def test_split_tensor(orth_center_right):
+def test_split_matrix(orth_center_right):
     a = torch.diag(torch.tensor([1.0, 5.0, 3.0, 6.0, -2.0]))
 
-    l, r = split_tensor(
+    l, r = split_matrix(
         a, max_rank=3, max_error=9999, orth_center_right=orth_center_right
     )
 
@@ -32,7 +32,7 @@ def test_split_tensor(orth_center_right):
     assert torch.allclose(m, torch.eye(3, 3))
     assert torch.allclose(l @ r, torch.diag(torch.tensor([0.0, 5.0, 3.0, 6.0, 0.0])))
 
-    l, r = split_tensor(
+    l, r = split_matrix(
         a, max_rank=4, max_error=9999, orth_center_right=orth_center_right
     )
 
@@ -40,7 +40,7 @@ def test_split_tensor(orth_center_right):
     assert torch.allclose(m, torch.eye(4, 4))
     assert torch.allclose(l @ r, torch.diag(torch.tensor([0.0, 5.0, 3.0, 6.0, -2.0])))
 
-    l, r = split_tensor(
+    l, r = split_matrix(
         a, max_rank=20, max_error=1.5, orth_center_right=orth_center_right
     )
 
@@ -48,13 +48,35 @@ def test_split_tensor(orth_center_right):
     assert torch.allclose(m, torch.eye(4, 4))
     assert torch.allclose(l @ r, torch.diag(torch.tensor([0.0, 5.0, 3.0, 6.0, -2.0])))
 
-    l, r = split_tensor(
+    l, r = split_matrix(
         a, max_rank=20, max_error=math.sqrt(5) + 0.1, orth_center_right=orth_center_right
     )
 
     m = l.T.conj() @ l if orth_center_right else r @ r.T.conj()
     assert torch.allclose(m, torch.eye(3, 3))
     assert torch.allclose(l @ r, torch.diag(torch.tensor([0.0, 5.0, 3.0, 6.0, 0.0])))
+
+
+def test_split_matrix_norm():
+    a = torch.randn(5, 5)
+    n = torch.linalg.norm(a)
+    q1, r1 = split_matrix(a, max_rank=2)
+    n1 = torch.linalg.norm(r1)
+    q2, r2 = split_matrix(a, max_rank=2, preserve_norm=True)
+    n2 = torch.linalg.norm(r2)
+    assert torch.allclose(q1, q2)
+    assert torch.allclose(n2, n)
+    assert torch.allclose(r2, (n2 / n1) * r1)
+    assert torch.allclose(q2 @ r2, (n2 / n1) * q1 @ r1)
+
+    l1, q1 = split_matrix(a, max_rank=2, orth_center_right=False)
+    n1 = torch.linalg.norm(l1)
+    l2, q2 = split_matrix(a, max_rank=2, orth_center_right=False, preserve_norm=True)
+    n2 = torch.linalg.norm(l2)
+    assert torch.allclose(q1, q2)
+    assert torch.allclose(n2, n)
+    assert torch.allclose(l2, (n2 / n1) * l1)
+    assert torch.allclose(l2 @ q2, (n2 / n1) * l1 @ q1)
 
 
 def test_assign_devices():

@@ -5,7 +5,7 @@ from emu_base import krylov_exp
 from emu_base.math.krylov_energy_min import krylov_energy_minimization
 from emu_base.utils import deallocate_tensor
 from emu_mps import MPS, MPO
-from emu_mps.utils import split_tensor
+from emu_mps.utils import split_matrix
 from emu_mps.mps_config import MPSConfig
 
 
@@ -14,6 +14,7 @@ def make_op(
     state_factors: Sequence[torch.Tensor],
     baths: tuple[torch.Tensor, torch.Tensor],
     ham_factors: Sequence[torch.Tensor],
+    dim: int = 2,
 ) -> tuple[torch.Tensor, torch.device, Callable[[torch.Tensor], torch.Tensor]]:
     assert len(state_factors) == 2
     assert len(baths) == 2
@@ -35,7 +36,7 @@ def make_op(
 
     combined_state_factors = torch.tensordot(
         left_state_factor, right_state_factor, dims=1
-    ).reshape(left_bond_dim, 4, right_bond_dim)
+    ).reshape(left_bond_dim, dim**2, right_bond_dim)
 
     deallocate_tensor(left_state_factor)
     deallocate_tensor(right_state_factor)
@@ -48,7 +49,7 @@ def make_op(
         torch.tensordot(left_ham_factor, right_ham_factor, dims=1)
         .transpose(2, 3)
         .contiguous()
-        .view(left_ham_factor.shape[0], 4, 4, -1)
+        .view(left_ham_factor.shape[0], dim**2, dim**2, -1)
     )
 
     def op(x: torch.Tensor) -> torch.Tensor:
@@ -151,6 +152,7 @@ def evolve_pair(
     orth_center_right: bool,
     is_hermitian: bool,
     config: MPSConfig,
+    dim: int = 2,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Time evolution of a pair of tensors of a tensor train using baths and truncated SVD.
@@ -165,6 +167,7 @@ def evolve_pair(
         state_factors=state_factors,
         baths=baths,
         ham_factors=ham_factors,
+        dim=dim,
     )
     left_bond_dim = combined_state_factors.shape[0]
     right_bond_dim = combined_state_factors.shape[-1]
@@ -176,16 +179,19 @@ def evolve_pair(
         norm_tolerance=config.precision * config.extra_krylov_tolerance,
         max_krylov_dim=config.max_krylov_dim,
         is_hermitian=is_hermitian,
-    ).view(left_bond_dim * 2, 2 * right_bond_dim)
+    ).view(left_bond_dim * dim, dim * right_bond_dim)
 
-    l, r = split_tensor(
+    l, r = split_matrix(
         evol,
         max_error=config.precision,
         max_rank=config.max_bond_dim,
         orth_center_right=orth_center_right,
+        preserve_norm=not is_hermitian,  # only relevant for computing jump times
     )
 
-    return l.view(left_bond_dim, 2, -1), r.view(-1, 2, right_bond_dim).to(right_device)
+    return l.view(left_bond_dim, dim, -1), r.view(-1, dim, right_bond_dim).to(
+        right_device
+    )
 
 
 def evolve_single(
@@ -262,7 +268,7 @@ def minimize_energy_pair(
     )
     updated_state = updated_state.view(left_bond_dim * 2, 2 * right_bond_dim)
 
-    l, r = split_tensor(
+    l, r = split_matrix(
         updated_state,
         max_error=config.precision,
         max_rank=config.max_bond_dim,

@@ -23,7 +23,7 @@ classifiers=[
 ]
 dynamic = ["version"]
 dependencies = [
-  "emu-base==2.4.2"]
+  "emu-base==2.5.0"]
 
 [project.urls]
 Documentation = "https://pasqal-io.github.io/emulators/"

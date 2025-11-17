@@ -7,8 +7,10 @@ from test.emu_mps.test_hamiltonian import single_gate, sigma_x
 dtype = torch.complex128
 
 
-def sigma_z(i: int, nqubits: int) -> torch.Tensor:
-    s_z = torch.tensor([[1.0, 0.0], [0.0, -1.0]], dtype=dtype)
+def sigma_z(i: int, nqubits: int, dim: int) -> torch.Tensor:
+    s_z = torch.zeros(dim, dim, dtype=dtype)
+    s_z[0, 0] = 1.0
+    s_z[1, 1] = -1.0
     return single_gate(i, nqubits, s_z)
 
 
@@ -21,11 +23,11 @@ def build_Ising_hamiltonian(N: int, J: float, h: float) -> torch.Tensor:
 
     # Interaction terms
     for i in range(N - 1):
-        H += -J * (sigma_z(i, N) @ sigma_z(i + 1, N))
+        H += -J * (sigma_z(i, N, 2) @ sigma_z(i + 1, N, 2))
 
     # Transverse field terms
     for i in range(N):
-        H += -h * sigma_x(i, N)
+        H += -h * sigma_x(i, N, 2)
 
     return H
 

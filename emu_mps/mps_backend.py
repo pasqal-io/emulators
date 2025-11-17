@@ -1,10 +1,10 @@
 from pulser.backend import EmulatorBackend, Results
 from emu_mps.mps_config import MPSConfig
+from emu_base import init_logging
 from emu_mps.mps_backend_impl import create_impl, MPSBackendImpl
 import pickle
 import os
 import time
-import logging
 import pathlib
 
 
@@ -34,9 +34,9 @@ class MPSBackend(EmulatorBackend):
 
         impl.autosave_file = autosave_file
         impl.last_save_time = time.time()
-        impl.config.init_logging()  # FIXME: might be best to take logger object out of config.
+        init_logging(impl.config.log_level, impl.config.log_file)
 
-        logging.getLogger("global_logger").warning(
+        impl.config.logger.warning(
             f"Resuming simulation from file {autosave_file}\n"
             f"Saving simulation state every {impl.config.autosave_dt} seconds"
         )

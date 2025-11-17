@@ -98,19 +98,25 @@ def test_default_constructors_for_all_config() -> None:
         MPSConfig(blabla=10)
 
 
-def test_optimize_qubit_ordering_unsupported_observables() -> None:
+def test_optimize_qubit_ordering_unsupported_observables(capsys) -> None:
     eval_times = [1.0]
     state_res = StateResult(evaluation_times=eval_times)
     entr = EntanglementEntropy(mps_site=0, evaluation_times=eval_times)
 
-    # Empty constr
-    MPSConfig(
+    config = MPSConfig(
         optimize_qubit_ordering=True,
     )
 
-    # Not allowed obs
-    with pytest.raises(ValueError):
-        MPSConfig(
-            observables=[state_res, entr],
-            optimize_qubit_ordering=True,
-        )
+    out, _ = capsys.readouterr()
+
+    assert "using `optimize_qubit_ordering = False` instead." not in out
+    assert config.optimize_qubit_ordering
+
+    config = MPSConfig(
+        observables=[state_res, entr],
+        optimize_qubit_ordering=True,
+    )
+
+    out, _ = capsys.readouterr()
+    assert "using `optimize_qubit_ordering = False` instead." in out
+    assert not config.optimize_qubit_ordering

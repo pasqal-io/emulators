@@ -58,6 +58,8 @@ from .permutators import (
 )
 
 #TODO add documentation where necessary
+dtype = torch.complex128
+
 
 class Statistics(Observable):
     """
@@ -147,7 +149,9 @@ class MPSBackendImpl(ABC):
         self.phi = pulser_data.phi
         self.timestep_count: int = self.omega.shape[0]
         self.has_lindblad_noise = pulser_data.has_lindblad_noise
-        self.lindblad_noise = torch.zeros(2, 2, dtype=torch.complex128)
+        self.eigenstates = pulser_data.eigenstates
+        self.dim = pulser_data.dim
+        self.lindblad_noise = torch.zeros(self.dim, self.dim, dtype=dtype)
         self.qubit_permutation = (
             optimat.minimize_bandwidth(pulser_data.full_interaction_matrix)
             if self.config.optimize_qubit_ordering
@@ -156,6 +160,7 @@ class MPSBackendImpl(ABC):
         self.full_interaction_matrix = optimat.permute_tensor(
             pulser_data.full_interaction_matrix, self.qubit_permutation
         )
+
         self.masked_interaction_matrix = optimat.permute_tensor(
             pulser_data.masked_interaction_matrix, self.qubit_permutation
         )
@@ -255,6 +260,7 @@ class MPSBackendImpl(ABC):
                 precision=self.config.precision,
                 max_bond_dim=self.config.max_bond_dim,
                 num_gpus_to_use=self.resolved_num_gpus,
+                eigenstates=self.eigenstates,
             )
             return
 
@@ -304,6 +310,7 @@ class MPSBackendImpl(ABC):
             ),
             hamiltonian_type=self.hamiltonian_type,
             num_gpus_to_use=self.resolved_num_gpus,
+            dim=self.dim,
         )
 
         update_H(
@@ -319,9 +326,7 @@ class MPSBackendImpl(ABC):
         Baths initializer
         """
         self.left_baths = [
-            torch.ones(
-                1, 1, 1, dtype=torch.complex128, device=self.state.factors[0].device
-            )
+            torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
         ]
         self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
         assert len(self.right_baths) == self.qubit_count - 1
@@ -401,6 +406,7 @@ class MPSBackendImpl(ABC):
                 config=self.config,
                 orth_center_right=orth_center_right,
                 is_hermitian=not self.has_lindblad_noise,
+                dim=self.dim,
             )
 
             self.state.orthogonality_center = r if orth_center_right else l
@@ -428,6 +434,7 @@ class MPSBackendImpl(ABC):
             self.hamiltonian = make_H(
                 interaction_matrix=self.full_interaction_matrix,
                 hamiltonian_type=self.hamiltonian_type,
+                dim=self.dim,
                 num_gpus_to_use=self.resolved_num_gpus,
             )
 
@@ -694,7 +701,7 @@ class NoisyTDVPBackendImpl(TDVPBackendImpl):
         # The below is used for batch computation of noise collapse weights.
         self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
 
-        self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
+        self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops, self.dim)
 
     def set_jump_threshold(self, bound: float) -> None:
         """
@@ -780,6 +787,7 @@ class NoisyTDVPBackendImpl(TDVPBackendImpl):
             omega=self.omega[self.timestep_index - 1, :],  # Meh
             delta=self.delta[self.timestep_index - 1, :],
             phi=self.phi[self.timestep_index - 1, :],
+            noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
         )
 
         super().fill_results()

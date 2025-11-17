@@ -288,3 +288,18 @@ def list_to_kron(list_tensors: list[torch.Tensor]):
     Result: A1 ⊗ A2 ⊗ A3 ⊗ ... ⊗ An
     """
     return functools.reduce(torch.kron, list_tensors)
+
+
+def pulser_constant_2pi_pulse_sequence(
+    n_atoms: int = 2, duration: float = 500.0, spacing=7.0
+):
+    """Sequence with just a single constant pulse of area 2pi"""
+    reg = pulser.Register.rectangle(1, n_atoms, spacing=spacing, prefix="q")
+    device = pulser.MockDevice
+    seq = pulser.Sequence(reg, device)
+    seq.declare_channel("ch0", "rydberg_global")
+
+    duration = 500.0
+    const_wf = pulser.Pulse.ConstantPulse(duration, 2 * math.pi, 0.0, 0.0)
+    seq.add(const_wf, "ch0")
+    return seq

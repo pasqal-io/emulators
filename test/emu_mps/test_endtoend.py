@@ -1,4 +1,5 @@
 import time
+import math
 from unittest.mock import ANY, MagicMock, patch, PropertyMock
 from collections import Counter
 from typing import Any
@@ -8,6 +9,7 @@ import pytest
 import torch
 import random
 from pytest import approx
+
 
 import emu_mps
 from emu_mps import (
@@ -23,6 +25,7 @@ from emu_mps import (
     EnergyVariance,
     EnergySecondMoment,
     CorrelationMatrix,
+    Expectation,
 )
 
 from emu_base import unix_like
@@ -37,10 +40,12 @@ from test.utils_testing import (
     pulser_afm_sequence_ring,
     pulser_XY_sequence_slm_mask,
     cpu_multinomial_wrapper,
+    pulser_constant_2pi_pulse_sequence,
 )
 
 seed = 1337
 device = "cpu"  # "cuda"
+dtype = torch.complex128
 
 
 def create_antiferromagnetic_mps(num_qubits: int):
@@ -71,7 +76,7 @@ def simulate(
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
     else:
-        fidelity_state = MPS.make(len(seq.register.qubit_ids))
+        fidelity_state = MPS.make(len(seq.register.qubit_ids), eigenstates=("r", "g"))
 
     if state_prep_error > 0.0 or p_false_pos > 0.0 or p_false_neg > 0.0:
         assert noise_model is None, "Provide either noise_model or SPAM values"
@@ -108,6 +113,7 @@ def simulate(
         interaction_cutoff=interaction_cutoff,
         optimize_qubit_ordering=False,
         solver=solver,
+        num_gpus_to_use=0,
     )
 
     backend = MPSBackend(seq, config=mps_config)
@@ -133,8 +139,8 @@ def simulate_line(n, **kwargs):
 
 def get_proba(state: MPS, bitstring: str):
     # FIXME: use MPS factory method from bitstring
-    one = torch.tensor([[[0], [1]]], dtype=torch.complex128)
-    zero = torch.tensor([[[1], [0]]], dtype=torch.complex128)
+    one = torch.tensor([[[0], [1]]], dtype=dtype)
+    zero = torch.tensor([[[1], [0]]], dtype=dtype)
 
     factors = [one if bitstring[i] == "1" else zero for i in range(state.num_sites)]
 
@@ -179,7 +185,7 @@ def test_XY_3atoms() -> None:
             0.2344 - 0.0602j,
         ],
         device=final_state.factors[0].device,
-        dtype=torch.complex128,
+        dtype=dtype,
     )
 
     # pulser magnetization: [0.46024234949993825,0.4776498885102908,0.4602423494999386#
@@ -214,7 +220,7 @@ def test_XY_3atomswith_slm() -> None:
             2.6618e-15 + 5.4529e-16j,
         ],
         device=final_state.factors[0].device,
-        dtype=torch.complex128,
+        dtype=dtype,
     )
     # pulser magnetization: [0.22572457283642877,0.21208108307887844,0.06213666344288577
     q_density = result.occupation[-1]
@@ -290,7 +296,7 @@ def test_end_to_end_domain_wall_ring(
     energy_variance = result.energy_variance[ntime_step]
     expect_occup = torch.tensor([1, 1, 1, 0, 0, 0], dtype=torch.float64)
     correlation_matrix = result.correlation_matrix[ntime_step]
-    expect_corr = torch.outer(expect_occup, expect_occup).to(torch.complex128)
+    expect_corr = torch.outer(expect_occup, expect_occup).to(dtype)
 
     assert result.atom_order == seq.register.qubit_ids
     assert bitstrings["111000"] == 100
@@ -748,12 +754,10 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
         "ising_global",
     )
 
-    noise_model = pulser.noise_model.NoiseModel(
-        relaxation_rate=0.1,
-    )
+    noise_model = pulser.noise_model.NoiseModel(relaxation_rate=0.1)
 
     initial_state = emu_mps.MPS.from_state_amplitudes(
-        eigenstates=["r", "g"], amplitudes={"rr": 1.0}
+        eigenstates=["g", "r"], amplitudes={"rr": 1.0}
     )
     results = []
     for _ in range(100):
@@ -965,6 +969,176 @@ def test_run_after_deserialize():
     )
     assert torch.allclose(
         mps_results.expectation[-1],
-        torch.tensor(0.9728 + 0.0j, dtype=torch.torch.complex128),
+        torch.tensor(0.9728 + 0.0j, dtype=dtype),
         atol=1e-4,
     )
+
+
+def test_leakage_rates():
+    """Verigy the leakage rates"""
+    duration = 500
+    natoms = 2
+    spacing = 10000  # avoid interactions
+    seq = pulser_constant_2pi_pulse_sequence(
+        natoms,
+        duration=duration,
+        spacing=spacing,
+    )
+
+    # pulser convention of rydberg basis
+    basisx = torch.tensor([0.0, 0.0, 1.0], dtype=dtype).reshape(3, 1)
+    basisg = torch.tensor([0.0, 1.0, 0.0], dtype=dtype).reshape(3, 1)
+    basisr = torch.tensor([1.0, 0.0, 0.0], dtype=dtype).reshape(3, 1)
+
+    eff_rate = [2.0] * natoms
+    eff_ops1 = basisx @ basisg.T  # |x><g| operator
+    eff_ops2 = basisx @ basisr.T  # |x><r| operator
+    eff_ops = [eff_ops1, eff_ops2]
+
+    noise_model = pulser.NoiseModel(
+        eff_noise_rates=eff_rate,
+        eff_noise_opers=eff_ops,
+        with_leakage=True,
+    )
+    dt = 10
+    eval_times = [1.0]
+
+    xx = basisx @ basisx.T
+    mpo1 = xx.reshape(1, 3, 3, 1)
+    mpo2 = xx.reshape(1, 3, 3, 1)
+
+    # almost the identity
+    iden20 = torch.zeros(3, 3, dtype=dtype)
+    iden20[0, 0] = 1.0
+    iden20[1, 1] = 1.0
+
+    mpo_iden20 = iden20.reshape(1, 3, 3, 1)
+
+    # crete the MPOs
+    both_leakage = MPO([mpo1, mpo2])
+    one_leaked = MPO([mpo1, mpo_iden20]) + MPO([mpo_iden20, mpo1])
+    no_leaked = MPO([mpo_iden20, mpo_iden20])
+
+    config = MPSConfig(
+        num_gpus_to_use=0,
+        dt=dt,
+        observables=[
+            Expectation(
+                operator=both_leakage, evaluation_times=eval_times, tag_suffix="xx"
+            ),
+            Expectation(
+                operator=one_leaked, evaluation_times=eval_times, tag_suffix="ox"
+            ),
+            Expectation(operator=no_leaked, evaluation_times=eval_times, tag_suffix="nn"),
+        ],
+        noise_model=noise_model,
+        optimize_qubit_ordering=False,
+    )
+    simul = MPSBackend(seq, config=config)
+
+    results = []
+    nruns = 20  # short executation time
+    for _ in range(nruns):
+        results.append(simul.run())
+
+    aggregated_results = pulser.backend.Results.aggregate(results)
+
+    rate = eff_rate[0]
+    t = duration
+    rate_base = math.exp(-rate * t / 1000)
+
+    # both leaked probability
+    both_leaked = (1 - rate_base) ** 2
+
+    # one leaked probability
+    one_leaked = 2 * rate_base * (1 - rate_base)
+
+    # none leaked probability
+    none_leaked = math.exp(-2 * rate * duration / 1000)
+
+    assert aggregated_results.expectation_ox[0] == approx(one_leaked, abs=1e-1)
+    assert aggregated_results.expectation_xx[0] == approx(both_leaked, abs=1e-1)
+    assert aggregated_results.expectation_nn[0] == approx(none_leaked, abs=1e-1)
+
+
+def test_leakage_3x3_matrices():
+    """Verifying that 3x3 operators work as intended when leakage is 0.0."""
+    if not unix_like:
+        pytest.skip(reason="fails due to different RNG on windows")
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+
+    duration = 500
+    natoms = 2
+    spacing = 10000
+    seq = pulser_constant_2pi_pulse_sequence(natoms, duration=duration, spacing=spacing)
+
+    # pulser convention of rydberg basis
+    basisx = torch.tensor([0.0, 0.0, 1.0], dtype=dtype).reshape(3, 1)
+    basisg = torch.tensor([0.0, 1.0, 0.0], dtype=dtype).reshape(3, 1)
+    basisr = torch.tensor([1.0, 0.0, 0.0], dtype=dtype).reshape(3, 1)
+
+    eff_rate = [0.0] * natoms  # 0.0 for testing only operators
+    eff_ops1 = basisx @ basisg.T  # |x><g| operator
+    eff_ops2 = basisx @ basisr.T  # |x><r| operator
+    eff_ops = [eff_ops1, eff_ops2]
+
+    noise_model = pulser.NoiseModel(
+        eff_noise_rates=eff_rate,
+        eff_noise_opers=eff_ops,
+        with_leakage=True,
+    )
+    dt = 10
+    eval_times = [1.0]
+
+    fidelity_state = MPS.from_state_amplitudes(
+        eigenstates=("r", "g", "x"), amplitudes={"rr": 1.0}
+    )
+
+    config = MPSConfig(
+        num_gpus_to_use=0,
+        dt=dt,
+        observables=[
+            BitStrings(evaluation_times=eval_times, num_shots=1000),
+            Occupation(evaluation_times=eval_times),
+            Energy(evaluation_times=eval_times),
+            StateResult(evaluation_times=eval_times),
+            Fidelity(evaluation_times=eval_times, state=fidelity_state, tag_suffix="1"),
+        ],
+        noise_model=noise_model,
+        optimize_qubit_ordering=False,
+    )
+    simul = MPSBackend(seq, config=config)
+
+    results = []
+    nruns = 20  # *000 total shots
+    for _ in range(nruns):
+        with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
+            results.append(simul.run())
+
+    aggregated_results = pulser.backend.Results.aggregate(results)
+
+    bitstrings = aggregated_results.bitstrings[-1]
+
+    occupation_value = aggregated_results.occupation[-1]
+
+    energy = aggregated_results.energy
+
+    fidelity_state_result = aggregated_results.fidelity_1[-1]
+
+    assert bitstrings["11"] == 20000  # result without leakage
+    assert torch.allclose(
+        occupation_value,
+        torch.tensor([1.0] * natoms, dtype=torch.float64),
+    )  # all in Rydberg state
+
+    assert torch.allclose(energy[0], torch.tensor(0.0, dtype=torch.float64))
+
+    assert fidelity_state_result == approx(1.0, abs=1e-2)
+
+    final_mps_1 = torch.tensor([0.0, 1.0, 0.0], dtype=dtype).reshape(1, 3, 1)
+    final_state = MPS(
+        [final_mps_1, final_mps_1], eigenstates=("r", "g", "x"), num_gpus_to_use=0
+    )
+    for result in results:
+        assert result.state[-1].overlap(final_state) == approx(1.0, abs=1e-2)
