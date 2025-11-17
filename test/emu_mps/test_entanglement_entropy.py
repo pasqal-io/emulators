@@ -34,15 +34,16 @@ def test_zero_entropy_product_state():
     """
     starting from a product state, the S_E should be zero across all bonds
     """
+    n_atoms = 9
     initial_state = emu_mps.MPS.from_state_amplitudes(
-        eigenstates=("r", "g"), amplitudes={"rrrrrrrrr": 1.0}
+        eigenstates=("r", "g"), amplitudes={"r" * n_atoms: 1.0}
     )
     first_time_step = 10 / 100
     entanglement_obs = [
         EntanglementEntropy(
             mps_site=b, evaluation_times=[first_time_step], tag_suffix=f"_{b}"
         )
-        for b in range(8)
+        for b in range(n_atoms - 1)
     ]
     config = emu_mps.MPSConfig(observables=entanglement_obs, initial_state=initial_state)
     seq = create_constant_pulse_sequence()
