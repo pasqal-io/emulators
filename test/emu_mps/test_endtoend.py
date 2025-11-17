@@ -1,4 +1,5 @@
 import time
+import math
 from unittest.mock import ANY, MagicMock, patch, PropertyMock
 from collections import Counter
 from typing import Any
@@ -8,6 +9,7 @@ import pytest
 import torch
 import random
 from pytest import approx
+
 
 import emu_mps
 from emu_mps import (
@@ -23,6 +25,7 @@ from emu_mps import (
     EnergyVariance,
     EnergySecondMoment,
     CorrelationMatrix,
+    Expectation,
 )
 
 from emu_base import unix_like
@@ -971,7 +974,7 @@ def test_run_after_deserialize():
     )
 
 
-def test_leakage():
+def test_leakage_rates():
     if not unix_like:
         pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
@@ -979,19 +982,19 @@ def test_leakage():
 
     duration = 500
     natoms = 2
-    seq = pulser_contante_2pi_pulse_sequence(natoms, duration=duration)
+    spacing = 10000
+    seq = pulser_contante_2pi_pulse_sequence(natoms, duration=duration, spacing=spacing)
 
     # pulser convention of basis
     basisx = torch.tensor([0.0, 0.0, 1.0], dtype=dtype).reshape(3, 1)
     basisg = torch.tensor([0.0, 1.0, 0.0], dtype=dtype).reshape(3, 1)
     basisr = torch.tensor([1.0, 0.0, 0.0], dtype=dtype).reshape(3, 1)
 
-    eff_rate = [1.0] * natoms
+    eff_rate = [2.0] * natoms
     eff_ops1 = basisx @ basisg.T  # |x><g| operator
     eff_ops2 = basisx @ basisr.T  # |x><r| operator
     eff_ops = [eff_ops1, eff_ops2]
 
-    # eff_ops must be a torch.tensor if you want to work with emu_mps
     noise_model = pulser.NoiseModel(
         eff_noise_rates=eff_rate,
         eff_noise_opers=eff_ops,
@@ -1000,20 +1003,33 @@ def test_leakage():
     dt = 10
     eval_times = [1.0]
 
-    fidelity_state = MPS.from_state_amplitudes(
-        eigenstates=("r", "g", "x"), amplitudes={"xx": 1.0}
-    )
+    xx = basisx @ basisx.T
+    mpo1 = xx.reshape(1, 3, 3, 1)
+    mpo2 = xx.reshape(1, 3, 3, 1)
 
-    # hyperfine_defphasing_rate is not support, it should be now
+    # almost the identity
+    iden20 = torch.zeros(3, 3, dtype=dtype)
+    iden20[0, 0] = 1.0
+    iden20[1, 1] = 1.0
+
+    mpo_iden20 = iden20.reshape(1, 3, 3, 1)
+
+    # crete the MPOs
+    both_leakage = MPO([mpo1, mpo2])
+    one_leaked = MPO([mpo1, mpo_iden20]) + MPO([mpo_iden20, mpo1])
+    no_leaked = MPO([mpo_iden20, mpo_iden20])
+
     config = MPSConfig(
         num_gpus_to_use=0,
         dt=dt,
         observables=[
-            BitStrings(evaluation_times=eval_times, num_shots=1000),
-            Occupation(evaluation_times=eval_times),
-            Energy(evaluation_times=eval_times),
-            EnergySecondMoment(evaluation_times=eval_times),
-            Fidelity(evaluation_times=eval_times, state=fidelity_state),
+            Expectation(
+                operator=both_leakage, evaluation_times=eval_times, tag_suffix="xx"
+            ),
+            Expectation(
+                operator=one_leaked, evaluation_times=eval_times, tag_suffix="ox"
+            ),
+            Expectation(operator=no_leaked, evaluation_times=eval_times, tag_suffix="nn"),
         ],
         noise_model=noise_model,
         optimize_qubit_ordering=False,
@@ -1021,20 +1037,26 @@ def test_leakage():
     simul = MPSBackend(seq, config=config)
 
     results = []
-    nruns = 10  # 10000 shots total
+    nruns = 20  # *000 total shots
     for _ in range(nruns):
         with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
             results.append(simul.run())
 
     aggregated_results = pulser.backend.Results.aggregate(results)
-    bitstrings = aggregated_results.bitstrings[-1]
-    energy = aggregated_results.energy[-1]
-    occupation = aggregated_results.occupation[-1]
 
-    assert bitstrings["00"] == 4292
-    assert bitstrings["01"] == 2230
-    assert bitstrings["10"] == 3454
-    assert bitstrings["11"] == 24
-    assert energy == approx(-0.1409, abs=1e-2)
-    assert occupation == approx([0.3463, 0.2293], abs=1e-2)
-    assert aggregated_results.fidelity[-1] == approx(0.1, abs=1e-2)
+    rate = eff_rate[0]
+    t = duration
+    rate_base = math.exp(-rate * t / 1000)
+
+    # both leaked probability
+    both_leaked = (1 - rate_base) ** 2
+
+    # one leaked probability
+    one_leaked = 2 * rate_base * (1 - rate_base)
+
+    # none leaked probability
+    none_leaked = math.exp(-2 * rate * duration / 1000)
+
+    assert aggregated_results.expectation_ox[0] == approx(one_leaked, abs=1e-1)
+    assert aggregated_results.expectation_xx[0] == approx(both_leaked, abs=1e-1)
+    assert aggregated_results.expectation_nn[0] == approx(none_leaked, abs=1e-1)
