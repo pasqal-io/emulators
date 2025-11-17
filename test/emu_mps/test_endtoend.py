@@ -40,7 +40,7 @@ from test.utils_testing import (
     pulser_afm_sequence_ring,
     pulser_XY_sequence_slm_mask,
     cpu_multinomial_wrapper,
-    pulser_contante_2pi_pulse_sequence,
+    pulser_constant_2pi_pulse_sequence,
 )
 
 seed = 1337
@@ -979,7 +979,7 @@ def test_leakage_rates():
     duration = 500
     natoms = 2
     spacing = 10000  # avoid interactions
-    seq = pulser_contante_2pi_pulse_sequence(
+    seq = pulser_constant_2pi_pulse_sequence(
         natoms,
         duration=duration,
         spacing=spacing,
@@ -1062,7 +1062,7 @@ def test_leakage_rates():
 
 
 def test_leakage_3x3_matrices():
-    """Verifying that 3x3 leakage operators work as intended."""
+    """Verifying that 3x3 operators work as intended when leakage is 0.0."""
     if not unix_like:
         pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
@@ -1071,7 +1071,7 @@ def test_leakage_3x3_matrices():
     duration = 500
     natoms = 2
     spacing = 10000
-    seq = pulser_contante_2pi_pulse_sequence(natoms, duration=duration, spacing=spacing)
+    seq = pulser_constant_2pi_pulse_sequence(natoms, duration=duration, spacing=spacing)
 
     # pulser convention of rydberg basis
     basisx = torch.tensor([0.0, 0.0, 1.0], dtype=dtype).reshape(3, 1)

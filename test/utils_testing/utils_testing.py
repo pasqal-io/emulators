@@ -292,7 +292,7 @@ def list_to_kron(list_tensors: list[torch.Tensor]):
     return functools.reduce(torch.kron, list_tensors)
 
 
-def pulser_contante_2pi_pulse_sequence(
+def pulser_constant_2pi_pulse_sequence(
     n_atoms: int = 2, duration: float = 500.0, spacing=7.0
 ):
     """Sequence with just a single constant pulse of area 2pi"""
