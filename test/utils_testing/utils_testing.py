@@ -6,8 +6,6 @@ import numpy as np
 import pulser
 import math
 
-import pulser.pulse
-
 # for testing purposes, reference to the real multinomial
 _real_multinomial = torch.multinomial
 
@@ -302,6 +300,6 @@ def pulser_constant_2pi_pulse_sequence(
     seq.declare_channel("ch0", "rydberg_global")
 
     duration = 500.0
-    const_wf = pulser.pulse.Pulse.ConstantPulse(duration, 2 * math.pi, 0.0, 0.0)
+    const_wf = pulser.Pulse.ConstantPulse(duration, 2 * math.pi, 0.0, 0.0)
     seq.add(const_wf, "ch0")
     return seq
