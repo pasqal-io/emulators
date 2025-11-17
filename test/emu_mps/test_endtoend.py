@@ -975,17 +975,17 @@ def test_run_after_deserialize():
 
 
 def test_leakage_rates():
-    if not unix_like:
-        pytest.skip(reason="fails due to different RNG on windows")
-    torch.manual_seed(seed)
-    random.seed(0xDEADBEEF)
-
+    """Verigy the leakage rates"""
     duration = 500
     natoms = 2
-    spacing = 10000
-    seq = pulser_contante_2pi_pulse_sequence(natoms, duration=duration, spacing=spacing)
+    spacing = 10000  # avoid interactions
+    seq = pulser_contante_2pi_pulse_sequence(
+        natoms,
+        duration=duration,
+        spacing=spacing,
+    )
 
-    # pulser convention of basis
+    # pulser convention of rydberg basis
     basisx = torch.tensor([0.0, 0.0, 1.0], dtype=dtype).reshape(3, 1)
     basisg = torch.tensor([0.0, 1.0, 0.0], dtype=dtype).reshape(3, 1)
     basisr = torch.tensor([1.0, 0.0, 0.0], dtype=dtype).reshape(3, 1)
@@ -1037,10 +1037,9 @@ def test_leakage_rates():
     simul = MPSBackend(seq, config=config)
 
     results = []
-    nruns = 20  # *000 total shots
+    nruns = 20  # short executation time
     for _ in range(nruns):
-        with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
-            results.append(simul.run())
+        results.append(simul.run())
 
     aggregated_results = pulser.backend.Results.aggregate(results)
 
@@ -1060,3 +1059,86 @@ def test_leakage_rates():
     assert aggregated_results.expectation_ox[0] == approx(one_leaked, abs=1e-1)
     assert aggregated_results.expectation_xx[0] == approx(both_leaked, abs=1e-1)
     assert aggregated_results.expectation_nn[0] == approx(none_leaked, abs=1e-1)
+
+
+def test_leakage_3x3_matrices():
+    """Verifying that 3x3 leakage operators work as intended."""
+    if not unix_like:
+        pytest.skip(reason="fails due to different RNG on windows")
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+
+    duration = 500
+    natoms = 2
+    spacing = 10000
+    seq = pulser_contante_2pi_pulse_sequence(natoms, duration=duration, spacing=spacing)
+
+    # pulser convention of rydberg basis
+    basisx = torch.tensor([0.0, 0.0, 1.0], dtype=dtype).reshape(3, 1)
+    basisg = torch.tensor([0.0, 1.0, 0.0], dtype=dtype).reshape(3, 1)
+    basisr = torch.tensor([1.0, 0.0, 0.0], dtype=dtype).reshape(3, 1)
+
+    eff_rate = [0.0] * natoms  # 0.0 for testing only operators
+    eff_ops1 = basisx @ basisg.T  # |x><g| operator
+    eff_ops2 = basisx @ basisr.T  # |x><r| operator
+    eff_ops = [eff_ops1, eff_ops2]
+
+    noise_model = pulser.NoiseModel(
+        eff_noise_rates=eff_rate,
+        eff_noise_opers=eff_ops,
+        with_leakage=True,
+    )
+    dt = 10
+    eval_times = [1.0]
+
+    fidelity_state = MPS.from_state_amplitudes(
+        eigenstates=("r", "g", "x"), amplitudes={"rr": 1.0}
+    )
+
+    config = MPSConfig(
+        num_gpus_to_use=0,
+        dt=dt,
+        observables=[
+            BitStrings(evaluation_times=eval_times, num_shots=1000),
+            Occupation(evaluation_times=eval_times),
+            Energy(evaluation_times=eval_times),
+            StateResult(evaluation_times=eval_times),
+            Fidelity(evaluation_times=eval_times, state=fidelity_state, tag_suffix="1"),
+        ],
+        noise_model=noise_model,
+        optimize_qubit_ordering=False,
+    )
+    simul = MPSBackend(seq, config=config)
+
+    results = []
+    nruns = 20  # *000 total shots
+    for _ in range(nruns):
+        with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
+            results.append(simul.run())
+
+    aggregated_results = pulser.backend.Results.aggregate(results)
+
+    bitstrings = aggregated_results.bitstrings[-1]
+
+    occupation_value = aggregated_results.occupation[-1]
+
+    energy = aggregated_results.energy
+
+    fidelity_state_result = aggregated_results.fidelity_1[-1]
+
+    assert bitstrings["11"] == 20000  # result without leakage
+    assert torch.allclose(
+        occupation_value,
+        torch.tensor([1.0] * natoms, dtype=torch.float64),
+    )  # all in Rydberg state
+
+    assert torch.allclose(energy[0], torch.tensor(0.0, dtype=torch.float64))
+
+    assert fidelity_state_result == approx(1.0, abs=1e-2)
+
+    final_mps_1 = torch.tensor([0.0, 1.0, 0.0], dtype=dtype).reshape(1, 3, 1)
+    final_state = MPS(
+        [final_mps_1, final_mps_1], eigenstates=("r", "g", "x"), num_gpus_to_use=0
+    )
+    for result in results:
+        assert result.state[-1].overlap(final_state) == approx(1.0, abs=1e-2)
