@@ -2,7 +2,7 @@
 
 Emu-sv and emu-mps are [Pulser](https://pulser.readthedocs.io/en/stable/) high-performance backend emulators for analog quantum simulation, developed by Pasqal. They support all major operating systems (Linux, macOS and Windows), and are designed to faithfully emulate neutral-atom quantum hardware with both high fidelity and scalability.
 
-These tools are described in our publication *“Efficient Emulation of Neutral Atom Quantum Hardware”* ([arXiv:2510.09813](https://arxiv.org/abs/2510.09813)) — in short:
+These tools are described in our publication *“Efficient Emulation of Neutral Atom Quantum Hardware”* ([arXiv:2510.09813](https://arxiv.org/abs/2510.09813)) — in summary:
 
 - emu-sv uses a state-vector representation to deliver numerically exact dynamics for medium-sized systems.
 
@@ -21,8 +21,6 @@ General guidance:
 - **emu-sv** (default precision) is typically the best choice for noiseless simulations of up to ~25 qubits.
 
 - In noise‐simulation mode, emu-sv solves the full Lindblad master equation, but this effectively halves the number of qubits that can be simulated.
-
-- emu-sv also supports leakage noise (i.e., 3-level systems where the leakage state is given by $|x \rangle $).
 
 - For larger number of qubits, emu-sv may not fit on a GPU or may become significantly slower; in those cases **emu-mps** is often the better choice. Unless you require extreme accuracy, emu-mps offers better scalability — but be sure to read its documentation to configure it correctly.
 

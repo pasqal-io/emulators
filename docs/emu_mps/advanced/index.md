@@ -1,4 +1,4 @@
-#Advanced topics
+# Advanced topics
 You have reached the advanced topics. Links to the individual pages discussing the various topics can be found in the sidebar to the left.
 The content here all relates to the inner workings of emu-mps and is more conceptual in nature. You will not find information here about
 how to actually run a simulation, but rather

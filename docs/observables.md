@@ -8,7 +8,7 @@ All emulators (backends) share a convenient way to define observables to be trac
 !!! warning
     Please, take into account that, for performance reasons, individual emulators may overwrite the default implementation in [pulser](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.html).
 
-#pulser has this
+
 ## StateResult
 ::: pulser.backend.default_observables.StateResult
     options:

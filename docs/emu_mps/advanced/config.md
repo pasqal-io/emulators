@@ -10,6 +10,7 @@ The following config values to emu-mps relate to the functioning of the currentl
 - num_gpus_to_use
 - autosave_dt
 - optimize_qubit_ordering
+- interaction_cutoff
 - solver
 
 ## dt
@@ -54,15 +55,34 @@ Using multiple GPUs can reduce memory usage per GPU, though the overall runtime 
 num_gpus_to_use = 2  # use 2 GPUs if available, otherwise fallback to 1 or CPU
 
 ## optimize_qubit_ordering
-The `optimize_qubit_ordering` parameter enables the reordering of qubits in the register. This can be useful in cases where the initial qubit ordering (chosen by the user) is not optimal. In such cases, setting `optimize_qubit_ordering = True` re-orders the qubits more efficiently, and that has been shown to improve performance and accuracy. The default value is `False`.
 
-**Note:** enabling this option is not compatible with certain features, such as reading a user-provided initial state.
+The `optimize_qubit_ordering` parameter enables the reordering of qubits in the register. This can be useful in cases where the initial qubit ordering (chosen by the user or by Pulser) is not optimal. In such cases, setting `optimize_qubit_ordering = True` re-orders the qubits more efficiently, and that has been shown to improve performance and accuracy. The default value is `True`.
+
+**Note:** this option (`True`) is not compatible with certain features, such as reading a user-provided initial state. In the case of some observables the option `True` is not supported but only in this case the option will be changed to `False` automatically after throwing a warning message.
+
+## log_level
+
+Selects the logging verbosity for emu-mps using the standard Python logging levels (integers or logging constants).
+
+## log_file
+
+Saves the logging output in a file. The format is given by the user. Ex: "log_file.txt"
 
 ## autosave_dt
+
 The `autosave_dt` parameter defines the minimum time interval between two automatic saves of the MPS state. It is given in seconds with a default value `600` ($10$ minutes).
 Saving the quantum state for later use (for e.g. to resume the simulation) will only occur at times that are multiples of `autosave_dt`.
 
+## autosave_prefix
+
+related to the name of the .dat file where the simulation information of `autosave_dt` will be stored.
+
+## interaction_cutoff
+
+A floating-point threshold below which pairwise interaction matrix elements $U_{ij}$ are treated as zero when building the Hamiltonian. Setting small interactions to 0.0 sparsifies the Hamiltonian and can reduce both memory usage and runtime, at the cost of neglecting weak long-range couplings.
+
 ## solver
+
 The `solver` parameter selects the algorithm used to evolve the system using a Pulser sequence. The `Solver` class is then defined with two possible values:
 
 - `TDVP` — the default value, used to perform real-time evolution of the MPS using the two-site TDVP algorithm.

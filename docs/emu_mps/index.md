@@ -7,7 +7,7 @@ You have found the documentation for emu-mps. The emulator **emu-mps** is a back
 The following features are currently supported:
 
 - All Pulser sequences that use only rydberg (`ground-rydberg` basis) and only microwave (`XY` basis) channel
-- MPS and MPO can be constructed using the abstract Pulser format and following the correspondent basis
+- MPS and MPO can be constructed using the abstract Pulser format and following the correspondent basis format
 - All noise from the pulser `NoiseModel`
   - Effective noise (`eff_noise`) is included using jump or [collapse operators](https://pulser.readthedocs.io/en/stable/noise_model.html#Describing-noise-in-neutral-atom-QPUs-with-a-NoiseModel)
 - The following [basis states](https://pulser.readthedocs.io/en/stable/conventions.html) in a sequence:
@@ -21,22 +21,21 @@ The following features are currently supported:
   - The quantum state in MPS format
   - Bitstrings
   - The fidelity with respect to a given state
-  - The expectation of a given operator (MPO)
+  - The expectation of a given operator (as `MPO` or `MPO._from_operator_repr`)
   - The qubit density (magnetization)
   - The correlation matrix
   - The mean, second moment and variance of the energy
   - Entanglement entropy
-  - computational statistics, like:
-    -step: the whole sequence is discretized by dt and this generates a number of steps.
-    - $\chi$ : is the bond dimension
-    - $|\Psi|$: memory footprint
+  - computational statistics: each time step during the simulation will generate the following information:
+    - $\chi$ : is the maximum bond dimension of the MPS
+    - $|\Psi|$: MPS (the state) memory footprint
     - RSS: max memory allocation
-    - $\triangle t$: time that the step took to run
-- Specification of
-  - Initial state
+    - $\triangle t$: time that the step took to run (given in seconds)
+- Specification of:
+  - Initial state ( as `MPS` or `MPS._from_state_amplitudes`)
   - Various precision parameters
   - Whether to run on cpu or gpu(s)
-  - The $U_{ij}$ coefficients from [here](./advanced/hamiltonian.md)
+  - The interaction coefficients $U_{ij}$ from [here](./advanced/hamiltonian.md#qpu-hamiltonian)
   - A cutoff below which $U_{ij}$ are set to 0 (this makes the computation more memory efficient)
 
 ## Planned features

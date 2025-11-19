@@ -1,4 +1,5 @@
 # QPU Hamiltonian
+
 In all cases we will refer to $H$ as being of the form
 
 $$

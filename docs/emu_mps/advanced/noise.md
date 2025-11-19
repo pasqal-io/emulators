@@ -1,4 +1,5 @@
 # Noise Implementation in emu-mps
+
 To faithfully emulate the Pasqal QPU using emu-mps, we need to include noise effects, as these effects cannot be neglected in a real quantum system—they significantly impact the performance and fidelity of the QPU.
 
 In open quantum many-body systems, noise is typically expressed in terms of **mixed states** and **noise channels** using a **density matrix representation**. Similar to a state-vector emulator, emu-mps **only handles pure states**. Therefore, we implement noise using a higher order Monte Carlo method ([see here](https://www.phys.ens.psl.eu/~dalibard/publi3/osa_93.pdf)), where we evolve the system using an **effective Hamiltonian** and then apply a quantum jump at certain times. This method is probabilistic in the sense that it approximates the simulation of a mixed state using many non-deterministic pure state simulations.
@@ -16,6 +17,7 @@ Our implementation supports different types of noise:
  Users can refer to the [Pulser documentation](https://pulser.readthedocs.io/en/stable/tutorials/noisy_sim.html) for a detailed overview of the different noise models currently available. Currently, emu-mps does not support the **leakage**.
 
 ## Effective Hamiltonian
+
 The non-hermitian **effective Hamiltonian** used in noisy emu-mps simulations includes both the physical Hamiltonian $H_{physical}$, which governs the noiseless evolution of the system, and a term representing noise:
 
 $$
@@ -23,6 +25,7 @@ H_{\text{eff}} = H_{\text{physical}} \ - \ \frac{i}{2} \sum_m L^{\dagger}_m L_m.
 $$
 
 where:
+
 - $H_{physical}$ is the Hamiltonian of the noiseless system.
 - The second term is a sum over the **Lindblad operators** (`L`), which represent different types of noise.
 
