@@ -976,6 +976,11 @@ def test_run_after_deserialize():
 
 def test_leakage_rates():
     """Verigy the leakage rates"""
+    if not unix_like:
+        pytest.skip(reason="fails due to different RNG on windows")
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+
     duration = 500
     natoms = 2
     spacing = 10000  # avoid interactions

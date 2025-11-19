@@ -81,6 +81,10 @@ markdown_extensions:
 - pymdownx.inlinehilite
 - pymdownx.snippets
 - pymdownx.details
+- toc:
+    permalink: true # link to each section
+- pymdownx.arithmatex  # if you need LaTeX math
+- attr_list
 - pymdownx.superfences:
     custom_fences:
     - name: python

@@ -6,40 +6,46 @@ You have found the documentation for emu-mps. The emulator **emu-mps** is a back
 
 The following features are currently supported:
 
-- All Pulser sequences that use only the rydberg channel
-- MPS and MPO can be constructed using the abstract Pulser format.
-- All noise from the pulser `NoiseModel` except leakage
-    - Effective noise is included using [Monte Carlo quantum jumps](https://pulser.readthedocs.io/en/stable/tutorials/effective_noise.html)
+- All Pulser sequences that use only rydberg (`ground-rydberg` basis) and only microwave (`XY` basis) channel
+- MPS and MPO can be constructed using the abstract Pulser format and following the correspondent basis
+- All noise from the pulser `NoiseModel`
+  - Effective noise (`eff_noise`) is included using jump or [collapse operators](https://pulser.readthedocs.io/en/stable/noise_model.html#Describing-noise-in-neutral-atom-QPUs-with-a-NoiseModel)
 - The following [basis states](https://pulser.readthedocs.io/en/stable/conventions.html) in a sequence:
-    - [ground-rydberg](https://pulser.readthedocs.io/en/stable/review.html#programmable-arrays-of-rydberg-atoms)
-    - [XY](https://pulser.readthedocs.io/en/stable/tutorials/xy_spin_chain.html)
+  - [ground-rydberg](./notebooks/getting_started.ipynb)
+  - [XY](https://pulser.readthedocs.io/en/stable/tutorials/xy_spin_chain.html)
 - The following properties from a Pulser Sequence are also correctly applied:
-    - [hardware modulation](https://pulser.readthedocs.io/en/stable/tutorials/output_mod_eom.html)
-    - [SLM mask](https://pulser.readthedocs.io/en/stable/tutorials/slm_mask.html)
-    - A complex phase for the omega parameter
+  - [hardware modulation](https://pulser.readthedocs.io/en/stable/tutorials/output_mod_eom.html)
+  - [SLM mask](https://pulser.readthedocs.io/en/stable/tutorials/slm_mask.html)
+  - A complex phase for the omega parameter, i.e. the phase $\phi$ in the [driving Hamiltonian](https://pulser.readthedocs.io/en/stable/programming.html#driving-hamiltonian)
 - Customizable output, with the folowing inbuilt options:
-    - The quantum state in MPS format
-    - Bitstrings
-    - The fidelity with respect to a given state
-    - The expectation of a given operator
-    - The qubit density (magnetization)
-    - The correlation matrix
-    - The mean, second moment and variance of the energy
-    - Entanglement entropy
+  - The quantum state in MPS format
+  - Bitstrings
+  - The fidelity with respect to a given state
+  - The expectation of a given operator (MPO)
+  - The qubit density (magnetization)
+  - The correlation matrix
+  - The mean, second moment and variance of the energy
+  - Entanglement entropy
+  - computational statistics, like:
+    -step: the whole sequence is discretized by dt and this generates a number of steps.
+    - $\chi$ : is the bond dimension
+    - $|\Psi|$: memory footprint
+    - RSS: max memory allocation
+    - $\triangle t$: time that the step took to run
 - Specification of
-    - Initial state
-    - Various precision parameters
-    - Whether to run on cpu or gpu(s)
-    - The $U_{ij}$ coefficients from [here](./advanced/hamiltonian.md)
-    - A cutoff below which $U_{ij}$ are set to 0 (this makes the computation more memory efficient)
+  - Initial state
+  - Various precision parameters
+  - Whether to run on cpu or gpu(s)
+  - The $U_{ij}$ coefficients from [here](./advanced/hamiltonian.md)
+  - A cutoff below which $U_{ij}$ are set to 0 (this makes the computation more memory efficient)
 
 ## Planned features
 
 - More efficient use of GPU by storing tensors on CPU where possible.
-- Leakage noise.
 - Differentiability.
 
 ## More Info
+
 Please see the API specification for a list of available config options ([see here](api.md)).
 Those configuration options relating to the mathematical functioning of the backend are explained in more detail in the config page ([see here](advanced/config.md)).
 For notebooks with examples for how to do various things, please see the notebooks page ([see here](./notebooks/index.md)).
