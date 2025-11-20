@@ -8,56 +8,78 @@ All emulators (backends) share a convenient way to define observables to be trac
 !!! warning
     Please, take into account that, for performance reasons, individual emulators may overwrite the default implementation in [pulser](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.html).
 
-
 ## StateResult
+
 ::: pulser.backend.default_observables.StateResult
     options:
         show_source: false
 
-#pulser has this
+# pulser has this
+
 ## BitStrings
+
 ::: pulser.backend.default_observables.BitStrings
     options:
         show_source: false
 
-#pulser has this
+# pulser has this
+
 ## Fidelity
+
 ::: pulser.backend.default_observables.Fidelity
     options:
         show_source: false
 
-#pulser has this
+# pulser has this
+
 ## Expectation
+
 ::: pulser.backend.default_observables.Expectation
     options:
         show_source: false
-#pulser has this
+
+# pulser has this
+
 ## CorrelationMatrix
+
 ::: pulser.backend.default_observables.CorrelationMatrix
     options:
         show_source: false
-#pulser has this
+
+# pulser has this
+
 ## Occupation
+
 ::: pulser.backend.default_observables.Occupation
     options:
         show_source: false
-#pulser has this
+
+# pulser has this
+
 ## Energy
+
 ::: pulser.backend.default_observables.Energy
     options:
         show_source: false
-#pulser has this
+
+# pulser has this
+
 ## EnergyVariance
+
 ::: pulser.backend.default_observables.EnergyVariance
     options:
         show_source: false
-#pulser has this
+
+# pulser has this
+
 ## SecondMomentOfEnergy
+
 ::: pulser.backend.default_observables.EnergySecondMoment
     options:
         show_source: false
 
 ## Defining your own observable
+
 Most commonly desired information can be obtained using the classes documented above
 
 - Arbitrary observables can be measured using `Expectation(operator, ...)` which requires providing a valid operator for the backend in use.
@@ -84,7 +106,6 @@ To avoid such dependency, the classes [`StateRepr`](base_classes.md/#staterepr),
 
     - `StateRepr.from_state_amplitudes()`
     - `OperatorRepr.from_operator_repr()`
-
 
 Moreover, the observable
 !!! failure

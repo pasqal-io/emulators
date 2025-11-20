@@ -1,6 +1,6 @@
 # Explanation of config values
 
-The following config values to emu-mps relate to the functioning of the currently available algorithms (TDVP and DMRG) used to evolve the quantum state in time, and will be explained in more detail below:
+This page documents the most important options in `MPSConfig` that controls how emu-mps evolves quantum states (TDVP and DMRG solvers). Each entry explains the meaning, typical uses, recommendations and short examples where helpful.
 
 - dt
 - precision
@@ -15,12 +15,20 @@ The following config values to emu-mps relate to the functioning of the currentl
 
 ## dt
 
-Note that emu-mps assumes the Hamiltonian is piece-wise constant in time for intervals of `dt`. It then constructs the Hamiltonian by sampling the amplitude, detuning and phase of the pulse midway through the interval, and making a single Hamiltonian. The TDVP or DMRG algorithms are then used to evolve the state by `dt`. There are two sources of error related to `dt`.
+Note that emu-mps assumes the Hamiltonian is piece-wise constant in time for intervals of `dt`. It then constructs the Hamiltonian by sampling the amplitude, detuning and phase of the pulse midway through the interval, and making a single Hamiltonian. The TDVP or DMRG algorithms are then used to evolve the state by `dt`.
+
+There are two sources of error related to `dt`.
 
 - The discretization of the pulse
 - [TDVP](errors.md)
 
 Both sources of error dictate that `dt` shall not be too small, but the functioning of TDVP also dictates that a very small `dt` requires improving the precision, as described in the next section.
+
+Example:
+
+```python
+mpsconfig = MPSConfig(dt=10, ...)
+```
 
 ## precision
 
@@ -31,9 +39,25 @@ Then the norm of the state will be $\sum_i d_i^2$ and the entanglement entropy b
 The truncation mentioned above functions by throwing away the smallest singular values, until their squared sum exceeds $precision^2$. The result is that the truncation procedure finds the smallest MPS whose distance is less than `precision` away from the original state.
 As described on [the page of errors in TDVP](errors.md#truncation-of-the-state), the error in TDVP increases with the number of timesteps, so for long sequences or small `dt`, improving the precision might be required.
 
+Implications:
+
+- Smaller `precision` → more singular values kept → higher accuracy and larger memory/CPU cost.
+
+- For long sequences or very small `dt`, reducing `precision` may be necessary to avoid accumulated truncation error.
+
+Recommendation
+
+- Start with the default precision and lower it only if observables (fidelity, magnetization) show a systematic drift.
+
 ## max_bond_dim
 
 In addition to the above procedure, at each truncation step, no more than `max_bond_dim` singular values are kept. This parameter will impose a hard cap on the memory consumed by the quantum state, at the cost of losing control over the magnitude of the truncation errors.
+
+Guidance:
+
+- Increase `max_bond_dim` when precision-limited truncation repeatedly hits the cap.
+
+- Monitor `results.statistics` (e.g., maximum bond dimension used) to decide whether to raise the cap.
 
 ## max_krylov_dim
 
@@ -41,9 +65,29 @@ Time evolution of each qubit pair is done by the [Lanczos algorithm](https://en.
 
 Note that the number of iterations the Lanczos algorithm needs to converge to the required tolerance depends on the `dt` parameter also present in the config (see the [api specification](../api.md#mpsconfig)). The default value of `max_krylov_dim` should work for most reasonable values of `dt`, so if you get a recursion error out of the Lanczos algorithm, ensure you understand how the [errors in TDVP](errors.md) depend on `dt`.
 
+Guidance:
+
+- Increase `max_bond_dim` when precision-limited truncation repeatedly hits the cap.
+
+- Monitor `results.statistics` (e.g., maximum bond dimension used) to decide whether to raise the cap.
+
 ## extra_krylov_tolerance
 
 In addition to the above hard cap on the number of basis vectors, the algorithm will also attempt to estimate the error incurred by computing the matrix exponential using only the current basis vectors. In principle, it is not needed to compute the time-evolution more precisely than `precision` since extra precision will be lost in the truncation. However, in practice it turns out that existing error estimates tend to underestimate the error. `extra_krylov_tolerance` is a fudge factor for how big the desired precision should be compared to `precision`. Its default value is `1e-3`.
+
+Numerical safety
+
+- If `precision * extra_krylov_tolerance` becomes extremely small (close to machine precision ~1e-16 for double precision), the algorithm cannot reliably distinguish noise from convergence and the simulation may produce incorrect results.
+
+- Practical lower bound: keep `precision * extra_krylov_tolerance >= 1e-12` as a conservative guideline. If your product is smaller, increase either `precision`. It is recommended to leave `extra_krylov_tolerance` as its default value.
+
+Example:
+
+```python
+# keep a safe heuristic tolerance
+mpsconfig = MPSConfig(precision=1e-6, extra_krylov_tolerance=1e-3, ...)
+# heuristic product = 1e-9 (safe)
+```
 
 ## num_gpus_to_use
 
@@ -53,6 +97,10 @@ Using multiple GPUs can reduce memory usage per GPU, though the overall runtime 
 
 **Example:**
 num_gpus_to_use = 2  # use 2 GPUs if available, otherwise fallback to 1 or CPU
+
+```python
+mpsconfig = MPSConfig(num_gpus_to_use=2, ...)
+```
 
 ## optimize_qubit_ordering
 
@@ -64,22 +112,69 @@ The `optimize_qubit_ordering` parameter enables the reordering of qubits in the 
 
 Selects the logging verbosity for emu-mps using the standard Python logging levels (integers or logging constants).
 
+Typical inputs and meanings:
+
+- `logging.DEBUG` (10): very detailed debug information (internal state, timing breakdowns).
+- `logging.INFO` (20): normal progress messages and high-level events (default).
+- `logging.WARNING` (30): recoverable problems and automatic fallbacks.
+- `logging.ERROR` (40): errors that prevented an operation from completing.
+- `logging.CRITICAL` (50): severe failures.
+
+Example:
+
+```python
+import logging
+from pathlib import Path
+
+mpsconfig = MPSConfig(
+    dt=dt,
+    observables=[...],
+    log_level=logging.INFO,            # or logging.WARNING, logging.DEBUG, ...
+    log_file=Path("emu_mps_run.log"),  # optional: write logs to file
+)
+```
+
+Recommendations:
+
+- Use `logging.INFO` for interactive runs and examples.
+- Use `logging.WARNING` or `logging.ERROR` when running large batches / Monte Carlo simulations to reduce output.
+- Use `logging.DEBUG` only when diagnosing problems (may generate large volumes of output).
+- Consider using `log_file` for long-running simulations to preserve diagnostics without cluttering the console.
+
 ## log_file
 
-Saves the logging output in a file. The format is given by the user. Ex: "log_file.txt"
+Saves the logging output in a file. The format is given by the user. Ex: "log_file.log"
 
 ## autosave_dt
 
 The `autosave_dt` parameter defines the minimum time interval between two automatic saves of the MPS state. It is given in seconds with a default value `600` ($10$ minutes).
 Saving the quantum state for later use (for e.g. to resume the simulation) will only occur at times that are multiples of `autosave_dt`.
 
+Example:
+
+```python
+mpsconfig = MPSConfig(autosave_dt=600, autosave_prefix="run_01", ...)
+```
+
 ## autosave_prefix
 
-related to the name of the .dat file where the simulation information of `autosave_dt` will be stored.
+Prefix used when writing autosave files (e.g., `<autosave_prefix>_step123.dat`). Helps organize and resume simulations.
 
 ## interaction_cutoff
 
 A floating-point threshold below which pairwise interaction matrix elements $U_{ij}$ are treated as zero when building the Hamiltonian. Setting small interactions to 0.0 sparsifies the Hamiltonian and can reduce both memory usage and runtime, at the cost of neglecting weak long-range couplings.
+
+Guidance
+
+- Default: `0.0` (no interactions removed).
+
+- Choose a cutoff as a small fraction of the largest interaction (e.g., 1e-3 … 1e-6 of max|U|) and verify convergence by lowering the cutoff.
+
+Example:
+
+```python
+mpsconfig = MPSConfig(interaction_cutoff=1e-6, ...)
+```
 
 ## solver
 
@@ -89,3 +184,15 @@ The `solver` parameter selects the algorithm used to evolve the system using a P
 - `DMRG` is an alternative solver that variationally minimizes the effective Hamiltonian using the two-site DMRG algorithm, **typically applied for simulating adiabatic sequences**.
 
 For a detailed description of the currently available solvers, please refer to the current [algorithms](algorithms.md).
+
+## Practical tips and recommendations
+
+- Validate convergence: always run a small convergence study varying `precision`, `max_bond_dim`, and `interaction_cutoff` to confirm that observables of interest are stable.
+- Numerical safety: ensure `precision * extra_krylov_tolerance` is not below ~1e-12 to avoid machine-precision problems.
+- Monitoring: check `results.statistics` after a run (bond dimensions, memory, timings) to tune configuration values.
+- Reproducibility: specify `log_file` and keep `autosave_prefix` to resume or inspect long jobs.
+
+For a detailed description of algorithmic behavior and error sources, see the algorithms and errors pages:
+
+- Algorithms: [algorithms.md](algorithms.md)
+- TDVP/Truncation errors: [errors.md](errors.md)
