@@ -2,21 +2,13 @@
 
 To faithfully emulate the Pasqal QPU using emu-mps, we need to include noise effects, as these effects cannot be neglected in a real quantum system—they significantly impact the performance and fidelity of the QPU.
 
-In open quantum many-body systems, noise is typically expressed in terms of **mixed states** and **noise channels** using a **density matrix representation**. Similar to a state-vector emulator, emu-mps **only handles pure states**. Therefore, we implement noise using a higher order Monte Carlo method ([see here](https://www.phys.ens.psl.eu/~dalibard/publi3/osa_93.pdf)), where we evolve the system using an **effective Hamiltonian** and then apply a quantum jump at certain times. This method is probabilistic in the sense that it approximates the simulation of a mixed state using many non-deterministic pure state simulations.
+In open quantum many-body systems, noise is typically expressed in terms of **mixed states** and **noise channels** using a **density matrix representation**. Similar to a state-vector emulator, emu-mps **only handles pure states**. Therefore, we implement noise using a higher order Monte Carlo Wave Function (MCWF) method ([see here](https://www.phys.ens.psl.eu/~dalibard/publi3/osa_93.pdf)), where we evolve the system using an **effective Hamiltonian** and then apply a quantum jump at certain times. This method is probabilistic in the sense that it approximates the simulation of a mixed state using many non-deterministic pure state simulations.
 
 ## Noise Types
 
-Our implementation supports different types of noise:
+Our implementation supports all different Pulser types of noise. Users can refer to the [Pulser documentation](https://pulser.readthedocs.io/en/stable/noise_model.html) for a detailed overview of the different noise models currently available. What it is not supported from `pulser.NoiseMOdel` are `runs` and `sample_per_run` because emu-mps is using a Monte Carlo method which needs to agregate results (observables) and average them at the end. See the following emu-mps [tutorial](../notebooks/noise_MonteCarlo_average_results.ipynb) to learn how emu-mps can handle averages.
 
-- **relaxation**: due to a decay from the Rydberg to the ground state. It is parameterized by **relaxation_rate**.
-- **dephasing**: due to a random phase flip (Z). It is parameterized by **dephazing_rate**.
-- **depolarizing**: used as a tool to test the system under a uniform combination of phase flip (Z) and bit flip (X) errors. It is parameterized by **depolarizing_rate**.
-- **eff_noise**: general effective noise channel defined by the set of collapse operators **eff_noise_opers** and their corresponding rates **eff_noise_rates**.
-- **SPAM errors**: parameterized by **state_prep_error**, **p_false_pos** and **p_false_neg**.
-
- Users can refer to the [Pulser documentation](https://pulser.readthedocs.io/en/stable/tutorials/noisy_sim.html) for a detailed overview of the different noise models currently available. Currently, emu-mps does not support the **leakage**.
-
-## Effective Hamiltonian
+## Effective Hamiltonian and the Monte Carlo Wave Function (MCWF) method
 
 The non-hermitian **effective Hamiltonian** used in noisy emu-mps simulations includes both the physical Hamiltonian $H_{physical}$, which governs the noiseless evolution of the system, and a term representing noise:
 
@@ -26,8 +18,8 @@ $$
 
 where:
 
-- $H_{physical}$ is the Hamiltonian of the noiseless system.
-- The second term is a sum over the **Lindblad operators** (`L`), which represent different types of noise.
+- $H_{physical}$ is the Hamiltonian of the noiseless [system](hamiltonian.md).
+- The second term is a sum over the **Lindblad operators** ($L_m$), which represent different types of noise.
 
 ## Time Evolution Mechanism
 
@@ -36,13 +28,10 @@ The system undergoes deterministic time evolution from time $t$ to $t + \delta t
 - **If the square of the norm of the evolved state is greater than the random number**, the system successfully evolves under the effective Hamiltonian $H_{\text{eff}}$ to time $t + \delta t$, and proceeds to the next time step.
 - **If the square of the norm of the evolved state is less than the random number**, a **quantum jump** occurs. This can be understood as a simulation of a noise event (e.g. spontaneous emission, dephasing, etc.).
 
----
+## **WARNING:**
 
-# **WARNING:**
-
-**It is important to note that the norm of the state also decreases due to truncation effects. Therefore, it is recommended to choose an appropriate precision when performing Monte Carlo simulations. Additionally, computing the collapse times may become unreliable when the maximum bond dimension chosen by the user is reached, as truncation errors can become difficult to control.**
-
----
+**It is important to note that the norm of the state also decreases due to truncation effects. Therefore, it is recommended to choose an appropriate precision when performing Monte Carlo simulations. However in order to avoid this, emu-mps rescales the norm back to the old norm after each time step.
+Additionally, computing the collapse times may become unreliable when the maximum bond dimension chosen by the user is reached, as truncation errors can become difficult to control.**
 
 ### Locating the Quantum Jump
 
@@ -60,8 +49,8 @@ To better understand how the quantum jump process describes a physical event (no
 
 If a quantum jump occurs in a time step $\delta t$, then the state following the jump becomes
 
-\[
+$$
 \vert \psi(t + \delta t)\rangle = \frac{L \vert \psi(t) \rangle}{\| L \vert \psi(t) \rangle \|} = \vert g \rangle.
-\]
+$$
 
 In other words, when a spontaneous emission event occurs, the evolved state of the system collapses onto the ground state $\vert g\rangle$. This demonstrates how noisy events, like spontaneous emission, can alter the dynamics of a quantum system, even in the absence of direct observation of emitted photons.
