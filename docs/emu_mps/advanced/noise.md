@@ -6,9 +6,9 @@ In open quantum many-body systems, noise is typically expressed in terms of **mi
 
 ## Noise Types
 
-Our implementation supports all different Pulser types of noise. Users can refer to the [Pulser documentation](https://pulser.readthedocs.io/en/stable/noise_model.html) for a detailed overview of the different noise models currently available. What it is not supported from `pulser.NoiseMOdel` are `runs` and `sample_per_run` because emu-mps is using a Monte Carlo method which needs to agregate results (observables) and average them at the end. See the following emu-mps [tutorial](../notebooks/noise_MonteCarlo_average_results.ipynb) to learn how emu-mps can handle averages.
+Our implementation supports all different Pulser types of noise. Users can refer to the [Pulser documentation](https://pulser.readthedocs.io/en/stable/noise_model.html) for a detailed overview of the different noise models currently available. What it is not supported from `pulser.NoiseModel` are `runs` and `sample_per_run` because emu-mps is using a Monte Carlo method which needs to agregate results (observables) and average them at the end. See the following emu-mps [tutorial](../notebooks/noise_MonteCarlo_average_results.ipynb) to learn how emu-mps can handle averages.
 
-## Effective Hamiltonian and the Monte Carlo Wave Function (MCWF) method
+## Effective Hamiltonian
 
 The non-hermitian **effective Hamiltonian** used in noisy emu-mps simulations includes both the physical Hamiltonian $H_{physical}$, which governs the noiseless evolution of the system, and a term representing noise:
 
@@ -27,11 +27,6 @@ The system undergoes deterministic time evolution from time $t$ to $t + \delta t
 
 - **If the square of the norm of the evolved state is greater than the random number**, the system successfully evolves under the effective Hamiltonian $H_{\text{eff}}$ to time $t + \delta t$, and proceeds to the next time step.
 - **If the square of the norm of the evolved state is less than the random number**, a **quantum jump** occurs. This can be understood as a simulation of a noise event (e.g. spontaneous emission, dephasing, etc.).
-
-## **WARNING:**
-
-**It is important to note that the norm of the state also decreases due to truncation effects. Therefore, it is recommended to choose an appropriate precision when performing Monte Carlo simulations. However in order to avoid this, emu-mps rescales the norm back to the old norm after each time step.
-Additionally, computing the collapse times may become unreliable when the maximum bond dimension chosen by the user is reached, as truncation errors can become difficult to control.**
 
 ### Locating the Quantum Jump
 
