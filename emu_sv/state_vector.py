@@ -268,7 +268,7 @@ class StateVector(State[complex, torch.Tensor]):
             bin_to_int = int(
                 state.replace(one, "1").replace("g", "0"), 2
             )  # "0" basis is already in "0"
-            accum_state.vector[bin_to_int] = torch.tensor([amplitude])
+            accum_state.vector[bin_to_int] = torch.tensor([amplitude], dtype=dtype)
 
         accum_state._normalize()
 
