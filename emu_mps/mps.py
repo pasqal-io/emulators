@@ -1,5 +1,4 @@
 from __future__ import annotations
-import math
 from collections import Counter
 from typing import List, Optional, Sequence, TypeVar, Mapping
 import logging
@@ -479,8 +478,10 @@ class MPS(State[complex, torch.Tensor]):
                 else:
                     factors.append(basis_0)
             accum_mps += amplitude * MPS(factors, eigenstates=eigenstates)
+
         norm = accum_mps.norm()
-        if not math.isclose(1.0, norm, rel_tol=1e-5, abs_tol=0.0):
+        # This must duplicate the tolerance in pulsers State._to_abstract_repr
+        if abs(norm**4 - 1.0) > 1e-12:
             logging.getLogger("emulators").warning(
                 "\nThe state is not normalized, normalizing it for you."
             )
