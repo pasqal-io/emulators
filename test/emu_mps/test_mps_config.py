@@ -2,15 +2,12 @@ import pytest
 import re
 import logging
 import torch
-
 import pulser
-
-from emu_mps.mps_config import MPSConfig
+import numpy as np
+from emu_mps.mps_config import MPSConfig, MPS
 from pulser.backend.config import EmulationConfig
 from pulser.backend import BitStrings, StateResult
 from emu_mps.observables import EntanglementEntropy
-
-import pulser.noise_model
 
 # copypaste mps_config.py specific attributes
 # attributes from MPSConfig._expected_kwargs
@@ -120,3 +117,23 @@ def test_optimize_qubit_ordering_unsupported_observables(capsys) -> None:
     out, _ = capsys.readouterr()
     assert "using `optimize_qubit_ordering = False` instead." in out
     assert not config.optimize_qubit_ordering
+
+
+def test_serialization_with_state():
+    natoms = 2
+    reg = pulser.Register.rectangle(1, natoms, spacing=8.0, prefix="q")
+    import torch
+
+    torch.set_printoptions(precision=16)
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ch0", "rydberg_global")
+    duration = 500
+    pulse = pulser.Pulse.ConstantPulse(duration, 4 * np.pi, 0.0, 0.0)
+    seq.add(pulse, "ch0")
+
+    amp_full = {"g" * natoms: (0.7071 + 0.0j), "r" * natoms: (0.7071 + 0.0j)}
+    state = MPS.from_state_amplitudes(eigenstates=("r", "g"), amplitudes=amp_full)
+
+    config = MPSConfig(initial_state=state)
+
+    config.to_abstract_repr()

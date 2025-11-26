@@ -1,9 +1,9 @@
 import pytest
 import re
 import logging
-
-
-from emu_sv import SVConfig
+from emu_sv import SVConfig, StateVector
+import pulser
+import numpy as np
 from pulser.backend.config import EmulationConfig
 from pulser.backend import BitStrings
 
@@ -76,3 +76,23 @@ def test_expected_kwargs() -> None:
     # re.escape() avoid interpreting message symbols "{}"", "()","."" as regex
     with pytest.raises(ValueError, match="^" + re.escape(msg)):
         SVConfig(blabla=10)
+
+
+def test_serialization_with_state():
+    natoms = 2
+    reg = pulser.Register.rectangle(1, natoms, spacing=8.0, prefix="q")
+    import torch
+
+    torch.set_printoptions(precision=16)
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ch0", "rydberg_global")
+    duration = 500
+    pulse = pulser.Pulse.ConstantPulse(duration, 4 * np.pi, 0.0, 0.0)
+    seq.add(pulse, "ch0")
+
+    amp_full = {"g" * natoms: (0.7071 + 0.0j), "r" * natoms: (0.7071 + 0.0j)}
+    state = StateVector.from_state_amplitudes(eigenstates=("r", "g"), amplitudes=amp_full)
+
+    config = SVConfig(initial_state=state)
+
+    config.to_abstract_repr()
