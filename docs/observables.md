@@ -10,73 +10,57 @@ All emulators (backends) share a convenient way to define observables to be trac
 
 ## StateResult
 
-::: pulser.backend.default_observables.StateResult
-    options:
-        show_source: false
+Stores the quantum state at the evaluation times.
 
-# pulser has this
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.StateResult.html).
 
 ## BitStrings
 
-::: pulser.backend.default_observables.BitStrings
-    options:
-        show_source: false
+Stores bitstrings sampled from the state at the evaluation times.
 
-# pulser has this
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.BitStrings.html).
 
 ## Fidelity
 
-::: pulser.backend.default_observables.Fidelity
-    options:
-        show_source: false
+Stores the fidelity with a pure state at the evaluation times.
 
-# pulser has this
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.Fidelity.html).
 
 ## Expectation
 
-::: pulser.backend.default_observables.Expectation
-    options:
-        show_source: false
+Stores the expectation of the given operator on the current state.
 
-# pulser has this
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.Expectation.html).
 
 ## CorrelationMatrix
 
-::: pulser.backend.default_observables.CorrelationMatrix
-    options:
-        show_source: false
+Stores the correlation matrix for the current state.
 
-# pulser has this
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.CorrelationMatrix.html).
 
 ## Occupation
 
-::: pulser.backend.default_observables.Occupation
-    options:
-        show_source: false
+Stores the occupation number of an eigenstate on each qudit.
 
-# pulser has this
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.Occupation.html).
 
 ## Energy
 
-::: pulser.backend.default_observables.Energy
-    options:
-        show_source: false
+Stores the energy of the system at the evaluation times.
 
-# pulser has this
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.Energy.html).
 
 ## EnergyVariance
 
-::: pulser.backend.default_observables.EnergyVariance
-    options:
-        show_source: false
+Stores the variance of the Hamiltonian at the evaluation times.
 
-# pulser has this
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.EnergyVariance.html).
 
 ## SecondMomentOfEnergy
 
-::: pulser.backend.default_observables.EnergySecondMoment
-    options:
-        show_source: false
+Stores the expectation value of `H(t)²` at the evaluation times.
+
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.EnergySecondMoment.html).
 
 ## Defining your own observable
 
