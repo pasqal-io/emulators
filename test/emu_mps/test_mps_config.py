@@ -8,6 +8,7 @@ from emu_mps.mps_config import MPSConfig, MPS
 from pulser.backend.config import EmulationConfig
 from pulser.backend import BitStrings, StateResult
 from emu_mps.observables import EntanglementEntropy
+import json
 
 # copypaste mps_config.py specific attributes
 # attributes from MPSConfig._expected_kwargs
@@ -122,7 +123,6 @@ def test_optimize_qubit_ordering_unsupported_observables(capsys) -> None:
 def test_serialization_with_state():
     natoms = 2
     reg = pulser.Register.rectangle(1, natoms, spacing=8.0, prefix="q")
-    import torch
 
     torch.set_printoptions(precision=16)
     seq = pulser.Sequence(reg, pulser.MockDevice)
@@ -130,10 +130,14 @@ def test_serialization_with_state():
     duration = 500
     pulse = pulser.Pulse.ConstantPulse(duration, 4 * np.pi, 0.0, 0.0)
     seq.add(pulse, "ch0")
-
+    basis = ["r", "g"]
     amp_full = {"g" * natoms: (0.7071 + 0.0j), "r" * natoms: (0.7071 + 0.0j)}
     state = MPS.from_state_amplitudes(eigenstates=("r", "g"), amplitudes=amp_full)
 
     config = MPSConfig(initial_state=state)
 
-    config.to_abstract_repr()
+    config_str = config.to_abstract_repr()
+    my_config = json.loads(config_str)
+
+    assert my_config["initial_state"]["eigenstates"] == basis
+    assert my_config["initial_state"]["amplitudes"] == amp_full
