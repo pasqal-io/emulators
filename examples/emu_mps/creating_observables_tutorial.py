@@ -269,7 +269,7 @@ assert_mpo_equal(X0, X0_direct, "X0 (Pauli X on qubit 0)")
 
 # 2. Compare XX (X0 ⊗ X1 with coefficient 2)
 XX_direct_scaled = 2.0 * MPO([X_tensor.clone(), X_tensor.clone()])
-assert_mpo_equal(XX, XX_direct_scaled, "2 * X0 ⊗ X1")
+assert_mpo_equal(XX, XX_direct_scaled, "2 * X0 x X1")
 
 # 3. Compare n1 (number operator on qubit 1)
 n1_direct = MPO([identity_tensor.clone(), n_tensor.clone()])
