@@ -66,7 +66,7 @@ See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autos
 
 Most commonly desired information can be obtained using the classes documented above
 
-- Arbitrary observables can be measured using `Expectation(operator, ...)` which requires providing a valid operator for the backend in use.
+- Arbitrary observables can be measured using `Expectation(operator, ...)` which requires providing a valid operator for the backend in use. Please check the [tutorial](../examples/emu_mps/creating_observables_tutorial.py) for an example of an implementation.
 - Fidelities on arbitrary states can be computed using `Fidelity(state, ...)` which requires providing a valid state for the backend in use.
 - Information about the time dependent states and Hamiltonians is available via `StateResult`, `Energy` etc.
 
