@@ -283,7 +283,7 @@ assert_mpo_equal(Z0, Z0_direct, "Z0 (Pauli Z on qubit 0)")
 
 # 5. Compare X0_Z1 (X on qubit 0, Z on qubit 1)
 X0_Z1_direct = MPO([X_tensor.clone(), Z_tensor.clone()])
-assert_mpo_equal(X0_Z1, X0_Z1_direct, "X0 ⊗ Z1")
+assert_mpo_equal(X0_Z1, X0_Z1_direct, "X0 x Z1")
 
 # 6. Compare |rr><rr| projection
 proj_rr_symbolic = MPO.from_operator_repr(
