@@ -20,7 +20,13 @@ dtype = torch.complex128
 
 
 class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
-    """DenseOperator in EMU-SV use dense matrices"""
+    """
+    DenseOperator in EMU-SV uses dense matrices.
+
+    Args:
+        matrix: the dense matrix representation of the operator.
+        gpu: if True, stores the matrix on GPU when available.
+    """
 
     def __init__(
         self,

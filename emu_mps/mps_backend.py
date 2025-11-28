@@ -12,6 +12,11 @@ class MPSBackend(EmulatorBackend):
     """
     A backend for emulating Pulser sequences using Matrix Product States (MPS),
     aka tensor trains.
+
+    Args:
+        sequence: the Pulser sequence to emulate.
+        config: configuration options for the MPS backend (MPSConfig).
+        mimic_qpu: if True, mimics QPU behavior more closely.
     """
 
     default_config = MPSConfig()

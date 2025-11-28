@@ -28,6 +28,17 @@ class MPS(State[complex, torch.Tensor]):
     Each tensor has 3 dimensions ordered as such: (left bond, site, right bond).
 
     Only qubits are supported.
+
+    Args:
+        factors: the tensors for each site. WARNING: for efficiency, this list
+            is NOT deep-copied. The MPS may share ownership with the caller.
+        orthogonality_center: the orthogonality center of the MPS, or None
+            (in which case it will be orthogonalized when needed).
+        precision: the truncation precision threshold for this MPS.
+        max_bond_dim: the maximum bond dimension to allow for this MPS.
+        num_gpus_to_use: distribute the factors over this many GPUs.
+            0=all factors to cpu, None=keep the existing device assignment.
+        eigenstates: the basis eigenstates, e.g. ("r", "g") or ("0", "1").
     """
 
     def __init__(

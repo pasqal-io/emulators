@@ -26,9 +26,10 @@ class StateVector(State[complex, torch.Tensor]):
     manipulation, and measurement. The state vector must have a length
     that is a power of 2, representing 2ⁿ basis states for n qubits.
 
-    Attributes:
+    Args:
         vector: 1D tensor representation of a state vector.
-        gpu: store the vector on GPU if True, otherwise on CPU
+        gpu: if True, stores the vector on GPU when available.
+        eigenstates: the basis eigenstates, e.g. ("r", "g") or ("0", "1").
     """
 
     def __init__(

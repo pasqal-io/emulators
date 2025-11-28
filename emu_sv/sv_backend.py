@@ -8,7 +8,12 @@ class SVBackend(EmulatorBackend):
     """
     A backend for emulating Pulser sequences using state vectors and sparse matrices.
     Noisy simulation is supported by solving the Lindblad equation and using effective
-    noise channel or jump operators
+    noise channel or jump operators.
+
+    Args:
+        sequence: the Pulser sequence to emulate.
+        config: configuration options for the state vector backend (SVConfig).
+        mimic_qpu: if True, mimics QPU behavior more closely.
     """
 
     default_config = SVConfig()
