@@ -74,11 +74,11 @@ $$
  m(N,\chi,k) = |\psi| + |\mathrm{bath}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32N\chi^2 + 4\chi^2N(N+10) + 64*k*\chi^2 + 64(N+4)\chi^2 = 4\chi^2[N(N+34) + 16k + 64]
 $$
 
-Note that this estimate is **pessimistic**, since not all $k$ Krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $\chi$ is probably attained at the center qubit.
+Note that this estimate is __pessimistic__, since not all $k$ Krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $\chi$ is probably attained at the center qubit.
 
-Both **TDVP** and **DMRG** rely on the same bath construction and effective Hamiltonian machinery, so their memory requirements are expected to scale similarly with $N$ and $\chi$.
+Both __TDVP__ and __DMRG__ rely on the same bath construction and effective Hamiltonian machinery, so their memory requirements are expected to scale similarly with $N$ and $\chi$.
 
-To test the accuracy of the above memory estimations, we benchmarked the **TDVP** algorithm by fixing the bond dimension to a particular desired value.
+To test the accuracy of the above memory estimations, we benchmarked the __TDVP__ algorithm by fixing the bond dimension to a particular desired value.
 For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $\chi$, we collect the maximum resident size, or RSS, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=30$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of system sizes and bond dimensions.
 
 <img src="../../benchmarks/benchmark_plots/RSS_vs_N.png"  width="49.7%">
@@ -88,12 +88,11 @@ Finally, having established an estimate for the memory consumption, it makes sen
 Since all heavy simulations will be run on an NVIDIA A100 (on Pasqal's DGX cluster), we have $40$ GB of available memory.
 Therefore, above, we show (right image) the contour lines of the RSS estimate $m(N,\chi,k=30) < 40$ GB for particular useful values of the total memory, allowing to quickly estimate the memory footprint of an emu-mps emulation.
 
-Although these results are shown for **TDVP**, a similar analysis could be performed for **DMRG**, and we expect the resulting memory scaling to be comparable.
+Although these results are shown for __TDVP__, a similar analysis could be performed for __DMRG__, and we expect the resulting memory scaling to be comparable.
 
 ### An example
 
 For example, the results from the [case study](convergence.md) were obtained using $N=49$ and $d=1600$ on 2 GPUs. Taking the above formula, and halving the contributions from $\psi$ and $|\mathrm{bath}|$ since they are split evenly on the GPUs, we reproduce the memory consumption of the program for $k=13$. Notice that the actual number of Krylov vectors required to reach convergence is likely closer to around $30$, but here we underestimate it, since the contributions of $\psi$ and $|\mathrm{bath}|$ are over-estimated.
-
 
 ## Estimating the runtime of a simulation
 
@@ -132,20 +131,21 @@ For every pair, this requires $O(N\chi^3)$ to be done.
 Overall, the expected complexity is thus $O(kN^2\chi^3) + O(kN^3\chi^2) + O(N\chi^3)$.
 
 ### Benchmarking runtime
+
 From the previous complexity estimations, we expect the computational complexity of both the two-site TDVP and DMRG algorithms to have two main contributions
 
 $$\Delta t(N,\chi,k)\sim \alpha N^2\chi^3 + \beta N^3\chi^2$$
 
 As previously discussed, both algorithms rely on the same bath construction and effective Hamiltonian machinery, so their scaling with the system size $N$ and bond dimension $\chi$ should be comparable.
 
-The study below focuses on **TDVP**, where we ran multiple simulations and measured the average runtime per time step. A similar analysis could be carried out for **DMRG**, and we expect it to lead to similar results.
+The study below focuses on __TDVP__, where we ran multiple simulations and measured the average runtime per time step. A similar analysis could be carried out for __DMRG__, and we expect it to lead to similar results.
 
 Below, we show the obtained results for different number of atoms in a register $N$ at fixed bond dimension $\chi$ (left), and at different fixed $N$ but increasing the bond dimension (left). On top of these data points, we also plot the resulting fit of the complexity estimation presented in the equation above. Remarkably, with just two parameters $\alpha$ and $\beta$ with get good agreement.
 
 <img src="../../benchmarks/benchmark_plots/runtime_vs_N.png"  width="49.7%">
 <img src="../../benchmarks/benchmark_plots/runtime_vs_bond_dim.png"  width="49.7%">
 
-To wrap up, and to provide a practical tool for runtime estimation for emu-mps, the time required to perform a **single**  time step in a sequence can be conveniently visualized (below) for both $N$ and $\chi$ on contour lines.
+To wrap up, and to provide a practical tool for runtime estimation for emu-mps, the time required to perform a __single__  time step in a sequence can be conveniently visualized (below) for both $N$ and $\chi$ on contour lines.
 
 <img src="../../benchmarks/benchmark_plots/emumps_runtime_map.png"  width="49.7%">
 
