@@ -37,11 +37,11 @@ The singular values give much information about the state. Denote the singular v
 Then the norm of the state will be $\sum_i d_i^2$ and the entanglement entropy between the left and right parts of the state will be $\sum_i d_i \log_2(d_i)$, for example.
 
 The truncation mentioned above functions by throwing away the smallest singular values, until their squared sum exceeds $precision^2$. The result is that the truncation procedure finds the smallest MPS whose distance is less than `precision` away from the original state.
-As described on [the page of errors in TDVP](errors.md#truncation-of-the-state), the error in TDVP increases with the number of timesteps, so for long sequences or small `dt`, improving the precision might be required.
+As described in [the page of errors in TDVP](errors.md#truncation-of-the-state), the error in TDVP increases with the number of timesteps, so for long sequences or small `dt`, improving the precision might be required.
 
 Implications:
 
-- Smaller `precision` → more singular values kept → higher accuracy and larger memory/CPU cost.
+- Smaller `precision` ⟶ more singular values kept ⟶ higher accuracy and larger memory/CPU cost.
 
 - For long sequences or very small `dt`, reducing `precision` may be necessary to avoid accumulated truncation error.
 
@@ -93,7 +93,7 @@ mpsconfig = MPSConfig(precision=1e-6, extra_krylov_tolerance=1e-3, ...)
 
 The `num_gpus_to_use` parameter sets the number of GPUs over which the MPS tensors are distributed during the simulation.
 Setting `num_gpus_to_use = 0` runs the entire computation on the CPU.
-Using multiple GPUs can reduce memory usage per GPU, though the overall runtime remains similar.
+Using multiple GPUs can reduce memory usage per GPU, though the overall runtime remains similar. Also, the default value is `None` and emu-mps internally picks up the available GPUs in the machine, otherwise it uses the CPU.
 
 **Example:**
 num_gpus_to_use = 2  # use 2 GPUs if available, otherwise fallback to 1 or CPU
