@@ -1,5 +1,6 @@
 import pytest
 import re
+import json
 import logging
 from emu_sv import SVConfig, StateVector
 import pulser
@@ -89,10 +90,14 @@ def test_serialization_with_state():
     duration = 500
     pulse = pulser.Pulse.ConstantPulse(duration, 4 * np.pi, 0.0, 0.0)
     seq.add(pulse, "ch0")
-
+    basis = ["r", "g"]
     amp_full = {"g" * natoms: (0.7071 + 0.0j), "r" * natoms: (0.7071 + 0.0j)}
-    state = StateVector.from_state_amplitudes(eigenstates=("r", "g"), amplitudes=amp_full)
+    state = StateVector.from_state_amplitudes(eigenstates=basis, amplitudes=amp_full)
 
     config = SVConfig(initial_state=state)
+    config_str = config.to_abstract_repr()
 
-    config.to_abstract_repr()
+    my_config = json.loads(config_str)
+
+    assert my_config["initial_state"]["eigenstates"] == basis
+    assert my_config["initial_state"]["amplitudes"] == amp_full
