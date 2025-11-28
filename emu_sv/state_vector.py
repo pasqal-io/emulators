@@ -66,7 +66,8 @@ class StateVector(State[complex, torch.Tensor]):
 
         norm = torch.linalg.vector_norm(self.vector)
 
-        if not torch.allclose(norm, torch.ones_like(norm)):
+        # This must duplicate the tolerance in pulsers State._to_abstract_repr
+        if abs(self.norm() ** 4 - 1.0) > 1e-12:
             self.vector = self.vector / norm
 
     @classmethod
@@ -268,7 +269,7 @@ class StateVector(State[complex, torch.Tensor]):
             bin_to_int = int(
                 state.replace(one, "1").replace("g", "0"), 2
             )  # "0" basis is already in "0"
-            accum_state.vector[bin_to_int] = torch.tensor([amplitude], dtype=dtype)
+            accum_state.vector[bin_to_int] = amplitude  # type: ignore [assignment]
 
         accum_state._normalize()
 
