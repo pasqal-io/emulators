@@ -10,6 +10,11 @@ The implementation of the base classes is as follows:
 ## MPSConfig
 ::: emu_mps.mps_config.MPSConfig
 
+## Solver
+::: emu_mps.solver.Solver
+    options:
+        members: false
+
 ## MPS
 ::: emu_mps.mps.MPS
 
