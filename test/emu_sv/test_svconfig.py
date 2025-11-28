@@ -82,9 +82,7 @@ def test_expected_kwargs() -> None:
 def test_serialization_with_state():
     natoms = 2
     reg = pulser.Register.rectangle(1, natoms, spacing=8.0, prefix="q")
-    import torch
 
-    torch.set_printoptions(precision=16)
     seq = pulser.Sequence(reg, pulser.MockDevice)
     seq.declare_channel("ch0", "rydberg_global")
     duration = 500
