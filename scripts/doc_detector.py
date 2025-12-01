@@ -7,15 +7,17 @@ Validates that public APIs are properly documented and that
 documentation stays in sync with code changes.
 
 Usage:
-    python scripts/doc_agent.py --check-all
-    python scripts/doc_agent.py --check-signatures
-    python scripts/doc_agent.py --check-links
-    python scripts/doc_agent.py --check-examples
+    python scripts/doc_detector.py --check-all
+    python scripts/doc_detector.py --check-signatures
+    python scripts/doc_detector.py --check-links
+    python scripts/doc_detector.py --check-examples
+    python scripts/doc_detector.py --check-external-links
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import importlib
 import inspect
 import re
@@ -23,6 +25,15 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
+
+# Optional aiohttp import for async HTTP requests
+try:
+    import aiohttp
+
+    AIOHTTP_AVAILABLE = True
+except ImportError:
+    AIOHTTP_AVAILABLE = False
 
 # Optional playwright import for live site validation
 try:
@@ -56,12 +67,33 @@ class DocReference:
 
 
 @dataclass
+class ExternalLink:
+    """An external HTTP link found in documentation."""
+
+    url: str
+    text: str  # Link text
+    file_path: Path
+    line_number: int
+
+
+@dataclass
+class ExternalLinkResult:
+    """Result of checking an external link."""
+
+    link: ExternalLink
+    status_code: int | None
+    error: str | None
+    is_broken: bool
+
+
+@dataclass
 class DriftReport:
     """Report of documentation drift issues."""
 
     missing_in_docs: list[str] = field(default_factory=list)
     signature_mismatches: list[dict[str, Any]] = field(default_factory=list)
     broken_references: list[str] = field(default_factory=list)
+    broken_external_links: list[dict[str, Any]] = field(default_factory=list)
     undocumented_params: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -70,6 +102,7 @@ class DriftReport:
             self.missing_in_docs
             or self.signature_mismatches
             or self.broken_references
+            or self.broken_external_links
             or self.undocumented_params
         )
 
@@ -79,6 +112,7 @@ class DriftReport:
             "missing_in_docs": self.missing_in_docs,
             "signature_mismatches": self.signature_mismatches,
             "broken_references": self.broken_references,
+            "broken_external_links": self.broken_external_links,
             "undocumented_params": self.undocumented_params,
             "warnings": self.warnings,
             "has_issues": self.has_issues(),
@@ -103,6 +137,16 @@ class DriftReport:
             lines.append(f"Broken references ({len(self.broken_references)}):")
             for broken_ref in self.broken_references:
                 lines.append(f"  - {broken_ref}")
+            lines.append("")
+
+        if self.broken_external_links:
+            lines.append(f"Broken external links ({len(self.broken_external_links)}):")
+            for link_info in self.broken_external_links:
+                status = link_info.get("status", "unknown")
+                url = link_info.get("url", "unknown")
+                location = link_info.get("location", "unknown")
+                # Show location first in file:line format for VSCode click-to-navigate
+                lines.append(f"  {location}: {url} (status: {status})")
             lines.append("")
 
         if self.undocumented_params:
@@ -240,10 +284,16 @@ class CodeAnalyzer:
 
 
 class DocsParser:
-    """Parses mkdocs documentation to find mkdocstrings references."""
+    """Parses mkdocs documentation to find mkdocstrings references and external links."""
 
     # Pattern for mkdocstrings references like "::: emu_mps.mps.MPS"
     MKDOCSTRINGS_PATTERN = re.compile(r"^:::?\s+([\w.]+)", re.MULTILINE)
+
+    # Pattern for markdown links: [text](url)
+    MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]*)\]\((https?://[^)]+)\)")
+
+    # Pattern for bare URLs
+    BARE_URL_PATTERN = re.compile(r"(?<![(\[])(https?://[^\s\)>\]\"']+)")
 
     def __init__(self, docs_path: Path):
         self.docs_path = docs_path
@@ -257,6 +307,22 @@ class DocsParser:
             references.extend(refs)
 
         return references
+
+    def find_all_external_links(self) -> list[ExternalLink]:
+        """Find all external HTTP links in documentation files."""
+        links: list[ExternalLink] = []
+
+        # Check markdown files
+        for md_file in self.docs_path.rglob("*.md"):
+            file_links = self._parse_external_links(md_file)
+            links.extend(file_links)
+
+        # Check Jupyter notebooks
+        for ipynb_file in self.docs_path.rglob("*.ipynb"):
+            file_links = self._parse_notebook_links(ipynb_file)
+            links.extend(file_links)
+
+        return links
 
     def _parse_file(self, file_path: Path) -> list[DocReference]:
         """Parse a single markdown file for mkdocstrings references."""
@@ -280,6 +346,97 @@ class DocsParser:
                 )
 
         return references
+
+    def _parse_external_links(self, file_path: Path) -> list[ExternalLink]:
+        """Parse a markdown file for external HTTP links."""
+        links: list[ExternalLink] = []
+
+        try:
+            content = file_path.read_text()
+        except Exception as e:
+            print(f"Warning: Could not read {file_path}: {e}")
+            return links
+
+        for line_num, line in enumerate(content.split("\n"), 1):
+            # Find markdown links [text](url)
+            for match in self.MARKDOWN_LINK_PATTERN.finditer(line):
+                text, url = match.groups()
+                links.append(
+                    ExternalLink(
+                        url=url,
+                        text=text,
+                        file_path=file_path,
+                        line_number=line_num,
+                    )
+                )
+
+            # Find bare URLs (not already captured by markdown links)
+            for match in self.BARE_URL_PATTERN.finditer(line):
+                url = match.group(0)
+                # Skip if this URL was already captured as a markdown link
+                if not any(
+                    link.url == url and link.line_number == line_num for link in links
+                ):
+                    links.append(
+                        ExternalLink(
+                            url=url,
+                            text="",
+                            file_path=file_path,
+                            line_number=line_num,
+                        )
+                    )
+
+        return links
+
+    def _parse_notebook_links(self, file_path: Path) -> list[ExternalLink]:
+        """Parse a Jupyter notebook for external HTTP links."""
+        import json
+
+        links: list[ExternalLink] = []
+
+        try:
+            content = file_path.read_text()
+            notebook = json.loads(content)
+        except Exception as e:
+            print(f"Warning: Could not read notebook {file_path}: {e}")
+            return links
+
+        for cell_idx, cell in enumerate(notebook.get("cells", [])):
+            source = cell.get("source", [])
+            if isinstance(source, list):
+                source = "".join(source)
+
+            # Approximate line number based on cell index
+            line_num = cell_idx + 1
+
+            # Find markdown links
+            for match in self.MARKDOWN_LINK_PATTERN.finditer(source):
+                text, url = match.groups()
+                links.append(
+                    ExternalLink(
+                        url=url,
+                        text=text,
+                        file_path=file_path,
+                        line_number=line_num,
+                    )
+                )
+
+            # Find bare URLs
+            for match in self.BARE_URL_PATTERN.finditer(source):
+                url = match.group(0)
+                if not any(
+                    link.url == url and link.line_number == line_num for link in links
+                ):
+                    links.append(
+                        ExternalLink(
+                            url=url,
+                            text="",
+                            file_path=file_path,
+                            line_number=line_num,
+                        )
+                    )
+
+        return links
 
     def get_documented_apis(self) -> set[str]:
         """Get set of all documented API references."""
@@ -309,8 +466,11 @@ class DriftDetector:
         self.code_analyzer = CodeAnalyzer(root_path)
         self.docs_parser = DocsParser(root_path / "docs")
         self.ignore_pulser_reexports = ignore_pulser_reexports
+        self.link_checker = ExternalLinkChecker()
 
-    def check_all(self) -> DriftReport:
+    def check_all(
+        self, check_external_links: bool = False, verbose: bool = False
+    ) -> DriftReport:
         """Run all drift detection checks."""
         report = DriftReport()
 
@@ -323,7 +483,41 @@ class DriftDetector:
         # Check parameter documentation
         self._check_param_docs(report)
 
+        # Check external links (optional, can be slow)
+        if check_external_links:
+            self._check_external_links(report, verbose)
+
         return report
+
+    def check_external_links_only(self, verbose: bool = False) -> DriftReport:
+        """Run only external link checking."""
+        report = DriftReport()
+        self._check_external_links(report, verbose)
+        return report
+
+    def _check_external_links(self, report: DriftReport, verbose: bool = False) -> None:
+        """Check that all external links in documentation are valid."""
+        if verbose:
+            print("Finding external links in documentation...")
+
+        links = self.docs_parser.find_all_external_links()
+
+        if verbose:
+            print(f"Found {len(links)} external links, checking...")
+
+        results = self.link_checker.check_links(links, verbose)
+
+        for result in results:
+            if result.is_broken:
+                status = result.status_code if result.status_code else result.error
+                report.broken_external_links.append(
+                    {
+                        "url": result.link.url,
+                        "status": status,
+                        "location": f"{result.link.file_path}:{result.link.line_number}",
+                        "text": result.link.text,
+                    }
+                )
 
     def _check_api_coverage(self, report: DriftReport) -> None:
         """Check that all public APIs are documented."""
@@ -447,6 +641,270 @@ class DriftDetector:
                     )
 
 
+class ExternalLinkChecker:
+    """Checks external HTTP links for validity."""
+
+    # Domains to skip (usually require authentication or are rate-limited)
+    SKIP_DOMAINS = {
+        "pasqalworkspace.slack.com",  # Requires Slack auth
+        "cdn.jsdelivr.net",  # CDN, usually fine
+    }
+
+    # Status codes that indicate the URL exists but blocks automated requests
+    # These should not be considered broken links
+    ACCEPTABLE_STATUS_CODES = {
+        403,  # Forbidden - often blocks HEAD/automated requests
+        429,  # Too Many Requests - rate limited
+        405,  # Method Not Allowed - HEAD not supported, URL likely exists
+    }
+
+    # User agent to use for requests (mimic a real browser)
+    USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+
+    def __init__(
+        self,
+        timeout: float = 10.0,
+        max_concurrent: int = 5,
+        skip_domains: set[str] | None = None,
+    ):
+        self.timeout = timeout
+        self.max_concurrent = max_concurrent
+        self.skip_domains = skip_domains or self.SKIP_DOMAINS
+
+    def check_links_sync(
+        self, links: list[ExternalLink], verbose: bool = False
+    ) -> list[ExternalLinkResult]:
+        """Check external links synchronously using urllib (fallback)."""
+        import urllib.error
+        import urllib.request
+
+        results: list[ExternalLinkResult] = []
+        seen_urls: set[str] = set()
+
+        for link in links:
+            # Skip duplicates
+            if link.url in seen_urls:
+                continue
+            seen_urls.add(link.url)
+
+            # Skip certain domains
+            parsed = urlparse(link.url)
+            if parsed.netloc in self.skip_domains:
+                if verbose:
+                    print(f"  Skipping {link.url} (domain in skip list)")
+                continue
+
+            if verbose:
+                print(f"  Checking {link.url}...")
+
+            try:
+                # Try HEAD request first
+                req = urllib.request.Request(
+                    link.url,
+                    headers={"User-Agent": self.USER_AGENT},
+                    method="HEAD",
+                )
+                with urllib.request.urlopen(req, timeout=self.timeout) as response:
+                    status_code = response.getcode()
+                    is_broken = status_code >= 400
+                    results.append(
+                        ExternalLinkResult(
+                            link=link,
+                            status_code=status_code,
+                            error=None,
+                            is_broken=is_broken,
+                        )
+                    )
+            except urllib.error.HTTPError as e:
+                # If HEAD fails with acceptable status, try GET or skip
+                if e.code in self.ACCEPTABLE_STATUS_CODES:
+                    # These status codes mean URL exists but blocks requests
+                    results.append(
+                        ExternalLinkResult(
+                            link=link,
+                            status_code=e.code,
+                            error=None,
+                            is_broken=False,  # Not broken, just blocked
+                        )
+                    )
+                elif e.code == 405:  # Method not allowed, try GET
+                    try:
+                        req = urllib.request.Request(
+                            link.url,
+                            headers={"User-Agent": self.USER_AGENT},
+                            method="GET",
+                        )
+                        with urllib.request.urlopen(
+                            req, timeout=self.timeout
+                        ) as response:
+                            status_code = response.getcode()
+                            is_broken = status_code >= 400
+                            results.append(
+                                ExternalLinkResult(
+                                    link=link,
+                                    status_code=status_code,
+                                    error=None,
+                                    is_broken=is_broken,
+                                )
+                            )
+                    except Exception:
+                        results.append(
+                            ExternalLinkResult(
+                                link=link,
+                                status_code=e.code,
+                                error=str(e.reason),
+                                is_broken=True,
+                            )
+                        )
+                else:
+                    results.append(
+                        ExternalLinkResult(
+                            link=link,
+                            status_code=e.code,
+                            error=str(e.reason),
+                            is_broken=True,
+                        )
+                    )
+            except urllib.error.URLError as e:
+                results.append(
+                    ExternalLinkResult(
+                        link=link,
+                        status_code=None,
+                        error=str(e.reason),
+                        is_broken=True,
+                    )
+                )
+            except Exception as e:
+                results.append(
+                    ExternalLinkResult(
+                        link=link,
+                        status_code=None,
+                        error=str(e),
+                        is_broken=True,
+                    )
+                )
+
+        return results
+
+    async def check_links_async(
+        self, links: list[ExternalLink], verbose: bool = False
+    ) -> list[ExternalLinkResult]:
+        """Check external links asynchronously using aiohttp."""
+        if not AIOHTTP_AVAILABLE:
+            if verbose:
+                print("  aiohttp not available, falling back to sync checker")
+            return self.check_links_sync(links, verbose)
+
+        results: list[ExternalLinkResult] = []
+        seen_urls: dict[str, ExternalLink] = {}
+
+        # Deduplicate links, keeping track of the first occurrence
+        unique_links: list[ExternalLink] = []
+        for link in links:
+            if link.url not in seen_urls:
+                seen_urls[link.url] = link
+                unique_links.append(link)
+
+        # Filter out skipped domains
+        links_to_check: list[ExternalLink] = []
+        for link in unique_links:
+            parsed = urlparse(link.url)
+            if parsed.netloc in self.skip_domains:
+                if verbose:
+                    print(f"  Skipping {link.url} (domain in skip list)")
+                continue
+            links_to_check.append(link)
+
+        semaphore = asyncio.Semaphore(self.max_concurrent)
+
+        async def check_single(
+            session: aiohttp.ClientSession, link: ExternalLink
+        ) -> ExternalLinkResult:
+            async with semaphore:
+                if verbose:
+                    print(f"  Checking {link.url}...")
+
+                try:
+                    async with session.head(
+                        link.url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout),
+                        allow_redirects=True,
+                    ) as response:
+                        status = response.status
+                        # Check if status is acceptable (blocked but exists)
+                        if status in self.ACCEPTABLE_STATUS_CODES:
+                            return ExternalLinkResult(
+                                link=link,
+                                status_code=status,
+                                error=None,
+                                is_broken=False,
+                            )
+                        # If HEAD returns 405, try GET
+                        if status == 405:
+                            async with session.get(
+                                link.url,
+                                timeout=aiohttp.ClientTimeout(total=self.timeout),
+                                allow_redirects=True,
+                            ) as get_response:
+                                is_broken = get_response.status >= 400
+                                return ExternalLinkResult(
+                                    link=link,
+                                    status_code=get_response.status,
+                                    error=None,
+                                    is_broken=is_broken,
+                                )
+                        is_broken = status >= 400
+                        return ExternalLinkResult(
+                            link=link,
+                            status_code=status,
+                            error=None,
+                            is_broken=is_broken,
+                        )
+                except asyncio.TimeoutError:
+                    return ExternalLinkResult(
+                        link=link,
+                        status_code=None,
+                        error="Timeout",
+                        is_broken=True,
+                    )
+                except aiohttp.ClientError as e:
+                    return ExternalLinkResult(
+                        link=link,
+                        status_code=None,
+                        error=str(e),
+                        is_broken=True,
+                    )
+                except Exception as e:
+                    return ExternalLinkResult(
+                        link=link,
+                        status_code=None,
+                        error=str(e),
+                        is_broken=True,
+                    )
+
+        connector = aiohttp.TCPConnector(limit=self.max_concurrent)
+        async with aiohttp.ClientSession(
+            connector=connector,
+            headers={"User-Agent": self.USER_AGENT},
+        ) as session:
+            tasks = [check_single(session, link) for link in links_to_check]
+            results = await asyncio.gather(*tasks)
+
+        return list(results)
+
+    def check_links(
+        self, links: list[ExternalLink], verbose: bool = False
+    ) -> list[ExternalLinkResult]:
+        """Check external links (async if aiohttp available, sync otherwise)."""
+        if AIOHTTP_AVAILABLE:
+            return asyncio.run(self.check_links_async(links, verbose))
+        else:
+            return self.check_links_sync(links, verbose)
+
+
 class PlaywrightValidator:
     """Validates live documentation site using Playwright."""
 
@@ -558,6 +1016,11 @@ def main() -> int:
         action="store_true",
         help="Validate code examples (requires playwright)",
     )
+    parser.add_argument(
+        "--check-external-links",
+        action="store_true",
+        help="Check external HTTP links in documentation for broken URLs",
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
     parser.add_argument(
@@ -577,7 +1040,13 @@ def main() -> int:
 
     # Default to --check-all if no specific check is requested
     if not any(
-        [args.check_all, args.check_signatures, args.check_links, args.check_examples]
+        [
+            args.check_all,
+            args.check_signatures,
+            args.check_links,
+            args.check_examples,
+            args.check_external_links,
+        ]
     ):
         args.check_all = True
 
@@ -588,11 +1057,18 @@ def main() -> int:
         args.root, ignore_pulser_reexports=args.ignore_pulser_reexports
     )
 
+    exit_code = 0
+
     if args.check_all or args.check_signatures:
         if not args.json:
             print("Running documentation drift detection...")
 
-        report = detector.check_all()
+        # Include external links check when --check-all is used
+        include_external = args.check_all or args.check_external_links
+        report = detector.check_all(
+            check_external_links=include_external,
+            verbose=args.verbose,
+        )
 
         if args.json:
             import json
@@ -602,24 +1078,21 @@ def main() -> int:
             print(report.summary())
 
         if report.has_issues():
-            return 1
+            exit_code = 1
 
-    if args.check_links:
-        import asyncio
-
-        print("\nChecking documentation links...")
+    if args.check_all or args.check_links:
+        print("\nChecking documentation links (playwright)...")
         validator = PlaywrightValidator()
         broken = asyncio.run(validator.check_links())
         if broken:
             print("Broken links found:")
             for link in broken:
                 print(f"  - {link}")
-            return 1
-        print("All links OK")
+            exit_code = 1
+        else:
+            print("All internal links OK")
 
-    if args.check_examples:
-        import asyncio
-
+    if args.check_all or args.check_examples:
         print("\nValidating code examples...")
         validator = PlaywrightValidator()
         examples = asyncio.run(validator.validate_code_examples())
@@ -628,7 +1101,31 @@ def main() -> int:
             for ex in examples:
                 print(f"  - {ex}")
 
-    return 0
+    # Only run standalone external links check if not already done via check_all
+    if args.check_external_links and not args.check_all:
+        if not args.json:
+            print("\nChecking external links in documentation...")
+        report = detector.check_external_links_only(verbose=args.verbose)
+        if args.json:
+            import json
+
+            print(json.dumps(report.to_dict(), indent=2))
+        else:
+            if report.broken_external_links:
+                print(
+                    f"\nBroken external links " f"({len(report.broken_external_links)}):"
+                )
+                for link_info in report.broken_external_links:
+                    status = link_info.get("status", "unknown")
+                    url = link_info.get("url", "unknown")
+                    location = link_info.get("location", "unknown")
+                    # file:line format for VSCode click-to-navigate
+                    print(f"  {location}: {url} (status: {status})")
+                exit_code = 1
+            else:
+                print("All external links OK")
+
+    return exit_code
 
 
 if __name__ == "__main__":
