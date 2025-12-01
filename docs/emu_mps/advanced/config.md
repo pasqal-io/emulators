@@ -1,6 +1,6 @@
 # Explanation of config values
 
-This page documents the most important options in `MPSConfig` that controls how emu-mps evolves quantum states (TDVP and DMRG solvers). Each entry explains the meaning, typical uses, recommendations and short examples where helpful.
+This page documents all the options in `MPSConfig` that controls how emu-mps evolves quantum states (TDVP and DMRG solvers). Each entry explains the meaning, typical uses, recommendations and short examples where helpful.
 
 - dt
 - precision

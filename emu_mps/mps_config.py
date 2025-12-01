@@ -103,7 +103,7 @@ class MPSConfig(EmulationConfig):
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
         autosave_prefix: str = "emu_mps_save_",
-        autosave_dt: int = 600,  # 10 minutes
+        autosave_dt: int | float = float("inf"),  # disable autosave by default
         solver: Solver = Solver.TDVP,
         **kwargs: Any,
     ):
