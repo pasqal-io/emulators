@@ -25,7 +25,8 @@ nav:
       - Index: emu_mps/notebooks/index.md
       - Getting started: emu_mps/notebooks/getting_started.ipynb
       - Getting with started with dmrg: emu_mps/notebooks/dmrg_usecase.ipynb
-      - Running with noise: emu_mps/notebooks/noise.ipynb
+      - Noise Monte Carlo averaging: emu_mps/notebooks/noise_MonteCarlo_average_results.ipynb
+      - Creating Custom Observables: emu_mps/notebooks/creating_observables_tutorial.ipynb
     - Advanced Topics:
       - Index: emu_mps/advanced/index.md
       - QPU Hamiltonian: emu_mps/advanced/hamiltonian.md
@@ -125,7 +126,6 @@ extra_css:
 # For mathjax
 extra_javascript:
   - extras/javascripts/mathjax.js
-  - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 watch:
