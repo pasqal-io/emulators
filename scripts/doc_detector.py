@@ -77,6 +77,16 @@ class ExternalLink:
 
 
 @dataclass
+class LocalLink:
+    """A local file link found in documentation."""
+
+    path: str
+    text: str  # Link text
+    file_path: Path
+    line_number: int
+
+
+@dataclass
 class ExternalLinkResult:
     """Result of checking an external link."""
 
@@ -94,6 +104,7 @@ class DriftReport:
     signature_mismatches: list[dict[str, Any]] = field(default_factory=list)
     broken_references: list[str] = field(default_factory=list)
     broken_external_links: list[dict[str, Any]] = field(default_factory=list)
+    broken_local_links: list[dict[str, Any]] = field(default_factory=list)
     undocumented_params: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -103,6 +114,7 @@ class DriftReport:
             or self.signature_mismatches
             or self.broken_references
             or self.broken_external_links
+            or self.broken_local_links
             or self.undocumented_params
         )
 
@@ -113,6 +125,7 @@ class DriftReport:
             "signature_mismatches": self.signature_mismatches,
             "broken_references": self.broken_references,
             "broken_external_links": self.broken_external_links,
+            "broken_local_links": self.broken_local_links,
             "undocumented_params": self.undocumented_params,
             "warnings": self.warnings,
             "has_issues": self.has_issues(),
@@ -147,6 +160,19 @@ class DriftReport:
                 location = link_info.get("location", "unknown")
                 # Show location first in file:line format for VSCode click-to-navigate
                 lines.append(f"  {location}: {url} (status: {status})")
+            lines.append("")
+
+        if self.broken_local_links:
+            lines.append(f"Broken local links ({len(self.broken_local_links)}):")
+            for link_info in self.broken_local_links:
+                path = link_info.get("path", "unknown")
+                location = link_info.get("location", "unknown")
+                reason = link_info.get("reason", "")
+                # Show location first in file:line format for VSCode click-to-navigate
+                if reason:
+                    lines.append(f"  {location}: {path} ({reason})")
+                else:
+                    lines.append(f"  {location}: {path}")
             lines.append("")
 
         if self.undocumented_params:
@@ -292,11 +318,17 @@ class DocsParser:
     # Pattern for markdown links: [text](url)
     MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]*)\]\((https?://[^)]+)\)")
 
+    # Pattern for local file links: [text](path) where path is not http(s)://
+    LOCAL_LINK_PATTERN = re.compile(
+        r"\[([^\]]*)\]\(([^)]+?(?:\.py|\.ipynb|\.md|\.txt|\.yml|\.yaml|\.json|\.toml))\)"
+    )
+
     # Pattern for bare URLs
     BARE_URL_PATTERN = re.compile(r"(?<![(\[])(https?://[^\s\)>\]\"']+)")
 
-    def __init__(self, docs_path: Path):
+    def __init__(self, docs_path: Path, root_path: Path | None = None):
         self.docs_path = docs_path
+        self.root_path = root_path or docs_path.parent
 
     def find_all_references(self) -> list[DocReference]:
         """Find all mkdocstrings references in documentation files."""
@@ -320,6 +352,17 @@ class DocsParser:
         # Check Jupyter notebooks
         for ipynb_file in self.docs_path.rglob("*.ipynb"):
             file_links = self._parse_notebook_links(ipynb_file)
+            links.extend(file_links)
+
+        return links
+
+    def find_all_local_links(self) -> list[LocalLink]:
+        """Find all local file links in documentation files."""
+        links: list[LocalLink] = []
+
+        # Check markdown files
+        for md_file in self.docs_path.rglob("*.md"):
+            file_links = self._parse_local_links(md_file)
             links.extend(file_links)
 
         return links
@@ -438,6 +481,34 @@ class DocsParser:
 
         return links
 
+    def _parse_local_links(self, file_path: Path) -> list[LocalLink]:
+        """Parse a markdown file for local file links."""
+        links: list[LocalLink] = []
+
+        try:
+            content = file_path.read_text()
+        except Exception as e:
+            print(f"Warning: Could not read {file_path}: {e}")
+            return links
+
+        for line_num, line in enumerate(content.split("\n"), 1):
+            # Find local file links [text](path)
+            for match in self.LOCAL_LINK_PATTERN.finditer(line):
+                text, path = match.groups()
+                # Skip if it's an HTTP(S) URL
+                if path.startswith(("http://", "https://")):
+                    continue
+                links.append(
+                    LocalLink(
+                        path=path,
+                        text=text,
+                        file_path=file_path,
+                        line_number=line_num,
+                    )
+                )
+
+        return links
+
     def get_documented_apis(self) -> set[str]:
         """Get set of all documented API references."""
         refs = self.find_all_references()
@@ -464,7 +535,7 @@ class DriftDetector:
     def __init__(self, root_path: Path, ignore_pulser_reexports: bool = True):
         self.root_path = root_path
         self.code_analyzer = CodeAnalyzer(root_path)
-        self.docs_parser = DocsParser(root_path / "docs")
+        self.docs_parser = DocsParser(root_path / "docs", root_path)
         self.ignore_pulser_reexports = ignore_pulser_reexports
         self.link_checker = ExternalLinkChecker()
 
@@ -482,6 +553,9 @@ class DriftDetector:
 
         # Check parameter documentation
         self._check_param_docs(report)
+
+        # Check local file links
+        self._check_local_links(report)
 
         # Check external links (optional, can be slow)
         if check_external_links:
@@ -639,6 +713,94 @@ class DriftDetector:
                             "params": ", ".join(undocumented),
                         }
                     )
+
+    def _check_local_links(self, report: DriftReport) -> None:
+        """Check that all local file links point to existing files."""
+        links = self.docs_parser.find_all_local_links()
+
+        # Load mkdocs nav if available to check if files are included
+        mkdocs_nav_files = self._get_mkdocs_nav_files()
+
+        for link in links:
+            # Resolve the path relative to the file containing the link
+            link_dir = link.file_path.parent
+
+            # Try to resolve the path
+            # First try relative to the doc file
+            resolved_path = (link_dir / link.path).resolve()
+
+            # If not found and path starts with .., try relative to docs root
+            if not resolved_path.exists() and link.path.startswith(".."):
+                resolved_path = (self.docs_parser.docs_path / link.path).resolve()
+
+            # If not found and path starts with /, try relative to root
+            if not resolved_path.exists() and link.path.startswith("/"):
+                resolved_path = (
+                    self.docs_parser.root_path / link.path.lstrip("/")
+                ).resolve()
+
+            if not resolved_path.exists():
+                report.broken_local_links.append(
+                    {
+                        "path": link.path,
+                        "location": f"{link.file_path}:{link.line_number}",
+                        "text": link.text,
+                    }
+                )
+            else:
+                # Check if .py files are in mkdocs nav (they won't be served otherwise)
+                if link.path.endswith(".py") and mkdocs_nav_files is not None:
+                    # Get relative path from docs root
+                    try:
+                        rel_path = resolved_path.relative_to(self.docs_parser.docs_path)
+                        if str(rel_path) not in mkdocs_nav_files:
+                            report.broken_local_links.append(
+                                {
+                                    "path": link.path,
+                                    "location": f"{link.file_path}:{link.line_number}",
+                                    "text": link.text,
+                                    "reason": ".py file not in mkdocs nav (won't be served)",
+                                }
+                            )
+                    except ValueError:
+                        # Path is outside docs directory
+                        pass
+
+    def _get_mkdocs_nav_files(self) -> set[str] | None:
+        """Extract list of files from mkdocs.yml nav section."""
+        mkdocs_path = self.root_path / "mkdocs.yml"
+        if not mkdocs_path.exists():
+            return None
+
+        try:
+            import yaml  # type: ignore[import-untyped]
+
+            with open(mkdocs_path) as f:
+                config = yaml.safe_load(f)
+
+            nav_files: set[str] = set()
+
+            def extract_files(nav_item: Any) -> None:
+                if isinstance(nav_item, str):
+                    nav_files.add(nav_item)
+                elif isinstance(nav_item, dict):
+                    for value in nav_item.values():
+                        if isinstance(value, str):
+                            nav_files.add(value)
+                        elif isinstance(value, list):
+                            for item in value:
+                                extract_files(item)
+                elif isinstance(nav_item, list):
+                    for item in nav_item:
+                        extract_files(item)
+
+            if "nav" in config:
+                extract_files(config["nav"])
+
+            return nav_files
+        except Exception as e:
+            print(f"Warning: Could not parse mkdocs.yml: {e}")
+            return None
 
 
 class ExternalLinkChecker:
@@ -895,14 +1057,95 @@ class ExternalLinkChecker:
 
         return list(results)
 
+    async def check_readthedocs_link(self, url: str) -> tuple[bool, str]:
+        """
+        Check if readthedocs link is valid using Playwright.
+        Returns (is_valid, error_msg).
+        """
+        if not PLAYWRIGHT_AVAILABLE:
+            return True, ""  # Can't verify without Playwright
+
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch()
+                page = await browser.new_page()
+                await page.goto(url, timeout=10000)
+
+                # Check if page contains "404" or "Page Not Found" indicators
+                content = await page.content()
+                title = await page.title()
+
+                await browser.close()
+
+                # Readthedocs returns 200 even for 404 pages, so check content
+                if "404" in title or "Page not found" in title.lower():
+                    return False, "404 page"
+                if "404" in content[:1000] and "not found" in content[:1000].lower():
+                    return False, "404 page"
+
+                return True, ""
+        except Exception as e:
+            return False, str(e)
+
     def check_links(
         self, links: list[ExternalLink], verbose: bool = False
     ) -> list[ExternalLinkResult]:
         """Check external links (async if aiohttp available, sync otherwise)."""
-        if AIOHTTP_AVAILABLE:
-            return asyncio.run(self.check_links_async(links, verbose))
-        else:
-            return self.check_links_sync(links, verbose)
+        results: list[ExternalLinkResult] = []
+
+        # Separate readthedocs links from others
+        readthedocs_links: list[ExternalLink] = []
+        other_links: list[ExternalLink] = []
+
+        for link in links:
+            if "readthedocs.io" in link.url:
+                readthedocs_links.append(link)
+            else:
+                other_links.append(link)
+
+        # Check non-readthedocs links with HTTP
+        if other_links:
+            if AIOHTTP_AVAILABLE:
+                results.extend(asyncio.run(self.check_links_async(other_links, verbose)))
+            else:
+                results.extend(self.check_links_sync(other_links, verbose))
+
+        # Check readthedocs links with Playwright for accurate 404 detection
+        if readthedocs_links and PLAYWRIGHT_AVAILABLE:
+            if verbose:
+                print(
+                    f"  Checking {len(readthedocs_links)} readthedocs links with Playwright..."
+                )
+
+            async def check_rtd_links() -> list[ExternalLinkResult]:
+                rtd_results: list[ExternalLinkResult] = []
+                for link in readthedocs_links:
+                    if verbose:
+                        print(f"  Checking {link.url} (Playwright)...")
+                    is_valid, error = await self.check_readthedocs_link(link.url)
+                    rtd_results.append(
+                        ExternalLinkResult(
+                            link=link,
+                            status_code=200 if is_valid else 404,
+                            error=error if not is_valid else None,
+                            is_broken=not is_valid,
+                        )
+                    )
+                return rtd_results
+
+            results.extend(asyncio.run(check_rtd_links()))
+        elif readthedocs_links:
+            # Fallback to HTTP check if Playwright not available
+            if verbose:
+                print("  Playwright not available, using HTTP for readthedocs links...")
+            if AIOHTTP_AVAILABLE:
+                results.extend(
+                    asyncio.run(self.check_links_async(readthedocs_links, verbose))
+                )
+            else:
+                results.extend(self.check_links_sync(readthedocs_links, verbose))
+
+        return results
 
 
 class PlaywrightValidator:
