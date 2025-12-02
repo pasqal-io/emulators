@@ -51,7 +51,7 @@ def _get_target_times(
             times = obs.evaluation_times
         elif config.default_evaluation_times != "Full":
             times = config.default_evaluation_times.tolist()  # type: ignore[union-attr,assignment]
-        observable_times |= set([round(time * sequence_duration) for time in times])
+        observable_times |= set([round(time * sequence_duration, 10) for time in times])
 
     target_times: list[int] = list(observable_times)
     target_times.sort()
