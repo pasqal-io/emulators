@@ -890,3 +890,47 @@ def test_non_lindbladian_noise():
 
     # this should not error
     PulserData(sequence=seq, config=config, dt=10)
+
+
+def test_extract_omega_delta_phi_missing_qubit():
+    """Test that qubits that don't feel the pulses have zero amplitude, detuning and phase"""
+    pulse_duration = 5
+    target_times = list(range(pulse_duration + 1))
+    qubit_ids = ["q0", "q1", "q2"]
+
+    # Only q0 and q2 have pulses, q1 is missing
+    mock_pulser_dict = {
+        "ground-rydberg": {
+            "q0": {
+                "amp": [1, 2, 3, 4, 5, 6],
+                "det": [0, 0, 0, 0, 0, 0],
+                "phase": [0, 0, 0, 0, 0, 0],
+            },
+            "q2": {
+                "amp": [6, 5, 4, 3, 2, 1],
+                "det": [0, 0, 0, 0, 0, 0],
+                "phase": [0, 0, 0, 0, 0, 0],
+            },
+        }
+    }
+
+    sample_mock = MagicMock()
+    sample_mock.to_nested_dict.return_value = {"Local": mock_pulser_dict}
+    sample_mock.max_duration = pulse_duration
+
+    omega, delta, phi = _extract_omega_delta_phi(
+        noisy_samples=sample_mock,
+        qubit_ids=qubit_ids,
+        target_times=target_times,
+    )
+
+    # q1 should have zero amplitude, detuning and phase
+    assert torch.all(omega[:, 1] == 0)
+    assert torch.all(delta[:, 1] == 0)
+    assert torch.all(phi[:, 1] == 0)
+
+    # q0 and q2 should have a non-zero value of their amps
+    assert omega[:, 0][0] == 1.5  # due to linear interpolation formula
+    assert omega[:, 2][0] == 5.5
+    assert not torch.all(omega[:, 0] == 0)
+    assert not torch.all(omega[:, 2] == 0)
