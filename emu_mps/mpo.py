@@ -21,6 +21,8 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
 
     Args:
         factors: the tensors making up the MPO
+        num_gpus_to_use: distribute the factors over this many GPUs.
+            If None, keeps the existing device assignment.
     """
 
     def __init__(

@@ -26,6 +26,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python ./test_dependency_versions.py
+  check_docs:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install -e .
+      - name: Check documentation drift and external links
+        run: python scripts/doc_detector.py --check-signatures --check-external-links
   test:
     needs: check_dependency_versions
     runs-on: ${{ matrix.os }}

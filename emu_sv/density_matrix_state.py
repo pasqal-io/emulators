@@ -15,7 +15,13 @@ dtype = torch.complex128
 
 
 class DensityMatrix(State[complex, torch.Tensor]):
-    """Represents a density matrix in a computational basis."""
+    """
+    Represents a density matrix in a computational basis.
+
+    Args:
+        matrix: 2D tensor representation of the density matrix.
+        gpu: if True, stores the matrix on GPU when available.
+    """
 
     # for the moment no need to check positivity and trace 1
     def __init__(
