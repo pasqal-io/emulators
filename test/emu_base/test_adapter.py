@@ -890,3 +890,47 @@ def test_non_lindbladian_noise():
 
     # this should not error
     PulserData(sequence=seq, config=config, dt=10)
+
+
+def test_extract_omega_delta_phi_missing_qubit():
+    """
+    Test that qubits not present in the pulse samples are filtered out
+    Only qubits included in the pulser sequence are used to fill omega, delta, and phi.
+    """
+    pulse_duration = 5
+    target_times = list(range(pulse_duration + 1))
+    qubit_ids = ["q0", "q1", "q2"]
+
+    mock_pulser_dict = {
+        "ground-rydberg": {
+            "q0": {
+                "amp": [1, 2, 3, 4, 5, 6],
+                "det": [0, 0, 0, 0, 0, 0],
+                "phase": [0, 0, 0, 0, 0, 0],
+            },
+            "q2": {
+                "amp": [6, 5, 4, 3, 2, 1],
+                "det": [0, 0, 0, 0, 0, 0],
+                "phase": [0, 0, 0, 0, 0, 0],
+            },
+        }
+    }
+
+    sample_mock = MagicMock()
+    sample_mock.to_nested_dict.return_value = {"Local": mock_pulser_dict}
+    sample_mock.max_duration = pulse_duration
+
+    omega, delta, phi = _extract_omega_delta_phi(
+        noisy_samples=sample_mock,
+        qubit_ids=qubit_ids,
+        target_times=target_times,
+    )
+    # Check values of omega for q0 and q2
+    qubit_map = {0: "q0", 1: "q2"}
+    for q_idx, q_id in qubit_map.items():
+        for i in range(omega.shape[0]):
+            expected_omega = (
+                mock_pulser_dict["ground-rydberg"][q_id]["amp"][i]
+                + mock_pulser_dict["ground-rydberg"][q_id]["amp"][i + 1]
+            ) / 2
+            assert omega[i, q_idx] == expected_omega

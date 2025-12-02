@@ -90,6 +90,7 @@ def _extract_omega_delta_phi(
         locals_a_d_p = sequence_dict["XY"]
     else:
         raise ValueError("Only `ground-rydberg` and `mw_global` channels are supported.")
+    qubit_ids_filtered = [qid for qid in qubit_ids if qid in locals_a_d_p]
     for i in range(nsamples):
         t = (target_times[i] + target_times[i + 1]) / 2
         # The sampled values correspond to the start of each interval
@@ -100,7 +101,7 @@ def _extract_omega_delta_phi(
             # Note that for dt even, t1=t2
             t1 = math.floor(t)
             t2 = math.ceil(t)
-            for q_pos, q_id in enumerate(qubit_ids):
+            for q_pos, q_id in enumerate(qubit_ids_filtered):
                 omega[i, q_pos] = (
                     locals_a_d_p[q_id]["amp"][t1] + locals_a_d_p[q_id]["amp"][t2]
                 ) / 2.0
@@ -110,10 +111,11 @@ def _extract_omega_delta_phi(
                 phi[i, q_pos] = (
                     locals_a_d_p[q_id]["phase"][t1] + locals_a_d_p[q_id]["phase"][t2]
                 ) / 2.0
+
         else:
             # We're in the final step and dt=1, approximate this using linear extrapolation
             # we can reuse omega_1 and omega_2 from before
-            for q_pos, q_id in enumerate(qubit_ids):
+            for q_pos, q_id in enumerate(qubit_ids_filtered):
                 delta[i, q_pos] = (
                     3.0 * locals_a_d_p[q_id]["det"][t2] - locals_a_d_p[q_id]["det"][t1]
                 ) / 2.0
@@ -126,6 +128,7 @@ def _extract_omega_delta_phi(
                     / 2.0,
                     0.0,
                 )
+
     return omega, delta, phi
 
 
