@@ -90,9 +90,9 @@ def _extract_omega_delta_phi(
         locals_a_d_p = sequence_dict["XY"]
     else:
         raise ValueError("Only `ground-rydberg` and `mw_global` channels are supported.")
+    qubit_ids_filtered = [qid for qid in qubit_ids if qid in locals_a_d_p]
     for i in range(nsamples):
         t = (target_times[i] + target_times[i + 1]) / 2
-        qubit_ids_filtered = [qid for qid in qubit_ids if qid in locals_a_d_p]
         # The sampled values correspond to the start of each interval
         # To maximize the order of the solver, we need the values in the middle
         if math.ceil(t) < max_duration:

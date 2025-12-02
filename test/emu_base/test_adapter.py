@@ -925,94 +925,12 @@ def test_extract_omega_delta_phi_missing_qubit():
         qubit_ids=qubit_ids,
         target_times=target_times,
     )
-
     # Check values of omega for q0 and q2
-    assert (
-        omega[0, 0]
-        == (
-            mock_pulser_dict["ground-rydberg"]["q0"]["amp"][0]
-            + mock_pulser_dict["ground-rydberg"]["q0"]["amp"][1]
-        )
-        / 2
-    )
-
-    assert (
-        omega[1, 0]
-        == (
-            mock_pulser_dict["ground-rydberg"]["q0"]["amp"][1]
-            + mock_pulser_dict["ground-rydberg"]["q0"]["amp"][2]
-        )
-        / 2
-    )
-
-    assert (
-        omega[2, 0]
-        == (
-            mock_pulser_dict["ground-rydberg"]["q0"]["amp"][2]
-            + mock_pulser_dict["ground-rydberg"]["q0"]["amp"][3]
-        )
-        / 2
-    )
-
-    assert (
-        omega[3, 0]
-        == (
-            mock_pulser_dict["ground-rydberg"]["q0"]["amp"][3]
-            + mock_pulser_dict["ground-rydberg"]["q0"]["amp"][4]
-        )
-        / 2
-    )
-
-    assert (
-        omega[4, 0]
-        == (
-            mock_pulser_dict["ground-rydberg"]["q0"]["amp"][4]
-            + mock_pulser_dict["ground-rydberg"]["q0"]["amp"][5]
-        )
-        / 2
-    )
-
-    assert (
-        omega[0, 1]
-        == (
-            mock_pulser_dict["ground-rydberg"]["q2"]["amp"][0]
-            + mock_pulser_dict["ground-rydberg"]["q2"]["amp"][1]
-        )
-        / 2
-    )
-
-    assert (
-        omega[1, 1]
-        == (
-            mock_pulser_dict["ground-rydberg"]["q2"]["amp"][1]
-            + mock_pulser_dict["ground-rydberg"]["q2"]["amp"][2]
-        )
-        / 2
-    )
-
-    assert (
-        omega[2, 1]
-        == (
-            mock_pulser_dict["ground-rydberg"]["q2"]["amp"][2]
-            + mock_pulser_dict["ground-rydberg"]["q2"]["amp"][3]
-        )
-        / 2
-    )
-
-    assert (
-        omega[3, 1]
-        == (
-            mock_pulser_dict["ground-rydberg"]["q2"]["amp"][3]
-            + mock_pulser_dict["ground-rydberg"]["q2"]["amp"][4]
-        )
-        / 2
-    )
-
-    assert (
-        omega[4, 1]
-        == (
-            mock_pulser_dict["ground-rydberg"]["q2"]["amp"][4]
-            + mock_pulser_dict["ground-rydberg"]["q2"]["amp"][5]
-        )
-        / 2
-    )
+    qubit_map = {0: "q0", 1: "q2"}
+    for q_idx, q_id in qubit_map.items():
+        for i in range(omega.shape[0]):
+            expected_omega = (
+                mock_pulser_dict["ground-rydberg"][q_id]["amp"][i]
+                + mock_pulser_dict["ground-rydberg"][q_id]["amp"][i + 1]
+            ) / 2
+            assert omega[i, q_idx] == expected_omega
