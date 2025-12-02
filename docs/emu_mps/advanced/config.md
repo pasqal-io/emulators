@@ -43,7 +43,7 @@ Implications:
 
 - Smaller `precision` ⟶ more singular values kept ⟶ higher accuracy and larger memory/CPU cost.
 
-- For long sequences or very small `dt`, reducing `precision` may be necessary to avoid accumulated truncation error.
+- For long sequences or very small `dt`, improving (reducing) `precision` may be necessary to avoid accumulated truncation error.
 
 Recommendation
 
@@ -57,7 +57,7 @@ Guidance:
 
 - Increase `max_bond_dim` when precision-limited truncation repeatedly hits the cap.
 
-- Monitor `results.statistics` (e.g., maximum bond dimension used) to decide whether to raise the cap.
+- Monitor the statistics (`results.statistics` like maximum bond dimension used) and if some memory is still free, raise the cap.
 
 ## max_krylov_dim
 
@@ -67,9 +67,9 @@ Note that the number of iterations the Lanczos algorithm needs to converge to th
 
 Guidance:
 
-- Increase `max_bond_dim` when precision-limited truncation repeatedly hits the cap.
+- The default value should rarely be changed.
 
-- Monitor `results.statistics` (e.g., maximum bond dimension used) to decide whether to raise the cap.
+- If there is a recursion error from the Lanczos algorithm, lower `dt` rather than increasing `max_krylov_dim`.
 
 ## extra_krylov_tolerance
 
@@ -79,7 +79,7 @@ Numerical safety
 
 - If `precision * extra_krylov_tolerance` becomes extremely small (close to machine precision ~1e-16 for double precision), the algorithm cannot reliably distinguish noise from convergence and the simulation may produce incorrect results.
 
-- Practical lower bound: keep `precision * extra_krylov_tolerance >= 1e-12` as a conservative guideline. If your product is smaller, increase either `precision`. It is recommended to leave `extra_krylov_tolerance` as its default value.
+- Practical lower bound: keep `precision * extra_krylov_tolerance >= 1e-12` as a conservative guideline. If precision is very small like ~1e-16, then increase `extra_krylov_tolerance` to obey the bound.
 
 Example:
 
@@ -106,7 +106,7 @@ mpsconfig = MPSConfig(num_gpus_to_use=2, ...)
 
 The `optimize_qubit_ordering` parameter enables the reordering of qubits in the register. This can be useful in cases where the initial qubit ordering (chosen by the user or by Pulser) is not optimal. In such cases, setting `optimize_qubit_ordering = True` re-orders the qubits more efficiently, and that has been shown to improve performance and accuracy. The default value is `True`.
 
-**Note:** this option (`True`) is not compatible with certain features, such as reading a user-provided initial state. In the case of some observables the option `True` is not supported but only in this case the option will be changed to `False` automatically after throwing a warning message.
+**Note:** this option (`True`) is not compatible with certain features, such as using a user-provided initial state or the StateResult observable. In this case the option will be changed to `False` automatically after throwing a warning message.
 
 ## log_level
 
@@ -129,7 +129,7 @@ from pathlib import Path
 mpsconfig = MPSConfig(
     dt=dt,
     observables=[...],
-    log_level=logging.INFO,            # or logging.WARNING, logging.DEBUG, ...
+    log_level=logging.INFO,            # or logging.WARNING, ...
     log_file=Path("emu_mps_run.log"),  # optional: write logs to file
 )
 ```
@@ -138,7 +138,6 @@ Recommendations:
 
 - Use `logging.INFO` for interactive runs and examples.
 - Use `logging.WARNING` or `logging.ERROR` when running large batches / Monte Carlo simulations to reduce output.
-- Use `logging.DEBUG` only when diagnosing problems (may generate large volumes of output).
 - Consider using `log_file` for long-running simulations to preserve diagnostics without cluttering the console.
 
 ## log_file

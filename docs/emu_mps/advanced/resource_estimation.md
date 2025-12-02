@@ -76,7 +76,7 @@ $$
 
 Note that this estimate is __pessimistic__, since not all $k$ Krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $\chi$ is probably attained at the center qubit.
 
-Both __TDVP__ and __DMRG__ rely on the same bath construction and effective Hamiltonian machinery, so their memory requirements are expected to scale similarly with $N$ and $\chi$.
+Both TDVP and DMRG rely on the same bath construction and effective Hamiltonian machinery, so their memory requirements are expected to scale similarly with $N$ and $\chi$.
 
 To test the accuracy of the above memory estimations, we benchmarked the __TDVP__ algorithm by fixing the bond dimension to a particular desired value.
 For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $\chi$, we collect the maximum resident size, or RSS, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=30$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of system sizes and bond dimensions.
@@ -138,7 +138,7 @@ $$\Delta t(N,\chi,k)\sim \alpha N^2\chi^3 + \beta N^3\chi^2$$
 
 As previously discussed, both algorithms rely on the same bath construction and effective Hamiltonian machinery, so their scaling with the system size $N$ and bond dimension $\chi$ should be comparable.
 
-The study below focuses on __TDVP__, where we ran multiple simulations and measured the average runtime per time step. A similar analysis could be carried out for __DMRG__, and we expect it to lead to similar results.
+The study below focuses on TDVP, where we ran multiple simulations and measured the average runtime per time step. A similar analysis could be carried out for DMRG, and we expect it to lead to similar results.
 
 Below, we show the obtained results for different number of atoms in a register $N$ at fixed bond dimension $\chi$ (left), and at different fixed $N$ but increasing the bond dimension (left). On top of these data points, we also plot the resulting fit of the complexity estimation presented in the equation above. Remarkably, with just two parameters $\alpha$ and $\beta$ with get good agreement.
 

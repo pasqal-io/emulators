@@ -83,7 +83,7 @@ markdown_extensions:
 - pymdownx.details
 - toc:
     permalink: true # link to each section
-- pymdownx.arithmatex  # if you need LaTeX math
+- pymdownx.arithmatex  # need for LaTeX math
 - attr_list
 - pymdownx.superfences:
     custom_fences:
