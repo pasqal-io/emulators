@@ -893,12 +893,14 @@ def test_non_lindbladian_noise():
 
 
 def test_extract_omega_delta_phi_missing_qubit():
-    """Test that qubits that don't feel the pulses have zero amplitude, detuning and phase"""
+    """
+    Test that qubits not present in the pulse samples are filtered out
+    Only qubits included in the pulser sequence are used to fill omega, delta, and phi.
+    """
     pulse_duration = 5
     target_times = list(range(pulse_duration + 1))
     qubit_ids = ["q0", "q1", "q2"]
 
-    # Only q0 and q2 have pulses, q1 is missing
     mock_pulser_dict = {
         "ground-rydberg": {
             "q0": {
@@ -924,13 +926,93 @@ def test_extract_omega_delta_phi_missing_qubit():
         target_times=target_times,
     )
 
-    # q1 should have zero amplitude, detuning and phase
-    assert torch.all(omega[:, 1] == 0)
-    assert torch.all(delta[:, 1] == 0)
-    assert torch.all(phi[:, 1] == 0)
+    # Check values of omega for q0 and q2
+    assert (
+        omega[0, 0]
+        == (
+            mock_pulser_dict["ground-rydberg"]["q0"]["amp"][0]
+            + mock_pulser_dict["ground-rydberg"]["q0"]["amp"][1]
+        )
+        / 2
+    )
 
-    # q0 and q2 should have a non-zero value of their amps
-    assert omega[:, 0][0] == 1.5  # due to linear interpolation formula
-    assert omega[:, 2][0] == 5.5
-    assert not torch.all(omega[:, 0] == 0)
-    assert not torch.all(omega[:, 2] == 0)
+    assert (
+        omega[1, 0]
+        == (
+            mock_pulser_dict["ground-rydberg"]["q0"]["amp"][1]
+            + mock_pulser_dict["ground-rydberg"]["q0"]["amp"][2]
+        )
+        / 2
+    )
+
+    assert (
+        omega[2, 0]
+        == (
+            mock_pulser_dict["ground-rydberg"]["q0"]["amp"][2]
+            + mock_pulser_dict["ground-rydberg"]["q0"]["amp"][3]
+        )
+        / 2
+    )
+
+    assert (
+        omega[3, 0]
+        == (
+            mock_pulser_dict["ground-rydberg"]["q0"]["amp"][3]
+            + mock_pulser_dict["ground-rydberg"]["q0"]["amp"][4]
+        )
+        / 2
+    )
+
+    assert (
+        omega[4, 0]
+        == (
+            mock_pulser_dict["ground-rydberg"]["q0"]["amp"][4]
+            + mock_pulser_dict["ground-rydberg"]["q0"]["amp"][5]
+        )
+        / 2
+    )
+
+    assert (
+        omega[0, 1]
+        == (
+            mock_pulser_dict["ground-rydberg"]["q2"]["amp"][0]
+            + mock_pulser_dict["ground-rydberg"]["q2"]["amp"][1]
+        )
+        / 2
+    )
+
+    assert (
+        omega[1, 1]
+        == (
+            mock_pulser_dict["ground-rydberg"]["q2"]["amp"][1]
+            + mock_pulser_dict["ground-rydberg"]["q2"]["amp"][2]
+        )
+        / 2
+    )
+
+    assert (
+        omega[2, 1]
+        == (
+            mock_pulser_dict["ground-rydberg"]["q2"]["amp"][2]
+            + mock_pulser_dict["ground-rydberg"]["q2"]["amp"][3]
+        )
+        / 2
+    )
+
+    assert (
+        omega[3, 1]
+        == (
+            mock_pulser_dict["ground-rydberg"]["q2"]["amp"][3]
+            + mock_pulser_dict["ground-rydberg"]["q2"]["amp"][4]
+        )
+        / 2
+    )
+
+    assert (
+        omega[4, 1]
+        == (
+            mock_pulser_dict["ground-rydberg"]["q2"]["amp"][4]
+            + mock_pulser_dict["ground-rydberg"]["q2"]["amp"][5]
+        )
+        / 2
+    )

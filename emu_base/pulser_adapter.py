@@ -92,6 +92,7 @@ def _extract_omega_delta_phi(
         raise ValueError("Only `ground-rydberg` and `mw_global` channels are supported.")
     for i in range(nsamples):
         t = (target_times[i] + target_times[i + 1]) / 2
+        qubit_ids_filtered = [qid for qid in qubit_ids if qid in locals_a_d_p]
         # The sampled values correspond to the start of each interval
         # To maximize the order of the solver, we need the values in the middle
         if math.ceil(t) < max_duration:
@@ -100,47 +101,33 @@ def _extract_omega_delta_phi(
             # Note that for dt even, t1=t2
             t1 = math.floor(t)
             t2 = math.ceil(t)
-            for q_pos, q_id in enumerate(qubit_ids):
-                if q_id in locals_a_d_p:
-                    omega[i, q_pos] = (
-                        locals_a_d_p[q_id]["amp"][t1] + locals_a_d_p[q_id]["amp"][t2]
-                    ) / 2.0
-                    delta[i, q_pos] = (
-                        locals_a_d_p[q_id]["det"][t1] + locals_a_d_p[q_id]["det"][t2]
-                    ) / 2.0
-                    phi[i, q_pos] = (
-                        locals_a_d_p[q_id]["phase"][t1] + locals_a_d_p[q_id]["phase"][t2]
-                    ) / 2.0
-                else:
-                    omega[i, q_pos] = 0.0
-                    delta[i, q_pos] = 0.0
-                    phi[i, q_pos] = 0.0
+            for q_pos, q_id in enumerate(qubit_ids_filtered):
+                omega[i, q_pos] = (
+                    locals_a_d_p[q_id]["amp"][t1] + locals_a_d_p[q_id]["amp"][t2]
+                ) / 2.0
+                delta[i, q_pos] = (
+                    locals_a_d_p[q_id]["det"][t1] + locals_a_d_p[q_id]["det"][t2]
+                ) / 2.0
+                phi[i, q_pos] = (
+                    locals_a_d_p[q_id]["phase"][t1] + locals_a_d_p[q_id]["phase"][t2]
+                ) / 2.0
 
         else:
             # We're in the final step and dt=1, approximate this using linear extrapolation
             # we can reuse omega_1 and omega_2 from before
-            for q_pos, q_id in enumerate(qubit_ids):
-                if q_id in locals_a_d_p:
-                    delta[i, q_pos] = (
-                        3.0 * locals_a_d_p[q_id]["det"][t2]
-                        - locals_a_d_p[q_id]["det"][t1]
-                    ) / 2.0
-                    phi[i, q_pos] = (
-                        3.0 * locals_a_d_p[q_id]["phase"][t2]
-                        - locals_a_d_p[q_id]["phase"][t1]
-                    ) / 2.0
-                    omega[i, q_pos] = max(
-                        (
-                            3.0 * locals_a_d_p[q_id]["amp"][t2]
-                            - locals_a_d_p[q_id]["amp"][t1]
-                        )
-                        / 2.0,
-                        0.0,
-                    )
-                else:
-                    omega[i, q_pos] = 0.0
-                    delta[i, q_pos] = 0.0
-                    phi[i, q_pos] = 0.0
+            for q_pos, q_id in enumerate(qubit_ids_filtered):
+                delta[i, q_pos] = (
+                    3.0 * locals_a_d_p[q_id]["det"][t2] - locals_a_d_p[q_id]["det"][t1]
+                ) / 2.0
+                phi[i, q_pos] = (
+                    3.0 * locals_a_d_p[q_id]["phase"][t2]
+                    - locals_a_d_p[q_id]["phase"][t1]
+                ) / 2.0
+                omega[i, q_pos] = max(
+                    (3.0 * locals_a_d_p[q_id]["amp"][t2] - locals_a_d_p[q_id]["amp"][t1])
+                    / 2.0,
+                    0.0,
+                )
 
     return omega, delta, phi
 
