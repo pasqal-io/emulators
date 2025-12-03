@@ -131,18 +131,21 @@ class MPSConfig(EmulationConfig):
             self.autosave_dt > MIN_AUTOSAVE_DT
         ), f"autosave_dt must be larger than {MIN_AUTOSAVE_DT} seconds"
 
+        MIN_KRYLOV_TOL = 1.0e-12  # keep numerical stability
         prod_tol = precision * extra_krylov_tolerance
-        if prod_tol < 1.0e-12:
+        if prod_tol < MIN_KRYLOV_TOL:
+            new_extra_krylov_tolerance = MIN_KRYLOV_TOL / precision
             self.logger.warning(
-                "Requested Lanczos convergence tolerance "
-                "(precision * extra_krylov_tolerance) "
-                f"is very small: {prod_tol:.2e}. This is close to "
-                "machine precision (~1e-16 for double precision) and may lead "
-                "to numerical instability or incorrect results. Increase "
-                "`precision` or `extra_krylov_tolerance` so that their "
-                "product is >= 1e-12 "
-                "(for example, use precision >= 1e-9)."
+                f"Requested Lanczos convergence tolerance "
+                f"(precision * extra_krylov_tolerance = {prod_tol:.2e}) "
+                f"is below minimum threshold {MIN_KRYLOV_TOL:.2e}. "
+                f"Automatically adjusting extra_krylov_tolerance from "
+                f"{extra_krylov_tolerance:.2e} to {new_extra_krylov_tolerance:.2e} "
+                f"to maintain numerical stability."
             )
+            self.extra_krylov_tolerance = new_extra_krylov_tolerance
+        else:
+            self.extra_krylov_tolerance = extra_krylov_tolerance
 
         self.monkeypatch_observables()
 
