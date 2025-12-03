@@ -11,6 +11,8 @@ This page documents all the options in `MPSConfig` that controls how emu-mps evo
 - autosave_dt
 - optimize_qubit_ordering
 - interaction_cutoff
+- log_level
+- log_file
 - solver
 
 ## dt
@@ -22,7 +24,7 @@ There are two sources of error related to `dt`.
 - The discretization of the pulse
 - [TDVP](errors.md)
 
-Both sources of error dictate that `dt` shall not be too small, but the functioning of TDVP also dictates that a very small `dt` requires improving the precision, as described in the next section.
+Both sources of error dictate that `dt` shall not be too large, but the functioning of TDVP also dictates that a very small `dt` requires improving the precision, as described in the next section.
 
 Example:
 
@@ -79,7 +81,7 @@ Numerical safety
 
 - If `precision * extra_krylov_tolerance` becomes extremely small (close to machine precision ~1e-16 for double precision), the algorithm cannot reliably distinguish noise from convergence and the simulation may produce incorrect results.
 
-- Practical lower bound: keep `precision * extra_krylov_tolerance >= 1e-12` as a conservative guideline. If precision is very small like ~1e-16, then increase `extra_krylov_tolerance` to obey the bound.
+-  The program now enforces the bound `precision * extra_krylov_tolerance >= 1e-12` and it will throw a warning when it changes `extra_krylov_tolerance` to keep the bound.
 
 Example:
 
@@ -96,7 +98,8 @@ Setting `num_gpus_to_use = 0` runs the entire computation on the CPU.
 Using multiple GPUs can reduce memory usage per GPU, though the overall runtime remains similar. Also, the default value is `None` and emu-mps internally picks up the available GPUs in the machine, otherwise it uses the CPU.
 
 **Example:**
-num_gpus_to_use = 2  # use 2 GPUs if available, otherwise fallback to 1 or CPU
+
+`num_gpus_to_use = 2`,  uses 2 GPUs if available, otherwise fallback to 1 or CPU
 
 ```python
 mpsconfig = MPSConfig(num_gpus_to_use=2, ...)
@@ -104,7 +107,7 @@ mpsconfig = MPSConfig(num_gpus_to_use=2, ...)
 
 ## optimize_qubit_ordering
 
-The `optimize_qubit_ordering` parameter enables the reordering of qubits in the register. This can be useful in cases where the initial qubit ordering (chosen by the user or by Pulser) is not optimal. In such cases, setting `optimize_qubit_ordering = True` re-orders the qubits more efficiently, and that has been shown to improve performance and accuracy. The default value is `True`.
+The `optimize_qubit_ordering` parameter enables the reordering of qubits in the register. This can be useful in cases where the initial qubit ordering (chosen by the user or by Pulser) is not optimal. In such cases, setting `optimize_qubit_ordering = True` re-orders the qubits more efficiently, which has been shown to improve performance and accuracy. The default value is `True`.
 
 **Note:** this option (`True`) is not compatible with certain features, such as using a user-provided initial state or the StateResult observable. In this case the option will be changed to `False` automatically after throwing a warning message.
 
@@ -146,7 +149,7 @@ Saves the logging output in a file. The format is given by the user. Ex: "log_fi
 
 ## autosave_dt
 
-The `autosave_dt` parameter defines the minimum time interval between two automatic saves of the MPS state. It is given in seconds with a default value `600` ($10$ minutes).
+The `autosave_dt` parameter defines the minimum time interval between two automatic saves of the MPS state. It is given in seconds and the default value is `inf` which means it is deactivated.
 Saving the quantum state for later use (for e.g. to resume the simulation) will only occur at times that are multiples of `autosave_dt`.
 
 Example:
@@ -165,7 +168,7 @@ A floating-point threshold below which pairwise interaction matrix elements $U_{
 
 Guidance
 
-- Default: `0.0` (no interactions removed).
+- Default: `None` (no interactions removed).
 
 - Choose a cutoff as a small fraction of the largest interaction (e.g., 1e-3 … 1e-6 of max|U|) and verify convergence by lowering the cutoff.
 
@@ -193,5 +196,5 @@ For a detailed description of the currently available solvers, please refer to t
 
 For a detailed description of algorithmic behavior and error sources, see the algorithms and errors pages:
 
-- Algorithms: [algorithms.md](algorithms.md)
-- TDVP/Truncation errors: [errors.md](errors.md)
+- Algorithms: [algorithms](algorithms.md)
+- TDVP/Truncation errors: [errors](errors.md)
