@@ -14,9 +14,9 @@ The following features are currently supported:
     - [ground-rydberg](./notebooks/getting_started.ipynb)
     - [XY](https://pulser.readthedocs.io/en/stable/tutorials/xy_spin_chain.html)
 - The following properties from a Pulser Sequence are also correctly applied:
-  - [hardware modulation](https://pulser.readthedocs.io/en/stable/tutorials/output_mod_eom.html)
-  - [SLM mask](https://pulser.readthedocs.io/en/stable/tutorials/slm_mask.html)
-  - A complex phase for the omega parameter, i.e. the phase $\phi$ in the [driving Hamiltonian](https://pulser.readthedocs.io/en/stable/programming.html#driving-hamiltonian)
+    - [hardware modulation](https://pulser.readthedocs.io/en/stable/tutorials/output_mod_eom.html)
+    - [SLM mask](https://pulser.readthedocs.io/en/stable/tutorials/slm_mask.html)
+    - A complex phase for the omega parameter, i.e. the phase $\phi$ in the [driving Hamiltonian](https://pulser.readthedocs.io/en/stable/programming.html#driving-hamiltonian)
 - Customizable output, with the folowing inbuilt options:
     - The quantum state in MPS format
     - Bitstrings
