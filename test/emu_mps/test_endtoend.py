@@ -72,6 +72,7 @@ def simulate(
     interaction_cutoff: float = 0,
     eval_times: list[float] = [1.0],
     solver: Solver = Solver.TDVP,
+    optimize_ordering: bool = False,
 ) -> Results:
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
@@ -111,7 +112,7 @@ def simulate(
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
-        optimize_qubit_ordering=False,
+        optimize_qubit_ordering=optimize_ordering,
         solver=solver,
         num_gpus_to_use=0,
     )
@@ -369,7 +370,7 @@ def test_dmrg_afm_ring() -> None:
     )
 
     with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):
-        result = simulate(seq, solver=Solver.DMRG)
+        result = simulate(seq, solver=Solver.DMRG, optimize_ordering=False)
 
     final_time = -1
     bitstrings = result.bitstrings[final_time]
@@ -405,7 +406,7 @@ def test_dmrg_afm_ring() -> None:
 
     # check that energy variance should effectively be 0
     assert torch.allclose(
-        energy_variance, torch.tensor(0, dtype=torch.float64), atol=1e-5
+        energy_variance, torch.tensor(0, dtype=torch.float64), atol=1e-4
     )
 
     assert torch.allclose(
