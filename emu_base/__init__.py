@@ -22,4 +22,4 @@ __all__ = [
     "init_logging",
 ]
 
-__version__ = "2.5.1"
+__version__ = "2.5.2"
