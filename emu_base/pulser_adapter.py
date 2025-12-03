@@ -39,21 +39,27 @@ def _get_all_lindblad_noise_operators(
 
 
 def _get_target_times(
-    sequence: pulser.Sequence, config: EmulationConfig, dt: int
-) -> list[int]:
+    sequence: pulser.Sequence, config: EmulationConfig, dt: float
+) -> list[float]:
     sequence_duration = sequence.get_duration(include_fall_time=config.with_modulation)
 
-    observable_times = set(range(0, sequence_duration, dt))
+    # observable_times = set(range(0, sequence_duration, dt))
+    observable_times = set()
+    t = 0.0
+    while t < sequence_duration:
+        observable_times.add(round(t, 10))
+        t += dt
     observable_times.add(sequence_duration)
+
     for obs in config.observables:
         times: Sequence[float]
         if obs.evaluation_times is not None:
             times = obs.evaluation_times
         elif config.default_evaluation_times != "Full":
             times = config.default_evaluation_times.tolist()  # type: ignore[union-attr,assignment]
-        observable_times |= set([round(time * sequence_duration, 10) for time in times])
+        observable_times |= set([round(time * sequence_duration) for time in times])
 
-    target_times: list[int] = list(observable_times)
+    target_times: list[float] = list(observable_times)
     target_times.sort()
     return target_times
 

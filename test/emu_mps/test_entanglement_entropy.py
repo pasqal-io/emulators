@@ -84,7 +84,11 @@ def test_entropy_superposition_state():
         )
         for b in range(8)
     ]
-    config = emu_mps.MPSConfig(observables=entanglement_obs, initial_state=initial_state)
+    config = emu_mps.MPSConfig(
+        observables=entanglement_obs,
+        initial_state=initial_state,
+        optimize_qubit_ordering=False,
+    )
     seq = create_constant_pulse_sequence()
     backend = emu_mps.MPSBackend(sequence=seq, config=config)
     result = backend.run()
