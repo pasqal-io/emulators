@@ -31,7 +31,7 @@ The following features are currently supported:
         - $|\Psi|$: MPS (the state) memory footprint
         - RSS: max memory allocation
         - $\triangle t$: time that the step took to run (given in seconds)
-- Secification of:
+- Specification of:
     - Initial state ( as `MPS` or `MPS._from_state_amplitudes`)
     - Various precision parameters
     - Whether to run on cpu or gpu(s)
