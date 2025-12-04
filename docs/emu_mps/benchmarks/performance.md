@@ -11,7 +11,7 @@ We will give information about these metrics for various values of __N__, the qu
 
 ## Adiabatic sequence
 
-We run an adiabatic sequence to make an antiferromagnetic (AFM) state, as taken from [Pulser documentation](https://pulser.readthedocs.io/en/stable/tutorials/afm_prep.html), for a 2D register of atoms in a grid.
+We run an adiabatic sequence to make an antiferromagnetic (AFM) state, as taken from the [tutorial](../notebooks/getting_started.ipynb), for a 2D register of atoms in a grid.
 
 Performance metrics, for the defined sequence and for the biggest register (7x7) are shown below, in the left column of the figures, for CPU and GPU workloads.
 From the plots it is easy to understand that all the metrics heavily correlate with each other. Specifically a higher bond dimension will translate to higher memory footprint and longer runtimes ([see here](../advanced/mps/index.md)).
