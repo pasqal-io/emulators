@@ -11,7 +11,7 @@ The following features are currently supported:
 - All noise from the pulser `NoiseModel` except leakage
     - Effective noise is included using the density matrix formalism
 - The following [basis states](https://pulser.readthedocs.io/en/stable/conventions.html) in a sequence:
-    - [ground-rydberg](https://pulser.readthedocs.io/en/stable/review.html#programmable-arrays-of-rydberg-atoms)
+    - [ground-rydberg](./notebooks/getting_started.ipynb)
 - The following properties from a Pulser Sequence are also correctly applied:
     - [hardware modulation](https://pulser.readthedocs.io/en/stable/tutorials/output_mod_eom.html)
     - [SLM mask](https://pulser.readthedocs.io/en/stable/tutorials/slm_mask.html)
