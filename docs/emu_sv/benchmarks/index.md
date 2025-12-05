@@ -24,7 +24,7 @@ The accuracy benchmarks compare results between emulators to create confidence i
 - __Adiabatic evolution:__ Here at each time step, the evolution of the driving $\Omega, \Delta$ is _slow enough_ to guarantee that the evolved state is still an equilibrium state of $H$. Note that the adiabaticity of a sequence is dependent on the energy gaps in the Hamiltonian, and since these gaps decrease with qubit number, most sequences are only adiabatic up to a given qubit number.
 
 ```python
-# from https://pulser.readthedocs.io/en/stable/tutorials/afm_prep.html
+
 # parameters in rad/µs and ns
 Omega_max = 2.0 * 2 * np.pi
 U = Omega_max / 2.0
