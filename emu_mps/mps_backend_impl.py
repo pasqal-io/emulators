@@ -1,3 +1,10 @@
+"""
+This module contains the implementation of the backend for Matrix Product States
+computations.
+
+Authors:
+    First LAST NAME <first.lastname@pasqal.com>
+"""
 import math
 import os
 import pathlib
@@ -8,10 +15,11 @@ import typing
 import uuid
 
 from copy import deepcopy
-from collections import Counter
+#from collections import Counter
 from enum import Enum, auto
 from types import MethodType
 from typing import Any, Optional
+from abc import ABC, abstractmethod
 
 import torch
 from pulser import Sequence
@@ -20,12 +28,13 @@ from pulser.backend import EmulationConfig, Observable, Results, State
 from emu_base import DEVICE_COUNT, PulserData, get_max_rss
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.utils import deallocate_tensor
+from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
+
 
 from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
-from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 import emu_mps.optimatrix as optimat
 from emu_mps.solver import Solver
 from emu_mps.solver_utils import (
@@ -42,10 +51,24 @@ from emu_mps.utils import (
     new_left_bath,
 )
 
+from .permutators import (
+    permute_bitstrings,
+    permute_atom_order,
+    permute_occupations_and_correlations
+)
+
+#TODO add documentation where necessary
 dtype = torch.complex128
 
 
 class Statistics(Observable):
+    """
+    Definition of what the class Statistics
+
+    Attributes:
+    
+       Observable: The Observable used to make the evaluation.
+    """
     def __init__(
         self,
         evaluation_times: typing.Sequence[float] | None,
@@ -89,11 +112,18 @@ class Statistics(Observable):
 
 
 class SwipeDirection(Enum):
+    """
+    Enumerator for the swipe direction
+    """
     LEFT_TO_RIGHT = auto()
     RIGHT_TO_LEFT = auto()
 
 
-class MPSBackendImpl:
+# pylint: disable=too-many-instance-attributes
+class MPSBackendImpl(ABC):
+    """
+    MPS Backend implementation
+    """
     current_time: float = (
         0.0  # While dt is an integer, noisy collapse can happen at non-integer times.
     )
@@ -140,6 +170,7 @@ class MPSBackendImpl:
         self.left_baths: list[torch.Tensor]
         self.time = time.time()
         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+        self.sweep_count: int = 0 # for DMRGBackendImpl took it from there
         self.sweep_index = 0
         self.timestep_index = 0
         self.results = Results(
@@ -192,6 +223,9 @@ class MPSBackendImpl:
         return pathlib.Path(os.getcwd()) / (autosave_prefix + str(uuid.uuid1()) + ".dat")
 
     def init_dark_qubits(self) -> None:
+        """
+        Add docstring for init_dark_qubits
+        """
         # has_state_preparation_error
         if self.config.noise_model.state_prep_error > 0.0:
             bad_atoms = self.pulser_data.hamiltonian.bad_atoms
@@ -215,6 +249,12 @@ class MPSBackendImpl:
             self.phi = self.phi[:, self.well_prepared_qubits_filter]
 
     def init_initial_state(self, initial_state: State | None = None) -> None:
+        """
+        Definition of an initial state. before launching the MPS.
+
+        Args:
+           initial_state (State): A state that takes None as a default value
+        """
         if initial_state is None:
             self.state = MPS.make(
                 self.qubit_count,
@@ -236,7 +276,7 @@ class MPSBackendImpl:
             self.qubit_permutation, optimat.eye_permutation(self.qubit_count)
         ):
             # permute the initial state to match with permuted Hamiltonian
-            abstr_repr = initial_state._to_abstract_repr()
+            abstr_repr = initial_state._to_abstract_repr()  # pylint: disable=protected-access
             eigs = abstr_repr["eigenstates"]
             ampl = {
                 optimat.permute_string(bstr, self.qubit_permutation): amp
@@ -259,9 +299,10 @@ class MPSBackendImpl:
 
     def init_hamiltonian(self) -> None:
         """
-        Must be called AFTER init_dark_qubits otherwise,
-        too many factors are put in the Hamiltonian
+        Hamiltonian initialzer
         """
+        # Must be called AFTER init_dark_qubits otherwise,
+        # too many factors are put in the Hamiltonian
         self.hamiltonian = make_H(
             interaction_matrix=(
                 self.masked_interaction_matrix
@@ -282,6 +323,9 @@ class MPSBackendImpl:
         )
 
     def init_baths(self) -> None:
+        """
+        Baths initializer
+        """
         self.left_baths = [
             torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
         ]
@@ -289,18 +333,36 @@ class MPSBackendImpl:
         assert len(self.right_baths) == self.qubit_count - 1
 
     def get_current_right_bath(self) -> torch.Tensor:
+        """
+        Method that returns the current right bath as a torch tensor
+
+        Returns:
+            right_baths (torch.Tensor): Tensor corresponding to the right bath
+        """
         return self.right_baths[-1]
 
     def get_current_left_bath(self) -> torch.Tensor:
+        """
+        Method that returns the current left bath
+
+        Returns:
+            left_bath (torch.Tensor): Tensor corresponding to the left bath
+        """
         return self.left_baths[-1]
 
     def init(self) -> None:
+        """
+        Method that initializes the 'environment' for the simulation
+        """
         self.init_dark_qubits()
         self.init_initial_state(self.config.initial_state)
         self.init_hamiltonian()
         self.init_baths()
 
     def is_finished(self) -> bool:
+        """
+        Method to stop the simulation once it has reached the timestep count
+        """
         return self.timestep_index >= self.timestep_count
 
     def _evolve(
@@ -350,11 +412,205 @@ class MPSBackendImpl:
 
             self.state.orthogonality_center = r if orth_center_right else l
 
+    @abstractmethod
     def progress(self) -> None:
         """
-        Do one unit of simulation work given the current state.
-        Update the state accordingly.
-        The state of the simulation is stored in self.sweep_index and self.swipe_direction.
+        Abstract method of progress, to be defined in child classes
+        """
+
+    @abstractmethod
+    def sweep_complete(self) -> None:
+        """
+        Abstract method for sweep complete, to be defined in child classes
+        """
+
+    def _left_to_right_update(self, idx: int) -> None:
+        if idx < self.qubit_count - 2:
+            self.left_baths.append(
+                new_left_bath(
+                    self.get_current_left_bath(),
+                    self.state.factors[idx],
+                    self.hamiltonian.factors[idx],
+                ).to(self.state.factors[idx + 1].device)
+            )
+            self.right_baths.pop()
+            self.sweep_index += 1
+
+        if self.sweep_index == self.qubit_count - 2:
+            self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+
+    def _right_to_left_update(self, idx: int) -> None:
+        if idx > 0:
+            self.right_baths.append(
+                new_right_bath(
+                    self.get_current_right_bath(),
+                    self.state.factors[idx + 1],
+                    self.hamiltonian.factors[idx + 1],
+                ).to(self.state.factors[idx].device)
+            )
+            self.left_baths.pop()
+            self.sweep_index -= 1
+
+        if self.sweep_index == 0:
+            self.state.orthogonalize(0)
+            self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+            self.sweep_count += 1
+            self.sweep_complete()
+
+
+    def timestep_complete(self) -> None:
+        """
+        Method that handles the updates of the different states during simulation
+        """
+        self.fill_results()
+        self.timestep_index += 1
+        if self.is_masked and self.current_time >= self.slm_end_time:
+            self.is_masked = False
+            self.hamiltonian = make_H(
+                interaction_matrix=self.full_interaction_matrix,
+                hamiltonian_type=self.hamiltonian_type,
+                dim=self.dim,
+                num_gpus_to_use=self.resolved_num_gpus,
+            )
+
+        if not self.is_finished():
+            self.target_time = self.target_times[self.timestep_index + 1]
+            update_H(
+                hamiltonian=self.hamiltonian,
+                omega=self.omega[self.timestep_index, :],
+                delta=self.delta[self.timestep_index, :],
+                phi=self.phi[self.timestep_index, :],
+                noise=self.lindblad_noise,
+            )
+            self.init_baths()
+
+        self.statistics.data.append(time.time() - self.time)
+        self.statistics(
+            self.config,
+            self.current_time / self.target_times[-1],
+            self.state,
+            self.hamiltonian,
+            self.results,
+        )
+        self.time = time.time()
+
+    def save_simulation(self) -> None:
+        """
+        Method that saves the simulation in a file
+        """
+        if self.last_save_time > time.time() - self.config.autosave_dt:
+            return
+
+        basename = self.autosave_file
+        with open(basename.with_suffix(".new"), "wb") as file_handle:
+            pickle.dump(self, file_handle)
+        if basename.is_file():
+            os.rename(basename, basename.with_suffix(".bak"))
+
+        os.rename(basename.with_suffix(".new"), basename)
+        autosave_filesize = os.path.getsize(self.autosave_file) / 1e6
+
+        if basename.with_suffix(".bak").is_file():
+            os.remove(basename.with_suffix(".bak"))
+
+        self.last_save_time = time.time()
+
+        self.config.logger.debug(
+            f"Saved simulation state in file {self.autosave_file} ({autosave_filesize}MB)"
+        )
+
+    def fill_results(self) -> None:
+        """
+        Method that fills the results
+        """
+        normalized_state = 1 / self.state.norm() * self.state
+
+        current_time_int: int = round(self.current_time)
+        fractional_time = self.current_time / self.target_times[-1]
+        assert abs(self.current_time - current_time_int) < 1e-10
+
+        if self.well_prepared_qubits_filter is None:
+            for callback in self.config.observables:
+                callback(
+                    self.config,
+                    fractional_time,
+                    normalized_state,
+                    self.hamiltonian,
+                    self.results,
+                )
+            # The empty return below is supposed to return None right ?
+            return
+
+        full_mpo, full_state = None, None
+        for callback in self.config.observables:
+            time_tol = 0.5 / self.target_times[-1] + 1e-10
+            if (
+                callback.evaluation_times is not None
+                and self.config.is_time_in_evaluation_times(
+                    fractional_time, callback.evaluation_times, tol=time_tol
+                )
+            ) or self.config.is_evaluation_time(fractional_time, tol=time_tol):
+
+                if full_mpo is None or full_state is None:
+                    # Only do this potentially expensive step once and when needed.
+                    full_mpo = MPO(
+                        extended_mpo_factors(
+                            self.hamiltonian.factors, self.well_prepared_qubits_filter
+                        )
+                    )
+                    full_state = MPS(
+                        extended_mps_factors(
+                            normalized_state.factors,
+                            self.well_prepared_qubits_filter,
+                        ),
+                        num_gpus_to_use=None,  # Keep the already assigned devices.
+                        orthogonality_center=get_extended_site_index(
+                            self.well_prepared_qubits_filter,
+                            normalized_state.orthogonality_center,
+                        ),
+                        eigenstates=normalized_state.eigenstates,
+                    )
+
+                callback(self.config, fractional_time, full_state, full_mpo, self.results)
+
+    def permute_results(self, results: Results, permute: bool) -> Results:
+        """
+        Method that makes permutations in the results
+
+        Args:
+            results (Results): A Result object
+            permute (bool): A boolean, if True, a permutation is made in the results
+
+        Returns:
+            An object of type Results
+        """
+        if permute:
+            inv_perm = optimat.inv_permutation(self.qubit_permutation)
+            permute_bitstrings(results, inv_perm)
+            permute_occupations_and_correlations(results, inv_perm)
+            permute_atom_order(results, inv_perm)
+        return results
+
+
+class TDVPBackendImpl(MPSBackendImpl):
+    """
+    New implementation of an MPS using the TDVP method
+    """
+
+    def __init__(
+            self,
+            mps_config: MPSConfig,
+            pulser_data: PulserData,
+            energy_tolerance: float = 1e-5,
+            max_sweeps: int = 2000,
+    ):
+        super().__init__(mps_config, pulser_data)
+        self.energy_tolerance = energy_tolerance
+        self.max_sweeps = max_sweeps
+
+    def progress(self):
+        """
+        progress method for TDVP
         """
         if self.is_finished():
             return
@@ -445,159 +701,16 @@ class MPSBackendImpl:
 
         self.save_simulation()
 
-    def sweep_complete(self) -> None:
+
+    def sweep_complete(self):
+        """
+        Add docstring later
+        """
         self.current_time = self.target_time
         self.timestep_complete()
 
-    def timestep_complete(self) -> None:
-        self.fill_results()
-        self.timestep_index += 1
-        if self.is_masked and self.current_time >= self.slm_end_time:
-            self.is_masked = False
-            self.hamiltonian = make_H(
-                interaction_matrix=self.full_interaction_matrix,
-                hamiltonian_type=self.hamiltonian_type,
-                dim=self.dim,
-                num_gpus_to_use=self.resolved_num_gpus,
-            )
 
-        if not self.is_finished():
-            self.target_time = self.target_times[self.timestep_index + 1]
-            update_H(
-                hamiltonian=self.hamiltonian,
-                omega=self.omega[self.timestep_index, :],
-                delta=self.delta[self.timestep_index, :],
-                phi=self.phi[self.timestep_index, :],
-                noise=self.lindblad_noise,
-            )
-            self.init_baths()
-
-        self.statistics.data.append(time.time() - self.time)
-        self.statistics(
-            self.config,
-            self.current_time / self.target_times[-1],
-            self.state,
-            self.hamiltonian,
-            self.results,
-        )
-        self.time = time.time()
-
-    def save_simulation(self) -> None:
-        if self.last_save_time > time.time() - self.config.autosave_dt:
-            return
-
-        basename = self.autosave_file
-        with open(basename.with_suffix(".new"), "wb") as file_handle:
-            pickle.dump(self, file_handle)
-        if basename.is_file():
-            os.rename(basename, basename.with_suffix(".bak"))
-
-        os.rename(basename.with_suffix(".new"), basename)
-        autosave_filesize = os.path.getsize(self.autosave_file) / 1e6
-
-        if basename.with_suffix(".bak").is_file():
-            os.remove(basename.with_suffix(".bak"))
-
-        self.last_save_time = time.time()
-
-        self.config.logger.debug(
-            f"Saved simulation state in file {self.autosave_file} ({autosave_filesize}MB)"
-        )
-
-    def fill_results(self) -> None:
-        normalized_state = 1 / self.state.norm() * self.state
-
-        current_time_int: int = round(self.current_time)
-        fractional_time = self.current_time / self.target_times[-1]
-        assert abs(self.current_time - current_time_int) < 1e-10
-
-        if self.well_prepared_qubits_filter is None:
-            for callback in self.config.observables:
-                callback(
-                    self.config,
-                    fractional_time,
-                    normalized_state,
-                    self.hamiltonian,
-                    self.results,
-                )
-            return
-
-        full_mpo, full_state = None, None
-        for callback in self.config.observables:
-            time_tol = 0.5 / self.target_times[-1] + 1e-10
-            if (
-                callback.evaluation_times is not None
-                and self.config.is_time_in_evaluation_times(
-                    fractional_time, callback.evaluation_times, tol=time_tol
-                )
-            ) or self.config.is_evaluation_time(fractional_time, tol=time_tol):
-
-                if full_mpo is None or full_state is None:
-                    # Only do this potentially expensive step once and when needed.
-                    full_mpo = MPO(
-                        extended_mpo_factors(
-                            self.hamiltonian.factors, self.well_prepared_qubits_filter
-                        )
-                    )
-                    full_state = MPS(
-                        extended_mps_factors(
-                            normalized_state.factors,
-                            self.well_prepared_qubits_filter,
-                        ),
-                        num_gpus_to_use=None,  # Keep the already assigned devices.
-                        orthogonality_center=get_extended_site_index(
-                            self.well_prepared_qubits_filter,
-                            normalized_state.orthogonality_center,
-                        ),
-                        eigenstates=normalized_state.eigenstates,
-                    )
-
-                callback(self.config, fractional_time, full_state, full_mpo, self.results)
-
-    def permute_results(self, results: Results, permute: bool) -> Results:
-        if permute:
-            inv_perm = optimat.inv_permutation(self.qubit_permutation)
-            permute_bitstrings(results, inv_perm)
-            permute_occupations_and_correlations(results, inv_perm)
-            permute_atom_order(results, inv_perm)
-        return results
-
-
-def permute_bitstrings(results: Results, perm: torch.Tensor) -> None:
-    if "bitstrings" not in results.get_result_tags():
-        return
-    uuid_bs = results._find_uuid("bitstrings")
-
-    results._results[uuid_bs] = [
-        Counter({optimat.permute_string(bstr, perm): c for bstr, c in bs_counter.items()})
-        for bs_counter in results._results[uuid_bs]
-    ]
-
-
-def permute_occupations_and_correlations(results: Results, perm: torch.Tensor) -> None:
-    for corr in ["occupation", "correlation_matrix"]:
-        if corr not in results.get_result_tags():
-            continue
-
-        uuid_corr = results._find_uuid(corr)
-        corrs = results._results[uuid_corr]
-        results._results[uuid_corr] = (
-            [  # vector quantities become lists after results are serialized (e.g. for checkpoints)
-                optimat.permute_tensor(
-                    corr if isinstance(corr, torch.Tensor) else torch.tensor(corr), perm
-                )
-                for corr in corrs
-            ]
-        )
-
-
-def permute_atom_order(results: Results, perm: torch.Tensor) -> None:
-    at_ord = list(results.atom_order)
-    at_ord = optimat.permute_list(at_ord, perm)
-    results.atom_order = tuple(at_ord)
-
-
-class NoisyMPSBackendImpl(MPSBackendImpl):
+class NoisyTDVPBackendImpl(TDVPBackendImpl):
     """
     Version of MPSBackendImpl with non-zero lindbladian noise.
     Implements the Monte-Carlo Wave Function jump method.
@@ -616,6 +729,9 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         assert self.has_lindblad_noise
 
     def init_lindblad_noise(self) -> None:
+        """
+        Initialization of the lindblad_noise
+        """
         stacked = torch.stack(self.lindblad_ops)
         # The below is used for batch computation of noise collapse weights.
         self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
@@ -623,6 +739,12 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops, self.dim)
 
     def set_jump_threshold(self, bound: float) -> None:
+        """
+        Method that sets the jump threshold
+
+        Attributes:
+            bound (float): A Float used as a parameter to define the jump threshold
+        """
         self.jump_threshold = random.uniform(0.0, bound)
         self.norm_gap_before_jump = self.state.norm().item() ** 2 - self.jump_threshold
 
@@ -631,7 +753,11 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         super().init()
         self.set_jump_threshold(1.0)
 
+
     def sweep_complete(self) -> None:
+        """
+        Add documentation
+        """
         previous_time = self.current_time
         self.current_time = self.target_time
         previous_norm_gap_before_jump = self.norm_gap_before_jump
@@ -666,6 +792,9 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
             self.target_time = self.root_finder.get_next_abscissa()
 
     def do_random_quantum_jump(self) -> None:
+        """
+        This method makes random quantum jumps
+        """
         jump_operator_weights = self.state.expect_batch(self.aggregated_lindblad_ops).real
         jumped_qubit_index, jump_operator = random.choices(
             [
@@ -700,6 +829,9 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
 
 
 class DMRGBackendImpl(MPSBackendImpl):
+    """
+    Implementation of the MPS with DMRG method
+    """
     def __init__(
         self,
         mps_config: MPSConfig,
@@ -716,11 +848,24 @@ class DMRGBackendImpl(MPSBackendImpl):
         super().__init__(mps_config, pulser_data)
         self.previous_energy: Optional[float] = None
         self.current_energy: Optional[float] = None
-        self.sweep_count: int = 0
-        self.energy_tolerance: float = energy_tolerance
-        self.max_sweeps: int = max_sweeps
+        
+        self.energy_tolerance=energy_tolerance
+        self.max_sweeps=max_sweeps
 
     def convergence_check(self, energy_tolerance: float) -> bool:
+        """
+        Methods that checks if the simulation has converged by comparing the energy
+        difference between two round to a tolerance threshold
+
+        Args:
+
+            energy_tolerance (float): The energy tolerence threshold
+
+        Returns:
+
+            A boolean that returns True if the difference between the current energy
+            and the previous one is inferior to the threshold energy
+        """
         if self.previous_energy is None or self.current_energy is None:
             return False
         return abs(self.current_energy - self.previous_energy) < energy_tolerance
@@ -759,38 +904,38 @@ class DMRGBackendImpl(MPSBackendImpl):
 
         self.save_simulation()
 
-    def _left_to_right_update(self, idx: int) -> None:
-        if idx < self.qubit_count - 2:
-            self.left_baths.append(
-                new_left_bath(
-                    self.get_current_left_bath(),
-                    self.state.factors[idx],
-                    self.hamiltonian.factors[idx],
-                ).to(self.state.factors[idx + 1].device)
-            )
-            self.right_baths.pop()
-            self.sweep_index += 1
+    # def _left_to_right_update(self, idx: int) -> None:
+    #     if idx < self.qubit_count - 2:
+    #         self.left_baths.append(
+    #             new_left_bath(
+    #                 self.get_current_left_bath(),
+    #                 self.state.factors[idx],
+    #                 self.hamiltonian.factors[idx],
+    #             ).to(self.state.factors[idx + 1].device)
+    #         )
+    #         self.right_baths.pop()
+    #         self.sweep_index += 1
 
-        if self.sweep_index == self.qubit_count - 2:
-            self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+    #     if self.sweep_index == self.qubit_count - 2:
+    #         self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
-    def _right_to_left_update(self, idx: int) -> None:
-        if idx > 0:
-            self.right_baths.append(
-                new_right_bath(
-                    self.get_current_right_bath(),
-                    self.state.factors[idx + 1],
-                    self.hamiltonian.factors[idx + 1],
-                ).to(self.state.factors[idx].device)
-            )
-            self.left_baths.pop()
-            self.sweep_index -= 1
+    # def _right_to_left_update(self, idx: int) -> None:
+    #     if idx > 0:
+    #         self.right_baths.append(
+    #             new_right_bath(
+    #                 self.get_current_right_bath(),
+    #                 self.state.factors[idx + 1],
+    #                 self.hamiltonian.factors[idx + 1],
+    #             ).to(self.state.factors[idx].device)
+    #         )
+    #         self.left_baths.pop()
+    #         self.sweep_index -= 1
 
-        if self.sweep_index == 0:
-            self.state.orthogonalize(0)
-            self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
-            self.sweep_count += 1
-            self.sweep_complete()
+    #     if self.sweep_index == 0:
+    #         self.state.orthogonalize(0)
+    #         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+    #         self.sweep_count += 1
+    #         self.sweep_complete()
 
     def sweep_complete(self) -> None:
         # This marks the end of one full sweep: checking convergence
@@ -811,6 +956,9 @@ class DMRGBackendImpl(MPSBackendImpl):
 
 
 def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
+    """
+    Creates the implementation of the MPS backend
+    """
     pulser_data = PulserData(sequence=sequence, config=config, dt=config.dt)
 
     if pulser_data.has_lindblad_noise:
