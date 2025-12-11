@@ -192,7 +192,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
         return SparseOperator(accum_res.to_sparse_csr()), operations
 
     def __deepcopy__(self, memo: dict) -> SparseOperator:
-        """torch CSR tensor does not deepcopy automatically"""
+        """torch COO tensor does not deepcopy automatically"""
         cls = self.__class__
         result = cls(torch.clone(self.matrix), gpu=self.matrix.is_cuda)
         memo[id(self)] = result
