@@ -3,6 +3,7 @@ import pytest
 from functools import reduce
 
 from emu_sv import StateVector, SparseOperator
+from emu_sv.sparse_operator import sparse_kron
 
 dtype = torch.complex128
 X = torch.tensor([[0, 1], [1, 0]], dtype=dtype)
@@ -140,3 +141,20 @@ def test_wrong_basis_string_state():
         )
     msg = "Every QuditOp key must be made up of two eigenstates among ('g', '1'); instead, got 'X'."
     assert str(ve.value) == msg
+
+
+def test_sparse_kron():
+    size = 100
+    density = 4
+    a = torch.zeros(size, size)
+    b = torch.zeros(size, size)
+    inds = torch.randint(0, 100, (2, density * size, 2))
+    vals = torch.randn((2, density * size))
+    for i in range(density * size):
+        a[inds[0, i, 0], inds[0, i, 1]] = vals[0, i]
+        b[inds[1, i, 0], inds[1, i, 1]] = vals[1, i]
+    sparse_kr = sparse_kron(a.to_sparse_coo(), b.to_sparse_coo())
+    kr = torch.kron(a, b)
+
+    assert sparse_kr.layout == torch.sparse_coo
+    assert torch.allclose(sparse_kr.to_dense(), kr)

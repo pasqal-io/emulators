@@ -20,16 +20,15 @@ dtype = torch.complex128
 
 
 def sparse_kron(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    a, b = a.coalesce(), b.coalesce()
     sa, sb = a.shape, b.shape
     shape = (sa[0] * sb[0], sa[1] * sb[1])
-    cooa, coob = a.to_sparse_coo(), b.to_sparse_coo()
-    ai, bi = cooa.indices(), coob.indices()
-    av, bv = cooa.values(), coob.values()
     i = (
-        torch.tensor(sb).reshape(2, 1, 1) * ai.reshape(2, -1, 1) + bi.reshape(2, 1, -1)
+        torch.tensor(sb).reshape(2, 1, 1) * a.indices().reshape(2, -1, 1)
+        + b.indices().reshape(2, 1, -1)
     ).reshape(2, -1)
-    v = torch.outer(av, bv).flatten()
-    return torch.sparse_coo_tensor(i, v, shape).to_sparse_csr()
+    v = torch.outer(a.values(), b.values()).flatten()
+    return torch.sparse_coo_tensor(i, v, shape)
 
 
 class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
@@ -147,10 +146,10 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
             # operators_with_tensors will now contain the basis for single qubit ops,
             # and potentially user defined strings in terms of {r, g} or {0, 1}
             operators_with_tensors |= {
-                "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype).to_sparse_csr(),
-                "rg": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype).to_sparse_csr(),
-                "gr": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype).to_sparse_csr(),
-                "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype).to_sparse_csr(),
+                "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype).to_sparse_coo(),
+                "rg": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype).to_sparse_coo(),
+                "gr": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype).to_sparse_coo(),
+                "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype).to_sparse_coo(),
             }
         elif set(eigenstates) == {"0", "1"}:
             raise NotImplementedError(
@@ -159,10 +158,9 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
         else:
             raise ValueError("An unsupported basis of eigenstates has been provided.")
 
-        accum_res = torch.sparse_csr_tensor(
-            torch.zeros(2**n_qudits + 1, dtype=torch.int32),
-            torch.empty(2**n_qudits, dtype=torch.int32),
-            torch.empty(2**n_qudits, dtype=dtype),
+        accum_res = torch.sparse_coo_tensor(
+            torch.empty(2, 0, dtype=torch.int32),
+            torch.empty(0, dtype=dtype),
             (2**n_qudits, 2**n_qudits),
         )
         for coeff, oper_torch_with_target_qubits in operations:
@@ -173,7 +171,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
                 if isinstance(oper, torch.Tensor):
                     return oper
 
-                result = torch.zeros((2, 2), dtype=dtype)
+                result: torch.Tensor = torch.zeros((2, 2), dtype=dtype).to_sparse_coo()
                 for opstr, coeff in oper.items():
                     tensor = build_torch_operator_from_string(
                         operators_with_tensors[opstr]
@@ -182,7 +180,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
                     result += tensor * coeff
                 return result
 
-            single_qubit_gates = [torch.eye(2, dtype=dtype).to_sparse_csr()] * n_qudits
+            single_qubit_gates = [torch.eye(2, dtype=dtype).to_sparse_coo()] * n_qudits
 
             for operator_torch, target_qubits in oper_torch_with_target_qubits:
                 factor = build_torch_operator_from_string(operator_torch)
@@ -191,7 +189,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
 
             accum_res += coeff * reduce(sparse_kron, single_qubit_gates)
 
-        return SparseOperator(accum_res), operations
+        return SparseOperator(accum_res.to_sparse_csr()), operations
 
     def __deepcopy__(self, memo: dict) -> SparseOperator:
         """torch CSR tensor does not deepcopy automatically"""
