@@ -15,6 +15,7 @@ from emu_sv import (
     SVConfig,
     StateVector,
     DenseOperator,
+    SparseOperator,
     CorrelationMatrix,
     EnergySecondMoment,
     EnergyVariance,
@@ -22,6 +23,7 @@ from emu_sv import (
     BitStrings,
     Energy,
     Fidelity,
+    Expectation,
     Results,
     StateResult,
     DensityMatrix,
@@ -814,3 +816,36 @@ def test_run_after_deserialize():
         torch.tensor(0.9728 + 0.0j, dtype=torch.torch.complex128),
         atol=1e-4,
     )
+
+
+def test_sparse_expectation():
+    num_qubits = 6
+    seq = pulser_afm_sequence_ring(
+        num_qubits=num_qubits,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=t_rise,
+        t_fall=t_fall,
+    )
+
+    eigenstates = ["r", "g"]
+    op = [(1.0, [({"rr": 1.0}, list(range(6)))])]
+    dense = DenseOperator.from_operator_repr(
+        n_qudits=num_qubits, eigenstates=eigenstates, operations=op
+    )
+    sparse = SparseOperator.from_operator_repr(
+        n_qudits=num_qubits, eigenstates=eigenstates, operations=op
+    )
+    evaluation_times = [0.25, 0.5, 0.75, 1.0]
+    dense_expectation = Expectation(
+        operator=dense, evaluation_times=evaluation_times, tag_suffix="dense"
+    )
+    sparse_expectation = Expectation(
+        operator=sparse, evaluation_times=evaluation_times, tag_suffix="sparse"
+    )
+    config = SVConfig(observables=[dense_expectation, sparse_expectation])
+    backend = SVBackend(seq, config=config)
+    results = backend.run()
+    assert torch.allclose(results.expectation_sparse[-1], results.expectation_dense[-1])
