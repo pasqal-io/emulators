@@ -19,6 +19,14 @@ from pulser.backend.state import Eigenstate
 dtype = torch.complex128
 
 
+def sparse_add(self: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+    return torch.sparse_coo_tensor(
+        torch.cat((self.indices(), other.indices()), dim=1),
+        torch.cat((self.values(), other.values())),
+        size=self.shape,
+    ).coalesce()
+
+
 def sparse_kron(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     a, b = a.coalesce(), b.coalesce()
     sa, sb = a.shape, b.shape
@@ -28,7 +36,7 @@ def sparse_kron(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         + b.indices().reshape(2, 1, -1)
     ).reshape(2, -1)
     v = torch.outer(a.values(), b.values()).flatten()
-    return torch.sparse_coo_tensor(i, v, shape)
+    return torch.sparse_coo_tensor(i, v, shape, is_coalesced=True)
 
 
 class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
@@ -159,8 +167,8 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
             raise ValueError("An unsupported basis of eigenstates has been provided.")
 
         accum_res = torch.sparse_coo_tensor(
-            torch.empty(2, 0, dtype=torch.int32),
-            torch.empty(0, dtype=dtype),
+            torch.zeros(2, 0, dtype=torch.int32),
+            torch.zeros(0, dtype=dtype),
             (2**n_qudits, 2**n_qudits),
         )
         for coeff, oper_torch_with_target_qubits in operations:
@@ -187,7 +195,9 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
                 for target_qubit in target_qubits:
                     single_qubit_gates[target_qubit] = factor
 
-            accum_res += coeff * reduce(sparse_kron, single_qubit_gates)
+            accum_res = sparse_add(
+                accum_res, coeff * reduce(sparse_kron, single_qubit_gates)
+            )
 
         return SparseOperator(accum_res.to_sparse_csr()), operations
 

@@ -3,7 +3,7 @@ import pytest
 from functools import reduce
 
 from emu_sv import StateVector, SparseOperator
-from emu_sv.sparse_operator import sparse_kron
+from emu_sv.sparse_operator import sparse_kron, sparse_add
 
 dtype = torch.complex128
 X = torch.tensor([[0, 1], [1, 0]], dtype=dtype)
@@ -143,7 +143,7 @@ def test_wrong_basis_string_state():
     assert str(ve.value) == msg
 
 
-def test_sparse_kron():
+def test_sparse_kron_and_add():
     size = 100
     density = 4
     a = torch.zeros(size, size)
@@ -157,4 +157,10 @@ def test_sparse_kron():
     kr = torch.kron(a, b)
 
     assert sparse_kr.layout == torch.sparse_coo
+    assert sparse_kr.is_coalesced()
     assert torch.allclose(sparse_kr.to_dense(), kr)
+
+    sparse_a = sparse_add(a.to_sparse_coo(), b.to_sparse_coo())
+    assert sparse_a.layout == torch.sparse_coo
+    assert sparse_a.is_coalesced()
+    assert torch.allclose(sparse_a.to_dense(), a + b)
