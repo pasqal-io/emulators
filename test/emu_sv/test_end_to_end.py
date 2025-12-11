@@ -851,4 +851,5 @@ def test_sparse_expectation():
     config = SVConfig(observables=[dense_expectation, sparse_expectation])
     backend = SVBackend(seq, config=config)
     results = backend.run()
-    assert torch.allclose(results.expectation_sparse[-1], results.expectation_dense[-1])
+    for i in range(len(evaluation_times)):
+        assert torch.allclose(results.expectation_sparse[i], results.expectation_dense[i])
