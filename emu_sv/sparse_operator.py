@@ -67,7 +67,13 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
         assert isinstance(
             other, SparseOperator
         ), "DenseOperator can only be added to another DenseOperator."
-        return SparseOperator(self.matrix + other.matrix)
+        # TODO: figure out a better algorithm.
+        # self.matrix + other.matrix doesn't work on mac.
+        return SparseOperator(
+            sparse_add(
+                self.matrix.to_sparse_coo(), other.matrix.to_sparse_coo()
+            ).to_sparse_csr()
+        )
 
     def __rmul__(self, scalar: complex) -> SparseOperator:
         """
