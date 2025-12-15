@@ -57,7 +57,6 @@ from .permutators import (
     permute_occupations_and_correlations
 )
 
-#TODO add documentation where necessary
 dtype = torch.complex128
 
 
@@ -704,7 +703,10 @@ class TDVPBackendImpl(MPSBackendImpl):
 
     def sweep_complete(self):
         """
-        Add docstring later
+        Marks the completion of a TDVP sweep.
+
+        Updates the current time to the target time and triggers
+        the timestep completion procedures.
         """
         self.current_time = self.target_time
         self.timestep_complete()
@@ -756,7 +758,11 @@ class NoisyTDVPBackendImpl(TDVPBackendImpl):
 
     def sweep_complete(self) -> None:
         """
-        Add documentation
+        Marks the completion of a noisy TDVP sweep and handles quantum jump detection.
+
+        This method manages the Monte Carlo Wave Function jump method by monitoring
+        the norm gap and using Brent's root finding algorithm to locate the precise
+        time of quantum jumps.
         """
         previous_time = self.current_time
         self.current_time = self.target_time
@@ -904,39 +910,6 @@ class DMRGBackendImpl(MPSBackendImpl):
 
         self.save_simulation()
 
-    # def _left_to_right_update(self, idx: int) -> None:
-    #     if idx < self.qubit_count - 2:
-    #         self.left_baths.append(
-    #             new_left_bath(
-    #                 self.get_current_left_bath(),
-    #                 self.state.factors[idx],
-    #                 self.hamiltonian.factors[idx],
-    #             ).to(self.state.factors[idx + 1].device)
-    #         )
-    #         self.right_baths.pop()
-    #         self.sweep_index += 1
-
-    #     if self.sweep_index == self.qubit_count - 2:
-    #         self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
-
-    # def _right_to_left_update(self, idx: int) -> None:
-    #     if idx > 0:
-    #         self.right_baths.append(
-    #             new_right_bath(
-    #                 self.get_current_right_bath(),
-    #                 self.state.factors[idx + 1],
-    #                 self.hamiltonian.factors[idx + 1],
-    #             ).to(self.state.factors[idx].device)
-    #         )
-    #         self.left_baths.pop()
-    #         self.sweep_index -= 1
-
-    #     if self.sweep_index == 0:
-    #         self.state.orthogonalize(0)
-    #         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
-    #         self.sweep_count += 1
-    #         self.sweep_complete()
-
     def sweep_complete(self) -> None:
         # This marks the end of one full sweep: checking convergence
         if self.convergence_check(self.energy_tolerance):
@@ -962,7 +935,7 @@ def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
     pulser_data = PulserData(sequence=sequence, config=config, dt=config.dt)
 
     if pulser_data.has_lindblad_noise:
-        return NoisyMPSBackendImpl(config, pulser_data)
+        return NoisyTDVPBackendImpl(config, pulser_data)
     if config.solver == Solver.DMRG:
         return DMRGBackendImpl(config, pulser_data)
-    return MPSBackendImpl(config, pulser_data)
+    return TDVPBackendImpl(config, pulser_data)
