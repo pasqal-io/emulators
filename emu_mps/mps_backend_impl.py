@@ -1,9 +1,6 @@
 """
 This module contains the implementation of the backend for Matrix Product States
 computations.
-
-Authors:
-    First LAST NAME <first.lastname@pasqal.com>
 """
 import math
 import os
