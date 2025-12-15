@@ -603,12 +603,8 @@ class TDVPBackendImpl(MPSBackendImpl):
             self,
             mps_config: MPSConfig,
             pulser_data: PulserData,
-            energy_tolerance: float = 1e-5,
-            max_sweeps: int = 2000,
     ):
         super().__init__(mps_config, pulser_data)
-        self.energy_tolerance = energy_tolerance
-        self.max_sweeps = max_sweeps
 
     def progress(self):
         """
