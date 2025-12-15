@@ -879,7 +879,7 @@ def test_autosave() -> None:
         save_simulation_mock.side_effect = save_simulation_mock_side_effect
 
         with pytest.raises(Exception) as e:
-            MPSBackend(seq, config=MPSConfig(observables=[energy])).run()
+            MPSBackend(seq, config=MPSConfig(observables=[energy], autosave_dt=600)).run()
 
         assert str(e.value) == "Process killed!"
 
@@ -888,7 +888,9 @@ def test_autosave() -> None:
 
     assert not save_file.is_file()
 
-    results_expected = MPSBackend(seq, config=MPSConfig(observables=[energy])).run()
+    results_expected = MPSBackend(
+        seq, config=MPSConfig(observables=[energy], autosave_dt=600)
+    ).run()
 
     for t in evaluation_times:
         assert torch.allclose(
@@ -976,6 +978,11 @@ def test_run_after_deserialize():
 
 def test_leakage_rates():
     """Verigy the leakage rates"""
+    if not unix_like:
+        pytest.skip(reason="fails due to different RNG on windows")
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+
     duration = 500
     natoms = 2
     spacing = 10000  # avoid interactions

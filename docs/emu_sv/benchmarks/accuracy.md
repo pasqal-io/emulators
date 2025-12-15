@@ -1,6 +1,6 @@
 # Accuracy
 
-Here we discuss the emulator accuracy, as compared to Pulser state vector solver [backend](https://pulser.readthedocs.io/en/stable/tutorials/simulating.html), but in the future we might directly compare with QPU results.
+Here we discuss the emulator accuracy, as compared to Pulser state vector solver [backend](https://pulser.readthedocs.io/en/v1.6.0/apidoc/_autosummary/pulser_simulation.QutipBackend.html#), but in the future we might directly compare with QPU results.
 Accuracy, here, specifically refers to observables:
 
 - __Energy:__ $E = \langle\psi|H|\psi\rangle$

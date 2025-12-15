@@ -2,15 +2,13 @@ import pytest
 import re
 import logging
 import torch
-
 import pulser
-
-from emu_mps.mps_config import MPSConfig
+import numpy as np
+from emu_mps.mps_config import MPSConfig, MPS
 from pulser.backend.config import EmulationConfig
 from pulser.backend import BitStrings, StateResult
 from emu_mps.observables import EntanglementEntropy
-
-import pulser.noise_model
+import json
 
 # copypaste mps_config.py specific attributes
 # attributes from MPSConfig._expected_kwargs
@@ -120,3 +118,64 @@ def test_optimize_qubit_ordering_unsupported_observables(capsys) -> None:
     out, _ = capsys.readouterr()
     assert "using `optimize_qubit_ordering = False` instead." in out
     assert not config.optimize_qubit_ordering
+
+
+def test_serialization_with_state():
+    natoms = 2
+    reg = pulser.Register.rectangle(1, natoms, spacing=8.0, prefix="q")
+
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ch0", "rydberg_global")
+    duration = 500
+    pulse = pulser.Pulse.ConstantPulse(duration, 4 * np.pi, 0.0, 0.0)
+    seq.add(pulse, "ch0")
+    basis = ["r", "g"]
+    amp_full = {"g" * natoms: (0.7071 + 0.0j), "r" * natoms: (0.7071 + 0.0j)}
+    state = MPS.from_state_amplitudes(eigenstates=("r", "g"), amplitudes=amp_full)
+
+    config = MPSConfig(initial_state=state)
+
+    config_str = config.to_abstract_repr()
+    my_config = json.loads(config_str)
+
+    assert my_config["initial_state"]["eigenstates"] == basis
+    assert my_config["initial_state"]["amplitudes"] == amp_full
+
+
+def test_krylov_tolerance_auto_adjustment(capsys) -> None:
+    # Test case where product is below threshold - should auto-adjust
+    precision = 1e-10
+    extra_krylov_tolerance = 1e-3  # product would be 1e-13 < 1e-12
+
+    config = MPSConfig(
+        precision=precision,
+        extra_krylov_tolerance=extra_krylov_tolerance,
+    )
+
+    out, _ = capsys.readouterr()
+
+    # Check warning was issued
+    assert "Automatically adjusting extra_krylov_tolerance" in out
+
+    # Check value was adjusted to maintain product >= 1e-12
+    assert config.extra_krylov_tolerance == 1e-12 / precision
+    assert config.precision * config.extra_krylov_tolerance >= 1e-12
+
+
+def test_krylov_tolerance_no_adjustment(capsys) -> None:
+    # Test case where product is above threshold - no adjustment needed
+    precision = 1e-5
+    extra_krylov_tolerance = 1e-3  # product is 1e-8 > 1e-12
+
+    config = MPSConfig(
+        precision=precision,
+        extra_krylov_tolerance=extra_krylov_tolerance,
+    )
+
+    out, _ = capsys.readouterr()
+
+    # Check no warning was issued
+    assert "Automatically adjusting extra_krylov_tolerance" not in out
+
+    # Check value was not changed
+    assert config.extra_krylov_tolerance == extra_krylov_tolerance
