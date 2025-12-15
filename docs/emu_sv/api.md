@@ -16,3 +16,6 @@ The emu-sv API is based on the specification [here](../base_classes.md). Concret
 
 ## DenseOperator
 ::: emu_sv.dense_operator.DenseOperator
+
+## SparseOperator
+::: emu_sv.sparse_operator.SparseOperator

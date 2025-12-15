@@ -86,29 +86,28 @@ def test_matmul_and_add_DenseOperator(zero: str, one: str) -> None:
     assert torch.allclose(op.matrix.cpu(), expected)
 
 
-@pytest.mark.parametrize(("zero", "one"), [("g", "r")])
-def test_applyto_expect_DenseOperator(zero: str, one: str) -> None:
+def test_applyto_expect_DenseOperator() -> None:
     # creation 2 qubit operator X_0Z_2
     N = 3
     operations = [
         (
             1.0,
             [
-                ({zero + one: 1.0, one + zero: 1.0}, {0}),  # X
-                ({zero + zero: 1.0, one + one: -1.0}, {2}),  # Z
+                ({"rg": 1.0, "gr": 1.0}, {0}),  # X
+                ({"gg": 1.0, "rr": -1.0}, {2}),  # Z
             ],
         )
     ]
 
     operator = DenseOperator.from_operator_repr(
-        eigenstates=(one, zero),
+        eigenstates=("r", "g"),
         n_qudits=N,
         operations=operations,
     )
 
-    state = {one + one + one: -1.0, zero + zero + zero: 1.0}
+    state = {"rrr": -1.0, "ggg": 1.0}
     state_from_string = StateVector.from_state_amplitudes(
-        eigenstates=(one, zero), amplitudes=state
+        eigenstates=("r", "g"), amplitudes=state
     )
     result = operator.apply_to(state_from_string)  # testing apply_to
 

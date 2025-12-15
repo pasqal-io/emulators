@@ -832,8 +832,8 @@ def test_sparse_expectation():
 
     eigenstates = ["r", "g"]
     op = [
-        (1.0, [({"rr": 1.0}, list(range(6)))]),
-        (2.0, [({"gr": 1.0, "rg": 1.0}, list(range(6)))]),
+        (1.0, [({"rr": 1.0}, list(range(num_qubits)))]),
+        (2.0, [({"gr": 1.0, "rg": 1.0}, list(range(num_qubits)))]),
     ]
     dense = DenseOperator.from_operator_repr(
         n_qudits=num_qubits, eigenstates=eigenstates, operations=op

@@ -40,7 +40,13 @@ def sparse_kron(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 
 
 class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
-    """Operator for EMU-SV using CSR matrices"""
+    """This operator is used to represent a sparse matrix in CSR (Compressed Sparse Row)
+    format for efficient computation on the EMU-SV emulator
+
+    Args:
+        matrix (torch.Tensor): The CSR matrix representation of the operator.
+        gpu (bool): Use GPU for computation. True uses the CPU if GPU not available.
+    """
 
     def __init__(
         self,
@@ -56,17 +62,17 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
 
     def __add__(self, other: Operator) -> SparseOperator:
         """
-        Element-wise addition of two DenseOperators.
+        Element-wise addition of two SparseOperators.
 
         Args:
-            other: a DenseOperator instance.
+            other: a SparseOperator instance.
 
         Returns:
-            A new DenseOperator representing the sum.
+            A new SparseOperator representing the sum.
         """
         assert isinstance(
             other, SparseOperator
-        ), "DenseOperator can only be added to another DenseOperator."
+        ), "SparseOperator can only be added to another SparseOperator."
         # TODO: figure out a better algorithm.
         # self.matrix + other.matrix doesn't work on mac.
         return SparseOperator(
@@ -77,13 +83,13 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
 
     def __rmul__(self, scalar: complex) -> SparseOperator:
         """
-        Scalar multiplication of the DenseOperator.
+        Scalar multiplication of the SparseOperator.
 
         Args:
             scalar: a number to scale the operator.
 
         Returns:
-            A new DenseOperator scaled by the given scalar.
+            A new SparseOperator scaled by the given scalar.
         """
 
         return SparseOperator(scalar * self.matrix)
@@ -102,7 +108,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
 
     def apply_to(self, other: State) -> StateVector:
         """
-        Apply the DenseOperator to a given StateVector.
+        Apply the SparseOperator to a given StateVector.
 
         Args:
             other: a StateVector instance.
@@ -112,7 +118,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
         """
         assert isinstance(
             other, StateVector
-        ), "DenseOperator can only be applied to a StateVector."
+        ), "SparseOperator can only be applied to a StateVector."
 
         return StateVector(self.matrix @ other.vector)
 
@@ -141,7 +147,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
         operations: FullOp[complex],
     ) -> tuple[SparseOperator, FullOp[complex]]:
         """
-        Construct a DenseOperator from an operator representation.
+        Construct a SparseOperator from an operator representation.
 
         Args:
             eigenstates: the eigenstates of the basis to use, e.g. ("r", "g") or ("0", "1").
@@ -149,7 +155,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
             operations: which bitstrings make up the state with what weight.
 
         Returns:
-            A DenseOperator instance corresponding to the given representation.
+            A SparseOperator instance corresponding to the given representation.
         """
 
         assert len(set(eigenstates)) == 2, "Only qubits are supported in EMU-SV."
@@ -208,7 +214,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
         return SparseOperator(accum_res.to_sparse_csr()), operations
 
     def __deepcopy__(self, memo: dict) -> SparseOperator:
-        """torch COO tensor does not deepcopy automatically"""
+        """torch CSR tensor does not deepcopy automatically"""
         cls = self.__class__
         result = cls(torch.clone(self.matrix), gpu=self.matrix.is_cuda)
         memo[id(self)] = result
