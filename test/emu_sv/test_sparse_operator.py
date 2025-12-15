@@ -14,22 +14,21 @@ zero_state_torch = torch.tensor([[1, 0]], dtype=dtype)
 one_state_torch = torch.tensor([[0, 1]], dtype=dtype)
 
 
-@pytest.mark.parametrize(("zero", "one"), [("g", "r")])
-def test_from_operator_repr_and_rmul(zero: str, one: str) -> None:
+def test_from_operator_repr_and_rmul() -> None:
     # creation 2 qubit operator X_0Z_1
     N = 2
     operations = [
         (
             1.0,
             [
-                ({zero + one: 1.0, one + zero: -1.0}, {0}),  # iY
-                ({zero + zero: 1.0, one + one: -1.0}, {1}),  # Z
+                ({"gr": 1.0, "rg": -1.0}, {0}),  # iY
+                ({"gg": 1.0, "rr": -1.0}, {1}),  # Z
             ],
         )
     ]
 
     operator = SparseOperator.from_operator_repr(
-        eigenstates=(one, zero),
+        eigenstates=("r", "g"),
         n_qudits=N,
         operations=operations,
     )
@@ -42,15 +41,14 @@ def test_from_operator_repr_and_rmul(zero: str, one: str) -> None:
     assert torch.allclose(operator.matrix.to_dense().cpu(), expected)
 
 
-@pytest.mark.parametrize(("zero", "one"), [("g", "r")])
-def test_add(zero: str, one: str) -> None:
+def test_add() -> None:
     N = 2
 
     ops_1 = [
         (
             2.0,
             [
-                ({zero + one: 1.0, one + zero: 1.0}, [0]),  # X
+                ({"gr": 1.0, "rg": 1.0}, [0]),  # X
             ],
         )
     ]
@@ -59,19 +57,19 @@ def test_add(zero: str, one: str) -> None:
         (
             1.0,
             [
-                ({zero + zero: 1.0, one + one: -1.0}, [1]),  # Z
+                ({"gg": 1.0, "rr": -1.0}, [1]),  # Z
             ],
         )
     ]
 
     operator_1 = SparseOperator.from_operator_repr(
-        eigenstates=(one, zero),
+        eigenstates=("r", "g"),
         n_qudits=N,
         operations=ops_1,
     )
 
     operator_2 = SparseOperator.from_operator_repr(
-        eigenstates=(one, zero),
+        eigenstates=("r", "g"),
         n_qudits=N,
         operations=ops_2,
     )
