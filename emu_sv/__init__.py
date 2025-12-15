@@ -13,6 +13,7 @@ from pulser.backend import (
 )
 
 from .dense_operator import DenseOperator
+from .sparse_operator import SparseOperator
 from .sv_backend import SVBackend, SVConfig
 from .state_vector import StateVector, inner
 from .density_matrix_state import DensityMatrix
@@ -36,6 +37,7 @@ __all__ = [
     "StateVector",
     "inner",
     "DensityMatrix",
+    "SparseOperator",
 ]
 
-__version__ = "2.5.2"
+__version__ = "2.6.0"
