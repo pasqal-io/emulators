@@ -23,6 +23,9 @@ class Operators:
     id_3x3 = torch.eye(3, dtype=dtype)
     n = torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype)
     creation = torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype)
+    creation_xy_rydberg = torch.tensor(
+        [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=dtype
+    )
     sx = torch.tensor([[0.0, 0.5], [0.5, 0.0]], dtype=dtype)
     sy = torch.tensor([[0.0, -0.5j], [0.5j, 0.0]], dtype=dtype)
 
@@ -37,6 +40,67 @@ class HamiltonianMPOFactors(ABC):
         self.interaction_matrix = interaction_matrix.clone()
         self.interaction_matrix.fill_diagonal_(0.0)  # or assert
         self.qubit_count = self.interaction_matrix.shape[0]
+        self.middle = self.qubit_count // 2
+        self.identity = Operators.id if self.dim == 2 else Operators.id_3x3
+
+    def __iter__(self) -> Iterator[torch.Tensor]:
+        yield self.first_factor()
+
+        for n in range(1, self.middle):
+            yield self.left_factor(n)
+
+        if self.qubit_count >= 3:
+            yield self.middle_factor()
+
+        for n in range(self.middle + 1, self.qubit_count - 1):
+            yield self.right_factor(n)
+
+        yield self.last_factor()
+
+    @abstractmethod
+    def first_factor(self) -> torch.Tensor:
+        pass
+
+    @abstractmethod
+    def left_factor(self, n: int) -> torch.Tensor:
+        pass
+
+    @abstractmethod
+    def middle_factor(self) -> torch.Tensor:
+        pass
+
+    @abstractmethod
+    def right_factor(self, n: int) -> torch.Tensor:
+        pass
+
+    @abstractmethod
+    def last_factor(self) -> torch.Tensor:
+        pass
+
+
+class HamiltonianMPOFactors2Int(ABC):
+    def __init__(
+        self,
+        interaction_matrix_rydberg: torch.Tensor,
+        interaction_matrix_xy: torch.Tensor,
+        dim: int = 2,
+    ):
+        assert interaction_matrix_rydberg.ndim == 2, "interaction matrix is not a matrix"
+        assert (
+            interaction_matrix_rydberg.shape[0] == interaction_matrix_rydberg.shape[1]
+        ), "interaction matrix is not square"
+        assert interaction_matrix_xy.ndim == 2, "interaction matrix is not a matrix"
+        assert (
+            interaction_matrix_xy.shape[0] == interaction_matrix_xy.shape[1]
+        ), "interaction matrix is not square"
+        self.dim = dim
+        self.interaction_matrix_rydberg = interaction_matrix_rydberg.clone()
+        self.interaction_matrix_rydberg.fill_diagonal_(0.0)  # or assert
+
+        self.interaction_matrix_xy = interaction_matrix_xy.clone()
+        self.interaction_matrix_xy.fill_diagonal_(0.0)
+
+        self.qubit_count = self.interaction_matrix_rydberg.shape[0]
         self.middle = self.qubit_count // 2
         self.identity = Operators.id if self.dim == 2 else Operators.id_3x3
 
@@ -358,12 +422,299 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         return fac
 
 
+class XYRydbergHamiltonianMPOFactors(HamiltonianMPOFactors2Int):
+    def first_factor(self) -> torch.Tensor:
+        has_right_interaction_rydberg = self.interaction_matrix_rydberg[0, 1:].any()
+        has_right_interaction_xy = self.interaction_matrix_xy[0, 1:].any()
+
+        fac = torch.zeros(
+            1, self.dim, self.dim, 5 if has_right_interaction_rydberg else 2, dtype=dtype
+        )
+        fac[0, :, :, 1] = self.identity
+        if has_right_interaction_rydberg:
+            fac[0, :2, :2, 2] = Operators.n
+        if has_right_interaction_xy:
+            fac[0, :, :, 3] = Operators.creation_xy_rydberg
+            fac[0, :, :, 4] = Operators.creation_xy_rydberg.T
+
+        return fac
+
+    def left_factor(self, n: int) -> torch.Tensor:
+        has_right_interaction_rydberg = self.interaction_matrix_rydberg[n, n + 1 :].any()
+        current_left_interactions_rydberg = self.interaction_matrix_rydberg[:n, n:].any(
+            dim=1
+        )
+        left_interactions_to_keep_rydberg = self.interaction_matrix_rydberg[
+            :n, n + 1 :
+        ].any(dim=1)
+
+        has_right_interaction_xy = self.interaction_matrix_xy[n, n + 1 :].any()
+        current_left_interactions_xy = self.interaction_matrix_xy[:n, n:].any(dim=1)
+        left_interactions_to_keep_xy = self.interaction_matrix_xy[:n, n + 1 :].any(dim=1)
+        num_nn_current_left_int = int(current_left_interactions_rydberg.sum().item())
+        fac = torch.zeros(
+            num_nn_current_left_int
+            + 2 * int(current_left_interactions_xy.sum().item())
+            + 2,
+            self.dim,
+            self.dim,
+            int(left_interactions_to_keep_rydberg.sum().item())
+            + int(has_right_interaction_rydberg)
+            + 2 * int(has_right_interaction_xy)
+            + 2 * int(left_interactions_to_keep_xy.sum().item())
+            + 2,
+            dtype=dtype,
+        )
+
+        fac[0, :, :, 0] = self.identity
+        fac[1, :, :, 1] = self.identity
+        if has_right_interaction_rydberg:
+            fac[1, :2, :2, num_nn_current_left_int + 2] = Operators.n
+        if has_right_interaction_xy:
+            fac[1, :, :, -2] = Operators.creation_xy_rydberg
+            fac[1, :, :, -1] = Operators.creation_xy_rydberg.T
+
+        fac[2 : num_nn_current_left_int + 2, :2, :2, 0] = (
+            self.interaction_matrix_rydberg[:n][
+                current_left_interactions_rydberg, n, None, None
+            ]
+            * Operators.n
+        )
+
+        fac[num_nn_current_left_int + 2 :: 2, :, :, 0] = (
+            self.interaction_matrix_xy[:n][current_left_interactions_xy, n, None, None]
+            * Operators.creation_xy_rydberg.T
+        )
+        fac[num_nn_current_left_int + 3 :: 2, :, :, 0] = (
+            self.interaction_matrix_xy[:n][current_left_interactions_xy, n, None, None]
+            * Operators.creation_xy_rydberg
+        )
+
+        i = 2
+        j = 2
+        for (
+            current_left_interaction_rydberg
+        ) in current_left_interactions_rydberg.nonzero().flatten():
+            if left_interactions_to_keep_rydberg[current_left_interaction_rydberg]:
+                fac[i, :, :, j] = self.identity
+                j += 1
+            i += 1
+        j += 1
+
+        for (
+            current_left_interaction_xy
+        ) in current_left_interactions_xy.nonzero().flatten():
+            if left_interactions_to_keep_xy[current_left_interaction_xy]:
+                fac[i, :, :, j] = self.identity
+                fac[i + 1, :, :, j + 1] = self.identity
+                j += 2
+            i += 2
+
+        return fac
+
+    def middle_factor(self) -> torch.Tensor:
+        n = self.middle
+        current_left_interactions_rydberg = self.interaction_matrix_rydberg[:n, n:].any(
+            dim=1
+        )
+        current_right_interactions_rydberg = self.interaction_matrix_rydberg[
+            n + 1 :, : n + 1
+        ].any(dim=1)
+
+        current_left_interactions_xy = self.interaction_matrix_xy[:n, n:].any(dim=1)
+        current_right_interactions_xy = self.interaction_matrix_xy[n + 1 :, : n + 1].any(
+            dim=1
+        )
+        num_n_left_iterations = int(current_left_interactions_rydberg.sum().item())
+        num_n_right_iterations = int(current_right_interactions_rydberg.sum().item())
+        num_xy_left_iterations = int(2 * current_left_interactions_xy.sum().item())
+        num_xy_right_iterations = int(2 * current_right_interactions_xy.sum().item())
+
+        fac = torch.zeros(
+            num_n_left_iterations + num_xy_left_iterations + 2,
+            self.dim,
+            self.dim,
+            num_n_right_iterations + num_xy_right_iterations + 2,
+            dtype=dtype,
+        )
+
+        fac[0, :, :, 0] = self.identity
+        fac[1, :, :, 1] = self.identity
+
+        fac[2 : num_n_left_iterations + 2, :2, :2, 0] = (
+            self.interaction_matrix_rydberg[:n][
+                current_left_interactions_rydberg, n, None, None
+            ]
+            * Operators.n
+        )
+
+        fac[1, :2, :2, 2 : num_n_right_iterations + 2] = self.interaction_matrix_rydberg[
+            n + 1 :
+        ][None, None, current_right_interactions_rydberg, n] * Operators.n.unsqueeze(-1)
+
+        fac[2 : num_n_left_iterations + 2, :, :, 2 : num_n_right_iterations + 2] = (
+            self.interaction_matrix_rydberg[:n, n + 1 :][
+                current_left_interactions_rydberg, :
+            ][:, None, None, current_right_interactions_rydberg]
+            * self.identity[None, ..., None]
+        )
+
+        fac[num_n_left_iterations + 2 :: 2, :, :, 0] = (
+            self.interaction_matrix_xy[:n][current_left_interactions_xy, n, None, None]
+            * Operators.creation_xy_rydberg.T
+        )
+        fac[num_n_left_iterations + 3 :: 2, :, :, 0] = (
+            self.interaction_matrix_xy[:n][current_left_interactions_xy, n, None, None]
+            * Operators.creation_xy_rydberg
+        )
+
+        fac[1, :, :, num_n_right_iterations + 2 :: 2] = self.interaction_matrix_xy[
+            n + 1 :
+        ][
+            None, None, current_right_interactions_xy, n
+        ] * Operators.creation_xy_rydberg.unsqueeze(
+            -1
+        )
+        fac[1, :, :, num_n_right_iterations + 3 :: 2] = self.interaction_matrix_xy[
+            n + 1 :
+        ][
+            None, None, current_right_interactions_xy, n
+        ] * Operators.creation_xy_rydberg.T.unsqueeze(
+            -1
+        )
+
+        fac[num_n_left_iterations + 2 :: 2, :, :, num_n_right_iterations + 2 :: 2] = (
+            self.interaction_matrix_xy[:n, n + 1 :][current_left_interactions_xy, :][
+                :, None, None, current_right_interactions_xy
+            ]
+            * self.identity[None, ..., None]
+        )
+        fac[num_n_left_iterations + 3 :: 2, :, :, num_n_right_iterations + 3 :: 2] = (
+            self.interaction_matrix_xy[:n, n + 1 :][current_left_interactions_xy, :][
+                :, None, None, current_right_interactions_xy
+            ]
+            * self.identity[None, ..., None]
+        )
+
+        return fac
+
+    def right_factor(self, n: int) -> torch.Tensor:
+        has_left_interaction_rydberg = self.interaction_matrix_rydberg[n, :n].any()
+        current_right_interactions_rydberg = self.interaction_matrix_rydberg[
+            n + 1 :, : n + 1
+        ].any(dim=1)
+        right_interactions_to_keep_rydberg = self.interaction_matrix_rydberg[
+            n + 1 :, :n
+        ].any(dim=1)
+
+        has_left_interaction_xy = self.interaction_matrix_xy[n, :n].any()
+        current_right_interactions_xy = self.interaction_matrix_xy[n + 1 :, : n + 1].any(
+            dim=1
+        )
+        right_interactions_to_keep_xy = self.interaction_matrix_xy[n + 1 :, :n].any(dim=1)
+        num_nn_current_right_int = int(current_right_interactions_rydberg.sum().item())
+
+        fac = torch.zeros(
+            int(right_interactions_to_keep_rydberg.sum().item())
+            + 2 * int(right_interactions_to_keep_xy.sum().item())
+            + int(has_left_interaction_rydberg)
+            + 2 * int(has_left_interaction_xy)
+            + 2,
+            self.dim,
+            self.dim,
+            int(current_right_interactions_rydberg.sum().item())
+            + 2 * int(current_right_interactions_xy.sum().item())
+            + 2,
+            dtype=dtype,
+        )
+
+        fac[0, :, :, 0] = self.identity
+        fac[1, :, :, 1] = self.identity
+        if has_left_interaction_rydberg:
+            fac[2, :2, :2, 0] = Operators.n
+        if has_left_interaction_xy:
+            fac[3 + num_nn_current_right_int, :, :, 0] = Operators.creation_xy_rydberg.T
+            fac[4 + num_nn_current_right_int, :, :, 0] = Operators.creation_xy_rydberg
+
+        fac[1, :2, :2, 2 : num_nn_current_right_int + 2] = (
+            self.interaction_matrix_rydberg[n + 1 :][
+                None, None, current_right_interactions_rydberg, n
+            ]
+            * Operators.n.unsqueeze(-1)
+        )
+
+        fac[1, :, :, num_nn_current_right_int + 2 :: 2] = self.interaction_matrix_xy[
+            n + 1 :
+        ][
+            None, None, current_right_interactions_xy, n
+        ] * Operators.creation_xy_rydberg.unsqueeze(
+            -1
+        )
+        fac[1, :, :, num_nn_current_right_int + 3 :: 2] = self.interaction_matrix_xy[
+            n + 1 :
+        ][
+            None, None, current_right_interactions_xy, n
+        ] * Operators.creation_xy_rydberg.T.unsqueeze(
+            -1
+        )
+
+        i = 3 if has_left_interaction_rydberg else 2
+        j = 2
+        for (
+            current_right_interaction
+        ) in current_right_interactions_rydberg.nonzero().flatten():
+            if right_interactions_to_keep_rydberg[current_right_interaction]:
+                fac[i, :, :, j] = self.identity
+                i += 1
+            j += 1
+        i = num_nn_current_right_int + 5 if has_left_interaction_xy else 2
+        j = int(right_interactions_to_keep_rydberg.sum().item()) + 2
+
+        for (
+            current_right_interaction_xy
+        ) in current_right_interactions_xy.nonzero().flatten():
+            if right_interactions_to_keep_xy[current_right_interaction_xy]:
+                fac[i, :, :, j] = self.identity
+                fac[i + 1, :, :, j + 1] = self.identity
+                i += 2
+            j += 2
+        return fac
+
+    def last_factor(self) -> torch.Tensor:
+        has_left_interaction_rydberg = self.interaction_matrix_rydberg[-1, :-1].any()
+        has_left_interaction_xy = self.interaction_matrix_xy[-1, :-1].any()
+        fac = torch.zeros(
+            5 if has_left_interaction_rydberg else 2, self.dim, self.dim, 1, dtype=dtype
+        )
+        fac[0, :, :, 0] = self.identity
+        if has_left_interaction_rydberg:
+            if self.qubit_count >= 3:
+                fac[2, :2, :2, 0] = Operators.n
+            else:
+                fac[2, :2, :2, 0] = self.interaction_matrix_rydberg[0, 1] * Operators.n
+
+        if has_left_interaction_xy:
+            if self.qubit_count >= 3:
+                fac[3, :, :, 0] = Operators.creation_xy_rydberg.T
+                fac[4, :, :, 0] = Operators.creation_xy_rydberg
+            else:
+                fac[3, :, :, 0] = (
+                    self.interaction_matrix_xy[0, 1] * Operators.creation_xy_rydberg.T
+                )
+                fac[4, :, :, 0] = (
+                    self.interaction_matrix_xy[0, 1] * Operators.creation_xy_rydberg
+                )
+
+        return fac
+
+
 def make_H(
     *,
     interaction_matrix: torch.Tensor,  # depends on Hamiltonian Type
     hamiltonian_type: HamiltonianType,
     dim: int = 2,
     num_gpus_to_use: int | None,
+    interaction_matrix_xy: torch.Tensor = torch.zeros(0, 0),  # only for RydbergXY
 ) -> MPO:
     r"""
     Constructs and returns a Matrix Product Operator (MPO) representing the
@@ -402,6 +753,18 @@ def make_H(
     if hamiltonian_type == HamiltonianType.Rydberg:
         return MPO(
             list(RydbergHamiltonianMPOFactors(interaction_matrix, dim=dim)),
+            num_gpus_to_use=num_gpus_to_use,
+        )
+
+    if hamiltonian_type == HamiltonianType.RydbergXY:
+        return MPO(
+            list(
+                XYRydbergHamiltonianMPOFactors(
+                    interaction_matrix,
+                    interaction_matrix_xy,
+                    dim=dim,
+                )
+            ),
             num_gpus_to_use=num_gpus_to_use,
         )
 
