@@ -34,6 +34,7 @@ def init_logging(log_level: int, log_file: Path | None) -> logging.Logger:
     """
     logger = logging.getLogger("emulators")
     logger.propagate = False
+    logger.setLevel(logging.DEBUG)
 
     handler: logging.Handler
     if log_file is None:
