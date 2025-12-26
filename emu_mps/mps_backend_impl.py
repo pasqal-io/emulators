@@ -507,7 +507,8 @@ class MPSBackendImpl:
     def fill_results(self) -> None:
         normalized_state = 1 / self.state.norm() * self.state
 
-        current_time_int: int = round(self.current_time)
+        # current_time_int: int = round(self.current_time)
+        current_time_int = self.current_time
         fractional_time = self.current_time / self.target_times[-1]
         assert abs(self.current_time - current_time_int) < 1e-10
 
