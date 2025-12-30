@@ -160,15 +160,13 @@ class BaseSVBackendImpl:
         self._current_H = None
 
     def _run(self) -> Results:
+        self._apply_observables(0)  # t == 0
         for step in range(self.nsteps):
-            self._apply_observables(step)
-            self._save_statistics(step)
-
             dt = self._compute_dt(step)
             self._evolve_step(dt, step)
-
-        self._apply_observables(self.nsteps)
-        self._save_statistics(self.nsteps)
+            step += 1
+            self._apply_observables(step)
+            self._save_statistics(step)
 
         return self.results
 

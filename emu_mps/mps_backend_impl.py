@@ -356,9 +356,6 @@ class MPSBackendImpl:
         Update the state accordingly.
         The state of the simulation is stored in self.sweep_index and self.swipe_direction.
         """
-        if self.is_finished():
-            return
-
         delta_time = self.target_time - self.current_time
 
         assert self.qubit_count >= 1
@@ -373,46 +370,39 @@ class MPSBackendImpl:
                 self._evolve(0, 1, dt=delta_time, orth_center_right=False)
 
             self.sweep_complete()
+            self.save_simulation()
+            return
 
-        elif (
-            self.sweep_index < self.qubit_count - 2
-            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-        ):
-            # Left-to-right swipe of TDVP
-            self._evolve(
-                self.sweep_index,
-                self.sweep_index + 1,
-                dt=delta_time / 2,
-                orth_center_right=True,
-            )
-            self.left_baths.append(
-                new_left_bath(
-                    self.get_current_left_bath(),
-                    self.state.factors[self.sweep_index],
-                    self.hamiltonian.factors[self.sweep_index],
-                ).to(self.state.factors[self.sweep_index + 1].device)
-            )
-            self._evolve(self.sweep_index + 1, dt=-delta_time / 2)
-            self.right_baths.pop()
-            self.sweep_index += 1
+        if self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
+            if self.sweep_index < self.qubit_count - 2:
+                self._evolve(
+                    self.sweep_index,
+                    self.sweep_index + 1,
+                    dt=delta_time / 2,
+                    orth_center_right=True,
+                )
+                self.left_baths.append(
+                    new_left_bath(
+                        self.get_current_left_bath(),
+                        self.state.factors[self.sweep_index],
+                        self.hamiltonian.factors[self.sweep_index],
+                    ).to(self.state.factors[self.sweep_index + 1].device)
+                )
+                self._evolve(self.sweep_index + 1, dt=-delta_time / 2)
+                self.right_baths.pop()
+                self.sweep_index += 1
 
-        elif (
-            self.sweep_index == self.qubit_count - 2
-            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-        ):
-            # Time-evolution of the rightmost 2 tensors
-            self._evolve(
-                self.sweep_index,
-                self.sweep_index + 1,
-                dt=delta_time,
-                orth_center_right=False,
-            )
-            self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+            elif self.sweep_index == self.qubit_count - 2:
+                # Time-evolution of the rightmost 2 tensors
+                self._evolve(
+                    self.sweep_index,
+                    self.sweep_index + 1,
+                    dt=delta_time,
+                    orth_center_right=False,
+                )
+                self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
-        elif (
-            1 <= self.sweep_index and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
-        ):
-            # Right-to-left swipe of TDVP
+        elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
             assert self.sweep_index <= self.qubit_count - 2
             self.right_baths.append(
                 new_right_bath(
@@ -437,8 +427,8 @@ class MPSBackendImpl:
             self.sweep_index -= 1
 
             if self.sweep_index == 0:
-                self.sweep_complete()
                 self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+                self.sweep_complete()
 
         else:
             raise Exception("Didn't expect this")
