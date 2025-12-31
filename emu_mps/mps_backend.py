@@ -61,6 +61,8 @@ class MPSBackend(EmulatorBackend):
 
     @staticmethod
     def _run(impl: MPSBackendImpl) -> Results:
+        if impl.target_times[0] == 0:
+            impl.fill_results()  # for t == 0
         while not impl.is_finished():
             impl.progress()
 

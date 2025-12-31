@@ -1,39 +1,39 @@
+import logging
 import math
 import random
-from unittest.mock import ANY, MagicMock, patch
-import pytest
-import numpy as np
-import torch
-from pytest import approx
 from typing import Any
+from unittest.mock import ANY, MagicMock, patch
 
+import numpy as np
 import pulser
 import pulser.noise_model
+import pytest
+import torch
+from pytest import approx
 
 from emu_sv import (
     SVBackend,
     SVConfig,
-    StateVector,
-    DenseOperator,
-    SparseOperator,
+    BitStrings,
     CorrelationMatrix,
+    DenseOperator,
+    DensityMatrix,
+    Energy,
     EnergySecondMoment,
     EnergyVariance,
-    Occupation,
-    BitStrings,
-    Energy,
-    Fidelity,
     Expectation,
+    Fidelity,
+    Occupation,
     Results,
+    SparseOperator,
     StateResult,
-    DensityMatrix,
+    StateVector,
 )
 
 from test.utils_testing import (
     pulser_afm_sequence_ring,
     pulser_blackman,
 )
-
 
 seed = 1337
 
@@ -853,3 +853,30 @@ def test_sparse_expectation():
     results = backend.run()
     for i in range(len(evaluation_times)):
         assert torch.allclose(results.expectation_sparse[i], results.expectation_dense[i])
+
+
+def test_end_to_end_observable_time_as_in_pulser():
+    reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
+    seq = pulser.Sequence(reg, pulser.AnalogDevice)
+    seq.declare_channel("ryd", "rydberg_global")
+    pulse = pulser.Pulse.ConstantPulse(400, 1, 0, 0)
+    seq.add(pulse, channel="ryd")
+
+    bitstrings_eval_times = [0.0, 0.3, 1.0]
+    occupation_eval_times = [0.2, 1.0]
+
+    bitstrings = BitStrings(evaluation_times=bitstrings_eval_times)
+    occup = Occupation(evaluation_times=occupation_eval_times)
+
+    sv_config = SVConfig(
+        observables=(
+            bitstrings,
+            occup,
+        ),
+        log_level=logging.WARN,
+    )
+    sv_backend = SVBackend(seq, config=sv_config)
+    sv_results = sv_backend.run()
+
+    assert sv_results.get_result_times(bitstrings) == bitstrings_eval_times
+    assert sv_results.get_result_times(occup) == occupation_eval_times
