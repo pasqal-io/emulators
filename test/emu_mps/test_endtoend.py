@@ -763,15 +763,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
         eigenstates=["g", "r"], amplitudes={"rr": 1.0}
     )
     results = []
-    s = simulate(
-        seq,
-        noise_model=noise_model,
-        initial_state=initial_state,
-        dt=duration,  # dt = 10_000
-        optimize_qubit_ordering=False,
-    )
-    results.append(s)
-    for _ in range(99):
+    for _ in range(100):
         results.append(
             simulate(
                 seq,
