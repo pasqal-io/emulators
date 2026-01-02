@@ -168,7 +168,7 @@ class BaseSVBackendImpl:
         self._current_H = None
 
     def _run(self) -> Results:
-        self._apply_observables(0)  # t == 0
+        self._apply_observables(0)  # at t == 0 for pulser compatibility
         for step in range(self.nsteps):
             self.step(step)
 

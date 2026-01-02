@@ -664,8 +664,8 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     final_state = result.state[-1]
     max_bond_dim = final_state.get_max_bond_dim()
 
-    assert bitstrings["101010"] == 490
-    assert bitstrings["010101"] == 481
+    assert bitstrings["101010"] == 480
+    assert bitstrings["010101"] == 478
     assert max_bond_dim == 8
 
 
@@ -763,7 +763,15 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
         eigenstates=["g", "r"], amplitudes={"rr": 1.0}
     )
     results = []
-    for _ in range(100):
+    s = simulate(
+        seq,
+        noise_model=noise_model,
+        initial_state=initial_state,
+        dt=duration,  # dt = 10_000
+        optimize_qubit_ordering=False,
+    )
+    results.append(s)
+    for _ in range(99):
         results.append(
             simulate(
                 seq,

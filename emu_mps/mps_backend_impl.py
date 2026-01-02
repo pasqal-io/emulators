@@ -651,6 +651,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
                 )
                 self.target_time = self.root_finder.get_next_abscissa()
             else:
+                self.remove_noise_from_hamiltonian()
                 self.timestep_complete()
 
             return
@@ -685,7 +686,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
         self.set_jump_threshold(norm_after_normalizing**2)
 
-    def fill_results(self) -> None:
+    def remove_noise_from_hamiltonian(self) -> None:
         # Remove the noise from self.hamiltonian for the callbacks.
         # Since update_H is called at the start of do_time_step this is safe.
         update_H(
@@ -696,7 +697,9 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
             noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
         )
 
-        super().fill_results()
+    # def fill_results(self) -> None:
+    #    #self.remove_noise_from_hamiltonian()
+    #    super().fill_results()
 
 
 class DMRGBackendImpl(MPSBackendImpl):
