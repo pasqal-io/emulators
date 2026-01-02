@@ -82,7 +82,10 @@ class BaseSVBackendImpl:
         self.full_interaction_matrix = pulser_data.full_interaction_matrix
         self.state: State
         self.time = time.time()
-        self.results = Results(atom_order=(), total_duration=self.target_times[-1])
+        self.results = Results(
+            atom_order=(),  # pulser_data.qubit_ids, TODO
+            total_duration=int(self.target_times[-1]),
+        )
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
             data=[],

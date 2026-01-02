@@ -12,6 +12,7 @@ import pytest
 import torch
 from pytest import approx
 
+from pulser_simulation import QutipBackendV2, QutipConfig
 
 import emu_mps
 from emu_mps import (
@@ -1165,21 +1166,19 @@ def test_end_to_end_observable_time_as_in_pulser():
     pulse = pulser.Pulse.ConstantPulse(400, 1, 0, 0)
     seq.add(pulse, channel="ryd")
 
-    bitstrings_eval_times = [0.0, 0.3, 1.0]
-    occupation_eval_times = [0.2, 1.0]
+    eval_times = np.linspace(0, 1, 13).tolist()
+    bitstrings = BitStrings(evaluation_times=eval_times)
+    obs = (bitstrings,)
 
-    bitstrings = BitStrings(evaluation_times=bitstrings_eval_times)
-    occup = Occupation(evaluation_times=occupation_eval_times)
-
-    mps_config = MPSConfig(
-        observables=(
-            bitstrings,
-            occup,
-        ),
-        log_level=logging.WARN,
-    )
+    mps_config = MPSConfig(observables=obs, log_level=logging.WARN)
     mps_backend = MPSBackend(seq, config=mps_config)
     mps_results = mps_backend.run()
 
-    assert mps_results.get_result_times(bitstrings) == bitstrings_eval_times
-    assert mps_results.get_result_times(occup) == occupation_eval_times
+    qutip_config = QutipConfig(observables=obs)
+    qutip_backend = QutipBackendV2(seq, config=qutip_config)
+    qutip_results = qutip_backend.run()
+
+    mps_bstring_t = mps_results.get_result_times(bitstrings)
+    q_bstring_t = qutip_results.get_result_times(bitstrings)
+
+    assert np.allclose(mps_bstring_t, q_bstring_t)

@@ -146,7 +146,7 @@ class MPSBackendImpl:
             atom_order=optimat.permute_tuple(
                 pulser_data.qubit_ids, self.qubit_permutation
             ),
-            total_duration=self.target_times[-1],
+            total_duration=int(self.target_times[-1]),
         )
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
@@ -507,9 +507,7 @@ class MPSBackendImpl:
     def fill_results(self) -> None:
         normalized_state = 1 / self.state.norm() * self.state
 
-        current_time_int: int = round(self.current_time)
         fractional_time = self.current_time / self.target_times[-1]
-        assert abs(self.current_time - current_time_int) < 1e-10
 
         if self.well_prepared_qubits_filter is None:
             for callback in self.config.observables:

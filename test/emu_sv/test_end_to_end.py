@@ -11,6 +11,8 @@ import pytest
 import torch
 from pytest import approx
 
+from pulser_simulation import QutipBackendV2, QutipConfig
+
 from emu_sv import (
     SVBackend,
     SVConfig,
@@ -862,21 +864,19 @@ def test_end_to_end_observable_time_as_in_pulser():
     pulse = pulser.Pulse.ConstantPulse(400, 1, 0, 0)
     seq.add(pulse, channel="ryd")
 
-    bitstrings_eval_times = [0.0, 0.3, 1.0]
-    occupation_eval_times = [0.2, 1.0]
+    eval_times = np.linspace(0, 1, 13).tolist()
+    bitstrings = BitStrings(evaluation_times=eval_times)
+    obs = (bitstrings,)
 
-    bitstrings = BitStrings(evaluation_times=bitstrings_eval_times)
-    occup = Occupation(evaluation_times=occupation_eval_times)
-
-    sv_config = SVConfig(
-        observables=(
-            bitstrings,
-            occup,
-        ),
-        log_level=logging.WARN,
-    )
+    sv_config = SVConfig(observables=obs, log_level=logging.WARN)
     sv_backend = SVBackend(seq, config=sv_config)
     sv_results = sv_backend.run()
 
-    assert sv_results.get_result_times(bitstrings) == bitstrings_eval_times
-    assert sv_results.get_result_times(occup) == occupation_eval_times
+    qutip_config = QutipConfig(observables=obs)
+    qutip_backend = QutipBackendV2(seq, config=qutip_config)
+    qutip_results = qutip_backend.run()
+
+    sv_bstring_t = sv_results.get_result_times(bitstrings)
+    q_bstring_t = qutip_results.get_result_times(bitstrings)
+
+    assert np.allclose(sv_bstring_t, q_bstring_t)
