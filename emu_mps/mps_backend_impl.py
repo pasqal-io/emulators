@@ -697,10 +697,6 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
             noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
         )
 
-    # def fill_results(self) -> None:
-    #    #self.remove_noise_from_hamiltonian()
-    #    super().fill_results()
-
 
 class DMRGBackendImpl(MPSBackendImpl):
     def __init__(
