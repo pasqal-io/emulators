@@ -1167,8 +1167,8 @@ def test_end_to_end_observable_time_as_in_pulser():
     seq.add(pulse, channel="ryd")
 
     eval_times = np.linspace(0, 1, 13).tolist()
-    bitstrings = BitStrings(evaluation_times=eval_times)
-    obs = (bitstrings,)
+    occ = Occupation(evaluation_times=eval_times)
+    obs = (occ,)
 
     mps_config = MPSConfig(observables=obs, log_level=logging.WARN)
     mps_backend = MPSBackend(seq, config=mps_config)
@@ -1178,7 +1178,15 @@ def test_end_to_end_observable_time_as_in_pulser():
     qutip_backend = QutipBackendV2(seq, config=qutip_config)
     qutip_results = qutip_backend.run()
 
-    mps_bstring_t = mps_results.get_result_times(bitstrings)
-    q_bstring_t = qutip_results.get_result_times(bitstrings)
+    mps_occ_t = mps_results.get_result_times(occ)
+    q_occ_t = qutip_results.get_result_times(occ)
 
-    assert np.allclose(mps_bstring_t, q_bstring_t)
+    for m, q in zip(mps_occ_t, q_occ_t):
+        assert np.isclose(m, q), f"m = {m}, q = {q}"
+        # doesn't work because of float access
+        # mps_occ = mps_results.occupation[m]
+        # q_occ = qutip_results.occupation[q]
+    for mps_occ, q_occ in zip(mps_results.occupation, qutip_results.occupation):
+        assert np.allclose(
+            mps_occ, q_occ, rtol=1e-2
+        ), f"sv_occ = {mps_occ}, q_occ = {q_occ}"
