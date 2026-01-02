@@ -837,8 +837,9 @@ def test_get_target_times_with_obs_eval_time(with_modulation):
     duration = 123
     dt = 3
 
-    eval_times = [0.5, 0.9]
-    obs = MagicMock(spec=Observable, evaluation_times=[0.5, 0.9])
+    eval_times_full = [0, 0.9, 61.5, 110.7]  # just some fractional times
+    eval_times = [t / duration for t in eval_times_full]
+    obs = MagicMock(spec=Observable, evaluation_times=eval_times)
 
     config = EmulationConfig(
         observables=[obs], interaction_cutoff=0.0, with_modulation=with_modulation
@@ -850,11 +851,10 @@ def test_get_target_times_with_obs_eval_time(with_modulation):
 
         target_times = _get_target_times(sequence, config, dt)
 
-        expected_set = set(range(0, duration + 1, dt))
-        eval_times_rescaled = {t * duration for t in eval_times}
-        expected_set |= eval_times_rescaled
+        expected_times = list(range(0, duration + 1, dt))
+        expected_times += eval_times_full
 
-        expected = sorted(list(expected_set))
+        expected = sorted(expected_times)
 
         assert target_times == expected
 
