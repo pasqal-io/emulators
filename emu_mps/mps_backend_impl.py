@@ -651,7 +651,6 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
                 )
                 self.target_time = self.root_finder.get_next_abscissa()
             else:
-                self.remove_noise_from_hamiltonian()
                 self.timestep_complete()
 
             return
@@ -696,6 +695,10 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
             phi=self.phi[self.timestep_index - 1, :],
             noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
         )
+
+    def timestep_complete(self) -> None:
+        self.remove_noise_from_hamiltonian()
+        super().timestep_complete()
 
 
 class DMRGBackendImpl(MPSBackendImpl):
