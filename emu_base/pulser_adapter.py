@@ -41,10 +41,12 @@ def _get_all_lindblad_noise_operators(
 def _get_target_times(
     sequence: pulser.Sequence, config: EmulationConfig, dt: float
 ) -> list[float]:
-    ROUND_DIGITS = 10
+    ROUND_DIGITS = (
+        10  # keeps 10 significant digits when rounding fractional observable_times
+    )
     sequence_duration = sequence.get_duration(include_fall_time=config.with_modulation)
 
-    observable_times = set()
+    observable_times: set[float] = set()
 
     t = 0.0
     while t < sequence_duration:
