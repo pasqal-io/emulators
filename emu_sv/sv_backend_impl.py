@@ -100,7 +100,7 @@ class BaseSVBackendImpl:
 
         if (
             self._config.initial_state is not None
-            and self._config.noise_model.state_prep_error > 0.0
+            and self._pulser_data.noise_model.state_prep_error > 0.0
         ):
             raise NotImplementedError(
                 "Initial state and state preparation error can not be together."
@@ -112,7 +112,7 @@ class BaseSVBackendImpl:
         self.resolved_gpu = requested_gpu
 
     def init_dark_qubits(self) -> None:
-        if self._config.noise_model.state_prep_error > 0.0:
+        if self._pulser_data.noise_model.state_prep_error > 0.0:
             bad_atoms = self._pulser_data.hamiltonian.bad_atoms
             self.well_prepared_qubits_filter = torch.tensor(
                 [bool(bad_atoms[x]) for x in self._pulser_data.qubit_ids]
