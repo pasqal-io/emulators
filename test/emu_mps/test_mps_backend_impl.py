@@ -43,6 +43,7 @@ def _create_victim(constructor, dt, noise_model):
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.hamiltonian = MagicMock()
     mock_pulser_data.dim = 2
+    mock_pulser_data.noise_model = noise_model
     victim = constructor(config, mock_pulser_data)
 
     assert victim.qubit_count == QUBIT_COUNT
@@ -79,6 +80,7 @@ def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
     mock_pulser_data.has_lindblad_noise = False
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.eigenstates = ("g", "r")
+    mock_pulser_data.noise_model = NoiseModel()
 
     dmrg_obj = constructor(config, mock_pulser_data)
 

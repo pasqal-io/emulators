@@ -157,15 +157,21 @@ class PulserData:
     hamiltonian_type: HamiltonianType
     lindblad_ops: list[torch.Tensor]
     qubit_ids: tuple[QubitId, ...]
+    noise_model: pulser.NoiseModel
 
     def __init__(self, *, sequence: pulser.Sequence, config: EmulationConfig, dt: int):
         self.qubit_ids = sequence.register.qubit_ids
         self.qubit_count = len(self.qubit_ids)
         self.target_times = _get_target_times(sequence=sequence, config=config, dt=dt)
+        self.noise_model = (
+            sequence.device.default_noise_model
+            if config.prefer_device_noise_model
+            else config.noise_model
+        )
         self.hamiltonian = HamiltonianData.from_sequence(
             sequence,
             with_modulation=config.with_modulation,
-            noise_model=config.noise_model,
+            noise_model=self.noise_model,
         )
 
         self.omega, self.delta, self.phi = _extract_omega_delta_phi(
@@ -183,7 +189,7 @@ class PulserData:
             raise ValueError(f"Unsupported basis: {int_type}")
 
         self.lindblad_ops = _get_all_lindblad_noise_operators(
-            config.noise_model, dim=self.dim, interact_type=int_type
+            self.noise_model, dim=self.dim, interact_type=int_type
         )
         self.has_lindblad_noise: bool = self.lindblad_ops != []
 

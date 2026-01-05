@@ -862,7 +862,8 @@ def test_get_target_times_with_obs_eval_time(with_modulation):
         mock_get_duration.assert_called_once_with(include_fall_time=with_modulation)
 
 
-def test_non_lindbladian_noise():
+@pytest.mark.parametrize("prefer_device_model", [True, False])
+def test_non_lindbladian_noise(prefer_device_model):
     q_dict = {
         "q0": [-4.0, 0.0],
         "q1": [4.0, 0.0],
@@ -888,10 +889,17 @@ def test_non_lindbladian_noise():
         state_prep_error=0.5,
         runs=1,
     )
-    config = EmulationConfig(interaction_cutoff=0.0, noise_model=noise)
+    config = EmulationConfig(
+        interaction_cutoff=0.0,
+        noise_model=noise,
+        prefer_device_noise_model=prefer_device_model,
+    )
 
-    # this should not error
-    PulserData(sequence=seq, config=config, dt=10)
+    # this should not error if the custom noise model is used
+    data = PulserData(sequence=seq, config=config, dt=10)
+    assert data.noise_model == (
+        noise if not prefer_device_model else pulser.MockDevice.default_noise_model
+    )
 
 
 def test_extract_omega_delta_phi_missing_qubit():
