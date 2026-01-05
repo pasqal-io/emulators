@@ -6,7 +6,7 @@ import torch
 from emu_mps.hamiltonian import make_H, update_H
 from emu_base.pulser_adapter import HamiltonianType
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
-
+import opt_einsum
 
 #########################################
 # Code for building the hamiltonian in
@@ -15,6 +15,7 @@ from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 
 
 dtype = torch.complex128
+device = "cpu"
 
 
 def single_gate(i: int, nqubits: int, g: torch.Tensor):
@@ -632,7 +633,9 @@ def test_9_qubit_noise(basis):
         hamiltonian_type = HamiltonianType.XY
     if basis == ("g", "r", "r1"):
         hamiltonian_type = HamiltonianType.RydbergXY
-        interaction_matrix_xy = torch.randn(n_atoms, n_atoms, dtype=torch.float64)
+        interaction_matrix_xy = torch.randn(
+            n_atoms, n_atoms, dtype=torch.float64, device=device
+        )
         interaction_matrix_xy = (interaction_matrix_xy + interaction_matrix_xy.T) / 2
         interaction_matrix_xy.fill_diagonal_(0)
 
@@ -704,9 +707,15 @@ def test_9_qubit_noise(basis):
         noise=noise,
     )
 
-    sv = torch.einsum(
+    # sv = torch.einsum(
+    #     "abcd,defg,ghij,jklm,mnop,pqrs,stuv,vwxy,yzAB->abehknqtwzcfiloruxAB",
+    #     *(ham.factors),
+    # ).reshape(dim**n_atoms, dim**n_atoms)
+    sv = opt_einsum.contract(
         "abcd,defg,ghij,jklm,mnop,pqrs,stuv,vwxy,yzAB->abehknqtwzcfiloruxAB",
-        *(ham.factors),
+        *ham.factors,
+        backend="torch",
+        optimize="greedy",
     ).reshape(dim**n_atoms, dim**n_atoms)
 
     dev = sv.device  # could be cpu or gpu depending on Config
