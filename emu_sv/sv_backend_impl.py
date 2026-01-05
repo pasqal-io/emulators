@@ -132,6 +132,7 @@ class BaseSVBackendImpl:
         """One step of the evolution"""
         dt = self._compute_dt(step_idx)
         self._evolve_step(dt, step_idx)
+        step_idx += 1
         self._apply_observables(step_idx)
         self._save_statistics(step_idx)
 
@@ -143,7 +144,7 @@ class BaseSVBackendImpl:
         """One step evolution"""
 
     def _apply_observables(self, step_idx: int) -> None:
-        norm_time = self.target_times[step_idx + 1] / self.target_times[-1]
+        norm_time = self.target_times[step_idx] / self.target_times[-1]
         for callback in self._config.observables:
             callback(
                 self._config,
@@ -154,7 +155,7 @@ class BaseSVBackendImpl:
             )
 
     def _save_statistics(self, step_idx: int) -> None:
-        norm_time = self.target_times[step_idx + 1] / self.target_times[-1]
+        norm_time = self.target_times[step_idx] / self.target_times[-1]
         self.statistics.data.append(time.time() - self.time)
         self.statistics(
             self._config,
@@ -167,6 +168,7 @@ class BaseSVBackendImpl:
         self._current_H = None
 
     def _run(self) -> Results:
+        self._apply_observables(0)  # at t == 0 for pulser compatibility
         for step in range(self.nsteps):
             self.step(step)
 
