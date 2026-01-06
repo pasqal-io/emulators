@@ -41,7 +41,6 @@ def _create_victim(constructor, dt, noise_model):
     mock_pulser_data.full_interaction_matrix = torch.eye(QUBIT_COUNT)
     mock_pulser_data.masked_interaction_matrix = torch.eye(QUBIT_COUNT)
     mock_pulser_data.slm_end_time = 10.0
-    mock_pulser_data.hamiltonian = MagicMock()
     mock_pulser_data.dim = 2
     mock_pulser_data.noise_model = noise_model
     victim = constructor(config, mock_pulser_data)
@@ -153,7 +152,7 @@ def test_init_dark_qubits_with_state_prep_error():
     noise_model.state_prep_error = 0.123
     victim = create_victim(noise_model=noise_model)
 
-    victim.pulser_data.hamiltonian.bad_atoms = {
+    victim.pulser_data.bad_atoms = {
         "q0": False,
         "q1": True,
         "q2": False,
@@ -295,7 +294,7 @@ def test_init_initial_state_default():
     noise_model.state_prep_error = 0.1
 
     victim = create_victim(noise_model=noise_model)
-    victim.pulser_data.hamiltonian.bad_atoms = {
+    victim.pulser_data.bad_atoms = {
         "q0": False,
         "q1": True,
         "q2": True,

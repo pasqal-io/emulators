@@ -1,6 +1,6 @@
 from pulser.backend import EmulatorBackend, Results
 from emu_mps.mps_config import MPSConfig
-from emu_base import init_logging
+from emu_base import init_logging, PulserData
 from emu_mps.mps_backend_impl import create_impl, MPSBackendImpl
 import pickle
 import os
@@ -52,12 +52,20 @@ class MPSBackend(EmulatorBackend):
         """
         assert isinstance(self._config, MPSConfig)
 
-        impl = create_impl(self._sequence, self._config)
-        impl.init()  # This is separate from the constructor for testing purposes.
-
-        results = self._run(impl)
-
-        return impl.permute_results(results, self._config.optimize_qubit_ordering)
+        pulser_data = PulserData(
+            sequence=self._sequence, config=self._config, dt=self._config.dt
+        )
+        results = []
+        for sequence_data in pulser_data.get_sequences():
+            impl = create_impl(sequence_data, self._config)
+            impl.init()  # This is separate from the constructor for testing purposes.
+            result = self._run(impl)
+            results.append(
+                impl.permute_results(result, self._config.optimize_qubit_ordering)
+            )
+        if len(results) == 1:
+            return results[0]
+        return results
 
     @staticmethod
     def _run(impl: MPSBackendImpl) -> Results:

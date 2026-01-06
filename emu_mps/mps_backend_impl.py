@@ -14,10 +14,9 @@ from types import MethodType
 from typing import Any, Optional
 
 import torch
-from pulser import Sequence
 from pulser.backend import EmulationConfig, Observable, Results, State
 
-from emu_base import DEVICE_COUNT, PulserData, get_max_rss
+from emu_base import DEVICE_COUNT, SequenceData, get_max_rss
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.utils import deallocate_tensor
 
@@ -107,7 +106,7 @@ class MPSBackendImpl:
     target_time: float
     results: Results
 
-    def __init__(self, mps_config: MPSConfig, pulser_data: PulserData):
+    def __init__(self, mps_config: MPSConfig, pulser_data: SequenceData):
         self.config = mps_config
         self.target_times = pulser_data.target_times
         self.target_time = self.target_times[1]
@@ -118,7 +117,7 @@ class MPSBackendImpl:
         self.delta = pulser_data.delta
         self.phi = pulser_data.phi
         self.timestep_count: int = self.omega.shape[0]
-        self.has_lindblad_noise = pulser_data.has_lindblad_noise
+        self.has_lindblad_noise = len(pulser_data.lindblad_ops) > 0
         self.eigenstates = pulser_data.eigenstates
         self.dim = pulser_data.dim
         self.lindblad_noise = torch.zeros(self.dim, self.dim, dtype=dtype)
@@ -194,7 +193,7 @@ class MPSBackendImpl:
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
         if self.pulser_data.noise_model.state_prep_error > 0.0:
-            bad_atoms = self.pulser_data.hamiltonian.bad_atoms
+            bad_atoms = self.pulser_data.bad_atoms
             self.well_prepared_qubits_filter = torch.logical_not(
                 torch.tensor(list(bool(x) for x in bad_atoms.values()))
             )
@@ -608,12 +607,12 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
     norm_gap_before_jump: float
     root_finder: Optional[BrentsRootFinder]
 
-    def __init__(self, config: MPSConfig, pulser_data: PulserData):
+    def __init__(self, config: MPSConfig, pulser_data: SequenceData):
         super().__init__(config, pulser_data)
         self.lindblad_ops = pulser_data.lindblad_ops
         self.root_finder = None
 
-        assert self.has_lindblad_noise
+        assert self.lindblad_ops
 
     def init_lindblad_noise(self) -> None:
         stacked = torch.stack(self.lindblad_ops)
@@ -705,7 +704,7 @@ class DMRGBackendImpl(MPSBackendImpl):
     def __init__(
         self,
         mps_config: MPSConfig,
-        pulser_data: PulserData,
+        pulser_data: SequenceData,
         energy_tolerance: float = 1e-5,
         max_sweeps: int = 2000,
     ):
@@ -812,11 +811,10 @@ class DMRGBackendImpl(MPSBackendImpl):
         self.current_energy = None
 
 
-def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
-    pulser_data = PulserData(sequence=sequence, config=config, dt=config.dt)
+def create_impl(data: SequenceData, config: MPSConfig) -> MPSBackendImpl:
 
-    if pulser_data.has_lindblad_noise:
-        return NoisyMPSBackendImpl(config, pulser_data)
+    if data.lindblad_ops:
+        return NoisyMPSBackendImpl(config, data)
     if config.solver == Solver.DMRG:
-        return DMRGBackendImpl(config, pulser_data)
-    return MPSBackendImpl(config, pulser_data)
+        return DMRGBackendImpl(config, data)
+    return MPSBackendImpl(config, data)
