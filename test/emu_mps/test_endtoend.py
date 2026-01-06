@@ -1163,10 +1163,10 @@ def test_end_to_end_observable_time_as_in_pulser():
     reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
     seq = pulser.Sequence(reg, pulser.AnalogDevice)
     seq.declare_channel("ryd", "rydberg_global")
-    pulse = pulser.Pulse.ConstantPulse(400, 1, 0, 0)
+    pulse = pulser.Pulse.ConstantPulse(100, 1, 0, 0)
     seq.add(pulse, channel="ryd")
 
-    eval_times = np.linspace(0, 1, 13).tolist()
+    eval_times = [0, 1 / 13, 1 / 3, 0.5, 2 / 3, 1.0]
     occ = Occupation(evaluation_times=eval_times)
     obs = (occ,)
 
@@ -1180,12 +1180,14 @@ def test_end_to_end_observable_time_as_in_pulser():
 
     mps_occ_t = mps_results.get_result_times(occ)
     q_occ_t = qutip_results.get_result_times(occ)
-    assert np.allclose(mps_occ_t, q_occ_t)
 
+    assert np.allclose(mps_occ_t, q_occ_t), f"\nmps = {mps_occ_t}, \nq = {q_occ_t}"
+
+    # TODO
     # doesn't work because of float access
     # mps_occ = mps_results.occupation[m]
     # q_occ = qutip_results.occupation[q]
     for mps_occ, q_occ in zip(mps_results.occupation, qutip_results.occupation):
         assert np.allclose(
-            mps_occ, q_occ, rtol=1e-2
-        ), f"sv_occ = {mps_occ}, q_occ = {q_occ}"
+            mps_occ, q_occ, atol=1e-4
+        ), f"mps_occ = {mps_occ}, q_occ = {q_occ}"

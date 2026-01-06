@@ -56,10 +56,10 @@ def _get_target_times(
         elif config.default_evaluation_times != "Full":
             times = config.default_evaluation_times.tolist()  # type: ignore[union-attr,assignment]
 
-        obs_eval_times = {time * sequence_duration for time in times}
-        observable_times |= obs_eval_times
+        observable_times |= {time * sequence_duration for time in times}
 
-    target_times: list[float] = sorted(observable_times)
+    ROUND_DIGITS = 10  # to avoid conflicts with numpy
+    target_times: list[float] = sorted({round(t, ROUND_DIGITS) for t in observable_times})
     assert target_times[-1].is_integer()
 
     return target_times

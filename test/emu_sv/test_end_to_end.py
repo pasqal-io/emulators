@@ -863,29 +863,31 @@ def test_end_to_end_observable_time_as_in_pulser():
     reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
     seq = pulser.Sequence(reg, pulser.AnalogDevice)
     seq.declare_channel("ryd", "rydberg_global")
-    pulse = pulser.Pulse.ConstantPulse(400, 1, 0, 0)
+    pulse = pulser.Pulse.ConstantPulse(100, 1, 0, 0)
     seq.add(pulse, channel="ryd")
 
-    eval_times = np.linspace(0, 1, 13).tolist()
+    eval_times = [0, 1 / 13, 1 / 3, 0.5, 1.0]
     occ = Occupation(evaluation_times=eval_times)
     obs = (occ,)
-
-    sv_config = SVConfig(observables=obs, log_level=logging.WARN)
-    sv_backend = SVBackend(seq, config=sv_config)
-    sv_results = sv_backend.run()
 
     qutip_config = QutipConfig(observables=obs)
     qutip_backend = QutipBackendV2(seq, config=qutip_config)
     qutip_results = qutip_backend.run()
 
+    sv_config = SVConfig(dt=10, observables=obs, log_level=logging.WARN)
+    sv_backend = SVBackend(seq, config=sv_config)
+    sv_results = sv_backend.run()
+
     sv_occ_t = sv_results.get_result_times(occ)
     q_occ_t = qutip_results.get_result_times(occ)
-    assert np.allclose(sv_occ_t, q_occ_t)
 
+    assert np.allclose(sv_occ_t, q_occ_t), f"\nsv = {sv_occ_t}, \nq = {q_occ_t}"
+
+    # TODO
     # doesn't work because of float access
     # sv_occ = sv_results.occupation[s]
     # q_occ = qutip_results.occupation[q]
     for sv_occ, q_occ in zip(sv_results.occupation, qutip_results.occupation):
         assert np.allclose(
-            sv_occ, q_occ, rtol=1e-2
+            sv_occ, q_occ, atol=1e-4
         ), f"sv_occ = {sv_occ}, q_occ = {q_occ}"
