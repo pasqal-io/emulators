@@ -212,6 +212,8 @@ def test_end_to_end_afm_ring() -> None:
     assert bitstrings["01" * int(num_qubits / 2)] == 159
     assert torch.allclose(fidelity_state.overlap(final_state), final_fidelity, atol=1e-10)
 
+    assert result.atom_order == tuple(f"q{i}" for i in range(num_qubits))
+
     occupation = result.occupation[final_time]
 
     assert torch.allclose(

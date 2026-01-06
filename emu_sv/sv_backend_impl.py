@@ -83,7 +83,7 @@ class BaseSVBackendImpl:
         self.state: State
         self.time = time.time()
         self.results = Results(
-            atom_order=(),  # pulser_data.qubit_ids, TODO
+            atom_order=pulser_data.qubit_ids,
             total_duration=int(self.target_times[-1]),
         )
         self.statistics = Statistics(
