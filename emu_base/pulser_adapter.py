@@ -39,29 +39,36 @@ def _get_all_lindblad_noise_operators(
 
 
 def _get_target_times(
-    sequence: pulser.Sequence, config: EmulationConfig, dt: int
-) -> list[int]:
-    sequence_duration = sequence.get_duration(include_fall_time=config.with_modulation)
+    sequence: pulser.Sequence, config: EmulationConfig, dt: float | int
+) -> list[float]:
+    sequence_duration = float(
+        sequence.get_duration(include_fall_time=config.with_modulation)
+    )
+    n_steps = math.floor(sequence_duration / dt)
 
-    observable_times = set(range(0, sequence_duration, dt))
+    observable_times: set[float] = {i * float(dt) for i in range(n_steps + 1)}
     observable_times.add(sequence_duration)
+
     for obs in config.observables:
         times: Sequence[float]
         if obs.evaluation_times is not None:
             times = obs.evaluation_times
         elif config.default_evaluation_times != "Full":
             times = config.default_evaluation_times.tolist()  # type: ignore[union-attr,assignment]
-        observable_times |= set([round(time * sequence_duration) for time in times])
 
-    target_times: list[int] = list(observable_times)
-    target_times.sort()
+        observable_times |= {time * sequence_duration for time in times}
+
+    ROUND_DIGITS = 10  # to avoid conflicts with numpy
+    target_times: list[float] = sorted({round(t, ROUND_DIGITS) for t in observable_times})
+    assert target_times[-1].is_integer()  # pulser requires int duration
+
     return target_times
 
 
 def _extract_omega_delta_phi(
     noisy_samples: SequenceSamples,
     qubit_ids: tuple[str, ...],
-    target_times: list[int],
+    target_times: list[float],
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     sequence_dict = noisy_samples.to_nested_dict(all_local=True, samples_type="tensor")[
         "Local"

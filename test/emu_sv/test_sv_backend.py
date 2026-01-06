@@ -19,6 +19,7 @@ def test_sv_impl():
         full_interaction_matrix=torch.tensor(0.0),
         target_times=[1.0],
         noise_model=NoiseModel(),
+        qubit_ids=(),
     )
     bknd_impl = SVBackendImpl(config, pulser_data)
     bknd_impl._evolve_step(1.0, 0)
