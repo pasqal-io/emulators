@@ -878,12 +878,11 @@ def test_end_to_end_observable_time_as_in_pulser():
 
     sv_occ_t = sv_results.get_result_times(occ)
     q_occ_t = qutip_results.get_result_times(occ)
+    assert np.allclose(sv_occ_t, q_occ_t)
 
-    for s, q in zip(sv_occ_t, q_occ_t):
-        assert np.isclose(s, q), f"s = {s}, q = {q}"
-        # doesn't work because of float access
-        # sv_occ = sv_results.occupation[s]
-        # q_occ = qutip_results.occupation[q]
+    # doesn't work because of float access
+    # sv_occ = sv_results.occupation[s]
+    # q_occ = qutip_results.occupation[q]
     for sv_occ, q_occ in zip(sv_results.occupation, qutip_results.occupation):
         assert np.allclose(
             sv_occ, q_occ, rtol=1e-2
