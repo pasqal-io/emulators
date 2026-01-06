@@ -39,14 +39,14 @@ def _get_all_lindblad_noise_operators(
 
 
 def _get_target_times(
-    sequence: pulser.Sequence, config: EmulationConfig, dt: float
+    sequence: pulser.Sequence, config: EmulationConfig, dt: float | int
 ) -> list[float]:
     sequence_duration = float(
         sequence.get_duration(include_fall_time=config.with_modulation)
     )
     n_steps = math.floor(sequence_duration / dt)
 
-    observable_times = {i * dt for i in range(n_steps + 1)}
+    observable_times: set[float] = {i * float(dt) for i in range(n_steps + 1)}
     observable_times.add(sequence_duration)
 
     for obs in config.observables:
