@@ -60,7 +60,7 @@ def _get_target_times(
 
     ROUND_DIGITS = 10  # to avoid conflicts with numpy
     target_times: list[float] = sorted({round(t, ROUND_DIGITS) for t in observable_times})
-    assert target_times[-1].is_integer()
+    assert target_times[-1].is_integer()  # pulser requires int duration
 
     return target_times
 
