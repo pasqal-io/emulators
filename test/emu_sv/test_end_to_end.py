@@ -874,7 +874,7 @@ def test_end_to_end_observable_time_as_in_pulser():
     qutip_backend = QutipBackendV2(seq, config=qutip_config)
     qutip_results = qutip_backend.run()
 
-    sv_config = SVConfig(dt=10, observables=obs, log_level=logging.WARN)
+    sv_config = SVConfig(observables=obs, log_level=logging.WARN)
     sv_backend = SVBackend(seq, config=sv_config)
     sv_results = sv_backend.run()
 
