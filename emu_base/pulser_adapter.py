@@ -41,17 +41,12 @@ def _get_all_lindblad_noise_operators(
 def _get_target_times(
     sequence: pulser.Sequence, config: EmulationConfig, dt: float
 ) -> list[float]:
-    ROUND_DIGITS = (
-        10  # keeps 10 significant digits when rounding fractional observable_times
+    sequence_duration = float(
+        sequence.get_duration(include_fall_time=config.with_modulation)
     )
-    sequence_duration = sequence.get_duration(include_fall_time=config.with_modulation)
+    n_steps = math.floor(sequence_duration / dt)
 
-    observable_times: set[float] = set()
-
-    t = 0.0
-    while t < sequence_duration:
-        observable_times.add(round(t, ROUND_DIGITS))
-        t += dt
+    observable_times = {i * dt for i in range(n_steps + 1)}
     observable_times.add(sequence_duration)
 
     for obs in config.observables:
@@ -61,13 +56,10 @@ def _get_target_times(
         elif config.default_evaluation_times != "Full":
             times = config.default_evaluation_times.tolist()  # type: ignore[union-attr,assignment]
 
-        obs_eval_times = set(
-            [round(time * sequence_duration, ROUND_DIGITS) for time in times]
-        )
+        obs_eval_times = {time * sequence_duration for time in times}
         observable_times |= obs_eval_times
 
-    target_times: list[float] = list(observable_times)
-    target_times.sort()
+    target_times: list[float] = sorted(observable_times)
     assert target_times[-1].is_integer()
 
     return target_times
