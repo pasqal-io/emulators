@@ -1170,7 +1170,7 @@ def test_end_to_end_observable_time_as_in_pulser():
     occ = Occupation(evaluation_times=eval_times)
     obs = (occ,)
 
-    mps_config = MPSConfig(observables=obs, log_level=logging.WARN)
+    mps_config = MPSConfig(dt=10.5, observables=obs, log_level=logging.WARN)
     mps_backend = MPSBackend(seq, config=mps_config)
     mps_results = mps_backend.run()
 
