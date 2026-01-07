@@ -100,7 +100,7 @@ class BaseSVBackendImpl:
 
         if (
             self._config.initial_state is not None
-            and self._config.noise_model.state_prep_error > 0.0
+            and self._pulser_data.noise_model.state_prep_error > 0.0
         ):
             raise NotImplementedError(
                 "Initial state and state preparation error can not be together."
@@ -112,7 +112,7 @@ class BaseSVBackendImpl:
         self.resolved_gpu = requested_gpu
 
     def init_dark_qubits(self) -> None:
-        if self._config.noise_model.state_prep_error > 0.0:
+        if self._pulser_data.noise_model.state_prep_error > 0.0:
             bad_atoms = self._pulser_data.hamiltonian.bad_atoms
             self.well_prepared_qubits_filter = torch.tensor(
                 [bool(bad_atoms[x]) for x in self._pulser_data.qubit_ids]
@@ -132,6 +132,7 @@ class BaseSVBackendImpl:
         """One step of the evolution"""
         dt = self._compute_dt(step_idx)
         self._evolve_step(dt, step_idx)
+        step_idx += 1
         self._apply_observables(step_idx)
         self._save_statistics(step_idx)
 
@@ -143,7 +144,7 @@ class BaseSVBackendImpl:
         """One step evolution"""
 
     def _apply_observables(self, step_idx: int) -> None:
-        norm_time = self.target_times[step_idx + 1] / self.target_times[-1]
+        norm_time = self.target_times[step_idx] / self.target_times[-1]
         for callback in self._config.observables:
             callback(
                 self._config,
@@ -154,7 +155,7 @@ class BaseSVBackendImpl:
             )
 
     def _save_statistics(self, step_idx: int) -> None:
-        norm_time = self.target_times[step_idx + 1] / self.target_times[-1]
+        norm_time = self.target_times[step_idx] / self.target_times[-1]
         self.statistics.data.append(time.time() - self.time)
         self.statistics(
             self._config,
@@ -167,6 +168,7 @@ class BaseSVBackendImpl:
         self._current_H = None
 
     def _run(self) -> Results:
+        self._apply_observables(0)  # at t == 0 for pulser compatibility
         for step in range(self.nsteps):
             self.step(step)
 

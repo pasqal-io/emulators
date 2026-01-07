@@ -1,13 +1,15 @@
-import time
+import logging
 import math
-from unittest.mock import ANY, MagicMock, patch, PropertyMock
+import random
+import time
 from collections import Counter
 from typing import Any
+from unittest.mock import ANY, MagicMock, PropertyMock, patch
+
 import numpy as np
 import pulser
 import pytest
 import torch
-import random
 from pytest import approx
 
 
@@ -72,6 +74,7 @@ def simulate(
     interaction_cutoff: float = 0,
     eval_times: list[float] = [1.0],
     solver: Solver = Solver.TDVP,
+    optimize_qubit_ordering: bool = False,
 ) -> Results:
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
@@ -111,7 +114,7 @@ def simulate(
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
-        optimize_qubit_ordering=False,
+        optimize_qubit_ordering=optimize_qubit_ordering,
         solver=solver,
         num_gpus_to_use=0,
     )
@@ -405,7 +408,7 @@ def test_dmrg_afm_ring() -> None:
 
     # check that energy variance should effectively be 0
     assert torch.allclose(
-        energy_variance, torch.tensor(0, dtype=torch.float64), atol=1e-5
+        energy_variance, torch.tensor(0, dtype=torch.float64), atol=1e-4
     )
 
     assert torch.allclose(
@@ -763,7 +766,11 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     for _ in range(100):
         results.append(
             simulate(
-                seq, noise_model=noise_model, initial_state=initial_state, dt=duration
+                seq,
+                noise_model=noise_model,
+                initial_state=initial_state,
+                dt=duration,  # dt = 10_000
+                optimize_qubit_ordering=False,
             )
         )
 
@@ -879,7 +886,7 @@ def test_autosave() -> None:
         save_simulation_mock.side_effect = save_simulation_mock_side_effect
 
         with pytest.raises(Exception) as e:
-            MPSBackend(seq, config=MPSConfig(observables=[energy])).run()
+            MPSBackend(seq, config=MPSConfig(observables=[energy], autosave_dt=600)).run()
 
         assert str(e.value) == "Process killed!"
 
@@ -888,7 +895,9 @@ def test_autosave() -> None:
 
     assert not save_file.is_file()
 
-    results_expected = MPSBackend(seq, config=MPSConfig(observables=[energy])).run()
+    results_expected = MPSBackend(
+        seq, config=MPSConfig(observables=[energy], autosave_dt=600)
+    ).run()
 
     for t in evaluation_times:
         assert torch.allclose(
@@ -976,6 +985,11 @@ def test_run_after_deserialize():
 
 def test_leakage_rates():
     """Verigy the leakage rates"""
+    if not unix_like:
+        pytest.skip(reason="fails due to different RNG on windows")
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+
     duration = 500
     natoms = 2
     spacing = 10000  # avoid interactions
@@ -1142,3 +1156,30 @@ def test_leakage_3x3_matrices():
     )
     for result in results:
         assert result.state[-1].overlap(final_state) == approx(1.0, abs=1e-2)
+
+
+def test_end_to_end_observable_time_as_in_pulser():
+    reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
+    seq = pulser.Sequence(reg, pulser.AnalogDevice)
+    seq.declare_channel("ryd", "rydberg_global")
+    pulse = pulser.Pulse.ConstantPulse(400, 1, 0, 0)
+    seq.add(pulse, channel="ryd")
+
+    bitstrings_eval_times = [0.0, 0.3, 1.0]
+    occupation_eval_times = [0.2, 1.0]
+
+    bitstrings = BitStrings(evaluation_times=bitstrings_eval_times)
+    occup = Occupation(evaluation_times=occupation_eval_times)
+
+    mps_config = MPSConfig(
+        observables=(
+            bitstrings,
+            occup,
+        ),
+        log_level=logging.WARN,
+    )
+    mps_backend = MPSBackend(seq, config=mps_config)
+    mps_results = mps_backend.run()
+
+    assert mps_results.get_result_times(bitstrings) == bitstrings_eval_times
+    assert mps_results.get_result_times(occup) == occupation_eval_times

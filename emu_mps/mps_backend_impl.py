@@ -193,7 +193,7 @@ class MPSBackendImpl:
 
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
-        if self.config.noise_model.state_prep_error > 0.0:
+        if self.pulser_data.noise_model.state_prep_error > 0.0:
             bad_atoms = self.pulser_data.hamiltonian.bad_atoms
             self.well_prepared_qubits_filter = torch.logical_not(
                 torch.tensor(list(bool(x) for x in bad_atoms.values()))
@@ -685,7 +685,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
         self.set_jump_threshold(norm_after_normalizing**2)
 
-    def fill_results(self) -> None:
+    def remove_noise_from_hamiltonian(self) -> None:
         # Remove the noise from self.hamiltonian for the callbacks.
         # Since update_H is called at the start of do_time_step this is safe.
         update_H(
@@ -696,7 +696,9 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
             noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
         )
 
-        super().fill_results()
+    def timestep_complete(self) -> None:
+        self.remove_noise_from_hamiltonian()
+        super().timestep_complete()
 
 
 class DMRGBackendImpl(MPSBackendImpl):
@@ -708,10 +710,10 @@ class DMRGBackendImpl(MPSBackendImpl):
         max_sweeps: int = 2000,
     ):
 
-        if mps_config.noise_model.noise_types != ():
+        if pulser_data.noise_model.noise_types != ():
             raise NotImplementedError(
                 "DMRG solver does not currently support noise types"
-                f"you are using: {mps_config.noise_model.noise_types}"
+                f"you are using: {pulser_data.noise_model.noise_types}"
             )
         super().__init__(mps_config, pulser_data)
         self.previous_energy: Optional[float] = None

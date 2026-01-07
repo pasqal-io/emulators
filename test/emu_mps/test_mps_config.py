@@ -140,3 +140,42 @@ def test_serialization_with_state():
 
     assert my_config["initial_state"]["eigenstates"] == basis
     assert my_config["initial_state"]["amplitudes"] == amp_full
+
+
+def test_krylov_tolerance_auto_adjustment(capsys) -> None:
+    # Test case where product is below threshold - should auto-adjust
+    precision = 1e-10
+    extra_krylov_tolerance = 1e-3  # product would be 1e-13 < 1e-12
+
+    config = MPSConfig(
+        precision=precision,
+        extra_krylov_tolerance=extra_krylov_tolerance,
+    )
+
+    out, _ = capsys.readouterr()
+
+    # Check warning was issued
+    assert "Automatically adjusting extra_krylov_tolerance" in out
+
+    # Check value was adjusted to maintain product >= 1e-12
+    assert config.extra_krylov_tolerance == 1e-12 / precision
+    assert config.precision * config.extra_krylov_tolerance >= 1e-12
+
+
+def test_krylov_tolerance_no_adjustment(capsys) -> None:
+    # Test case where product is above threshold - no adjustment needed
+    precision = 1e-5
+    extra_krylov_tolerance = 1e-3  # product is 1e-8 > 1e-12
+
+    config = MPSConfig(
+        precision=precision,
+        extra_krylov_tolerance=extra_krylov_tolerance,
+    )
+
+    out, _ = capsys.readouterr()
+
+    # Check no warning was issued
+    assert "Automatically adjusting extra_krylov_tolerance" not in out
+
+    # Check value was not changed
+    assert config.extra_krylov_tolerance == extra_krylov_tolerance

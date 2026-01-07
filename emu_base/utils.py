@@ -12,8 +12,29 @@ if unix_like:
 
 
 def init_logging(log_level: int, log_file: Path | None) -> logging.Logger:
+    """Create and return a configured logger for the emulators package.
+
+    This configures a logger named "emulators" and ensures it does not
+    propagate messages to ancestor loggers. Any existing handlers attached to
+    this logger are removed before the new handler is added.
+
+    Behavior
+    - If `log_file` is None, a StreamHandler writing to stdout is used.
+    - If `log_file` is a Path, a FileHandler is created (mode='w'), which
+      overwrites the file on each call.
+    - The handler's level is set to `log_level` and uses a simple
+      "%(message)s" formatter.
+
+    Args:
+        log_level (int): Logging level (e.g. logging.INFO).
+        log_file (Path | None): Path to a log file, or None to log to stdout.
+
+    Returns:
+        logging.Logger: The configured logger instance named "emulators".
+    """
     logger = logging.getLogger("emulators")
     logger.propagate = False
+    logger.setLevel(logging.DEBUG)
 
     handler: logging.Handler
     if log_file is None:

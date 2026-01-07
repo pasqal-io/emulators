@@ -9,54 +9,64 @@ All emulators (backends) share a convenient way to define observables to be trac
     Please, take into account that, for performance reasons, individual emulators may overwrite the default implementation in [pulser](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.html).
 
 ## StateResult
-::: pulser.backend.default_observables.StateResult
-    options:
-        show_source: false
+
+Stores the quantum state at the evaluation times.
+
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.StateResult.html).
 
 ## BitStrings
-::: pulser.backend.default_observables.BitStrings
-    options:
-        show_source: false
+
+Stores bitstrings sampled from the state at the evaluation times.
+
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.BitStrings.html).
 
 ## Fidelity
-::: pulser.backend.default_observables.Fidelity
-    options:
-        show_source: false
+
+Stores the fidelity with a pure state at the evaluation times.
+
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.Fidelity.html).
 
 ## Expectation
-::: pulser.backend.default_observables.Expectation
-    options:
-        show_source: false
+
+Stores the expectation of the given operator on the current state.
+
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.Expectation.html).
 
 ## CorrelationMatrix
-::: pulser.backend.default_observables.CorrelationMatrix
-    options:
-        show_source: false
+
+Stores the correlation matrix for the current state.
+
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.CorrelationMatrix.html).
 
 ## Occupation
-::: pulser.backend.default_observables.Occupation
-    options:
-        show_source: false
+
+Stores the occupation number of an eigenstate on each qudit.
+
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.Occupation.html).
 
 ## Energy
-::: pulser.backend.default_observables.Energy
-    options:
-        show_source: false
+
+Stores the energy of the system at the evaluation times.
+
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.Energy.html).
 
 ## EnergyVariance
-::: pulser.backend.default_observables.EnergyVariance
-    options:
-        show_source: false
+
+Stores the variance of the Hamiltonian at the evaluation times.
+
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.EnergyVariance.html).
 
 ## SecondMomentOfEnergy
-::: pulser.backend.default_observables.EnergySecondMoment
-    options:
-        show_source: false
+
+Stores the expectation value of `H(t)²` at the evaluation times.
+
+See [Pulser documentation](https://pulser.readthedocs.io/en/stable/apidoc/_autosummary/pulser.backend.EnergySecondMoment.html).
 
 ## Defining your own observable
+
 Most commonly desired information can be obtained using the classes documented above
 
-- Arbitrary observables can be measured using `Expectation(operator, ...)` which requires providing a valid operator for the backend in use.
+- Arbitrary observables can be measured using `Expectation(operator, ...)` which requires providing a valid operator for the backend in use. Please check the [tutorial](./emu_mps/notebooks/creating_observables_tutorial.ipynb) for an example of an implementation.
 - Fidelities on arbitrary states can be computed using `Fidelity(state, ...)` which requires providing a valid state for the backend in use.
 - Information about the time dependent states and Hamiltonians is available via `StateResult`, `Energy` etc.
 
@@ -80,7 +90,6 @@ To avoid such dependency, the classes [`StateRepr`](base_classes.md/#staterepr),
 
     - `StateRepr.from_state_amplitudes()`
     - `OperatorRepr.from_operator_repr()`
-
 
 Moreover, the observable
 !!! failure

@@ -1,37 +1,39 @@
+import logging
 import math
 import random
-from unittest.mock import ANY, MagicMock, patch
-import pytest
-import numpy as np
-import torch
-from pytest import approx
 from typing import Any
+from unittest.mock import ANY, MagicMock, patch
 
+import numpy as np
 import pulser
 import pulser.noise_model
+import pytest
+import torch
+from pytest import approx
 
 from emu_sv import (
     SVBackend,
     SVConfig,
-    StateVector,
-    DenseOperator,
+    BitStrings,
     CorrelationMatrix,
+    DenseOperator,
+    DensityMatrix,
+    Energy,
     EnergySecondMoment,
     EnergyVariance,
-    Occupation,
-    BitStrings,
-    Energy,
+    Expectation,
     Fidelity,
+    Occupation,
     Results,
+    SparseOperator,
     StateResult,
-    DensityMatrix,
+    StateVector,
 )
 
 from test.utils_testing import (
     pulser_afm_sequence_ring,
     pulser_blackman,
 )
-
 
 seed = 1337
 
@@ -814,3 +816,67 @@ def test_run_after_deserialize():
         torch.tensor(0.9728 + 0.0j, dtype=torch.torch.complex128),
         atol=1e-4,
     )
+
+
+def test_sparse_expectation():
+    num_qubits = 6
+    seq = pulser_afm_sequence_ring(
+        num_qubits=num_qubits,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=t_rise,
+        t_fall=t_fall,
+    )
+
+    eigenstates = ["r", "g"]
+    op = [
+        (1.0, [({"rr": 1.0}, list(range(num_qubits)))]),
+        (2.0, [({"gr": 1.0, "rg": 1.0}, list(range(num_qubits)))]),
+    ]
+    dense = DenseOperator.from_operator_repr(
+        n_qudits=num_qubits, eigenstates=eigenstates, operations=op
+    )
+    sparse = SparseOperator.from_operator_repr(
+        n_qudits=num_qubits, eigenstates=eigenstates, operations=op
+    )
+    evaluation_times = [0.25, 0.5, 0.75, 1.0]
+    dense_expectation = Expectation(
+        operator=dense, evaluation_times=evaluation_times, tag_suffix="dense"
+    )
+    sparse_expectation = Expectation(
+        operator=sparse, evaluation_times=evaluation_times, tag_suffix="sparse"
+    )
+    config = SVConfig(observables=[dense_expectation, sparse_expectation])
+    backend = SVBackend(seq, config=config)
+    results = backend.run()
+    for i in range(len(evaluation_times)):
+        assert torch.allclose(results.expectation_sparse[i], results.expectation_dense[i])
+
+
+def test_end_to_end_observable_time_as_in_pulser():
+    reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
+    seq = pulser.Sequence(reg, pulser.AnalogDevice)
+    seq.declare_channel("ryd", "rydberg_global")
+    pulse = pulser.Pulse.ConstantPulse(400, 1, 0, 0)
+    seq.add(pulse, channel="ryd")
+
+    bitstrings_eval_times = [0.0, 0.3, 1.0]
+    occupation_eval_times = [0.2, 1.0]
+
+    bitstrings = BitStrings(evaluation_times=bitstrings_eval_times)
+    occup = Occupation(evaluation_times=occupation_eval_times)
+
+    sv_config = SVConfig(
+        observables=(
+            bitstrings,
+            occup,
+        ),
+        log_level=logging.WARN,
+    )
+    sv_backend = SVBackend(seq, config=sv_config)
+    sv_results = sv_backend.run()
+
+    assert sv_results.get_result_times(bitstrings) == bitstrings_eval_times
+    assert sv_results.get_result_times(occup) == occupation_eval_times
