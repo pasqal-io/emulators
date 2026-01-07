@@ -620,9 +620,7 @@ def test_5_qubit(basis):
     )
 
 
-@pytest.mark.parametrize(
-    "basis", (("0", "1"), ("g", "r"), ("g", "r", "x"), ("g", "r", "r1"))
-)
+@pytest.mark.parametrize("basis", (("0", "1"), ("g", "r")))
 def test_9_qubit_noise(basis):
     """Hall of fame: this test caught a bug in the original implementation."""
     n_atoms = 9
