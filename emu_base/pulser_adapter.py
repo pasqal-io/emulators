@@ -14,6 +14,7 @@ from emu_base.jump_lindblad_operators import get_lindblad_operators
 class HamiltonianType(Enum):
     Rydberg = 1
     XY = 2
+    RydbergXY = 3
 
 
 _NON_LINDBLADIAN_NOISE = {"SPAM", "doppler", "amplitude", "detuning", "register"}
