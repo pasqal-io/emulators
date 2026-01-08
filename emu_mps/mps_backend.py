@@ -65,7 +65,7 @@ class MPSBackend(EmulatorBackend):
             )
         if len(results) == 1:
             return results[0]
-        return results
+        return Results.aggregate(results)
 
     @staticmethod
     def _run(impl: MPSBackendImpl) -> Results:

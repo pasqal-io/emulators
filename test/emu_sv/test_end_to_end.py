@@ -880,3 +880,33 @@ def test_end_to_end_observable_time_as_in_pulser():
 
     assert sv_results.get_result_times(bitstrings) == bitstrings_eval_times
     assert sv_results.get_result_times(occup) == occupation_eval_times
+
+def test_trajectories():
+    reg = pulser.Register({"q0": [-1e5, 0], "q1": [1e5, 0], "q2": [0, 1e5]})
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ryd", "rydberg_global")
+    seq.add(
+        pulser.Pulse.ConstantDetuning(
+            pulser.BlackmanWaveform(100, torch.pi), 0.0, 0.0
+        ),
+        "ryd",
+    )
+
+    occup = Occupation(evaluation_times=[1.])
+
+    sv_config = SVConfig(
+        observables=(
+            occup,
+        ),
+        log_level=logging.WARN,
+        #n_trajectories = 3,
+        noise_model = pulser.NoiseModel(state_prep_error = 1/3, runs=3)
+    )
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
+    ) as bad_atoms_mock:
+        bad_atoms_mock.side_effect = [np.array([0.1, 0.5, 0.6]), np.array([0.5, 0.1, 0.6]), np.array([0.5, 0.6, 0.1])]
+        sv_backend = SVBackend(seq, config=sv_config)
+        sv_results = sv_backend.run()
+    
+    assert torch.allclose(sv_results.occupation[-1], torch.ones(3, dtype=torch.float64)*0.6667, atol=1e-4)

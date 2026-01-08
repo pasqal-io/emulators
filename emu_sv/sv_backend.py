@@ -31,4 +31,4 @@ class SVBackend(EmulatorBackend):
             results.append(impl._run())
         if len(results) == 1:
             return results[0]
-        return results
+        return Results.aggregate(results)
