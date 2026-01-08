@@ -259,41 +259,46 @@ def test_extract_omega_delta_phi_dt_2(
     Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
     TEST_DURATION = 13
     dt = 2
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
     sequence.get_duration.return_value = TEST_DURATION
 
     noisy_samples = mock_sample(hamiltonian_type)
     noisy_samples.max_duration = TEST_DURATION
 
-    actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
+    omega, delta, phi = _extract_omega_delta_phi(
         noisy_samples=noisy_samples, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
 
-    expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
-    assert len(actual_omega) == expected_number_of_samples
+    # midpoints between target_times
+    expected_number_of_samples = len(target_times) - 1
+    assert len(omega) == expected_number_of_samples
 
     expected_omega = torch.tensor(
         [
-            [4.75, 0.0, 4.75],
-            [8.25, 0.0, 8.25],
-            [10.0, 10.0, 10.0],
+            [4.7500, 0.0, 4.7500],
+            [8.2500, 0.0, 8.2500],
+            [10.000, 10.000, 10.000],
             [7.1429, 7.1429, 7.1429],
             [4.2857, 4.2857, 4.2857],
             [1.4286, 1.4286, 1.4286],
+            [0.0, 0.0, 0.0],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
     expected_delta = torch.tensor(
         [
-            [-1.3750, 0.0000, 0.0000],
-            [-7.1250, 0.0000, 0.0000],
-            [-10.0000, -10.0000, -10.0000],
+            [-1.3750, 0.0, 0.0],
+            [-7.1250, 0.0, 0.0],
+            [-10.000, -10.00, -10.00],
             [-4.2857, -4.2857, -4.2857],
             [1.4286, 1.4286, 1.4286],
             [7.1429, 7.1429, 7.1429],
+            [11.4286, 11.4286, 11.4286],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
+
     expected_phi = torch.tensor(
         [
             [0.1, 0.0, 0.0],
@@ -302,12 +307,13 @@ def test_extract_omega_delta_phi_dt_2(
             [0.2, 0.2, 0.2],
             [0.2, 0.2, 0.2],
             [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
-    assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_delta, expected_delta, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_phi, expected_phi, rtol=0, atol=1e-4)
+    assert torch.allclose(omega, expected_omega, atol=1e-4)
+    assert torch.allclose(delta, expected_delta, atol=1e-4)
+    assert torch.allclose(phi, expected_phi, atol=1e-4)
 
 
 @pytest.mark.parametrize(
@@ -334,20 +340,20 @@ def test_extract_omega_delta_phi_dt_1(
     noisy_samples = mock_sample(hamiltonian_type)
     noisy_samples.max_duration = TEST_DURATION
 
-    actual_omega, actual_delta, actual_phi = _extract_omega_delta_phi(
+    omega, delta, phi = _extract_omega_delta_phi(
         noisy_samples=noisy_samples, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
 
     # midpoints between target_times
     expected_number_of_samples = len(target_times) - 1
-    assert len(actual_omega) == expected_number_of_samples
+    assert len(omega) == expected_number_of_samples
 
     expected_omega = torch.tensor(
         [
-            [3.8750, 0.0000, 3.8750],
-            [5.6250, 0.0000, 5.6250],
-            [7.3750, 0.0000, 7.3750],
-            [9.3438, 0.0000, 9.3438],
+            [3.8750, 0.0, 3.8750],
+            [5.6250, 0.0, 5.6250],
+            [7.3750, 0.0, 7.3750],
+            [9.3438, 0.0, 9.3438],
             [10.000, 5.0000, 10.000],
             [9.4643, 9.4643, 9.4643],
             [7.8571, 7.8571, 7.8571],
@@ -356,24 +362,21 @@ def test_extract_omega_delta_phi_dt_1(
             [3.5714, 3.5714, 3.5714],
             [2.1429, 2.1429, 2.1429],
             [0.7143, 0.7143, 0.7143],
-            [0.0000, 0.0000, 0.0000],
+            [0.0, 0.0, 0.0],
         ],
         dtype=torch.complex128,
     )
-    # the element omega[4,0] should not simply be multiplied by wais_amplitudes
-    # it is the average of two samples, one of which should be multiplied, and the other not
-    # this test has different qubit positions than the dt=2 one to test precisely this.
     expected_delta = torch.tensor(
         [
-            [0.0625, 0.0000, 0.0000],
-            [-2.8125, 0.0000, 0.0000],
-            [-5.6875, 0.0000, 0.0000],
-            [-8.9219, 0.0000, 0.0000],
+            [0.0625, 0.0, 0.0],
+            [-2.8125, 0.0, 0.0],
+            [-5.6875, 0.0, 0.0],
+            [-8.9219, 0.0, 0.0],
             [-10.000, -5.0000, -5.0000],
             [-8.9286, -8.9286, -8.9286],
             [-5.7143, -5.7143, -5.7143],
             [-2.8571, -2.8571, -2.8571],
-            [0.0000, 0.0000, 0.0000],
+            [0.0, 0.0, 0.0],
             [2.8571, 2.8571, 2.8571],
             [5.7143, 5.7143, 5.7143],
             [8.5714, 8.5714, 8.5714],
@@ -383,26 +386,26 @@ def test_extract_omega_delta_phi_dt_1(
     )
     expected_phi = torch.tensor(
         [
-            [0.10, 0.0, 0.0],
-            [0.10, 0.0, 0.0],
-            [0.10, 0.0, 0.0],
-            [0.10, 0.0, 0.0],
+            [0.1, 0.0, 0.0],
+            [0.1, 0.0, 0.0],
+            [0.1, 0.0, 0.0],
+            [0.1, 0.0, 0.0],
             [0.15, 0.1, 0.1],
-            [0.20, 0.2, 0.2],
-            [0.20, 0.2, 0.2],
-            [0.20, 0.2, 0.2],
-            [0.20, 0.2, 0.2],
-            [0.20, 0.2, 0.2],
-            [0.20, 0.2, 0.2],
-            [0.20, 0.2, 0.2],
-            [0.20, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
         ],
         dtype=torch.complex128,
     )
 
-    assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_delta, expected_delta, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_phi, expected_phi, rtol=0, atol=1e-4)
+    assert torch.allclose(omega, expected_omega, atol=1e-4)
+    assert torch.allclose(delta, expected_delta, atol=1e-4)
+    assert torch.allclose(phi, expected_phi, atol=1e-4)
 
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
