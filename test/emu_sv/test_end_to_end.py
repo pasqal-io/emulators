@@ -858,12 +858,19 @@ def test_sparse_expectation():
 def test_end_to_end_observable_time_as_in_pulser():
     reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
     seq = pulser.Sequence(reg, pulser.AnalogDevice)
-    seq.declare_channel("ryd", "rydberg_global")
-    pulse = pulser.Pulse.ConstantPulse(400, 1, 0, 0)
-    seq.add(pulse, channel="ryd")
+    seq.declare_channel("rydberg_global", "rydberg_global")
 
-    bitstrings_eval_times = [0.0, 0.3, 1.0]
-    occupation_eval_times = [0.2, 1.0]
+    T = 100
+    pulse = pulser.Pulse(
+        pulser.InterpolatedWaveform(T, [1e-9, 1, 1e-9]),
+        pulser.InterpolatedWaveform(T, [-5, 0, 5]),
+        0,
+    )
+    # pulser.Pulse.ConstantPulse(100, 1, 0, 0) # t=432 bugs
+    seq.add(pulse, channel="rydberg_global")
+
+    bitstrings_eval_times = [0.0, 0.5, 1.0]
+    occupation_eval_times = [1 / 4, 1.0]  # [0.2, 1.0]
 
     bitstrings = BitStrings(evaluation_times=bitstrings_eval_times)
     occup = Occupation(evaluation_times=occupation_eval_times)

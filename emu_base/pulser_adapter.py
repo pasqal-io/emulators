@@ -1,13 +1,16 @@
-from typing import Sequence
 from enum import Enum
-import torch
-import math
+from typing import Sequence
+
 import pulser
-from pulser.sampler import SequenceSamples
+from pulser._hamiltonian_data import HamiltonianData
+from pulser.backend.config import EmulationConfig
 from pulser.noise_model import NoiseModel
 from pulser.register.base_register import QubitId
-from pulser.backend.config import EmulationConfig
-from pulser._hamiltonian_data import HamiltonianData
+from pulser.sampler import SequenceSamples
+from scipy.interpolate import PchipInterpolator
+import torch
+import numpy
+
 from emu_base.jump_lindblad_operators import get_lindblad_operators
 
 
@@ -63,72 +66,56 @@ def _extract_omega_delta_phi(
     qubit_ids: tuple[str, ...],
     target_times: list[int],
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    sequence_dict = noisy_samples.to_nested_dict(all_local=True, samples_type="tensor")[
-        "Local"
-    ]
-    nsamples = len(target_times) - 1
-    omega = torch.zeros(
-        nsamples,
-        len(qubit_ids),
-        dtype=torch.complex128,
-    )
-    delta = torch.zeros(
-        nsamples,
-        len(qubit_ids),
-        dtype=torch.complex128,
-    )
-    phi = torch.zeros(
-        nsamples,
-        len(qubit_ids),
-        dtype=torch.complex128,
-    )
-    max_duration = noisy_samples.max_duration
+    """
+    Pulser stores data for [H(t) for t in (0, dt, ... , T-dt, T)]
+    including 0,...,T-dt and excluding T;
+    thats why we need to extrapolate data from T-dt to T
+    """
+    sequence_dict = noisy_samples.to_nested_dict(
+        all_local=True,
+        samples_type="tensor",
+    )["Local"]
+    if len(sequence_dict) != 1:
+        raise ValueError("Only single-channel sequences are supported.")
 
-    if "ground-rydberg" in sequence_dict and len(sequence_dict) == 1:
+    if "ground-rydberg" in sequence_dict:
         locals_a_d_p = sequence_dict["ground-rydberg"]
-    elif "XY" in sequence_dict and len(sequence_dict) == 1:
+    elif "XY" in sequence_dict:
         locals_a_d_p = sequence_dict["XY"]
     else:
         raise ValueError("Only `ground-rydberg` and `mw_global` channels are supported.")
     qubit_ids_filtered = [qid for qid in qubit_ids if qid in locals_a_d_p]
-    for i in range(nsamples):
-        t = (target_times[i] + target_times[i + 1]) / 2
-        # The sampled values correspond to the start of each interval
-        # To maximize the order of the solver, we need the values in the middle
-        if math.ceil(t) < max_duration:
-            # If we're not the final step, approximate this using linear
-            # interpolation
-            # Note that for dt even, t1=t2
-            t1 = math.floor(t)
-            t2 = math.ceil(t)
-            for q_pos, q_id in enumerate(qubit_ids_filtered):
-                omega[i, q_pos] = (
-                    locals_a_d_p[q_id]["amp"][t1] + locals_a_d_p[q_id]["amp"][t2]
-                ) / 2.0
-                delta[i, q_pos] = (
-                    locals_a_d_p[q_id]["det"][t1] + locals_a_d_p[q_id]["det"][t2]
-                ) / 2.0
-                phi[i, q_pos] = (
-                    locals_a_d_p[q_id]["phase"][t1] + locals_a_d_p[q_id]["phase"][t2]
-                ) / 2.0
 
-        else:
-            # We're in the final step and dt=1, approximate this using linear extrapolation
-            # we can reuse omega_1 and omega_2 from before
-            for q_pos, q_id in enumerate(qubit_ids_filtered):
-                delta[i, q_pos] = (
-                    3.0 * locals_a_d_p[q_id]["det"][t2] - locals_a_d_p[q_id]["det"][t1]
-                ) / 2.0
-                phi[i, q_pos] = (
-                    3.0 * locals_a_d_p[q_id]["phase"][t2]
-                    - locals_a_d_p[q_id]["phase"][t1]
-                ) / 2.0
-                omega[i, q_pos] = max(
-                    (3.0 * locals_a_d_p[q_id]["amp"][t2] - locals_a_d_p[q_id]["amp"][t1])
-                    / 2.0,
-                    0.0,
-                )
+    # We are going to interpolate pulser data with time mid points
+    target_t_np = numpy.asarray(target_times, dtype=float)
+    t_mid = 0.5 * (target_t_np[:-1] + target_t_np[1:])
 
+    shape = (len(t_mid), len(qubit_ids))
+    omega_np = numpy.zeros(shape, dtype=float)
+    delta_np = numpy.zeros(shape, dtype=float)
+    phi_np = numpy.zeros(shape, dtype=float)
+
+    out_by_name = {
+        "amp": omega_np,
+        "det": delta_np,
+        "phase": phi_np,
+    }
+    t_grid = numpy.arange(target_times[-1], dtype=float)
+
+    for name, out in out_by_name.items():
+        for q_pos, q_id in enumerate(qubit_ids_filtered):
+            signal = numpy.asarray(locals_a_d_p[q_id][name])
+            if not numpy.allclose(signal.imag, 0.0):
+                raise ValueError("Input has non-zero imaginary part.")
+
+            signal_pchip = PchipInterpolator(t_grid, signal.real, extrapolate=True)
+            out[:, q_pos] = signal_pchip(t_mid)
+            if name == "amp":
+                out[-1, q_pos] = max(0, out[-1, q_pos])
+
+    omega, delta, phi = (
+        torch.tensor(arr, dtype=torch.complex128) for arr in (omega_np, delta_np, phi_np)
+    )
     return omega, delta, phi
 
 
