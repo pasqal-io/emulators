@@ -1193,8 +1193,8 @@ def test_trajectories():
             occup,
         ),
         log_level=logging.WARN,
-        #n_trajectories = 3,
-        noise_model = pulser.NoiseModel(state_prep_error = 1/3, runs=3),
+        n_trajectories = 3,
+        noise_model = pulser.NoiseModel(state_prep_error = 1/3),
         interaction_cutoff = 1e-10,
         optimize_qubit_ordering = False #bad atoms are not reordered
     )

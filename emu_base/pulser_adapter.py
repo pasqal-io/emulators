@@ -184,7 +184,7 @@ class PulserData:
             sequence,
             with_modulation=config.with_modulation,
             noise_model=self.noise_model,
-            n_trajectories=self.noise_model.runs,
+            n_trajectories=config.n_trajectories,
         )
 
         self.eigenstates = self.hamiltonian.basis_data.eigenbasis

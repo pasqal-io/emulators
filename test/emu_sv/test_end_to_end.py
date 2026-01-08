@@ -899,8 +899,8 @@ def test_trajectories():
             occup,
         ),
         log_level=logging.WARN,
-        #n_trajectories = 3,
-        noise_model = pulser.NoiseModel(state_prep_error = 1/3, runs=3)
+        n_trajectories = 3,
+        noise_model = pulser.NoiseModel(state_prep_error = 1/3)
     )
     with patch(
         "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
