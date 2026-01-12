@@ -259,7 +259,8 @@ def test_extract_omega_delta_phi_dt_2(
     Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
     TEST_DURATION = 13
     dt = 2
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
     sequence.get_duration.return_value = TEST_DURATION
 
     noisy_samples = mock_sample(hamiltonian_type)
@@ -269,30 +270,31 @@ def test_extract_omega_delta_phi_dt_2(
         noisy_samples=noisy_samples, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
 
-    expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
-    assert len(actual_omega) == expected_number_of_samples
-
+    # we sample omega at t == (target_times[i] + target_times[i+1])/2
+    assert len(actual_omega) == len(target_times) - 1  # number of midpoints
     expected_omega = torch.tensor(
         [
-            [4.75, 0.0, 4.75],
-            [8.25, 0.0, 8.25],
-            [10.0, 10.0, 10.0],
+            [4.7500, 0.0000, 4.7500],
+            [8.2500, 0.0000, 8.2500],
+            [10.000, 10.000, 10.000],
             [7.1429, 7.1429, 7.1429],
             [4.2857, 4.2857, 4.2857],
             [1.4286, 1.4286, 1.4286],
+            [1.4286, 1.4286, 1.4286],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
     expected_delta = torch.tensor(
         [
             [-1.3750, 0.0000, 0.0000],
             [-7.1250, 0.0000, 0.0000],
-            [-10.00, -10.0000, -10.0000],
+            [-10.000, -10.000, -10.000],
             [-4.2857, -4.2857, -4.2857],
             [1.4286, 1.4286, 1.4286],
             [7.1429, 7.1429, 7.1429],
+            [7.1429, 7.1429, 7.1429],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
     expected_phi = torch.tensor(
         [
@@ -302,9 +304,11 @@ def test_extract_omega_delta_phi_dt_2(
             [0.2, 0.2, 0.2],
             [0.2, 0.2, 0.2],
             [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
+
     assert torch.allclose(actual_omega, expected_omega, atol=1e-4)
     assert torch.allclose(actual_delta, expected_delta, atol=1e-4)
     assert torch.allclose(actual_phi, expected_phi, atol=1e-4)
