@@ -263,14 +263,15 @@ class MPSBackendImpl:
         too many factors are put in the Hamiltonian
         """
         self.hamiltonian = make_H(
-            interaction_matrix=(
+            interaction_matrix_rydberg=(
                 self.masked_interaction_matrix
                 if self.is_masked
                 else self.full_interaction_matrix
             ),
             hamiltonian_type=self.hamiltonian_type,
-            num_gpus_to_use=self.resolved_num_gpus,
             dim=self.dim,
+            num_gpus_to_use=self.resolved_num_gpus,
+            interaction_matrix_xy=self.config.interaction_matrix_xy,
         )
 
         update_H(
@@ -455,10 +456,11 @@ class MPSBackendImpl:
         if self.is_masked and self.current_time >= self.slm_end_time:
             self.is_masked = False
             self.hamiltonian = make_H(
-                interaction_matrix=self.full_interaction_matrix,
+                interaction_matrix_rydberg=self.full_interaction_matrix,
                 hamiltonian_type=self.hamiltonian_type,
                 dim=self.dim,
                 num_gpus_to_use=self.resolved_num_gpus,
+                interaction_matrix_xy=self.config.interaction_matrix_xy,
             )
 
         if not self.is_finished():

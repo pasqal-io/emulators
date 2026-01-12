@@ -710,11 +710,11 @@ class XYRydbergHamiltonianMPOFactors(HamiltonianMPOFactors2Int):
 
 def make_H(
     *,
-    interaction_matrix: torch.Tensor,  # depends on Hamiltonian Type
+    interaction_matrix_rydberg: torch.Tensor,  # depends on Hamiltonian Type
     hamiltonian_type: HamiltonianType,
     dim: int = 2,
     num_gpus_to_use: int | None,
-    interaction_matrix_xy: torch.Tensor = torch.zeros(0, 0),  # only for RydbergXY
+    interaction_matrix_xy: torch.Tensor,  # only for RydbergXY
 ) -> MPO:
     r"""
     Constructs and returns a Matrix Product Operator (MPO) representing the
@@ -734,7 +734,7 @@ def make_H(
     To fill in the appropriate values, call update_H
 
     Args:
-        interaction_matrix (torch.Tensor): The interaction matrix describing
+        interaction_matrix_rydberg (torch.Tensor): The interaction matrix describing
         the interactions between qubits.
         hamiltonian_type: whether to use XY or Rydberg interation
         dim: dimension of the basis (2 or 3)
@@ -752,7 +752,7 @@ def make_H(
 
     if hamiltonian_type == HamiltonianType.Rydberg:
         return MPO(
-            list(RydbergHamiltonianMPOFactors(interaction_matrix, dim=dim)),
+            list(RydbergHamiltonianMPOFactors(interaction_matrix_rydberg, dim=dim)),
             num_gpus_to_use=num_gpus_to_use,
         )
 
@@ -760,7 +760,7 @@ def make_H(
         return MPO(
             list(
                 XYRydbergHamiltonianMPOFactors(
-                    interaction_matrix,
+                    interaction_matrix_rydberg,
                     interaction_matrix_xy,
                     dim=dim,
                 )
@@ -770,7 +770,7 @@ def make_H(
 
     if hamiltonian_type == HamiltonianType.XY:
         return MPO(
-            list(XYHamiltonianMPOFactors(interaction_matrix, dim=dim)),
+            list(XYHamiltonianMPOFactors(interaction_matrix_rydberg, dim=dim)),
             num_gpus_to_use=num_gpus_to_use,
         )
 

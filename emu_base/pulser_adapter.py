@@ -9,6 +9,7 @@ from pulser.register.base_register import QubitId
 from pulser.backend.config import EmulationConfig
 from pulser._hamiltonian_data import HamiltonianData
 from emu_base.jump_lindblad_operators import get_lindblad_operators
+import pulser.sequence
 
 
 class HamiltonianType(Enum):
@@ -171,6 +172,8 @@ class PulserData:
             self.hamiltonian_type = HamiltonianType.Rydberg
         elif int_type == "XY":
             self.hamiltonian_type = HamiltonianType.XY
+        elif int_type == "Rydberg-XY":
+            self.hamiltonian_type = HamiltonianType.RydbergXY
         else:
             raise ValueError(f"Unsupported basis: {int_type}")
 
