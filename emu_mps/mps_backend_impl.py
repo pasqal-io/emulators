@@ -264,7 +264,9 @@ class MPSBackendImpl:
         too many factors are put in the Hamiltonian
         """
         print("init_hamiltonian interaction_matrix:", self.config.interaction_matrix_xy)
-        if self.config.interaction_matrix_xy is not None:
+        if not torch.equal(
+            self.config.interaction_matrix_xy, torch.zeros(0, 0, dtype=torch.complex128)
+        ):
             self.hamiltonian_type = HamiltonianType.RydbergXY
 
         self.hamiltonian = make_H(
