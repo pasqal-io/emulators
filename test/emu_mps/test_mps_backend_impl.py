@@ -1,6 +1,6 @@
 from emu_mps.mps_backend_impl import (
-    MPSBackendImpl,
-    NoisyMPSBackendImpl,
+    TDVPBackendImpl,
+    NoisyTDVPBackendImpl,
     DMRGBackendImpl,
     SwipeDirection,
 )
@@ -55,7 +55,7 @@ def _create_victim(constructor, dt, noise_model):
 def create_victim(dt=10, noise_model=None):
     if noise_model is None:
         noise_model = NoiseModel()
-    victim = _create_victim(constructor=MPSBackendImpl, dt=dt, noise_model=noise_model)
+    victim = _create_victim(constructor=TDVPBackendImpl, dt=dt, noise_model=noise_model)
     victim.has_lindblad_noise = False
     return victim
 
@@ -64,7 +64,7 @@ def create_noisy_victim(dt=10, noise_model=None):
     if noise_model is None:
         noise_model = NoiseModel()
     victim = _create_victim(
-        constructor=NoisyMPSBackendImpl, dt=dt, noise_model=noise_model
+        constructor=NoisyTDVPBackendImpl, dt=dt, noise_model=noise_model
     )
     victim.has_lindblad_noise = True
     return victim
@@ -314,7 +314,7 @@ def test_init_initial_state_default():
 
     assert len(victim.state.factors) == 3
     assert all(
-        torch.allclose(factor1, factor2)
+        torch.allclose(factor1, factor2.to("cpu"))
         for factor1, factor2 in zip(expected.factors, victim.state.factors)
     )
     assert victim.state.precision == 0.001
