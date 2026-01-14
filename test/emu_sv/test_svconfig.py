@@ -25,11 +25,8 @@ sv_params = {
 
 def test_default_SVConfig_ctr() -> None:
     sv_config = SVConfig()
-    assert len(sv_config.observables) == 1
-    assert isinstance(sv_config.observables[0], BitStrings)
-    assert sv_config.observables[0].evaluation_times == [
-        1.0
-    ]  # meaning very end of the simuation
+    assert len(sv_config.observables) == 0
+    assert len(sv_config.callbacks) == 0
 
 
 def test_default_config_repr() -> None:
