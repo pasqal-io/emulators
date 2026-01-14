@@ -20,7 +20,6 @@ from pulser.backend import (
     Energy,
     EnergySecondMoment,
     EnergyVariance,
-    BitStrings,
     EmulationConfig,
 )
 import logging
@@ -107,7 +106,6 @@ class MPSConfig(EmulationConfig):
         solver: Solver = Solver.TDVP,
         **kwargs: Any,
     ):
-        kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
         super().__init__(
             dt=dt,
             precision=precision,
