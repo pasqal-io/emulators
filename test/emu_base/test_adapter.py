@@ -280,7 +280,7 @@ def test_extract_omega_delta_phi_dt_2(
             [7.1429, 7.1429, 7.1429],
             [4.2857, 4.2857, 4.2857],
             [1.4286, 1.4286, 1.4286],
-            [1.4286, 1.4286, 1.4286],
+            [0.0000, 0.0000, 0.0000],
         ],
         dtype=torch.complex128,
     )
@@ -292,7 +292,7 @@ def test_extract_omega_delta_phi_dt_2(
             [-4.2857, -4.2857, -4.2857],
             [1.4286, 1.4286, 1.4286],
             [7.1429, 7.1429, 7.1429],
-            [7.1429, 7.1429, 7.1429],
+            [11.4286, 11.4286, 11.4286],
         ],
         dtype=torch.complex128,
     )
@@ -331,7 +331,8 @@ def test_extract_omega_delta_phi_dt_1(
     Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
     TEST_DURATION = 13
     dt = 1
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
     sequence.get_duration.return_value = TEST_DURATION
 
     noisy_samples = mock_sample(hamiltonian_type)
@@ -341,17 +342,17 @@ def test_extract_omega_delta_phi_dt_1(
         noisy_samples=noisy_samples, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
 
-    expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
-    assert len(actual_omega) == expected_number_of_samples
+    # we sample omega at t == (target_times[i] + target_times[i+1])/2
+    assert len(actual_omega) == len(target_times) - 1  # number of midpoints
 
     expected_omega = torch.tensor(
         [
             [3.8750, 0.0000, 3.8750],
             [5.6250, 0.0000, 5.6250],
             [7.3750, 0.0000, 7.3750],
-            [9.1250, 0.0000, 9.1250],
+            [9.3438, 0.0000, 9.3438],
             [10.000, 5.0000, 10.000],
-            [9.2857, 9.2857, 9.2857],
+            [9.4643, 9.4643, 9.4643],
             [7.8571, 7.8571, 7.8571],
             [6.4286, 6.4286, 6.4286],
             [5.0000, 5.0000, 5.0000],
@@ -370,9 +371,9 @@ def test_extract_omega_delta_phi_dt_1(
             [0.0625, 0.0000, 0.0000],
             [-2.8125, 0.0000, 0.0000],
             [-5.6875, 0.0000, 0.0000],
-            [-8.5625, 0.0000, 0.0000],
+            [-8.9219, 0.0000, 0.0000],
             [-10.000, -5.0000, -5.0000],
-            [-8.5714, -8.5714, -8.5714],
+            [-8.9286, -8.9286, -8.9286],
             [-5.7143, -5.7143, -5.7143],
             [-2.8571, -2.8571, -2.8571],
             [0.0000, 0.0000, 0.0000],
@@ -411,7 +412,9 @@ def test_extract_omega_delta_phi_dt_1(
 def test_autograd(mock_data):
     TEST_DURATION = 10
     dt = 2
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
     sequence.get_duration.return_value = TEST_DURATION
     amp_tensor = torch.tensor(
         [
@@ -731,12 +734,15 @@ def test_parsed_sequence(mock_data):
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
 def test_pulser_data(mock_data):
-    TEST_DURATION = 10
+    TEST_DURATION = 13
     dt = 2
 
     mock_from_sequence = MagicMock()
     mock_data.from_sequence.return_value = mock_from_sequence
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
+
     sequence.get_duration.return_value = TEST_DURATION
     adressed_basis = "ground-rydberg"
     sequence.get_addressed_bases.return_value = [adressed_basis]
@@ -845,13 +851,15 @@ def test_extract_omega_delta_phi_missing_qubit():
     Test that qubits not present in the pulse samples are filtered out
     Only qubits included in the pulser sequence are used to fill omega, delta, and phi.
     """
-    pulse_duration = 5
+    pulse_duration = 6
     target_times = list(range(pulse_duration + 1))
     qubit_ids = ["q0", "q1", "q2"]
 
     mock_pulser_dict = {
         "ground-rydberg": {
             "q0": {
+                # pulser assumes laser_signal[pulse_duration] == 0,
+                # here for testing simplicity laser_signal[-1] != 0
                 "amp": [1, 2, 3, 4, 5, 6],
                 "det": [0, 0, 0, 0, 0, 0],
                 "phase": [0, 0, 0, 0, 0, 0],
@@ -873,12 +881,10 @@ def test_extract_omega_delta_phi_missing_qubit():
         qubit_ids=qubit_ids,
         target_times=target_times,
     )
-    # Check values of omega for q0 and q2
-    qubit_map = {0: "q0", 1: "q2"}
-    for q_idx, q_id in qubit_map.items():
-        for i in range(omega.shape[0]):
-            expected_omega = (
-                mock_pulser_dict["ground-rydberg"][q_id]["amp"][i]
-                + mock_pulser_dict["ground-rydberg"][q_id]["amp"][i + 1]
-            ) / 2
-            assert omega[i, q_idx] == expected_omega
+    omega_expected = {
+        0: torch.tensor([1.5, 2.5, 3.5, 4.5, 5.5, 6.5], dtype=dtype),  # q0
+        1: torch.tensor([5.5, 4.5, 3.5, 2.5, 1.5, 0.5], dtype=dtype),  # q2
+    }
+
+    for col, expected in omega_expected.items():
+        assert torch.allclose(omega[:, col], expected)
