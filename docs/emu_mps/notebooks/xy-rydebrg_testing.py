@@ -1,4 +1,6 @@
 import math
+
+import torch
 from emu_mps import (
     MPS,
     MPSConfig,
@@ -15,6 +17,8 @@ from pulser.devices import MockDevice
 from typing import Any
 
 import numpy as np
+
+dtype = torch.complex128
 
 
 def afm_sequence_from_register(
@@ -119,7 +123,6 @@ seq = afm_sequence_from_register(
 )
 # seq.draw("input")
 
-seq.set_magnetic_field()
 dt = 10
 eval_times = [1.0]
 
@@ -142,17 +145,28 @@ density = Occupation(
 )
 state = StateResult(evaluation_times=eval_times)
 
-print(
-    "factor 0 of afm_mps_fidelity:\n", afm_mps_state.factors[0]
-)  # this is a 2 level system, why does not break the code?
-# Precision is converting the 2 level system into a qutrit?
-# then the question is why it works at all?
+random_xy = torch.rand((nqubits, nqubits))
+# lindbladians are using the leakage state |x> as |r1>.
+# the basis will be |g>, |r>, |x>=|r1>
+l1 = torch.zeros(3, 3, dtype=dtype)
+l1[1, 2] = 1.0  # l1 = |r><x| = |r><r1| for xy model
+l2 = l1.mT  # l2 = |x><r|= |r1><r| for xy model
+lindbladians = [l1, l2]
+
+noise_model = pulser.NoiseModel(
+    eff_noise_opers=lindbladians,
+    eff_noise_rates=(0.00, 0.00),  # decay from |r> to |r1> and from |r1> to |r>
+    with_leakage=True,  # the leakage will be the |r1> for the xy model (|r> is |0>, |r1> is |1>)
+)
+
 
 mpsconfig = MPSConfig(
     dt=dt,
     precision=1.0e-9,
     observables=[bitstrings, fidelity_mps_pure, density, state],
     log_level=100000,
+    interaction_matrix_xy=random_xy,
+    noise_model=noise_model,
 )
 
 sim = MPSBackend(seq, config=mpsconfig)

@@ -23,6 +23,7 @@ class MPSBackend(EmulatorBackend):
         Only resume simulations from data you trust!
         Unpickling of untrusted data is not safe.
         """
+
         if isinstance(autosave_file, str):
             autosave_file = pathlib.Path(autosave_file)
 
@@ -31,7 +32,7 @@ class MPSBackend(EmulatorBackend):
 
         with open(autosave_file, "rb") as f:
             impl: MPSBackendImpl = pickle.load(f)
-
+            print(impl.config.interaction_matrix_xy)
         impl.autosave_file = autosave_file
         impl.last_save_time = time.time()
         init_logging(impl.config.log_level, impl.config.log_file)
@@ -51,7 +52,7 @@ class MPSBackend(EmulatorBackend):
             the simulation results
         """
         assert isinstance(self._config, MPSConfig)
-
+        print("mps backend interaction matrix xy ", self._config.interaction_matrix_xy)
         impl = create_impl(self._sequence, self._config)
         impl.init()  # This is separate from the constructor for testing purposes.
 

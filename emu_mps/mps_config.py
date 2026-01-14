@@ -111,6 +111,11 @@ class MPSConfig(EmulationConfig):
         **kwargs: Any,
     ):
         kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
+        interaction_matrix_xy = (
+            interaction_matrix_xy
+            if interaction_matrix_xy is not None
+            else torch.zeros(0, 0, dtype=torch.complex128)  # check the device
+        )
         super().__init__(
             dt=dt,
             precision=precision,
@@ -125,15 +130,10 @@ class MPSConfig(EmulationConfig):
             autosave_prefix=autosave_prefix,
             autosave_dt=autosave_dt,
             solver=solver,
+            interaction_matrix_xy=interaction_matrix_xy,
             **kwargs,
         )
         self.logger = init_logging(log_level, log_file)
-
-        self.interaction_matrix_xy = (
-            interaction_matrix_xy
-            if interaction_matrix_xy is not None
-            else torch.zeros(0, 0, dtype=torch.complex128)  # check the device
-        )
 
         MIN_AUTOSAVE_DT = 10
         assert (
@@ -184,6 +184,7 @@ class MPSConfig(EmulationConfig):
             "autosave_prefix",
             "autosave_dt",
             "solver",
+            "interaction_matrix_xy",
         }
 
     def monkeypatch_observables(self) -> None:

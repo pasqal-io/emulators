@@ -41,6 +41,7 @@ from emu_mps.utils import (
     get_extended_site_index,
     new_left_bath,
 )
+from emu_base.pulser_adapter import HamiltonianType
 
 dtype = torch.complex128
 
@@ -262,6 +263,10 @@ class MPSBackendImpl:
         Must be called AFTER init_dark_qubits otherwise,
         too many factors are put in the Hamiltonian
         """
+        print("init_hamiltonian interaction_matrix:", self.config.interaction_matrix_xy)
+        if self.config.interaction_matrix_xy is not None:
+            self.hamiltonian_type = HamiltonianType.RydbergXY
+
         self.hamiltonian = make_H(
             interaction_matrix_rydberg=(
                 self.masked_interaction_matrix
@@ -614,7 +619,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         super().__init__(config, pulser_data)
         self.lindblad_ops = pulser_data.lindblad_ops
         self.root_finder = None
-
+        print("noisy mps backend interaction_matrix:", self.config.interaction_matrix_xy)
         assert self.has_lindblad_noise
 
     def init_lindblad_noise(self) -> None:
@@ -816,7 +821,7 @@ class DMRGBackendImpl(MPSBackendImpl):
 
 def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
     pulser_data = PulserData(sequence=sequence, config=config, dt=config.dt)
-
+    print("create impl interaction_matrix:", config.interaction_matrix_xy)
     if pulser_data.has_lindblad_noise:
         return NoisyMPSBackendImpl(config, pulser_data)
     if config.solver == Solver.DMRG:
