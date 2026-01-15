@@ -48,10 +48,21 @@ Algorithm outline:
   1) Compute interval widths h[i] and secant slopes delta Δ[i].
   2) Compute knot derivatives d[i] using PCHIP.
   3) For each interval [x[i], x[i+1]],
-    form the cubic Hermite polynomial P(x) using y[i], and d[i].
+    form the cubic Hermite polynomial P(t) = p0 + p1 t + p2 t^2 + p3 t^3,
+    0 <= t <= h[i] using y[i], and d[i].
+
+    P(0) = y[i],   P'(0) = d[i]
+    P(h) = y[i+1], P'(h) = d[i+1],   where h = x[i+1] - x[i].
+
+    This gives:
+    p0 = y[i]
+    p1 = d[i]
+    p2 = (3Δ[i] - 2d[i] - d[i+1]) / h
+    p3 = (d[i] + d[i+1] - 2Δ[i]) / h * h
   4) Evaluate P(x) at desired query points xq.
 
-Note: end points x[0] and x[T] are treated a bit differently compare to bulk values x[i]
+Note: end points x[0] and x[T] are treated a bit differently compare to bulk
+values x[i]
 """
 
 import torch
@@ -101,7 +112,15 @@ def _pchip_derivatives(
     delta: torch.Tensor,
 ) -> torch.Tensor:
     """
-    Compute PCHIP knot derivatives d[i] from interval widths h and secant slopes delta.
+    Compute PCHIP knot derivatives d[i] from interval widths h[i]
+    and secant slopes delta Δ[i].
+
+    Interior derivatives use a weighted harmonic mean of neighboring secants
+    when they have the same sign
+        (w1+w2)/d[i] = w1/Δ[i-1] + w2/Δ[i]
+    (otherwise set d[i]=0 to preserve shape). Endpoint derivatives are
+    estimated with a one-sided 3-point formula and then limited to prevent
+    overshoot.
     """
     n = h.numel() + 1
     d = torch.zeros((n,), dtype=delta.dtype, device=delta.device)
@@ -136,9 +155,22 @@ def _interval_coeffs(
     d: torch.Tensor,
 ) -> torch.Tensor:
     """
-    For each interval i, build cubic in local coordinate t(x) = x - x[i]:
+    For each interval x ∈ [x[i], x[i+1]] build cubic in local coordinate
+    t(x) = x - x[i]:
 
         P(t) = p0 + p1 t + p2 t^2 + p3 t^3,   0 <= t <= h[i]
+
+    Coefficients (p0, p1, p2, p3) are solutions to match value and slope
+    at both endpoints:
+
+    P(0) = y[i],   P'(0) = d[i]
+    P(h) = y[i+1], P'(h) = d[i+1],   where h = x[i+1] - x[i].
+
+    This gives:
+        p0 = y[i]
+        p1 = d[i]
+        p2 = (3Δ[i] - 2d[i] - d[i+1]) / h
+        p3 = (d[i] + d[i+1] - 2Δ[i]) / h * h
     """
     p0 = y[:-1]
     p1 = d[:-1]
