@@ -41,6 +41,7 @@ from emu_mps.utils import (
     get_extended_site_index,
     new_left_bath,
 )
+from emu_base.pulser_adapter import HamiltonianType
 
 dtype = torch.complex128
 
@@ -262,15 +263,21 @@ class MPSBackendImpl:
         Must be called AFTER init_dark_qubits otherwise,
         too many factors are put in the Hamiltonian
         """
+        if not torch.equal(
+            self.config.interaction_matrix_xy, torch.zeros(0, 0, dtype=torch.complex128)
+        ):
+            self.hamiltonian_type = HamiltonianType.RydbergXY
+
         self.hamiltonian = make_H(
-            interaction_matrix=(
+            interaction_matrix_rydberg=(
                 self.masked_interaction_matrix
                 if self.is_masked
                 else self.full_interaction_matrix
             ),
             hamiltonian_type=self.hamiltonian_type,
-            num_gpus_to_use=self.resolved_num_gpus,
             dim=self.dim,
+            num_gpus_to_use=self.resolved_num_gpus,
+            interaction_matrix_xy=self.config.interaction_matrix_xy,
         )
 
         update_H(
@@ -455,10 +462,11 @@ class MPSBackendImpl:
         if self.is_masked and self.current_time >= self.slm_end_time:
             self.is_masked = False
             self.hamiltonian = make_H(
-                interaction_matrix=self.full_interaction_matrix,
+                interaction_matrix_rydberg=self.full_interaction_matrix,
                 hamiltonian_type=self.hamiltonian_type,
                 dim=self.dim,
                 num_gpus_to_use=self.resolved_num_gpus,
+                interaction_matrix_xy=self.config.interaction_matrix_xy,
             )
 
         if not self.is_finished():
@@ -612,7 +620,6 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         super().__init__(config, pulser_data)
         self.lindblad_ops = pulser_data.lindblad_ops
         self.root_finder = None
-
         assert self.has_lindblad_noise
 
     def init_lindblad_noise(self) -> None:
@@ -814,7 +821,6 @@ class DMRGBackendImpl(MPSBackendImpl):
 
 def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
     pulser_data = PulserData(sequence=sequence, config=config, dt=config.dt)
-
     if pulser_data.has_lindblad_noise:
         return NoisyMPSBackendImpl(config, pulser_data)
     if config.solver == Solver.DMRG:

@@ -3,6 +3,8 @@ from types import MethodType
 
 import copy
 
+import torch
+
 from emu_base import init_logging
 from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
 from emu_mps.mpo import MPO
@@ -105,9 +107,15 @@ class MPSConfig(EmulationConfig):
         autosave_prefix: str = "emu_mps_save_",
         autosave_dt: int | float = float("inf"),  # disable autosave by default
         solver: Solver = Solver.TDVP,
+        interaction_matrix_xy: torch.Tensor | None = None,
         **kwargs: Any,
     ):
         kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
+        interaction_matrix_xy = (
+            interaction_matrix_xy
+            if interaction_matrix_xy is not None
+            else torch.zeros(0, 0, dtype=torch.complex128)  # check the device
+        )
         super().__init__(
             dt=dt,
             precision=precision,
@@ -122,6 +130,7 @@ class MPSConfig(EmulationConfig):
             autosave_prefix=autosave_prefix,
             autosave_dt=autosave_dt,
             solver=solver,
+            interaction_matrix_xy=interaction_matrix_xy,
             **kwargs,
         )
         self.logger = init_logging(log_level, log_file)
@@ -175,6 +184,7 @@ class MPSConfig(EmulationConfig):
             "autosave_prefix",
             "autosave_dt",
             "solver",
+            "interaction_matrix_xy",
         }
 
     def monkeypatch_observables(self) -> None:
