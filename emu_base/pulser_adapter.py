@@ -120,9 +120,9 @@ def _extract_omega_delta_phi(
             data_mid[:, q_pos] = pchip(t_mid)
             if name == "amp":
                 data_mid[-1, q_pos] = torch.where(
-                    data_mid[-1, q_pos] > torch.zeros_like(data_mid[-1, q_pos]),
+                    data_mid[-1, q_pos] > 0,
                     data_mid[-1, q_pos],
-                    torch.zeros_like(data_mid[-1, q_pos]),
+                    0,
                 )
 
     omega_c, delta_c, phi_c = (

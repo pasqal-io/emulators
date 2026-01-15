@@ -62,7 +62,7 @@ This gives:
     p0 = y[i]
     p1 = d[i]
     p2 = (3Δ[i] - 2d[i] - d[i+1]) / h
-    p3 = (d[i] + d[i+1] - 2Δ[i]) / h * h
+    p3 = (d[i] + d[i+1] - 2Δ[i]) / h²
 
 Extrapolation:
 points outside interpolation interval [x[0], x[-1]] are evaluated by
@@ -84,15 +84,15 @@ import torch
 
 
 def _weighted_harmonic_mean(
-    s_l: torch.Tensor,
-    s_r: torch.Tensor,
+    delta_l: torch.Tensor,
+    delta_r: torch.Tensor,
     h_l: torch.Tensor,
     h_r: torch.Tensor,
 ) -> torch.Tensor:
 
     w_l = h_l + 2.0 * h_r
     w_r = 2.0 * h_l + h_r
-    return (w_l + w_r) / (w_l / s_l + w_r / s_r)
+    return (w_l + w_r) / (w_l / delta_l + w_r / delta_r)
 
 
 def _endpoint_slope(
@@ -112,13 +112,12 @@ def _limit_endpoint(
     s1: torch.Tensor,
 ) -> torch.Tensor:
     # 1) If derivative points opposite to the first secant, zero it
-    mask_neq_sign = torch.sign(d_end) != torch.sign(s0)
+    mask_neq_sign = d_end * s0 < 0
     d_end = torch.where(mask_neq_sign, torch.zeros_like(d_end), d_end)
 
     # 2) If secants switch sign, cap magnitude to 3*|s0|
-    mask_cap = (torch.sign(s0) != torch.sign(s1)) & (
-        torch.abs(d_end) > 3.0 * torch.abs(s0)
-    )
+    mask_neq_sign = s0 * s1 < 0
+    mask_cap = mask_neq_sign & (torch.abs(d_end) > 3.0 * torch.abs(s0))
     return torch.where(mask_cap, 3.0 * s0, d_end)
 
 
@@ -146,11 +145,11 @@ def _pchip_derivatives(
         return d
 
     # Interior points
-    s_l, s_r = delta[:-1], delta[1:]
+    delta_l, delta_r = delta[:-1], delta[1:]
     h_l, h_r = h[:-1], h[1:]
 
-    mask_same_sign = (s_l * s_r) > 0  # excludes zeros + sign changes
-    dh = _weighted_harmonic_mean(s_l, s_r, h_l, h_r)
+    mask_same_sign = (delta_l * delta_r) > 0  # excludes zeros + sign changes
+    dh = _weighted_harmonic_mean(delta_l, delta_r, h_l, h_r)
     d[1:-1] = torch.where(mask_same_sign, dh, torch.zeros_like(dh))
 
     # Endpoints (one-sided + limiter)
@@ -185,7 +184,7 @@ def _polynomial_coeffs(
         p0 = y[i]
         p1 = d[i]
         p2 = (3Δ[i] - 2d[i] - d[i+1]) / h
-        p3 = (d[i] + d[i+1] - 2Δ[i]) / h * h
+        p3 = (d[i] + d[i+1] - 2Δ[i]) / h²
     """
     p0 = y[:-1]
     p1 = d[:-1]
