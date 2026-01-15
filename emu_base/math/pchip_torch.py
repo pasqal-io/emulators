@@ -10,11 +10,11 @@ interval [x[i], x[i+1]] and is designed to preserve the shape of the data
 
 The cubic polynomials P_i(x) are expressed in Hermite form, which means:
 (1) they match the data values
-    P(x[i])     == y[i],
-    P(x[i+1])   == y[i+1].
+    P(x[i])    == y[i],
+    P(x[i+1])  == y[i+1].
 (2) they match derivatives
-    P(x[i])'    == d[i],
-    P(x[i+1])'  == d[i+1],
+    P(x[i])'   == d[i],
+    P(x[i+1])' == d[i+1],
 where d[i] is a derivative better then the first order finite difference
 Δ[i] = (y[i+1]-y[i])/(x[i+1]-x[i]). How to find d[i] and what better means
 is explained below.
@@ -25,41 +25,50 @@ selects the knot derivatives d[i]. PCHIP computes:
     Δ[i] = (y[i+1] - y[i]) / (x[i+1] - x[i]).
 
 (2) The knot derivatives d[i] as a harmonic mean of the neighboring slopes:
-        1/d[i] = 0.5 * (1/Δ[i-1] + 1/Δ[i]),
+
+    1/d[i] = 0.5 * (1/Δ[i-1] + 1/Δ[i]),
+
     which interpolates visually better compare to the
     - arithmetic mean d[i] = 0.5 * (Δ[i-1] + Δ[i]), or
     - finite difference d[i] = Δ[i].
 
-    If Δ[i-1] and Δ[i] have opposite signs (or either is zero), x[i]
-    is a discrete local minimum, maximum or valley. In this case PCHIP sets
-        d[i] = 0
-    so the curve flattens at x[i], which helps prevent overshoot and
-    preserves the shape of the data.
-    (See images https://matthodges.com/posts/2024-08-08-spline-pchip/)
+    If Δ[i-1] and Δ[i] have opposite signs (or either is zero), x[i] is a
+    local minima, maxima or valley. In this case PCHIP sets
+
+    d[i] = 0
+
+so the curve flattens at x[i], which helps prevent overshoot and
+preserves the shape of the data.
+(See images https://matthodges.com/posts/2024-08-08-spline-pchip/)
 
 If the grid is non-uniform (h[i-1] = x[i] - x[i-1] and h[i] = x[i+1] - x[i]
-are different), the neighboring secant slopes Δ[i-1] and Δ[i] should not be
-treated equally. PCHIP therefore combines them using a weighted harmonic mean:
+are different), the neighboring secant slopes Δ[i-1] and Δ[i] do not contribute
+equally. PCHIP therefore combines them using a weighted harmonic mean:
+
     (w1+w2)/d[i] = w1/Δ[i-1] + w2/Δ[i].
+
 w1 = 2h[i] + h[i-1], w2 = h[i] + 2h[i-1],
 For uniform spacing this reduces to the simple harmonic mean w1 = w2 = 0.5
 
-Algorithm outline:
-  1) Compute interval widths h[i] and secant slopes delta Δ[i].
-  2) Compute knot derivatives d[i] using PCHIP.
-  3) For each interval [x[i], x[i+1]],
-    form the cubic Hermite polynomial P(t) = p0 + p1 t + p2 t^2 + p3 t^3,
-    0 <= t <= h[i] using y[i], and d[i].
+Given x[i], y[i] and d[i] one can compute cubic polynomial
+P(t) = p0 + p1 t + p2 t^2 + p3 t^3, 0 <= t <= h[i], at every
+interval x[i], x[i+1]. To find coefficients (p0, p1, p2, p3) solve the problem
 
     P(0) = y[i],   P'(0) = d[i]
     P(h) = y[i+1], P'(h) = d[i+1],   where h = x[i+1] - x[i].
 
-    This gives:
+This gives:
     p0 = y[i]
     p1 = d[i]
     p2 = (3Δ[i] - 2d[i] - d[i+1]) / h
     p3 = (d[i] + d[i+1] - 2Δ[i]) / h * h
-  4) Evaluate P(x) at desired query points xq.
+
+Algorithm outline:
+(1) Compute interval widths h[i] and secant slopes delta Δ[i].
+(2) Compute knot derivatives d[i] using PCHIP.
+(3) For each interval [x[i], x[i+1]], form the cubic Hermite polynomial
+    P(x) using y[i], and d[i].
+(4) Evaluate P(x) at desired query points xq.
 
 Note: end points x[0] and x[T] are treated a bit differently compare to bulk
 values x[i]
