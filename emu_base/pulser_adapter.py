@@ -61,14 +61,22 @@ def _get_target_times(
 def _extract_omega_delta_phi(
     noisy_samples: SequenceSamples,
     qubit_ids: tuple[str, ...],
-    target_times: list[int],
+    target_times: Sequence[int],
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
-    Pulser stores data for [H(t) for t in (0, dt, ... , T-dt, T)]
-    including 0,...,T-dt and excluding T;
-    thats why we need to extrapolate data from T-dt to T
-    """
+    Extract per-qubit laser parameters (Ω, δ, phase) from Pulser samples.
 
+    Pulser stores samples on the discrete grid t = 0, 1, ..., T-1
+    (with dt = 1), i.e. it does not provide values exactly
+    at t = T = pulse_duration. Pulser effectively assumes
+    Ω(T) = δ(T) = phase(T) = 0. For midpoint discretization we therefore
+    interpolate (and implicitly extrapolate near the end) to obtain
+    Ω(t_mid), δ(t_mid), and phase(t_mid) at t_mid = (t_k + t_{k+1}) / 2.
+
+    We evaluate the laser parameters at time midpoints to benefit from
+    a midpoint scheme.
+    https://en.wikipedia.org/wiki/Midpoint_method
+    """
     sequence_dict = noisy_samples.to_nested_dict(
         all_local=True,
         samples_type="tensor",
@@ -84,45 +92,42 @@ def _extract_omega_delta_phi(
         raise ValueError("Only `ground-rydberg` and `mw_global` channels are supported.")
     qubit_ids_filtered = [qid for qid in qubit_ids if qid in locals_a_d_p]
 
-    # We are going to interpolate pulser data with time mid points
     target_t = torch.as_tensor(target_times, dtype=torch.float64)
     t_mid = 0.5 * (target_t[:-1] + target_t[1:])
 
-    shape = (t_mid.numel(), len(qubit_ids))
-    omega = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
-    delta = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
-    phi = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
+    shape = (t_mid.numel(), len(qubit_ids_filtered))
+    omega_mid = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
+    delta_mid = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
+    phi_mid = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
 
-    out_by_name = {
-        "amp": omega,
-        "det": delta,
-        "phase": phi,
-    }
+    assert noisy_samples.max_duration == target_times[-1]
     t_grid = torch.arange(target_times[-1], dtype=torch.float64)
 
-    for name, out in out_by_name.items():
+    laser_by_data = {
+        "amp": omega_mid,
+        "det": delta_mid,
+        "phase": phi_mid,
+    }
+    for name, data_mid in laser_by_data.items():
         for q_pos, q_id in enumerate(qubit_ids_filtered):
-            signal_data = locals_a_d_p[q_id][name]
-            signal = torch.as_tensor(signal_data)
+            signal = torch.as_tensor(locals_a_d_p[q_id][name])
             if torch.is_complex(signal) and not torch.allclose(
-                signal.imag,
-                torch.zeros((), dtype=signal.real.dtype, device=signal.device),
+                signal.imag, torch.zeros_like(signal.imag)
             ):
                 raise ValueError(f"Input {name} has non-zero imaginary part.")
 
             pchip = PCHIP1D(t_grid, signal.real)
-            data = pchip(t_mid)
-            out[:, q_pos] = data
+            data_mid[:, q_pos] = pchip(t_mid)
             if name == "amp":
-                # dangerous code. Discuss consequences with the team
-                # out[-1, q_pos] = max(0, out[-1, q_pos])
-                out[-1, q_pos] = torch.where(
-                    torch.zeros_like(out[-1, q_pos]) > torch.sign(out[-1, q_pos]),
-                    torch.zeros_like(out[-1, q_pos]),
-                    out[-1, q_pos],
+                data_mid[-1, q_pos] = torch.where(
+                    data_mid[-1, q_pos] > torch.zeros_like(data_mid[-1, q_pos]),
+                    data_mid[-1, q_pos],
+                    torch.zeros_like(data_mid[-1, q_pos]),
                 )
 
-    omega_c, delta_c, phi_c = (arr.to(torch.complex128) for arr in (omega, delta, phi))
+    omega_c, delta_c, phi_c = (
+        arr.to(torch.complex128) for arr in (omega_mid, delta_mid, phi_mid)
+    )
     return omega_c, delta_c, phi_c
 
 

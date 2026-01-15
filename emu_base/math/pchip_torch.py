@@ -24,13 +24,14 @@ selects the knot derivatives d[i]. PCHIP computes:
 (1) Secant slopes (finite differences) on each interval:
     Δ[i] = (y[i+1] - y[i]) / (x[i+1] - x[i]).
 
-(2) The knot derivatives d[i] as a harmonic mean of the neighboring slopes:
+(2) The knot derivatives d[i] as a harmonic mean of the neighboring slopes
+    Δ[i-1] and Δ[i] when they have the same sign:
 
-    1/d[i] = 0.5 * (1/Δ[i-1] + 1/Δ[i]),
+    1/d[i] = 0.5 * (1/Δ[i-1] + 1/Δ[i]) [PCHIP interpolator],
 
     which interpolates visually better compare to the
-    - arithmetic mean d[i] = 0.5 * (Δ[i-1] + Δ[i]), or
-    - finite difference d[i] = Δ[i].
+    - arithmetic mean d[i] = 0.5 * (Δ[i-1] + Δ[i]) [Catmull–Rom], or
+    - finite difference d[i] = Δ[i] [Linear interpolator].
 
     If Δ[i-1] and Δ[i] have opposite signs (or either is zero), x[i] is a
     local minima, maxima or valley. In this case PCHIP sets
@@ -62,6 +63,11 @@ This gives:
     p1 = d[i]
     p2 = (3Δ[i] - 2d[i] - d[i+1]) / h
     p3 = (d[i] + d[i+1] - 2Δ[i]) / h * h
+
+Extrapolation:
+points outside interpolation interval [x[0], x[-1]] are evaluated by
+extending the boundary cubic polynomial. For x < x[0] we use the first
+interval polynomial P_0; for x > x[-1] we use the last P_n interval polynomial.
 
 Algorithm outline:
 (1) Compute interval widths h[i] and secant slopes delta Δ[i].
@@ -157,7 +163,7 @@ def _pchip_derivatives(
     return d
 
 
-def _interval_coeffs(
+def _polynomial_coeffs(
     y: torch.Tensor,
     h: torch.Tensor,
     delta: torch.Tensor,
@@ -196,14 +202,13 @@ class PCHIP1D:
     """
 
     def __init__(self, x: torch.Tensor, y: torch.Tensor):
-        x, y = self._validate_xy(x, y)
-        self.x, self.y = x, y
+        self.x, self.y = self._validate_xy(x, y)
 
-        h = x[1:] - x[:-1]
-        delta = (y[1:] - y[:-1]) / h
+        h = self.x[1:] - self.x[:-1]
+        delta = (self.y[1:] - self.y[:-1]) / h
 
         d = _pchip_derivatives(h, delta)
-        self._coeffs = _interval_coeffs(y, h, delta, d)
+        self._coeffs = _polynomial_coeffs(self.y, h, delta, d)
 
     @staticmethod
     def _validate_xy(

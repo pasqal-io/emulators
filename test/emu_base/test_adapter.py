@@ -342,7 +342,7 @@ def test_extract_omega_delta_phi_dt_1(
         noisy_samples=noisy_samples, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
 
-    # we sample omega at t == (target_times[i] + target_times[i+1])/2
+    # sample omega at midpoints t == (target_times[i] + target_times[i+1])/2
     assert len(actual_omega) == len(target_times) - 1  # number of midpoints
 
     expected_omega = torch.tensor(
@@ -416,61 +416,29 @@ def test_autograd(mock_data):
     target_times = list(range(0, TEST_DURATION, dt))
     target_times.append(TEST_DURATION)
     sequence.get_duration.return_value = TEST_DURATION
-    amp_tensor = torch.tensor(
+
+    amp_det_phase = torch.tensor(
         [
-            10.0,
-            8.88888889,
-            7.77777778,
-            6.66666667,
-            5.55555556,
-            4.44444444,
-            3.33333333,
-            2.22222222,
-            1.11111111,
-            0.0,
+            [10.0000000, -10.0000000, 0.2],
+            [8.88888889, -7.77777778, 0.2],
+            [7.77777778, -5.55555556, 0.2],
+            [6.66666667, -3.33333333, 0.2],
+            [5.55555556, -1.11111111, 0.2],
+            [4.44444444, 1.11111111, 0.2],
+            [3.33333333, 3.33333333, 0.2],
+            [2.22222222, 5.55555556, 0.2],
+            [1.11111111, 7.77777778, 0.2],
+            [0.00000000, 10.0000000, 0.2],
         ],
         dtype=dtype,
         requires_grad=True,
-    )
-    det_tensor = torch.tensor(
-        [
-            -10.0,
-            -7.77777778,
-            -5.55555556,
-            -3.33333333,
-            -1.11111111,
-            1.11111111,
-            3.33333333,
-            5.55555556,
-            7.77777778,
-            10.0,
-        ],
-        dtype=dtype,
-        requires_grad=True,
-    )
-    phase_tensor = torch.tensor(
-        [0.2] * 10,
-        dtype=dtype,
-        requires_grad=True,
-    )
+    )  # shape: (T=10, 3) = [amp, det, phase]
+
+    amp, det, phase = amp_det_phase.unbind(dim=-1)  # each shape: (10,)
 
     mock_pulser_dict = {
         "ground-rydberg": {
-            TEST_QUBIT_IDS[1]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
-            TEST_QUBIT_IDS[2]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
-            TEST_QUBIT_IDS[0]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
+            qid: {"amp": amp, "det": det, "phase": phase} for qid in TEST_QUBIT_IDS
         }
     }
 
