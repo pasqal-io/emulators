@@ -76,8 +76,18 @@ Algorithm outline:
     P(x) using y[i], and d[i].
 (4) Evaluate P(x) at desired query points xq.
 
-Note: end points x[0] and x[T] are treated a bit differently compare to bulk
-values x[i]
+
+Note: Endpoint derivatives d[i] (at x[0] and x[-1]) are computed differently
+than interior derivatives. At the boundaries we use a one-sided 3-point method
+(see “Three-point methods”):
+https://en.wikipedia.org/wiki/Numerical_differentiation
+
+Using Taylor expansions for y[i+1] and y[i+2] gives:
+    Δ[i]   ≈ d[i] + f'' * h[i] / 2 + ...
+    Δ[i+1] ≈ d[i] + f'' * (2h[i] + h[i+1]) / 2 + ...
+
+Eliminating f'' yields the endpoint estimate:
+    d[i] ≈ (Δ[i] * (2h[i] + h[i+1]) - Δ[i+1] * h[i]) / (h[i] + h[i+1])
 """
 
 import torch
@@ -96,14 +106,25 @@ def _weighted_harmonic_mean(
 
 
 def _endpoint_slope(
-    s0: torch.Tensor,
-    s1: torch.Tensor,
-    h0: torch.Tensor,
-    h1: torch.Tensor,
+    delta_l: torch.Tensor,
+    delta_r: torch.Tensor,
+    h_l: torch.Tensor,
+    h_r: torch.Tensor,
 ) -> torch.Tensor:
-    # One-sided 3-point estimate at the boundary
-    w1 = 2.0 * h0 + h1
-    return (w1 * s0 - h0 * s1) / (h0 + h1)
+    """
+    At the boundaries we use a one-sided 3-point method
+    (see “Three-point methods”):
+    https://en.wikipedia.org/wiki/Numerical_differentiation
+
+    Using Taylor expansions for y[i+1] and y[i+2] gives:
+        Δ[i]   ≈ d[i] + f'' * h[i] / 2 + ...
+        Δ[i+1] ≈ d[i] + f'' * (2h[i] + h[i+1]) / 2 + ...
+
+    Eliminating f'' yields the endpoint estimate:
+        d[i] ≈ (Δ[i] * (2h[i] + h[i+1]) - Δ[i+1] * h[i]) / (h[i] + h[i+1])
+    """
+    w1 = 2.0 * h_l + h_r
+    return (w1 * delta_l - h_l * delta_r) / (h_l + h_r)
 
 
 def _limit_endpoint(
@@ -111,11 +132,11 @@ def _limit_endpoint(
     s0: torch.Tensor,
     s1: torch.Tensor,
 ) -> torch.Tensor:
-    # 1) If derivative points opposite to the first secant, zero it
+    # If derivative points opposite to the first secant, zero it
     mask_neq_sign = d_end * s0 < 0
     d_end = torch.where(mask_neq_sign, torch.zeros_like(d_end), d_end)
 
-    # 2) If secants switch sign, cap magnitude to 3*|s0|
+    # If secants switch sign, cap magnitude to 3*|s0|
     mask_neq_sign = s0 * s1 < 0
     mask_cap = mask_neq_sign & (torch.abs(d_end) > 3.0 * torch.abs(s0))
     return torch.where(mask_cap, 3.0 * s0, d_end)
