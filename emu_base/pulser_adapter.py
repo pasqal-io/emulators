@@ -82,14 +82,16 @@ def _extract_omega_delta_phi(
         samples_type="tensor",
     )["Local"]
     if len(sequence_dict) != 1:
-        raise ValueError("Only single-channel sequences are supported.")
+        raise ValueError("Only single interaction type is supported.")
 
     if "ground-rydberg" in sequence_dict:
         locals_a_d_p = sequence_dict["ground-rydberg"]
     elif "XY" in sequence_dict:
         locals_a_d_p = sequence_dict["XY"]
     else:
-        raise ValueError("Only `ground-rydberg` and `mw_global` channels are supported.")
+        raise ValueError(
+            "Only `ground-rydberg` and `mw_global`(XY) channels are supported."
+        )
     qubit_ids_filtered = [qid for qid in qubit_ids if qid in locals_a_d_p]
 
     target_t = torch.as_tensor(target_times, dtype=torch.float64)

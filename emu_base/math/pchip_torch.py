@@ -15,9 +15,9 @@ The cubic polynomials P_i(x) are expressed in Hermite form, which means:
 (2) they match derivatives
     P(x[i])'   == d[i],
     P(x[i+1])' == d[i+1],
-where d[i] is a derivative better then the first order finite difference
-Δ[i] = (y[i+1]-y[i])/(x[i+1]-x[i]). How to find d[i] and what better means
-is explained below.
+where d[i] is a derivative better than the first-order finite difference
+Δ[i] = (y[i+1]-y[i])/(x[i+1]-x[i]). How d[i] is computed and what "better"
+means is explained below.
 
 What distinguishes PCHIP from generic cubic spline interpolators is how PCHIP
 selects the knot derivatives d[i]. PCHIP computes:
@@ -27,14 +27,14 @@ selects the knot derivatives d[i]. PCHIP computes:
 (2) The knot derivatives d[i] as a harmonic mean of the neighboring slopes
     Δ[i-1] and Δ[i] when they have the same sign:
 
-    1/d[i] = 0.5 * (1/Δ[i-1] + 1/Δ[i]) [PCHIP interpolator],
+    1/d[i] = 0.5 * (1/Δ[i-1] + 1/Δ[i]) [PCHIP interpolator]
 
-    which interpolates visually better compare to the
+    which tends to look better visually than
     - arithmetic mean d[i] = 0.5 * (Δ[i-1] + Δ[i]) [Catmull–Rom], or
     - finite difference d[i] = Δ[i] [Linear interpolator].
 
     If Δ[i-1] and Δ[i] have opposite signs (or either is zero), x[i] is a
-    local minima, maxima or valley. In this case PCHIP sets
+    local minimum, maximum or valley. In this case PCHIP sets
 
     d[i] = 0
 
@@ -48,12 +48,12 @@ equally. PCHIP therefore combines them using a weighted harmonic mean:
 
     (w1+w2)/d[i] = w1/Δ[i-1] + w2/Δ[i].
 
-w1 = 2h[i] + h[i-1], w2 = h[i] + 2h[i-1],
+w1 = 2h[i] + h[i-1], w2 = h[i] + 2h[i-1].
 For uniform spacing this reduces to the simple harmonic mean w1 = w2 = 0.5
 
-Given x[i], y[i] and d[i] one can compute cubic polynomial
-P(t) = p0 + p1 t + p2 t^2 + p3 t^3, 0 <= t <= h[i], at every
-interval x[i], x[i+1]. To find coefficients (p0, p1, p2, p3) solve the problem
+Given x[i], y[i] and d[i], one can compute the cubic polynomial
+P(t) = p0 + p1 t + p2 t^2 + p3 t^3, 0 <= t <= h[i], on each
+interval x[i], x[i+1]. To find coefficients (p0, p1, p2, p3) solve:
 
     P(0) = y[i],   P'(0) = d[i]
     P(h) = y[i+1], P'(h) = d[i+1],   where h = x[i+1] - x[i].
@@ -65,15 +65,16 @@ This gives:
     p3 = (d[i] + d[i+1] - 2Δ[i]) / h²
 
 Extrapolation:
-points outside interpolation interval [x[0], x[-1]] are evaluated by
+points outside the interpolation interval [x[0], x[-1]] are evaluated by
 extending the boundary cubic polynomial. For x < x[0] we use the first
-interval polynomial P_0; for x > x[-1] we use the last P_n interval polynomial.
+interval polynomial P_0; for x > x[-1] we use the last P_{n-1} interval
+polynomial.
 
 Algorithm outline:
-(1) Compute interval widths h[i] and secant slopes delta Δ[i].
+(1) Compute interval widths h[i] and secant slopes Δ[i].
 (2) Compute knot derivatives d[i] using PCHIP.
 (3) For each interval [x[i], x[i+1]], form the cubic Hermite polynomial
-    P(x) using y[i], and d[i].
+    P(x) using y[i], y[i+1], d[i], and d[i+1].
 (4) Evaluate P(x) at desired query points xq.
 
 
@@ -129,17 +130,17 @@ def _endpoint_slope(
 
 def _limit_endpoint(
     d_end: torch.Tensor,
-    s0: torch.Tensor,
-    s1: torch.Tensor,
+    s_l: torch.Tensor,
+    s_r: torch.Tensor,
 ) -> torch.Tensor:
     # If derivative points opposite to the first secant, zero it
-    mask_neq_sign = d_end * s0 < 0
-    d_end = torch.where(mask_neq_sign, torch.zeros_like(d_end), d_end)
+    mask_sign_change = d_end * s_l < 0
+    d_end = torch.where(mask_sign_change, torch.zeros_like(d_end), d_end)
 
-    # If secants switch sign, cap magnitude to 3*|s0|
-    mask_neq_sign = s0 * s1 < 0
-    mask_cap = mask_neq_sign & (torch.abs(d_end) > 3.0 * torch.abs(s0))
-    return torch.where(mask_cap, 3.0 * s0, d_end)
+    # If secants switch sign, cap magnitude to 3*|s_l|
+    mask_sign_change = s_l * s_r < 0
+    mask_cap = mask_sign_change & (torch.abs(d_end) > 3.0 * torch.abs(s_l))
+    return torch.where(mask_cap, 3.0 * s_l, d_end)
 
 
 def _pchip_derivatives(
