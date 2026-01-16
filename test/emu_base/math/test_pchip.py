@@ -146,7 +146,7 @@ def test_pchip1d_monotone_data_stays_in_range_on_each_interval() -> None:
             torch.tensor([0.0, 1.0, 1.0]),
             torch.tensor([0.0, 1.0, 2.0]),
             ValueError,
-            "x must be strictly increasing",
+            "x must be strictly increasing",  # i.e. no division by zero
             id="x-not-strictly-increasing",
         ),
         pytest.param(
@@ -166,3 +166,17 @@ def test_pchip1d_validate_xy_errors(
 ) -> None:
     with pytest.raises(err_type, match=match):
         PCHIP1D(x, y)
+
+
+def test_pchip_derivatives_handles_zero_slopes_no_nan_inf() -> None:
+    # include zeros in delta to trigger the "no harmonic mean" path
+    h = torch.tensor([1.0, 1.0, 1.0, 1.0])
+    delta = torch.tensor([1.0, 0.0, -2.0, 3.0])  # div 0 if not guarded
+
+    d = _pchip_derivatives(h, delta)
+
+    assert torch.isfinite(d).all()
+    # PCHIP sets d[i]=0 unless delta[i-1] and delta[i] have the same nonzero sign
+    assert d[1].item() == 0.0  # between 1.0 and 0.0
+    assert d[2].item() == 0.0  # between 0.0 and -2.0
+    assert d[3].item() == 0.0  # between -2.0 and 3.0
