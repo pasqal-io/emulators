@@ -180,3 +180,16 @@ def test_pchip_derivatives_handles_zero_slopes_no_nan_inf() -> None:
     assert d[1].item() == 0.0  # between 1.0 and 0.0
     assert d[2].item() == 0.0  # between 0.0 and -2.0
     assert d[3].item() == 0.0  # between -2.0 and 3.0
+
+
+def test_pchip_small_values() -> None:
+    # straight line with a slope 0.1
+    x = torch.tensor([1.0, 2.0, 3.0, 4.0]) * 1e-8
+    y = 0.1 * x
+
+    h = x[1:] - x[:-1]
+    delta = (y[1:] - y[:-1]) / h
+
+    d = _pchip_derivatives(h, delta)  # expected derivative d = 0.1
+
+    assert torch.allclose(d, torch.tensor(0.1))
