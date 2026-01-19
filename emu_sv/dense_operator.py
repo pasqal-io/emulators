@@ -25,21 +25,16 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
     simulation.
 
     Args:
-
         matrix (torch.Tensor): Square complex tensor of shape (2ⁿ, 2ⁿ)
-    representing the operator in the computational basis.
-
+            representing the operator in the computational basis.
         gpu (bool, optional): If True, place the operator on a CUDA device when
-    available. Default: True.
+            available. Default: True.
 
     Returns:
-
         DenseOperator: An operator object wrapping the provided matrix.
 
     Raises:
-
         ValueError: If 'matrix' is not a 2-D square tensor.
-
         RuntimeError: If gpu=True but CUDA is not available (if applicable).
     """
 
@@ -142,7 +137,8 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
         Construct a DenseOperator from an operator representation.
 
         Args:
-            eigenstates: the eigenstates of the basis to use, e.g. ("r", "g") or ("0", "1").
+            eigenstates: the eigenstates of the basis to use, e.g. ("r", "g")
+                or ("0", "1").
             n_qudits: number of qudits in the system.
             operations: which bitstrings make up the state with what weight.
 

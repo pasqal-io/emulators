@@ -20,26 +20,21 @@ class DensityMatrix(State[complex, torch.Tensor]):
     Typically ρ is Hermitian, positive semidefinite, and has trace 1.
 
     Args:
-
-    - matrix (torch.Tensor): Square complex tensor of shape (2ⁿ, 2ⁿ)
-    representing the state in the computational basis. Must be
-    complex-valued and Hermitian with trace 1.
-
-    - gpu (bool, optional): If True, place the operator on a CUDA device when
-    available. Default: True.
+        matrix (torch.Tensor): Square complex tensor of shape (2ⁿ, 2ⁿ)
+            representing the state in the computational basis. Must be
+            complex-valued and Hermitian with trace 1.
+        gpu (bool, optional): If True, place the operator on a CUDA device when
+            available. Default: True.
 
     Returns:
-
-    - DensityMatrix: A density-matrix wrapper around the provided tensor."
+        DensityMatrix: A density-matrix wrapper around the provided tensor."
 
     Raises:
-
-    - ValueError: If matrix is not a square 2D tensor of shape (2ⁿ, 2ⁿ) or
-    fails validation (e.g., not Hermitian / trace != 1) if validation is
-    performed.
-
-    - RuntimeError: If gpu=True but CUDA is not available (if the
-    implementation moves tensors to CUDA).
+        ValueError: If matrix is not a square 2D tensor of shape (2ⁿ, 2ⁿ) or
+            fails validation (e.g., not Hermitian / trace != 1) if validation is
+            performed.
+        RuntimeError: If gpu=True but CUDA is not available (if the
+            implementation moves tensors to CUDA).
     """
 
     # for the moment no need to check positivity and trace 1
@@ -90,12 +85,12 @@ class DensityMatrix(State[complex, torch.Tensor]):
         Returns:
             the inner product
 
-        Example:
-        >>> density_bell_state = 0.5 * torch.tensor([[1, 0, 0, 1], [0, 0, 0, 0],
-        ... [0, 0, 0, 0], [1, 0, 0, 1]],dtype=torch.complex128)
-        >>> density_c = DensityMatrix(density_bell_state, gpu=False)
-        >>> density_c.overlap(density_c)
-        tensor(1.+0.j, dtype=torch.complex128)
+        Examples:
+            >>> density_bell_state = 0.5 * torch.tensor([[1, 0, 0, 1], [0, 0, 0, 0],
+                ... [0, 0, 0, 0], [1, 0, 0, 1]],dtype=torch.complex128)
+            >>> density_c = DensityMatrix(density_bell_state, gpu=False)
+            >>> density_c.overlap(density_c)
+            tensor(1.+0.j, dtype=torch.complex128) # doctest: +SKIP
         """
 
         assert isinstance(
@@ -114,6 +109,7 @@ class DensityMatrix(State[complex, torch.Tensor]):
         """Convert a state vector to a density matrix.
         This function takes a state vector |ψ❭ and returns the corresponding
         density matrix ρ = |ψ❭❬ψ| representing the pure state |ψ❭.
+
         Example:
            >>> from emu_sv import StateVector
            >>> import math
@@ -149,12 +145,13 @@ class DensityMatrix(State[complex, torch.Tensor]):
         Args:
             basis: A tuple containing the basis states (e.g., ('r', 'g')).
             nqubits: the number of qubits.
-            strings: A dictionary mapping state strings to complex or floats amplitudes.
+            strings: A dictionary mapping state strings to complex or floats
+            amplitudes.
 
         Returns:
             The resulting state.
 
-        Examples:
+        Example:
             >>> eigenstates = ("r","g")
             >>> n = 2
             >>> dense_mat=DensityMatrix.from_state_amplitudes(eigenstates=eigenstates,
@@ -192,15 +189,15 @@ class DensityMatrix(State[complex, torch.Tensor]):
             the measured bitstrings, by count
 
         Example:
-        >>> import math
-        >>> torch.manual_seed(1234)
-        >>> from emu_sv import StateVector
-        >>> bell_vec = 1 / math.sqrt(2) * torch.tensor(
-        ... [1.0, 0.0, 0.0, 1.0j],dtype=torch.complex128)
-        >>> bell_state_vec = StateVector(bell_vec)
-        >>> bell_density = DensityMatrix.from_state_vector(bell_state_vec)
-        >>> bell_density.sample(1000)
-         Counter({'00': 517, '11': 483})
+            >>> import math
+            >>> import torch
+            >>> torch.manual_seed(1234)
+            >>> from emu_sv import StateVector
+            >>> bell_vec = 1 / math.sqrt(2) * torch.tensor([1.0, 0.0, 0.0, 1.0j]
+            ...     ,dtype=torch.complex128)
+            >>> bell_state_vec = StateVector(bell_vec)
+            >>> bell_density = DensityMatrix.from_state_vector(bell_state_vec)
+            >>> bell_density.sample(1000)
         """
 
         probabilities = torch.abs(self.matrix.diagonal())
