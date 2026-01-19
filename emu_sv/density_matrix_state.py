@@ -15,7 +15,32 @@ dtype = torch.complex128
 
 
 class DensityMatrix(State[complex, torch.Tensor]):
-    """Represents a density matrix in a computational basis."""
+    """Represents an n-qubit density matrix ρ in the computational (|g⟩, |r⟩)
+    basis. The input should be a square complex tensor with shape (2ⁿ, 2ⁿ).
+    Typically ρ is Hermitian, positive semidefinite, and has trace 1.
+
+    Args:
+
+    - matrix (torch.Tensor): Square complex tensor of shape (2ⁿ, 2ⁿ)
+    representing the state in the computational basis. Must be
+    complex-valued and Hermitian with trace 1.
+
+    - gpu (bool, optional): If True, place the operator on a CUDA device when
+    available. Default: True.
+
+    Returns:
+
+    - DensityMatrix: A density-matrix wrapper around the provided tensor."
+
+    Raises:
+
+    - ValueError: If matrix is not a square 2D tensor of shape (2ⁿ, 2ⁿ) or
+    fails validation (e.g., not Hermitian / trace != 1) if validation is
+    performed.
+
+    - RuntimeError: If gpu=True but CUDA is not available (if the
+    implementation moves tensors to CUDA).
+    """
 
     # for the moment no need to check positivity and trace 1
     def __init__(
@@ -66,8 +91,8 @@ class DensityMatrix(State[complex, torch.Tensor]):
             the inner product
 
         Example:
-        >>> density_bell_state = (1/2* torch.tensor([[1, 0, 0, 1], [0, 0, 0, 0],
-        ... [0, 0, 0, 0], [1, 0, 0, 1]],dtype=torch.complex128))
+        >>> density_bell_state = 0.5 * torch.tensor([[1, 0, 0, 1], [0, 0, 0, 0],
+        ... [0, 0, 0, 0], [1, 0, 0, 1]],dtype=torch.complex128)
         >>> density_c = DensityMatrix(density_bell_state, gpu=False)
         >>> density_c.overlap(density_c)
         tensor(1.+0.j, dtype=torch.complex128)
