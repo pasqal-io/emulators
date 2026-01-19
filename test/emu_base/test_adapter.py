@@ -259,7 +259,8 @@ def test_extract_omega_delta_phi_dt_2(
     Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
     TEST_DURATION = 13
     dt = 2
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
     sequence.get_duration.return_value = TEST_DURATION
 
     noisy_samples = mock_sample(hamiltonian_type)
@@ -269,45 +270,48 @@ def test_extract_omega_delta_phi_dt_2(
         noisy_samples=noisy_samples, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
 
-    expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
-    assert len(actual_omega) == expected_number_of_samples
-
+    # we sample omega at t == (target_times[i] + target_times[i+1])/2
+    assert len(actual_omega) == len(target_times) - 1  # number of midpoints
     expected_omega = torch.tensor(
         [
-            [4.75, 0.0, 4.75],
-            [8.25, 0.0, 8.25],
-            [10.0, 10.0, 10.0],
+            [4.7500, 0.0000, 4.7500],
+            [8.2500, 0.0000, 8.2500],
+            [10.000, 10.000, 10.000],
             [7.1429, 7.1429, 7.1429],
             [4.2857, 4.2857, 4.2857],
             [1.4286, 1.4286, 1.4286],
+            [0.0000, 0.0000, 0.0000],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
     expected_delta = torch.tensor(
         [
             [-1.3750, 0.0000, 0.0000],
             [-7.1250, 0.0000, 0.0000],
-            [-10.0000, -10.0000, -10.0000],
+            [-10.000, -10.000, -10.000],
             [-4.2857, -4.2857, -4.2857],
             [1.4286, 1.4286, 1.4286],
             [7.1429, 7.1429, 7.1429],
+            [11.4286, 11.4286, 11.4286],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
     expected_phi = torch.tensor(
         [
-            [0.1000, 0.0000, 0.0000],
-            [0.1000, 0.0000, 0.0000],
-            [0.2000, 0.2000, 0.2000],
-            [0.2000, 0.2000, 0.2000],
-            [0.2000, 0.2000, 0.2000],
-            [0.2000, 0.2000, 0.2000],
+            [0.1, 0.0, 0.0],
+            [0.1, 0.0, 0.0],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
-    assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_delta, expected_delta, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_phi, expected_phi, rtol=0, atol=1e-4)
+
+    assert torch.allclose(actual_omega, expected_omega, atol=1e-4)
+    assert torch.allclose(actual_delta, expected_delta, atol=1e-4)
+    assert torch.allclose(actual_phi, expected_phi, atol=1e-4)
 
 
 @pytest.mark.parametrize(
@@ -327,7 +331,8 @@ def test_extract_omega_delta_phi_dt_1(
     Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
     TEST_DURATION = 13
     dt = 1
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
     sequence.get_duration.return_value = TEST_DURATION
 
     noisy_samples = mock_sample(hamiltonian_type)
@@ -337,197 +342,103 @@ def test_extract_omega_delta_phi_dt_1(
         noisy_samples=noisy_samples, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
 
-    expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
-    assert len(actual_omega) == expected_number_of_samples
+    # sample omega at midpoints t == (target_times[i] + target_times[i+1])/2
+    assert len(actual_omega) == len(target_times) - 1  # number of midpoints
 
     expected_omega = torch.tensor(
         [
-            [
-                3.875,
-                5.625,
-                7.375,
-                9.125,
-                10.0,
-                9.285714285000001,
-                7.857142855,
-                6.428571425,
-                5.0,
-                3.5714285749999997,
-                2.1428571450000002,
-                0.714285715,
-                0.0,
-            ],
-            [
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                5.0,
-                9.285714285000001,
-                7.857142855,
-                6.428571425,
-                5.0,
-                3.5714285749999997,
-                2.1428571450000002,
-                0.714285715,
-                0.0,
-            ],
-            [
-                3.875,
-                5.625,
-                7.375,
-                9.125,
-                10.0,
-                9.285714285000001,
-                7.857142855,
-                6.428571425,
-                5.0,
-                3.5714285749999997,
-                2.1428571450000002,
-                0.714285715,
-                0.0,
-            ],
+            [3.8750, 0.0000, 3.8750],
+            [5.6250, 0.0000, 5.6250],
+            [7.3750, 0.0000, 7.3750],
+            [9.3438, 0.0000, 9.3438],
+            [10.000, 5.0000, 10.000],
+            [9.4643, 9.4643, 9.4643],
+            [7.8571, 7.8571, 7.8571],
+            [6.4286, 6.4286, 6.4286],
+            [5.0000, 5.0000, 5.0000],
+            [3.5714, 3.5714, 3.5714],
+            [2.1429, 2.1429, 2.1429],
+            [0.7143, 0.7143, 0.7143],
+            [0.0000, 0.0000, 0.0000],
         ],
-        dtype=dtype,
-    ).T
+        dtype=torch.complex128,
+    )
     # the element omega[4,0] should not simply be multiplied by wais_amplitudes
     # it is the average of two samples, one of which should be multiplied, and the other not
     # this test has different qubit positions than the dt=2 one to test precisely this.
     expected_delta = torch.tensor(
         [
-            [
-                0.0625,
-                -2.8125,
-                -5.6875,
-                -8.5625,
-                -10.0,
-                -8.57142857,
-                -5.714285715,
-                -2.8571428599999997,
-                0.0,
-                2.8571428599999997,
-                5.714285715,
-                8.57142857,
-                11.42857143,
-            ],
-            [
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                -5.0,
-                -8.57142857,
-                -5.714285715,
-                -2.8571428599999997,
-                0.0,
-                2.8571428599999997,
-                5.714285715,
-                8.57142857,
-                11.42857143,
-            ],
-            [
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                -5.0,
-                -8.57142857,
-                -5.714285715,
-                -2.8571428599999997,
-                0.0,
-                2.8571428599999997,
-                5.714285715,
-                8.57142857,
-                11.42857143,
-            ],
+            [0.0625, 0.0000, 0.0000],
+            [-2.8125, 0.0000, 0.0000],
+            [-5.6875, 0.0000, 0.0000],
+            [-8.9219, 0.0000, 0.0000],
+            [-10.000, -5.0000, -5.0000],
+            [-8.9286, -8.9286, -8.9286],
+            [-5.7143, -5.7143, -5.7143],
+            [-2.8571, -2.8571, -2.8571],
+            [0.0000, 0.0000, 0.0000],
+            [2.8571, 2.8571, 2.8571],
+            [5.7143, 5.7143, 5.7143],
+            [8.5714, 8.5714, 8.5714],
+            [11.4286, 11.4286, 11.4286],
         ],
-        dtype=dtype,
-    ).T
+        dtype=torch.complex128,
+    )
     expected_phi = torch.tensor(
         [
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.1500 + 0.0j, 0.1000 + 0.0j, 0.1000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+            [0.10, 0.0, 0.0],
+            [0.10, 0.0, 0.0],
+            [0.10, 0.0, 0.0],
+            [0.10, 0.0, 0.0],
+            [0.15, 0.1, 0.1],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
 
-    assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_delta, expected_delta, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_phi, expected_phi, rtol=0, atol=1e-4)
+    assert torch.allclose(actual_omega, expected_omega, atol=1e-4)
+    assert torch.allclose(actual_delta, expected_delta, atol=1e-4)
+    assert torch.allclose(actual_phi, expected_phi, atol=1e-4)
 
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
 def test_autograd(mock_data):
     TEST_DURATION = 10
     dt = 2
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
     sequence.get_duration.return_value = TEST_DURATION
-    amp_tensor = torch.tensor(
+
+    amp_det_phase = torch.tensor(
         [
-            10.0,
-            8.88888889,
-            7.77777778,
-            6.66666667,
-            5.55555556,
-            4.44444444,
-            3.33333333,
-            2.22222222,
-            1.11111111,
-            0.0,
+            [10.0000000, -10.0000000, 0.2],
+            [8.88888889, -7.77777778, 0.2],
+            [7.77777778, -5.55555556, 0.2],
+            [6.66666667, -3.33333333, 0.2],
+            [5.55555556, -1.11111111, 0.2],
+            [4.44444444, 1.11111111, 0.2],
+            [3.33333333, 3.33333333, 0.2],
+            [2.22222222, 5.55555556, 0.2],
+            [1.11111111, 7.77777778, 0.2],
+            [0.00000000, 10.0000000, 0.2],
         ],
         dtype=dtype,
         requires_grad=True,
-    )
-    det_tensor = torch.tensor(
-        [
-            -10.0,
-            -7.77777778,
-            -5.55555556,
-            -3.33333333,
-            -1.11111111,
-            1.11111111,
-            3.33333333,
-            5.55555556,
-            7.77777778,
-            10.0,
-        ],
-        dtype=dtype,
-        requires_grad=True,
-    )
-    phase_tensor = torch.tensor(
-        [0.2] * 10,
-        dtype=dtype,
-        requires_grad=True,
-    )
+    )  # shape: (T=10, 3) = [amp, det, phase]
+
+    amp, det, phase = amp_det_phase.unbind(dim=-1)  # each shape: (10,)
 
     mock_pulser_dict = {
         "ground-rydberg": {
-            TEST_QUBIT_IDS[1]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
-            TEST_QUBIT_IDS[2]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
-            TEST_QUBIT_IDS[0]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
+            qid: {"amp": amp, "det": det, "phase": phase} for qid in TEST_QUBIT_IDS
         }
     }
 
@@ -791,12 +702,15 @@ def test_parsed_sequence(mock_data):
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
 def test_pulser_data(mock_data):
-    TEST_DURATION = 10
+    TEST_DURATION = 13
     dt = 2
 
     mock_from_sequence = MagicMock()
     mock_data.from_sequence.return_value = mock_from_sequence
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
+
     sequence.get_duration.return_value = TEST_DURATION
     adressed_basis = "ground-rydberg"
     sequence.get_addressed_bases.return_value = [adressed_basis]
@@ -907,13 +821,15 @@ def test_extract_omega_delta_phi_missing_qubit():
     Test that qubits not present in the pulse samples are filtered out
     Only qubits included in the pulser sequence are used to fill omega, delta, and phi.
     """
-    pulse_duration = 5
+    pulse_duration = 6
     target_times = list(range(pulse_duration + 1))
     qubit_ids = ["q0", "q1", "q2"]
 
     mock_pulser_dict = {
         "ground-rydberg": {
             "q0": {
+                # pulser assumes laser_signal[pulse_duration] == 0,
+                # here for testing simplicity laser_signal[-1] != 0
                 "amp": [1, 2, 3, 4, 5, 6],
                 "det": [0, 0, 0, 0, 0, 0],
                 "phase": [0, 0, 0, 0, 0, 0],
@@ -935,12 +851,10 @@ def test_extract_omega_delta_phi_missing_qubit():
         qubit_ids=qubit_ids,
         target_times=target_times,
     )
-    # Check values of omega for q0 and q2
-    qubit_map = {0: "q0", 1: "q2"}
-    for q_idx, q_id in qubit_map.items():
-        for i in range(omega.shape[0]):
-            expected_omega = (
-                mock_pulser_dict["ground-rydberg"][q_id]["amp"][i]
-                + mock_pulser_dict["ground-rydberg"][q_id]["amp"][i + 1]
-            ) / 2
-            assert omega[i, q_idx] == expected_omega
+    omega_expected = {
+        0: torch.tensor([1.5, 2.5, 3.5, 4.5, 5.5, 6.5], dtype=dtype),  # q0
+        1: torch.tensor([5.5, 4.5, 3.5, 2.5, 1.5, 0.5], dtype=dtype),  # q2
+    }
+
+    for col, expected in omega_expected.items():
+        assert torch.allclose(omega[:, col], expected)

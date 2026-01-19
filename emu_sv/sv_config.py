@@ -26,7 +26,6 @@ from pulser.backend import (
     EnergySecondMoment,
     EnergyVariance,
     Occupation,
-    BitStrings,
 )
 
 
@@ -79,7 +78,6 @@ class SVConfig(EmulationConfig):
         log_file: pathlib.Path | None = None,
         **kwargs: Any,
     ):
-        kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
         super().__init__(
             dt=dt,
             max_krylov_dim=max_krylov_dim,
