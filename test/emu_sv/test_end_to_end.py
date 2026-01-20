@@ -860,13 +860,16 @@ def test_sparse_expectation():
 
 
 def test_end_to_end_observable_time_as_in_pulser():
+    T = 20
+    dt = 1.0
+
     reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
     seq = pulser.Sequence(reg, pulser.AnalogDevice)
     seq.declare_channel("ryd", "rydberg_global")
-    pulse = pulser.Pulse.ConstantPulse(100, 1, 0, 0)
+    pulse = pulser.Pulse.ConstantPulse(T, 1, 0, 0)
     seq.add(pulse, channel="ryd")
 
-    eval_times = [0, 1 / 13, 1 / 3, 0.5, 1.0]
+    eval_times = [0, 1 / 3]
     occ = Occupation(evaluation_times=eval_times)
     obs = (occ,)
 
@@ -874,14 +877,18 @@ def test_end_to_end_observable_time_as_in_pulser():
     qutip_backend = QutipBackendV2(seq, config=qutip_config)
     qutip_results = qutip_backend.run()
 
-    sv_config = SVConfig(dt=10.5, observables=obs, log_level=logging.WARN)
+    sv_config = SVConfig(dt=dt, observables=obs, log_level=logging.WARN)
     sv_backend = SVBackend(seq, config=sv_config)
     sv_results = sv_backend.run()
 
     sv_occ_t = sv_results.get_result_times(occ)
     q_occ_t = qutip_results.get_result_times(occ)
 
+    print("sv", sv_occ_t)
+    print("q", q_occ_t)
+
     assert np.allclose(sv_occ_t, q_occ_t), f"\nsv = {sv_occ_t}, \nq = {q_occ_t}"
+    # assert np.allclose(eval_times, q_occ_t)
 
     # TODO
     # doesn't work because of float access

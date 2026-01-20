@@ -504,53 +504,67 @@ class MPSBackendImpl:
             f"Saved simulation state in file {self.autosave_file} ({autosave_filesize}MB)"
         )
 
+    def _is_evaluation_time(
+        self,
+        observable: Observable,
+        t: float,
+        tolerance: float = 1e-10,
+    ) -> bool:
+        # Guard needed to match Pulser’s tolerance rule (tol = 0.5 / total_duration).
+        times = observable.evaluation_times
+        is_observable_eval_time = (
+            times is not None
+            and self.config.is_time_in_evaluation_times(t, times, tol=tolerance)
+        )
+        is_default_eval_time = self.config.is_evaluation_time(t, tol=tolerance)
+        return is_observable_eval_time or is_default_eval_time
+
     def fill_results(self) -> None:
         normalized_state = 1 / self.state.norm() * self.state
 
         fractional_time = self.current_time / self.target_times[-1]
 
-        if self.well_prepared_qubits_filter is None:
-            for callback in self.config.observables:
-                callback(
-                    self.config,
-                    fractional_time,
-                    normalized_state,
-                    self.hamiltonian,
-                    self.results,
-                )
+        callbacks_to_run = [
+            callback
+            for callback in self.config.observables
+            if self._is_evaluation_time(callback, fractional_time)
+        ]
+        if not callbacks_to_run:
             return
 
-        full_mpo, full_state = None, None
-        for callback in self.config.observables:
-            time_tol = 0.5 / self.target_times[-1] + 1e-10
-            if (
-                callback.evaluation_times is not None
-                and self.config.is_time_in_evaluation_times(
-                    fractional_time, callback.evaluation_times, tol=time_tol
+        if self.well_prepared_qubits_filter is None:
+            state = normalized_state
+            hamiltonian = self.hamiltonian
+        else:
+            # Only do this potentially expensive step once and when needed.
+            full_mpo = MPO(
+                extended_mpo_factors(
+                    self.hamiltonian.factors, self.well_prepared_qubits_filter
                 )
-            ) or self.config.is_evaluation_time(fractional_time, tol=time_tol):
+            )
+            full_state = MPS(
+                extended_mps_factors(
+                    normalized_state.factors,
+                    self.well_prepared_qubits_filter,
+                ),
+                num_gpus_to_use=None,  # Keep the already assigned devices.
+                orthogonality_center=get_extended_site_index(
+                    self.well_prepared_qubits_filter,
+                    normalized_state.orthogonality_center,
+                ),
+                eigenstates=normalized_state.eigenstates,
+            )
+            state = full_state
+            hamiltonian = full_mpo
 
-                if full_mpo is None or full_state is None:
-                    # Only do this potentially expensive step once and when needed.
-                    full_mpo = MPO(
-                        extended_mpo_factors(
-                            self.hamiltonian.factors, self.well_prepared_qubits_filter
-                        )
-                    )
-                    full_state = MPS(
-                        extended_mps_factors(
-                            normalized_state.factors,
-                            self.well_prepared_qubits_filter,
-                        ),
-                        num_gpus_to_use=None,  # Keep the already assigned devices.
-                        orthogonality_center=get_extended_site_index(
-                            self.well_prepared_qubits_filter,
-                            normalized_state.orthogonality_center,
-                        ),
-                        eigenstates=normalized_state.eigenstates,
-                    )
-
-                callback(self.config, fractional_time, full_state, full_mpo, self.results)
+        for callback in callbacks_to_run:
+            callback(
+                self.config,
+                fractional_time,
+                state,
+                hamiltonian,
+                self.results,
+            )
 
     def permute_results(self, results: Results, permute: bool) -> Results:
         if permute:

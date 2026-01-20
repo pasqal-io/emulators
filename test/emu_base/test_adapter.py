@@ -3,6 +3,7 @@ import math
 import pytest
 from unittest.mock import patch, MagicMock
 
+import numpy as np
 import pulser
 from pulser.backend import EmulationConfig, Observable
 from pulser.noise_model import NoiseModel
@@ -748,11 +749,11 @@ def test_pulser_data(mock_data):
 
 @pytest.mark.parametrize("with_modulation", [True, False])
 def test_get_target_times_with_obs_eval_time(with_modulation):
-    duration = 123
-    dt = 3
+    duration = 20
+    dt = 5.5
 
-    eval_times_full = set([0, 0.9, 61.5, 110.7])  # just some fractional times
-    eval_times = set([t / duration for t in eval_times_full])
+    eval_times_abs = [0, 0.9, 11.9, 18.1]  # some fractional abs times
+    eval_times = [t / duration for t in eval_times_abs]
     obs = MagicMock(spec=Observable, evaluation_times=eval_times)
 
     config = EmulationConfig(
@@ -764,13 +765,9 @@ def test_get_target_times_with_obs_eval_time(with_modulation):
         mock_get_duration.return_value = duration
 
         target_times = _get_target_times(sequence, config, dt)
+        expected_times = set([0, 5.5, 11, 16.5, 20] + eval_times_abs)
 
-        expected_times = set(range(0, duration + 1, dt))
-        expected_times |= eval_times_full
-
-        expected = sorted(expected_times)
-
-        assert target_times == expected
+        assert np.allclose(target_times, sorted(expected_times))
 
         # get_duration called with the correct 'include_fall_time'
         mock_get_duration.assert_called_once_with(include_fall_time=with_modulation)

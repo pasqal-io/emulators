@@ -39,28 +39,30 @@ def _get_all_lindblad_noise_operators(
     ]
 
 
-def _get_target_times(
-    sequence: pulser.Sequence, config: EmulationConfig, dt: float | int
-) -> list[float]:
-    sequence_duration = float(
-        sequence.get_duration(include_fall_time=config.with_modulation)
-    )
-    n_steps = math.floor(sequence_duration / dt)
-
-    observable_times: set[float] = {i * float(dt) for i in range(n_steps + 1)}
-    observable_times.add(sequence_duration)
-
+def _unique_observable_times(config: EmulationConfig) -> set[float]:
+    observable_times: set[float] = set()
+    default_times = config.default_evaluation_times
+    if not isinstance(default_times, str):  # i.e. not "Full"
+        observable_times |= set(default_times.tolist())
     for obs in config.observables:
-        times: Sequence[float]
         if obs.evaluation_times is not None:
-            times = obs.evaluation_times
-        elif config.default_evaluation_times != "Full":
-            times = config.default_evaluation_times.tolist()  # type: ignore[union-attr,assignment]
+            observable_times |= set(obs.evaluation_times)
+    return observable_times
 
-        observable_times |= {time * sequence_duration for time in times}
 
-    ROUND_DIGITS = 10  # to avoid conflicts with numpy
-    target_times: list[float] = sorted({round(t, ROUND_DIGITS) for t in observable_times})
+def _get_target_times(
+    sequence: pulser.Sequence,
+    config: EmulationConfig,
+    dt: float | int,
+) -> list[float]:
+    duration = float(sequence.get_duration(include_fall_time=config.with_modulation))
+    n_steps = math.floor(duration / dt)
+
+    target_times_rel: set[float] = {i * float(dt) / duration for i in range(n_steps + 1)}
+
+    target_times_rel |= _unique_observable_times(config)
+
+    target_times: list[float] = sorted({t * duration for t in target_times_rel})
     assert target_times[-1].is_integer()  # pulser requires int duration
 
     return target_times

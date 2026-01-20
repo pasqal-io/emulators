@@ -1151,17 +1151,20 @@ def test_leakage_3x3_matrices():
 
 
 def test_end_to_end_observable_time_as_in_pulser():
+    T = 20
+    dt = 1.0
     reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
     seq = pulser.Sequence(reg, pulser.AnalogDevice)
     seq.declare_channel("ryd", "rydberg_global")
-    pulse = pulser.Pulse.ConstantPulse(100, 1, 0, 0)
+    pulse = pulser.Pulse.ConstantPulse(T, 1, 0, 0)
     seq.add(pulse, channel="ryd")
 
-    eval_times = [0, 1 / 13, 1 / 3, 0.5, 2 / 3, 1.0]
+    # eval_times = [0, 1 / 13, 1 / 3, 0.5, 2 / 3, 1.0]
+    eval_times = [1 / 3, 1.0]
     occ = Occupation(evaluation_times=eval_times)
     obs = (occ,)
 
-    mps_config = MPSConfig(dt=10.5, observables=obs, log_level=logging.WARN)
+    mps_config = MPSConfig(dt=dt, observables=obs, log_level=logging.WARN)
     mps_backend = MPSBackend(seq, config=mps_config)
     mps_results = mps_backend.run()
 

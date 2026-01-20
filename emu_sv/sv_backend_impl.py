@@ -146,16 +146,34 @@ class BaseSVBackendImpl:
     def _evolve_step(self, dt: float, step_idx: int) -> None:
         """One step evolution"""
 
+    def _is_evaluation_time(
+        self,
+        observable: Observable,
+        t: float,
+        tolerance: float = 1e-10,
+    ) -> bool:
+        # Guard needed to match Pulser’s tolerance rule (tol = 0.5 / total_duration).
+        times = observable.evaluation_times
+
+        is_observable_eval_time = (
+            times is not None
+            and self._config.is_time_in_evaluation_times(t, times, tol=tolerance)
+        )
+        is_default_eval_time = self._config.is_evaluation_time(t, tol=tolerance)
+
+        return is_observable_eval_time or is_default_eval_time
+
     def _apply_observables(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
         for callback in self._config.observables:
-            callback(
-                self._config,
-                norm_time,
-                self.state,
-                self._current_H,  # type: ignore[arg-type]
-                self.results,
-            )
+            if self._is_evaluation_time(callback, norm_time):
+                callback(
+                    self._config,
+                    norm_time,
+                    self.state,
+                    self._current_H,  # type: ignore[arg-type]
+                    self.results,
+                )
 
     def _save_statistics(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
