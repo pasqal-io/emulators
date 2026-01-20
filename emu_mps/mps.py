@@ -608,20 +608,21 @@ class MPS(State[complex, torch.Tensor]):
 def inner(left: MPS, right: MPS) -> torch.Tensor:
     """
     Computes the inner product ⟨left|right⟩ between two MPS states
-    (convenience wrapper for MPS.inner). Both MPS must represent compatible
-    systems (e.g., same number of sites and local dimensions).
+    (convenience wrapper for MPS.inner). Both MPS must have the same number of
+    sites and the same local (physical) dimension at each site.
 
     Args:
-        left: Bra state (conjugated in the inner product).
-        right: Ket state (not conjugated).
+        left: Left state (conjugated in the inner product).
+        right: Right state (not conjugated).
 
     Returns:
-        A scalar torch.Tensor containing the inner product ⟨left|right⟩
-            (typically complex-valued).
+        A scalar torch.Tensor equal to ⟨left|right⟩ (typically complex-valued).
+            Use result.item() to convert to a Python number.
 
     Raises:
         ValueError: If the MPS are incompatible (e.g., different lengths or
-            dimensions). RuntimeError: If tensors are on incompatible
+            dimensions).
+        RuntimeError: If tensors are on incompatible
             devices/dtypes (as raised by PyTorch).
     """
     return left.inner(right)
