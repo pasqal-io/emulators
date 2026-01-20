@@ -17,10 +17,24 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
     """
     Matrix Product Operator.
 
-    Each tensor has 4 dimensions ordered as such: (left bond, output, input, right bond).
+    Each tensor is 4D with axes ordered as
+    (left_bond, phys_out, phys_in, right_bond), where phys_out/phys_in are
+    the operator's output/input physical dimensions.
 
     Args:
-        factors: the tensors making up the MPO
+        factors: List of 4D tensors with shape (Dl, d_out, d_in, Dr).
+            Neighboring tensors must satisfy Dr[i] == Dl[i+1].
+        num_gpus_to_use: Number of GPUs to use for placing MPO factors
+            (implementation-dependent placement). If None, uses all available
+            GPUs.
+
+    Returns:
+        MPO: A matrix product operator constructed from the provided factors.
+
+    Raises:
+        ValueError: If any factor is not 4D or if neighboring bond dimensions
+            do not match.
+        RuntimeError: If requested GPUs are not available.
     """
 
     def __init__(
