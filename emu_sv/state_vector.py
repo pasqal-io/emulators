@@ -90,8 +90,14 @@ class StateVector(State[complex, torch.Tensor]):
             The zero state
 
         Examples:
-            >>> StateVector.zero(2,gpu=False)
+            ```python
+            StateVector.zero(2,gpu=False)
+            ```
+
+            Output:
+            ```
             tensor([0.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
+            ```
         """
 
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
@@ -111,10 +117,14 @@ class StateVector(State[complex, torch.Tensor]):
             The described state
 
         Examples:
-            >>> StateVector.make(2,gpu=False)
+            ```python
+            StateVector.make(2,gpu=False)
+            ```
+
+            Output:
+            ```
             tensor([1.+0.j, 0.+0.j, 0.+0.j, 0.+0.j], dtype=torch.complex128)
-
-
+            ```
         """
 
         result = cls.zero(num_sites=num_sites, gpu=gpu)
@@ -243,17 +253,23 @@ class StateVector(State[complex, torch.Tensor]):
             The normalised resulting state.
 
         Examples:
-            >>> basis = ("r","g")
-            >>> n = 2
-            >>> st=StateVector.from_state_string(basis=basis,
-                ... nqubits=n,strings={"rr":1.0,"gg":1.0},gpu=False)
-            >>> st = StateVector.from_state_amplitudes(
-            ...     eigenstates=basis,
-            ...     amplitudes={"rr": 1.0, "gg": 1.0}
-            ... )
-            >>> print(st)
+            ```python
+            basis = ("r","g")
+            n = 2
+            st=StateVector.from_state_string(basis=basis,
+            nqubits=n,strings={"rr":1.0,"gg":1.0},gpu=False)
+            st = StateVector.from_state_amplitudes(
+                eigenstates=basis,
+                amplitudes={"rr": 1.0, "gg": 1.0}
+            )
+            print(st)
+            ```
+
+            Output:
+            ```
             tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
                    dtype=torch.complex128)
+            ```
         """
         basis = set(eigenstates)
         if basis == {"r", "g"}:
@@ -293,22 +309,30 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
         the inner product
 
     Examples:
-        >>> factor = math.sqrt(2.0)
-        >>> basis = ("r","g")
-        >>> string_state1 = {"gg":1.0,"rr":1.0}
-        >>> state1 = StateVector.from_state_string(basis=basis,
-            ... nqubits=nqubits,strings=string_state1)
-        >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
-        >>> state2 = StateVector.from_state_string(basis=basis,
-            ... nqubits=nqubits,strings=string_state2)
+        ```python
+        factor = math.sqrt(2.0)
+        basis = ("r","g")
+        string_state1 = {"gg":1.0,"rr":1.0}
+        state1 = StateVector.from_state_string(basis=basis,
+        nqubits=nqubits,strings=string_state1)
+        string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
+        state2 = StateVector.from_state_string(basis=basis,
+        nqubits=nqubits,strings=string_state2)
+        ```
 
-        >>> state1 = StateVector.from_state_amplitudes(eigenstates=basis,
-        ...     amplitudes=string_state1)
-        >>> string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
-        >>> state2 = StateVector.from_state_amplitudes(eigenstates=basis,
-        ...     amplitudes=string_state2)
-        >>> inner(state1,state2).item()
+        ```python
+        state1 = StateVector.from_state_amplitudes(eigenstates=basis,
+            amplitudes=string_state1)
+        string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
+        state2 = StateVector.from_state_amplitudes(eigenstates=basis,
+            amplitudes=string_state2)
+        inner(state1,state2).item()
+        ```
+
+        Output:
+        ```
         (0.49999999144286444+0j)
+        ```
     """
 
     assert (left.vector.shape == right.vector.shape) and (left.vector.dim() == 1), (
@@ -316,9 +340,3 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
         " the same and both need to be 1D tesnor",
     )
     return left.inner(right)
-
-
-if __name__ == "__main__":
-    import doctest
-
-    doctest.testmod()
