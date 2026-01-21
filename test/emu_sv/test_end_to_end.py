@@ -867,7 +867,7 @@ def test_end_to_end_observable_time_as_in_pulser():
     pulse = pulser.Pulse.ConstantPulse(T, 5, 0, 0)
     seq.add(pulse, channel="ryd")
 
-    eval_times = [0, 1 / 3, 2 / 3]
+    eval_times = [0, 1 / 3, 2 / 3]  # emulators ignored initial time 0
     occ = Occupation(evaluation_times=eval_times)
     obs = (occ,)
 

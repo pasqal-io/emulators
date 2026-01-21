@@ -40,6 +40,7 @@ def _get_all_lindblad_noise_operators(
 
 
 def _unique_observable_times(config: EmulationConfig) -> set[float]:
+    """Collect all unique relative observable times between [0, 1]."""
     observable_times: set[float] = set()
     default_times = config.default_evaluation_times
     if not isinstance(default_times, str):  # i.e. not "Full"
@@ -55,6 +56,11 @@ def _get_target_times(
     config: EmulationConfig,
     dt: float | int,
 ) -> list[float]:
+    """Compute the sorted absolute times to sample the sequence.
+
+    Combines a uniform grid with step ``dt`` and any extra observable times,
+    then converts everything to absolute times over the sequence duration.
+    """
     duration = float(sequence.get_duration(include_fall_time=config.with_modulation))
     n_steps = math.floor(duration / dt)
     evolution_times_rel: set[float] = {

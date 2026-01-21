@@ -510,7 +510,13 @@ class MPSBackendImpl:
         t: float,
         tolerance: float = 1e-10,
     ) -> bool:
-        # Guard needed to match Pulser’s tolerance rule (tol = 0.5 / total_duration).
+        """Return True if ``t`` is a genuine sampling time for this observable.
+
+        Filters out nearby points that are close to, but not in, the
+        observable's evaluation times.
+        Prevent false matches by using Pulser's tolerance
+        tol = 0.5 / total_duration.
+        """
         times = observable.evaluation_times
         is_observable_eval_time = (
             times is not None
