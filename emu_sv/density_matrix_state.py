@@ -16,13 +16,14 @@ dtype = torch.complex128
 
 class DensityMatrix(State[complex, torch.Tensor]):
     """Represents an n-qubit density matrix ρ in the computational (|g⟩, |r⟩)
-    basis. The input should be a square complex tensor with shape (2ⁿ, 2ⁿ).
-    Typically ρ is Hermitian, positive semidefinite, and has trace 1.
+    basis. The input should be a square complex tensor with shape (2ⁿ, 2ⁿ),
+    where n is the number of atoms. ρ must be Hermitian, positive semidefinite,
+    and has trace 1.
 
     Args:
-        matrix (torch.Tensor): Square complex tensor of shape (2ⁿ, 2ⁿ)
-            representing the state in the computational basis. Must be
-            complex-valued and Hermitian with trace 1.
+        matrix (torch.Tensor): Square complex tensor of shape (2ⁿ, 2ⁿ),
+            Hermitian with trace 1, that represents the state in the
+            computational basis.
         gpu (bool, optional): If True, place the operator on a CUDA device when
             available. Default: True.
 
@@ -31,8 +32,8 @@ class DensityMatrix(State[complex, torch.Tensor]):
 
     Raises:
         ValueError: If matrix is not a square 2D tensor of shape (2ⁿ, 2ⁿ) or
-            fails validation (e.g., not Hermitian / trace != 1) if validation is
-            performed.
+            fails validation (e.g., not Hermitian / trace != 1) if validation
+            is performed.
         RuntimeError: If gpu=True but CUDA is not available (if the
             implementation moves tensors to CUDA).
     """

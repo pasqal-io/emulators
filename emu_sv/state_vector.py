@@ -247,7 +247,8 @@ class StateVector(State[complex, torch.Tensor]):
 
         Args:
             eigenstates: A tuple containing the basis states (e.g., ('r', 'g')).
-            amplitudes: A dictionary mapping state strings to complex or floats amplitudes.
+            amplitudes: A dictionary mapping state strings to complex or floats
+            amplitudes.
 
         Returns:
             The normalised resulting state.
@@ -255,9 +256,6 @@ class StateVector(State[complex, torch.Tensor]):
         Examples:
             ```python
             basis = ("r","g")
-            n = 2
-            st=StateVector.from_state_string(basis=basis,
-            nqubits=n,strings={"rr":1.0,"gg":1.0},gpu=False)
             st = StateVector.from_state_amplitudes(
                 eigenstates=basis,
                 amplitudes={"rr": 1.0, "gg": 1.0}

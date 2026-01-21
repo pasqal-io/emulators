@@ -17,9 +17,10 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
     """
     Matrix Product Operator.
 
-    Each tensor is 4D with axes ordered as
-    (left_bond, phys_out, phys_in, right_bond), where phys_out/phys_in are
-    the operator's output/input physical dimensions.
+    Each tensor is 4 dimensions with axes ordered as
+    (left_bond, phys_out, phys_in, right_bond). When contracting an MPO with
+    an MPS as H|ψ⟩, phys_in contracts with the MPS physical index, while
+    phys_out becomes the physical index of the resulting MPS.
 
     Args:
         factors: List of 4D tensors with shape (Dl, d_out, d_in, Dr).

@@ -29,19 +29,25 @@ class MPS(State[complex, torch.Tensor]):
     constructor creates a MPS directly from a list of tensors.
 
     Args:
-        factors: the tensors for each site. WARNING: for efficiency in a lot
-            of use cases, this list of tensors IS NOT DEEP-COPIED. Therefore,
-            the new MPS object is not necessarily the exclusive owner of the
-            list and its tensors. As a consequence, beware of potential
-            external modifications affecting the list or the tensors.
+        factors: the tensors for each site. WARNING: for efficiency, this list
+            of tensors IS NOT DEEP-COPIED. Therefore, the new MPS object is not
+            necessarily the exclusive owner of the list and its tensors.
+            As a consequence, beware of potential external modifications
+            affecting the list or the tensors.
             You are responsible for deciding whether to pass its own exclusive
             copy of the data to this constructor, or some shared objects.
         orthogonality_center: the orthogonality center of the MPS, or None
             (in which case it will be orthogonalized when needed)
-        precision: the precision with which to keep this MPS
+        precision: the threshold for truncating singular values during SVD
+            operations. Any singular value below this threshold will be
+            discarded, effectively reducing the bond dimension.
+            and computational efficiency.
         max_bond_dim: the maximum bond dimension to allow for this MPS
-        num_gpus_to_use: distribute the factors over this many GPUs
-            0=all factors to cpu, None=keep the existing device assignment.
+        num_gpus_to_use: number of GPUs to use for placing MPS factors.
+            - If set to 0, all factors are placed on CPU.
+            - If set to None, factors retain their current device assignment.
+            - Otherwise, factors are distributed across the specified number of
+            GPUs.
         eigenstates: the basis states for each qudit (['0','1'] or ['r','g'])
             or qutrit ['g','r','x'], where 'x' is the leakage state
             (default: ['0','1'])
