@@ -28,7 +28,7 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
         matrix (torch.Tensor): Square complex tensor of shape (2ⁿ, 2ⁿ)
             representing the operator in the computational basis.
         gpu (bool, optional): If True, place the operator on a CUDA device when
-            available. Default: True.
+            available. Default: True (and only 1 GPU).
 
     Returns:
         DenseOperator: An operator object wrapping the provided matrix.
