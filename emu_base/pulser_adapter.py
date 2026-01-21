@@ -40,7 +40,7 @@ def _get_all_lindblad_noise_operators(
 
 
 def _unique_observable_times(config: EmulationConfig) -> set[float]:
-    """Collect all unique relative observable times between [0, 1]."""
+    """Collect unique evaluation times in [0, 1] for all observables."""
     observable_times: set[float] = set()
     default_times = config.default_evaluation_times
     if not isinstance(default_times, str):  # i.e. not "Full"

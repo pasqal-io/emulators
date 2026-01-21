@@ -513,9 +513,9 @@ class MPSBackendImpl:
         """Return True if ``t`` is a genuine sampling time for this observable.
 
         Filters out nearby points that are close to, but not in, the
-        observable's evaluation times.
+        observable's evaluation times (within ``tolerance``).
         Prevent false matches by using Pulser's tolerance
-        tol = 0.5 / total_duration.
+        tol = 0.5 / total_duration. (deep inside pulser Observable class)
         """
         times = observable.evaluation_times
         is_observable_eval_time = (
