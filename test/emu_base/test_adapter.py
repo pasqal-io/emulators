@@ -3,7 +3,6 @@ import math
 import pytest
 from unittest.mock import patch, MagicMock
 
-import numpy as np
 import pulser
 from pulser.backend import EmulationConfig, Observable
 from pulser.noise_model import NoiseModel
@@ -765,9 +764,12 @@ def test_get_target_times_with_obs_eval_time(with_modulation):
         mock_get_duration.return_value = duration
 
         target_times = _get_target_times(sequence, config, dt)
-        expected_times = set([0, 5.5, 11, 16.5, 20] + eval_times_abs)
+        expected_times = sorted(set([0, 5.5, 11, 16.5, 20] + eval_times_abs))
 
-        assert np.allclose(target_times, sorted(expected_times))
+        assert torch.allclose(
+            torch.tensor(target_times),
+            torch.tensor(expected_times),
+        )
 
         # get_duration called with the correct 'include_fall_time'
         mock_get_duration.assert_called_once_with(include_fall_time=with_modulation)
