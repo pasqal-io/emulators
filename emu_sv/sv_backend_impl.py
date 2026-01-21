@@ -165,15 +165,19 @@ class BaseSVBackendImpl:
 
     def _apply_observables(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
-        for callback in self._config.observables:
-            if self._is_evaluation_time(callback, norm_time):
-                callback(
-                    self._config,
-                    norm_time,
-                    self.state,
-                    self._current_H,  # type: ignore[arg-type]
-                    self.results,
-                )
+        callbacks_to_run = [
+            callback
+            for callback in self._config.observables
+            if self._is_evaluation_time(callback, norm_time)
+        ]
+        for callback in callbacks_to_run:
+            callback(
+                self._config,
+                norm_time,
+                self.state,
+                self._current_H,  # type: ignore[arg-type]
+                self.results,
+            )
 
     def _save_statistics(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]

@@ -2,4 +2,3 @@ pytest
 pytest-cov
 nbmake
 readme-coverage-badger
-pulser_simulation

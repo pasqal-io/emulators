@@ -57,11 +57,10 @@ def _get_target_times(
 ) -> list[float]:
     duration = float(sequence.get_duration(include_fall_time=config.with_modulation))
     n_steps = math.floor(duration / dt)
-
-    target_times_rel: set[float] = {i * float(dt) / duration for i in range(n_steps + 1)}
-
-    target_times_rel |= _unique_observable_times(config)
-
+    evolution_times_rel: set[float] = {
+        i * float(dt) / duration for i in range(n_steps + 1)
+    }
+    target_times_rel = evolution_times_rel | _unique_observable_times(config)
     target_times: list[float] = sorted({t * duration for t in target_times_rel})
     assert target_times[-1].is_integer()  # pulser requires int duration
 

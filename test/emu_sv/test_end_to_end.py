@@ -11,8 +11,6 @@ import pytest
 import torch
 from pytest import approx
 
-from pulser_simulation import QutipBackendV2, QutipConfig
-
 from emu_sv import (
     SVBackend,
     SVConfig,
@@ -860,41 +858,36 @@ def test_sparse_expectation():
 
 
 def test_end_to_end_observable_time_as_in_pulser():
-    T = 20
-    dt = 1.0
+    T = 20  # 16 is min
+    dt = 2.5
 
     reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
     seq = pulser.Sequence(reg, pulser.AnalogDevice)
     seq.declare_channel("ryd", "rydberg_global")
-    pulse = pulser.Pulse.ConstantPulse(T, 1, 0, 0)
+    pulse = pulser.Pulse.ConstantPulse(T, 5, 0, 0)
     seq.add(pulse, channel="ryd")
 
-    eval_times = [0, 1 / 3]
+    eval_times = [0, 1 / 3, 2 / 3]
     occ = Occupation(evaluation_times=eval_times)
     obs = (occ,)
-
-    qutip_config = QutipConfig(observables=obs)
-    qutip_backend = QutipBackendV2(seq, config=qutip_config)
-    qutip_results = qutip_backend.run()
 
     sv_config = SVConfig(dt=dt, observables=obs, log_level=logging.WARN)
     sv_backend = SVBackend(seq, config=sv_config)
     sv_results = sv_backend.run()
 
     sv_occ_t = sv_results.get_result_times(occ)
-    q_occ_t = qutip_results.get_result_times(occ)
-
-    print("sv", sv_occ_t)
-    print("q", q_occ_t)
+    q_occ_t = [0.0, 0.3333333333333333, 0.6666666666666666, 1.0]
 
     assert np.allclose(sv_occ_t, q_occ_t), f"\nsv = {sv_occ_t}, \nq = {q_occ_t}"
-    # assert np.allclose(eval_times, q_occ_t)
 
-    # TODO
-    # doesn't work because of float access
-    # sv_occ = sv_results.occupation[s]
-    # q_occ = qutip_results.occupation[q]
-    for sv_occ, q_occ in zip(sv_results.occupation, qutip_results.occupation):
+    qutip_occ = [
+        [0.0, 0.0],  # t = 0
+        [0.0002777520309937435, 0.0002777520309937435],  # t = 1/3
+        [0.0011106987103344022, 0.0011106987103344022],  # t = 2/3
+        [0.0024138126140178192, 0.0024138126140178192],  # t = 1
+    ]
+
+    for sv_occ, q_occ in zip(sv_results.occupation, qutip_occ):
         assert np.allclose(
             sv_occ, q_occ, atol=1e-4
         ), f"sv_occ = {sv_occ}, q_occ = {q_occ}"
