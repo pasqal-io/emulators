@@ -530,12 +530,12 @@ class MPSBackendImpl:
 
         fractional_time = self.current_time / self.target_times[-1]
 
-        callbacks_to_run = [
+        callbacks_for_current_time_step = [
             callback
             for callback in self.config.observables
             if self._is_evaluation_time(callback, fractional_time)
         ]
-        if not callbacks_to_run:
+        if not callbacks_for_current_time_step:
             return
 
         if self.well_prepared_qubits_filter is None:
@@ -563,7 +563,7 @@ class MPSBackendImpl:
             state = full_state
             hamiltonian = full_mpo
 
-        for callback in callbacks_to_run:
+        for callback in callbacks_for_current_time_step:
             callback(
                 self.config,
                 fractional_time,

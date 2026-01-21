@@ -171,12 +171,12 @@ class BaseSVBackendImpl:
 
     def _apply_observables(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
-        callbacks_to_run = [
+        callbacks_for_current_time_step = [
             callback
             for callback in self._config.observables
             if self._is_evaluation_time(callback, norm_time)
         ]
-        for callback in callbacks_to_run:
+        for callback in callbacks_for_current_time_step:
             callback(
                 self._config,
                 norm_time,
