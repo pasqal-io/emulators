@@ -559,7 +559,7 @@ class MPS(State[complex, torch.Tensor]):
     ) -> torch.Tensor:
         """
         Efficiently compute the symmetric correlation matrix
-        C_ij = <self|operator_i operator_j|self>
+        $C_{ij} = \\langle \\text{self}|\\text{operator}_i \\text{operator}_j|\\text{self}\\rangle$
         in basis ("r", "g").
 
         Args:
