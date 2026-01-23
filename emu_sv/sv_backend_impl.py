@@ -188,17 +188,17 @@ class BaseSVBackendImpl:
 
     def _save_statistics(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
-        if self._is_evaluation_time(self.statistics, norm_time):
-            self.statistics.data.append(time.time() - self.time)
-            self.statistics(
-                self._config,
-                norm_time,
-                self.state,
-                self._current_H,  # type: ignore[arg-type]
-                self.results,
-            )
-            self.time = time.time()
-            self._current_H = None
+
+        self.statistics.data.append(time.time() - self.time)
+        self.statistics(
+            self._config,
+            norm_time,
+            self.state,
+            self._current_H,  # type: ignore[arg-type]
+            self.results,
+        )
+        self.time = time.time()
+        self._current_H = None
 
     def _run(self) -> Results:
         self._apply_observables(0)  # at t == 0 for pulser compatibility
