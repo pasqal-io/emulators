@@ -1,5 +1,6 @@
 from typing import Sequence
 from enum import Enum
+import math
 import torch
 import pulser
 from pulser.sampler import SequenceSamples
@@ -38,30 +39,50 @@ def _get_all_lindblad_noise_operators(
     ]
 
 
-def _get_target_times(
-    sequence: pulser.Sequence, config: EmulationConfig, dt: int
-) -> list[int]:
-    sequence_duration = sequence.get_duration(include_fall_time=config.with_modulation)
+def _unique_observable_times(
+    config: EmulationConfig,
+) -> set[float]:
+    """Collect unique evaluation times in [0, 1] for all observables."""
+    observable_times: set[float] = set()
 
-    observable_times = set(range(0, sequence_duration, dt))
-    observable_times.add(sequence_duration)
     for obs in config.observables:
-        times: Sequence[float]
         if obs.evaluation_times is not None:
-            times = obs.evaluation_times
-        elif config.default_evaluation_times != "Full":
-            times = config.default_evaluation_times.tolist()  # type: ignore[union-attr,assignment]
-        observable_times |= set([round(time * sequence_duration) for time in times])
+            observable_times |= set(obs.evaluation_times)
+        elif not isinstance(config.default_evaluation_times, str):  # != "Full"
+            observable_times |= set(config.default_evaluation_times.tolist())
+        else:
+            raise ValueError(
+                f"default config {config.default_evaluation_times} is not supported."
+            )
 
-    target_times: list[int] = list(observable_times)
-    target_times.sort()
+    return observable_times
+
+
+def _get_target_times(
+    sequence: pulser.Sequence,
+    config: EmulationConfig,
+    dt: float | int,
+) -> list[float]:
+    """Compute the sorted absolute times to sample the sequence.
+
+    Combines a uniform grid with step ``dt`` and any extra observable times,
+    then converts everything to absolute times over the sequence duration.
+    """
+    duration = float(sequence.get_duration(include_fall_time=config.with_modulation))
+    n_steps = math.floor(duration / dt)
+    evolution_times_rel: set[float] = {
+        i * float(dt) / duration for i in range(n_steps + 1)
+    }
+    evolution_times_rel.add(1.0)
+    target_times_rel = evolution_times_rel | _unique_observable_times(config)
+    target_times: list[float] = sorted({t * duration for t in target_times_rel})
     return target_times
 
 
 def _extract_omega_delta_phi(
     noisy_samples: SequenceSamples,
     qubit_ids: tuple[str, ...],
-    target_times: Sequence[int],
+    target_times: Sequence[float],
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Extract per-qubit laser parameters (Ω, δ, phase) from Pulser samples.

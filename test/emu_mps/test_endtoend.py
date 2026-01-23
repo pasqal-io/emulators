@@ -12,7 +12,6 @@ import pytest
 import torch
 from pytest import approx
 
-
 import emu_mps
 from emu_mps import (
     MPS,
@@ -1150,27 +1149,24 @@ def test_leakage_3x3_matrices():
 
 
 def test_end_to_end_observable_time_as_in_pulser():
+    T = 20  # 16 is min
+    dt = 2.5
+
     reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
     seq = pulser.Sequence(reg, pulser.AnalogDevice)
     seq.declare_channel("ryd", "rydberg_global")
-    pulse = pulser.Pulse.ConstantPulse(400, 1, 0, 0)
+    pulse = pulser.Pulse.ConstantPulse(T, 5, 0, 0)
     seq.add(pulse, channel="ryd")
 
-    bitstrings_eval_times = [0.0, 0.3, 1.0]
-    occupation_eval_times = [0.2, 1.0]
+    eval_times = [0.0, 1 / 3, 1.0]  # emulators ignored initial time 0
+    occ = Occupation(evaluation_times=eval_times)
+    obs = (occ,)
 
-    bitstrings = BitStrings(evaluation_times=bitstrings_eval_times)
-    occup = Occupation(evaluation_times=occupation_eval_times)
-
-    mps_config = MPSConfig(
-        observables=(
-            bitstrings,
-            occup,
-        ),
-        log_level=logging.WARN,
-    )
+    mps_config = MPSConfig(dt=dt, observables=obs, log_level=logging.WARN)
     mps_backend = MPSBackend(seq, config=mps_config)
     mps_results = mps_backend.run()
 
-    assert mps_results.get_result_times(bitstrings) == bitstrings_eval_times
-    assert mps_results.get_result_times(occup) == occupation_eval_times
+    mps_occ_t = mps_results.get_result_times(occ)
+    expected = [0.0, 0.3333333333333333, 1.0]
+
+    assert np.allclose(mps_occ_t, expected), f"\nmps = {mps_occ_t}, \nq = {expected}"
