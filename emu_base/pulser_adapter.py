@@ -39,15 +39,22 @@ def _get_all_lindblad_noise_operators(
     ]
 
 
-def _unique_observable_times(config: EmulationConfig) -> set[float]:
+def _unique_observable_times(
+    config: EmulationConfig,
+) -> set[float]:
     """Collect unique evaluation times in [0, 1] for all observables."""
     observable_times: set[float] = set()
-    default_times = config.default_evaluation_times
-    if not isinstance(default_times, str):  # i.e. not "Full"
-        observable_times |= set(default_times.tolist())
+
     for obs in config.observables:
         if obs.evaluation_times is not None:
             observable_times |= set(obs.evaluation_times)
+        elif not isinstance(config.default_evaluation_times, str):  # != "Full"
+            observable_times |= set(config.default_evaluation_times.tolist())
+        else:
+            raise ValueError(
+                f"default config {config.default_evaluation_times} is not supported."
+            )
+
     return observable_times
 
 
@@ -66,10 +73,9 @@ def _get_target_times(
     evolution_times_rel: set[float] = {
         i * float(dt) / duration for i in range(n_steps + 1)
     }
+    evolution_times_rel.add(1.0)
     target_times_rel = evolution_times_rel | _unique_observable_times(config)
     target_times: list[float] = sorted({t * duration for t in target_times_rel})
-    assert target_times[-1].is_integer()  # pulser requires int duration
-
     return target_times
 
 

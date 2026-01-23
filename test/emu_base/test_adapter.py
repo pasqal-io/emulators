@@ -12,6 +12,7 @@ from emu_base.pulser_adapter import (
     _extract_omega_delta_phi,
     _get_all_lindblad_noise_operators,
     _get_target_times,
+    _unique_observable_times,
     PulserData,
     HamiltonianType,
 )
@@ -764,7 +765,8 @@ def test_get_target_times_with_obs_eval_time(with_modulation):
         mock_get_duration.return_value = duration
 
         target_times = _get_target_times(sequence, config, dt)
-        expected_times = sorted(set([0, 5.5, 11, 16.5, 20] + eval_times_abs))
+        time_grid = [0, 5.5, 11, 16.5, 20]
+        expected_times = sorted(set(time_grid + eval_times_abs))
 
         assert torch.allclose(
             torch.tensor(target_times),
@@ -773,6 +775,73 @@ def test_get_target_times_with_obs_eval_time(with_modulation):
 
         # get_duration called with the correct 'include_fall_time'
         mock_get_duration.assert_called_once_with(include_fall_time=with_modulation)
+
+
+@pytest.mark.parametrize("with_modulation", [True, False])
+def test_get_target_times_includes_default_eval_times(with_modulation):
+    duration = 20
+    dt = 5.5
+
+    obs = MagicMock(spec=Observable, evaluation_times=None)
+
+    def_times = [0.5]
+    config = EmulationConfig(
+        observables=[obs],
+        interaction_cutoff=0.0,
+        with_modulation=with_modulation,
+        default_evaluation_times=def_times,
+    )
+
+    with patch.object(sequence, "get_duration") as mock_get_duration:
+
+        mock_get_duration.return_value = duration
+
+        target_times = _get_target_times(sequence, config, dt)
+
+        default_eval_t = [t * duration for t in def_times]
+        time_grid = [0, 5.5, 11, 16.5, 20]
+        expected_times = sorted(time_grid + default_eval_t)
+
+        assert torch.allclose(
+            torch.tensor(target_times),
+            torch.tensor(expected_times),
+        )
+
+        # get_duration called with the correct 'include_fall_time'
+        mock_get_duration.assert_called_once_with(include_fall_time=with_modulation)
+
+
+def test_unique_observable_times():
+    obs_eval_times = [0.2]
+    default_eval_times = [0.5, 0.8]
+
+    obs1 = MagicMock(spec=Observable, evaluation_times=obs_eval_times)
+    obs2 = MagicMock(spec=Observable, evaluation_times=None)
+    obs_vs_expected_times = {obs1: obs_eval_times, obs2: default_eval_times}
+
+    for obs, expected_times in obs_vs_expected_times.items():
+        config = EmulationConfig(
+            observables=[obs],
+            default_evaluation_times=default_eval_times,
+        )
+        times = list(_unique_observable_times(config))
+
+        assert torch.allclose(
+            torch.tensor(times),
+            torch.tensor(expected_times),
+        )
+
+
+def test_unique_observable_times_raises_for_full_default():
+    obs = MagicMock(spec=Observable, evaluation_times=None)
+
+    config = EmulationConfig(
+        observables=[obs],
+        default_evaluation_times="Full",
+    )
+
+    with pytest.raises(ValueError, match="not supported"):
+        _unique_observable_times(config)
 
 
 @pytest.mark.parametrize("prefer_device_model", [True, False])

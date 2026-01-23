@@ -165,6 +165,7 @@ class BaseSVBackendImpl:
             times is not None
             and self._config.is_time_in_evaluation_times(t, times, tol=tolerance)
         )
+
         is_default_eval_time = self._config.is_evaluation_time(t, tol=tolerance)
 
         return is_observable_eval_time or is_default_eval_time
@@ -187,16 +188,17 @@ class BaseSVBackendImpl:
 
     def _save_statistics(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
-        self.statistics.data.append(time.time() - self.time)
-        self.statistics(
-            self._config,
-            norm_time,
-            self.state,
-            self._current_H,  # type: ignore[arg-type]
-            self.results,
-        )
-        self.time = time.time()
-        self._current_H = None
+        if self._is_evaluation_time(self.statistics, norm_time):
+            self.statistics.data.append(time.time() - self.time)
+            self.statistics(
+                self._config,
+                norm_time,
+                self.state,
+                self._current_H,  # type: ignore[arg-type]
+                self.results,
+            )
+            self.time = time.time()
+            self._current_H = None
 
     def _run(self) -> Results:
         self._apply_observables(0)  # at t == 0 for pulser compatibility

@@ -518,11 +518,14 @@ class MPSBackendImpl:
         tol = 0.5 / total_duration. (deep inside pulser Observable class)
         """
         times = observable.evaluation_times
+
         is_observable_eval_time = (
             times is not None
             and self.config.is_time_in_evaluation_times(t, times, tol=tolerance)
         )
+
         is_default_eval_time = self.config.is_evaluation_time(t, tol=tolerance)
+
         return is_observable_eval_time or is_default_eval_time
 
     def fill_results(self) -> None:
