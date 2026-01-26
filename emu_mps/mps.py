@@ -560,7 +560,7 @@ class MPS(State[complex, torch.Tensor]):
         """
         Efficiently compute the symmetric correlation matrix
         $C_{ij} = \\langle \\text{self}|\\text{operator}_i \\text{operator}_j|\\text{self}\\rangle$
-        in basis ("r", "g").
+        in basis ("r", "g"), ("0","1"), and ("r","g","x").
 
         Args:
             operator: a 2x2 (or 3x3) Torch tensor to use
