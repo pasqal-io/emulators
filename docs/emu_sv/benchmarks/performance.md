@@ -13,7 +13,7 @@ First, let us compare emu-sv with pulser:
 </div>
 
 
-Runtimes are shown for two different values of `dt` which shows that halving `dt` almost doubles the runtime. Halving `dt` doubles the number of timesteps taken by the program, but the algorithm for computing a single timestep converges faster, leading to a sublinear scaling of the runtime in terms of the number of timesteps. For larger values of `dt` emu-sv can be seen to outperform pulser for 8 qubits and up on the cluster, while for the smallest possible `dt = 1`, it will be faster starting at `9` qubits.
+Runtimes are shown for two different values of `dt` which shows that halving `dt` almost doubles the runtime. Halving `dt` doubles the number of timesteps taken by the program, but the algorithm for computing a single timestep converges faster, leading to a sublinear scaling of the runtime in terms of the number of timesteps. For larger values of `dt` emu-sv can be seen to outperform pulser for 8 qubits and up on the cluster, while for the smallest possible `dt = 1.0`, it will be faster starting at `9` qubits.
 
 Next, let us compare runs of emu-sv between CPU and GPU:
 
