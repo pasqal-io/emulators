@@ -61,7 +61,7 @@ def _unique_observable_times(
 def _get_target_times(
     sequence: pulser.Sequence,
     config: EmulationConfig,
-    dt: float | int,
+    dt: float,
 ) -> list[float]:
     """Compute the sorted absolute times to sample the sequence.
 
@@ -88,7 +88,7 @@ def _extract_omega_delta_phi(
     Extract per-qubit laser parameters (Ω, δ, phase) from Pulser samples.
 
     Pulser stores samples on the discrete grid t = 0, 1, ..., T-1
-    (with dt = 1), i.e. it does not provide values exactly
+    (with dt = 1.0), i.e. it does not provide values exactly
     at t = T = pulse_duration. Pulser effectively assumes
     Ω(T) = δ(T) = phase(T) = 0. For midpoint discretization we therefore
     interpolate (and implicitly extrapolate near the end) to obtain
@@ -166,7 +166,7 @@ class PulserData:
     qubit_ids: tuple[QubitId, ...]
     noise_model: pulser.NoiseModel
 
-    def __init__(self, *, sequence: pulser.Sequence, config: EmulationConfig, dt: int):
+    def __init__(self, *, sequence: pulser.Sequence, config: EmulationConfig, dt: float):
         self.qubit_ids = sequence.register.qubit_ids
         self.qubit_count = len(self.qubit_ids)
         self.target_times = _get_target_times(sequence=sequence, config=config, dt=dt)

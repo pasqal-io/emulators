@@ -54,7 +54,7 @@ seq.add(fall, "ising_global")
 
 
 # Configuration for the Backend and for observables
-dt = 100  # time step for discretization, by the default: dt =10
+dt = 100.0  # time step for discretization, by the default: dt =10.0
 
 # information for the observables
 times = [1.0]  # final step for an observable to be measure

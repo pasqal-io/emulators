@@ -63,7 +63,7 @@ def create_antiferromagnetic_mps(num_qubits: int):
 def simulate(
     seq: pulser.Sequence,
     *,
-    dt: int = 100,
+    dt: float = 100.0,
     noise_model: Any | None = None,
     state_prep_error: float = 0,
     p_false_pos: float = 0,
@@ -759,7 +759,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
                 seq,
                 noise_model=noise_model,
                 initial_state=initial_state,
-                dt=duration,  # dt = 10_000
+                dt=duration,  # dt = 10_000.0
                 optimize_qubit_ordering=False,
             )
         )
@@ -1004,7 +1004,7 @@ def test_leakage_rates():
         eff_noise_opers=eff_ops,
         with_leakage=True,
     )
-    dt = 10
+    dt = 10.0
     eval_times = [1.0]
 
     xx = basisx @ basisx.T
@@ -1092,7 +1092,7 @@ def test_leakage_3x3_matrices():
         eff_noise_opers=eff_ops,
         with_leakage=True,
     )
-    dt = 10
+    dt = 10.0
     eval_times = [1.0]
 
     fidelity_state = MPS.from_state_amplitudes(

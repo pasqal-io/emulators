@@ -73,7 +73,7 @@ def create_antiferromagnetic_state_vector(
 def simulate(
     seq: pulser.Sequence,
     *,
-    dt: int = 100,
+    dt: float = 100.0,
     noise_model: Any | None = None,
     state_prep_error: float = 0,
     p_false_pos: float = 0,
@@ -134,7 +134,7 @@ def simulate(
 def simulate_with_den_matrix(
     seq: pulser.Sequence,
     *,
-    dt: int = 100,
+    dt: float = 100.0,
     noise_model: Any,
     state_prep_error: float = 0,
     p_false_pos: float = 0,
@@ -468,7 +468,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     seq.add(pulse, "ising_global")
 
     # emu-sv parameters
-    dt = 100
+    dt = 100.0
     times = [1.0]
     eigenstate = ("r", "g")
     amplitudes = {"r" * natoms: 1.0}
@@ -520,7 +520,7 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
     natoms = 4
-    dt = 10
+    dt = 10.0
     state_prep_error = 0.1
     times = [1.0]
     total_time = 250  # bitstring at the end: "1111":1000

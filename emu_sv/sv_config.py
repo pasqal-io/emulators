@@ -55,7 +55,7 @@ class SVConfig(EmulationConfig):
 
     Examples:
         >>> gpu = True
-        >>> dt = 1 #this will impact the runtime
+        >>> dt = 1.0 #this will impact the runtime
         >>> krylov_tolerance = 1e-8 #the simulation will be faster, but less accurate
         >>> SVConfig(gpu=gpu, dt=dt, krylov_tolerance=krylov_tolerance,
         >>>     with_modulation=True) #the last arg is taken from the base class
@@ -69,7 +69,7 @@ class SVConfig(EmulationConfig):
     def __init__(
         self,
         *,
-        dt: int = 10,
+        dt: float = 10.0,
         max_krylov_dim: int = 100,
         krylov_tolerance: float = 1e-10,
         gpu: bool | None = None,

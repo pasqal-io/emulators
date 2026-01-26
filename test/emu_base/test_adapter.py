@@ -551,7 +551,7 @@ def test_get_all_lindblad_operators():
 @patch("emu_base.pulser_adapter.HamiltonianData")
 def test_parsed_sequence(mock_data):
     TEST_DURATION = 10
-    dt = 2
+    dt = 2.0
     adressed_basis = "XY"
 
     target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
