@@ -146,7 +146,7 @@ class MPSBackendImpl:
             atom_order=optimat.permute_tuple(
                 pulser_data.qubit_ids, self.qubit_permutation
             ),
-            total_duration=self.target_times[-1],
+            total_duration=int(self.target_times[-1]),
         )
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
@@ -504,55 +504,76 @@ class MPSBackendImpl:
             f"Saved simulation state in file {self.autosave_file} ({autosave_filesize}MB)"
         )
 
+    def _is_evaluation_time(
+        self,
+        observable: Observable,
+        t: float,
+        tolerance: float = 1e-10,
+    ) -> bool:
+        """Return True if ``t`` is a genuine sampling time for this observable.
+
+        Filters out nearby points that are close to, but not in, the
+        observable's evaluation times (within ``tolerance``).
+        Prevent false matches by using Pulser's tolerance
+        tol = 0.5 / total_duration. (deep inside pulser Observable class)
+        """
+        times = observable.evaluation_times
+
+        is_observable_eval_time = (
+            times is not None
+            and self.config.is_time_in_evaluation_times(t, times, tol=tolerance)
+        )
+
+        is_default_eval_time = self.config.is_evaluation_time(t, tol=tolerance)
+
+        return is_observable_eval_time or is_default_eval_time
+
     def fill_results(self) -> None:
         normalized_state = 1 / self.state.norm() * self.state
 
-        current_time_int: int = round(self.current_time)
         fractional_time = self.current_time / self.target_times[-1]
-        assert abs(self.current_time - current_time_int) < 1e-10
 
-        if self.well_prepared_qubits_filter is None:
-            for callback in self.config.observables:
-                callback(
-                    self.config,
-                    fractional_time,
-                    normalized_state,
-                    self.hamiltonian,
-                    self.results,
-                )
+        callbacks_for_current_time_step = [
+            callback
+            for callback in self.config.observables
+            if self._is_evaluation_time(callback, fractional_time)
+        ]
+        if not callbacks_for_current_time_step:
             return
 
-        full_mpo, full_state = None, None
-        for callback in self.config.observables:
-            time_tol = 0.5 / self.target_times[-1] + 1e-10
-            if (
-                callback.evaluation_times is not None
-                and self.config.is_time_in_evaluation_times(
-                    fractional_time, callback.evaluation_times, tol=time_tol
+        if self.well_prepared_qubits_filter is None:
+            state = normalized_state
+            hamiltonian = self.hamiltonian
+        else:
+            # Only do this potentially expensive step once and when needed.
+            full_mpo = MPO(
+                extended_mpo_factors(
+                    self.hamiltonian.factors, self.well_prepared_qubits_filter
                 )
-            ) or self.config.is_evaluation_time(fractional_time, tol=time_tol):
+            )
+            full_state = MPS(
+                extended_mps_factors(
+                    normalized_state.factors,
+                    self.well_prepared_qubits_filter,
+                ),
+                num_gpus_to_use=None,  # Keep the already assigned devices.
+                orthogonality_center=get_extended_site_index(
+                    self.well_prepared_qubits_filter,
+                    normalized_state.orthogonality_center,
+                ),
+                eigenstates=normalized_state.eigenstates,
+            )
+            state = full_state
+            hamiltonian = full_mpo
 
-                if full_mpo is None or full_state is None:
-                    # Only do this potentially expensive step once and when needed.
-                    full_mpo = MPO(
-                        extended_mpo_factors(
-                            self.hamiltonian.factors, self.well_prepared_qubits_filter
-                        )
-                    )
-                    full_state = MPS(
-                        extended_mps_factors(
-                            normalized_state.factors,
-                            self.well_prepared_qubits_filter,
-                        ),
-                        num_gpus_to_use=None,  # Keep the already assigned devices.
-                        orthogonality_center=get_extended_site_index(
-                            self.well_prepared_qubits_filter,
-                            normalized_state.orthogonality_center,
-                        ),
-                        eigenstates=normalized_state.eigenstates,
-                    )
-
-                callback(self.config, fractional_time, full_state, full_mpo, self.results)
+        for callback in callbacks_for_current_time_step:
+            callback(
+                self.config,
+                fractional_time,
+                state,
+                hamiltonian,
+                self.results,
+            )
 
     def permute_results(self, results: Results, permute: bool) -> Results:
         if permute:

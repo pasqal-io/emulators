@@ -82,7 +82,10 @@ class BaseSVBackendImpl:
         self.full_interaction_matrix = pulser_data.full_interaction_matrix
         self.state: State
         self.time = time.time()
-        self.results = Results(atom_order=(), total_duration=self.target_times[-1])
+        self.results = Results(
+            atom_order=pulser_data.qubit_ids,
+            total_duration=int(self.target_times[-1]),
+        )
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
             data=[],
@@ -143,9 +146,38 @@ class BaseSVBackendImpl:
     def _evolve_step(self, dt: float, step_idx: int) -> None:
         """One step evolution"""
 
+    def _is_evaluation_time(
+        self,
+        observable: Observable,
+        t: float,
+        tolerance: float = 1e-10,
+    ) -> bool:
+        """Return True if ``t`` is a genuine sampling time for this observable.
+
+        Filters out nearby points that are close to, but not in, the
+        observable's evaluation times (within ``tolerance``).
+        Prevent false matches by using Pulser's tolerance
+        tol = 0.5 / total_duration. (deep inside pulser Observable class)
+        """
+        times = observable.evaluation_times
+
+        is_observable_eval_time = (
+            times is not None
+            and self._config.is_time_in_evaluation_times(t, times, tol=tolerance)
+        )
+
+        is_default_eval_time = self._config.is_evaluation_time(t, tol=tolerance)
+
+        return is_observable_eval_time or is_default_eval_time
+
     def _apply_observables(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
-        for callback in self._config.observables:
+        callbacks_for_current_time_step = [
+            callback
+            for callback in self._config.observables
+            if self._is_evaluation_time(callback, norm_time)
+        ]
+        for callback in callbacks_for_current_time_step:
             callback(
                 self._config,
                 norm_time,
@@ -156,6 +188,7 @@ class BaseSVBackendImpl:
 
     def _save_statistics(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
+
         self.statistics.data.append(time.time() - self.time)
         self.statistics(
             self._config,
