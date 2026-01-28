@@ -76,11 +76,13 @@ class MPSConfig(EmulationConfig):
         kwargs: Arguments that are passed to the base class
 
     Examples:
-        >>> num_gpus_to_use = 2 #use 2 gpus if available, otherwise 1 or cpu
-        >>> dt = 1.0 #this will impact the runtime
-        >>> precision = 1e-6 #smaller dt requires better precision, generally
-        >>> MPSConfig(num_gpus_to_use=num_gpus_to_use, dt=dt, precision=precision,
-        >>>     with_modulation=True) #the last arg is taken from the base class
+        ```python
+        num_gpus_to_use = 2 #use 2 gpus if available, otherwise 1 or cpu
+        dt = 1.0 #this will impact the runtime
+        precision = 1e-6 #smaller dt requires better precision, generally
+        MPSConfig(num_gpus_to_use=num_gpus_to_use, dt=dt, precision=precision,
+            with_modulation=True) #the last arg is taken from the base class
+        ```
     """
 
     # Whether to warn if unexpected kwargs are received

@@ -54,11 +54,13 @@ class SVConfig(EmulationConfig):
         kwargs: arguments that are passed to the base class
 
     Examples:
-        >>> gpu = True
-        >>> dt = 1.0 #this will impact the runtime
-        >>> krylov_tolerance = 1e-8 #the simulation will be faster, but less accurate
-        >>> SVConfig(gpu=gpu, dt=dt, krylov_tolerance=krylov_tolerance,
-        >>>     with_modulation=True) #the last arg is taken from the base class
+        ```python
+        gpu = True
+        dt = 1.0 #this will impact the runtime
+        krylov_tolerance = 1e-8 #the simulation will be faster, but less accurate
+        SVConfig(gpu=gpu, dt=dt, krylov_tolerance=krylov_tolerance,
+            with_modulation=True) #the last arg is taken from the base class
+        ```
     """
 
     # Whether to warn if unexpected kwargs are received

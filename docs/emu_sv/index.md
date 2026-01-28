@@ -1,6 +1,7 @@
 # Welcome to emu-sv
 
-You have found the documentation for emu-sv. The emulator **emu-sv** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io) that lets you run quantum algorithms on a simulated device, using GPU acceleration if available. More in depth, emu-sv is designed to **emu**late the dynamics of programmable arrays of neutral atoms, using the **s**tate **v**ector representation. Our benchmarks indicate that on the gpu emu-sv is both faster and more accurate than emu-mps wherever a simulation fits in memory. For typical sequences this means up to ~27 qubits.
+You have found the documentation for emu-sv. The emulator **emu-sv** is a backend for the [Pulser low-level Quantum Programming toolkit](https://pulser.readthedocs.io) that lets you run quantum algorithms on a simulated device, using GPU acceleration if available. More in depth, emu-sv is designed to **emu**late the dynamics of programmable arrays of neutral atoms, using the **s**tate **v**ector representation. Our benchmarks indicate that on the GPU emu-sv is both faster and more accurate than emu-mps wherever a simulation fits in memory. For typical sequences this means up to
+~25 but using a A100 40GB GPU ~27 qubits.
 
 ## Supported features
 
@@ -26,7 +27,7 @@ The following features are currently supported:
 - Specification of
     - Initial state
     - Various precision parameters
-    - Whether to run on cpu or gpu
+    - Whether to run on CPU or GPU
     - The $U_{ij}$ coefficients from [here](../emu_mps//advanced/hamiltonian.md)
 - In the noiseless case, the emulator is differentiable
 
