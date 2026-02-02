@@ -1,4 +1,4 @@
-from pulser.backend import EmulatorBackend, Results
+from pulser.backend import EmulatorBackend, Results, BitStrings
 from emu_mps.mps_config import MPSConfig
 from emu_base import init_logging, PulserData
 from emu_mps.mps_backend_impl import create_impl, MPSBackendImpl
@@ -14,7 +14,7 @@ class MPSBackend(EmulatorBackend):
     aka tensor trains.
     """
 
-    default_config = MPSConfig()
+    default_config = MPSConfig(observables=[BitStrings(evaluation_times=[1.0])])
 
     @staticmethod
     def resume(autosave_file: str | pathlib.Path) -> Results:

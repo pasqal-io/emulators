@@ -1,5 +1,4 @@
-from pulser.backend import EmulatorBackend
-from pulser.backend import Results
+from pulser.backend import EmulatorBackend, Results, BitStrings
 from emu_sv.sv_config import SVConfig
 from emu_sv.sv_backend_impl import create_impl
 from emu_base import PulserData
@@ -12,7 +11,7 @@ class SVBackend(EmulatorBackend):
     noise channel or jump operators
     """
 
-    default_config = SVConfig()
+    default_config = SVConfig(observables=[BitStrings(evaluation_times=[1.0])])
 
     def run(self) -> Results | list[Results]:
         """

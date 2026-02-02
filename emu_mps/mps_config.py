@@ -20,7 +20,6 @@ from pulser.backend import (
     Energy,
     EnergySecondMoment,
     EnergyVariance,
-    BitStrings,
     EmulationConfig,
 )
 import logging
@@ -78,7 +77,7 @@ class MPSConfig(EmulationConfig):
 
     Examples:
         >>> num_gpus_to_use = 2 #use 2 gpus if available, otherwise 1 or cpu
-        >>> dt = 1 #this will impact the runtime
+        >>> dt = 1.0 #this will impact the runtime
         >>> precision = 1e-6 #smaller dt requires better precision, generally
         >>> MPSConfig(num_gpus_to_use=num_gpus_to_use, dt=dt, precision=precision,
         >>>     with_modulation=True) #the last arg is taken from the base class
@@ -92,7 +91,7 @@ class MPSConfig(EmulationConfig):
     def __init__(
         self,
         *,
-        dt: int = 10,
+        dt: float = 10.0,
         precision: float = DEFAULT_PRECISION,
         max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
         max_krylov_dim: int = 100,
@@ -103,11 +102,10 @@ class MPSConfig(EmulationConfig):
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
         autosave_prefix: str = "emu_mps_save_",
-        autosave_dt: int | float = float("inf"),  # disable autosave by default
+        autosave_dt: float = float("inf"),  # disable autosave by default
         solver: Solver = Solver.TDVP,
         **kwargs: Any,
     ):
-        kwargs.setdefault("observables", [BitStrings(evaluation_times=[1.0])])
         super().__init__(
             dt=dt,
             precision=precision,

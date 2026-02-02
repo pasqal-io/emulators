@@ -11,6 +11,7 @@ import pytest
 import torch
 from pytest import approx
 
+
 from emu_sv import (
     SVBackend,
     SVConfig,
@@ -72,7 +73,7 @@ def create_antiferromagnetic_state_vector(
 def simulate(
     seq: pulser.Sequence,
     *,
-    dt: int = 100,
+    dt: float = 100.0,
     noise_model: Any | None = None,
     state_prep_error: float = 0,
     p_false_pos: float = 0,
@@ -133,7 +134,7 @@ def simulate(
 def simulate_with_den_matrix(
     seq: pulser.Sequence,
     *,
-    dt: int = 100,
+    dt: float = 100.0,
     noise_model: Any,
     state_prep_error: float = 0,
     p_false_pos: float = 0,
@@ -209,6 +210,8 @@ def test_end_to_end_afm_ring() -> None:
     assert bitstrings["10" * int(num_qubits / 2)] == 136
     assert bitstrings["01" * int(num_qubits / 2)] == 159
     assert torch.allclose(fidelity_state.overlap(final_state), final_fidelity, atol=1e-10)
+
+    assert result.atom_order == tuple(f"q{i}" for i in range(num_qubits))
 
     occupation = result.occupation[final_time]
 
@@ -465,7 +468,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     seq.add(pulse, "ising_global")
 
     # emu-sv parameters
-    dt = 100
+    dt = 100.0
     times = [1.0]
     eigenstate = ("r", "g")
     amplitudes = {"r" * natoms: 1.0}
@@ -517,7 +520,7 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
     natoms = 4
-    dt = 10
+    dt = 10.0
     state_prep_error = 0.1
     times = [1.0]
     total_time = 250  # bitstring at the end: "1111":1000
@@ -856,57 +859,57 @@ def test_sparse_expectation():
 
 
 def test_end_to_end_observable_time_as_in_pulser():
+    T = 20  # 16 is min
+    dt = 2.5
+
     reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
     seq = pulser.Sequence(reg, pulser.AnalogDevice)
     seq.declare_channel("ryd", "rydberg_global")
-    pulse = pulser.Pulse.ConstantPulse(400, 1, 0, 0)
+    pulse = pulser.Pulse.ConstantPulse(T, 5, 0, 0)
     seq.add(pulse, channel="ryd")
 
-    bitstrings_eval_times = [0.0, 0.3, 1.0]
-    occupation_eval_times = [0.2, 1.0]
+    eval_times = [0.0, 1 / 3, 1.0]  # emulators ignored initial time 0
+    occ = Occupation(evaluation_times=eval_times)
+    obs = (occ,)
 
-    bitstrings = BitStrings(evaluation_times=bitstrings_eval_times)
-    occup = Occupation(evaluation_times=occupation_eval_times)
-
-    sv_config = SVConfig(
-        observables=(
-            bitstrings,
-            occup,
-        ),
-        log_level=logging.WARN,
-    )
+    sv_config = SVConfig(dt=dt, observables=obs, log_level=logging.WARN)
     sv_backend = SVBackend(seq, config=sv_config)
     sv_results = sv_backend.run()
 
-    assert sv_results.get_result_times(bitstrings) == bitstrings_eval_times
-    assert sv_results.get_result_times(occup) == occupation_eval_times
+    sv_occ_t = sv_results.get_result_times(occ)
+    expected = [0.0, 0.3333333333333333, 1.0]
+
+    assert np.allclose(sv_occ_t, expected), f"\nsv = {sv_occ_t}, \nq = {expected}"
+
 
 def test_trajectories():
     reg = pulser.Register({"q0": [-1e5, 0], "q1": [1e5, 0], "q2": [0, 1e5]})
     seq = pulser.Sequence(reg, pulser.MockDevice)
     seq.declare_channel("ryd", "rydberg_global")
     seq.add(
-        pulser.Pulse.ConstantDetuning(
-            pulser.BlackmanWaveform(100, torch.pi), 0.0, 0.0
-        ),
+        pulser.Pulse.ConstantDetuning(pulser.BlackmanWaveform(100, torch.pi), 0.0, 0.0),
         "ryd",
     )
 
-    occup = Occupation(evaluation_times=[1.])
+    occup = Occupation(evaluation_times=[1.0])
 
     sv_config = SVConfig(
-        observables=(
-            occup,
-        ),
+        observables=(occup,),
         log_level=logging.WARN,
-        n_trajectories = 3,
-        noise_model = pulser.NoiseModel(state_prep_error = 1/3)
+        n_trajectories=3,
+        noise_model=pulser.NoiseModel(state_prep_error=1 / 3),
     )
     with patch(
         "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
     ) as bad_atoms_mock:
-        bad_atoms_mock.side_effect = [np.array([0.1, 0.5, 0.6]), np.array([0.5, 0.1, 0.6]), np.array([0.5, 0.6, 0.1])]
+        bad_atoms_mock.side_effect = [
+            np.array([0.1, 0.5, 0.6]),
+            np.array([0.5, 0.1, 0.6]),
+            np.array([0.5, 0.6, 0.1]),
+        ]
         sv_backend = SVBackend(seq, config=sv_config)
         sv_results = sv_backend.run()
-    
-    assert torch.allclose(sv_results.occupation[-1], torch.ones(3, dtype=torch.float64)*0.6667, atol=1e-4)
+
+    assert torch.allclose(
+        sv_results.occupation[-1], torch.ones(3, dtype=torch.float64) * 0.6667, atol=1e-4
+    )
