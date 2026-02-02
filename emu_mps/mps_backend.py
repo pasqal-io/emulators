@@ -63,8 +63,6 @@ class MPSBackend(EmulatorBackend):
             results.append(
                 impl.permute_results(result, self._config.optimize_qubit_ordering)
             )
-        if len(results) == 1:
-            return results[0]
         return Results.aggregate(results)
 
     @staticmethod

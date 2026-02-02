@@ -29,6 +29,4 @@ class SVBackend(EmulatorBackend):
         for sequence_data in pulser_data.get_sequences():
             impl = create_impl(sequence_data, self._config)
             results.append(impl._run())
-        if len(results) == 1:
-            return results[0]
         return Results.aggregate(results)
