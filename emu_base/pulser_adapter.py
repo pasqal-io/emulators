@@ -9,6 +9,7 @@ from pulser.noise_model import NoiseModel
 from pulser.register.base_register import QubitId
 from pulser.backend.config import EmulationConfig
 from pulser._hamiltonian_data import HamiltonianData
+from pulser.channels.base_channel import States
 from emu_base.jump_lindblad_operators import get_lindblad_operators
 
 
@@ -140,12 +141,12 @@ class SequenceData:
     phi: torch.Tensor
     full_interaction_matrix: torch.Tensor
     masked_interaction_matrix: torch.Tensor
-    bad_atoms: list
+    bad_atoms: dict[str, bool]
     lindblad_ops: list[torch.Tensor]
     noise_model: pulser.NoiseModel
     qubit_ids: tuple[QubitId, ...]
     target_times: list[int]
-    eigenstates: list[str]
+    eigenstates: list[States]
     qubit_count: int
     dim: int
     hamiltonian_type: HamiltonianType
@@ -155,14 +156,13 @@ class SequenceData:
 class PulserData:
     target_times: list[int]
     slm_end_time: float
-    full_interaction_matrix: torch.Tensor
-    masked_interaction_matrix: torch.Tensor
+    full_interaction_matrix: torch.Tensor | None
     hamiltonian_type: HamiltonianType
     lindblad_ops: list[torch.Tensor]
     qubit_ids: tuple[QubitId, ...]
     noise_model: pulser.NoiseModel
     interaction_cutoff: float
-    eigenstates: list[str]
+    eigenstates: list[States]
     qubit_count: int
     dim: int
 
@@ -203,7 +203,7 @@ class PulserData:
         )
         self.has_lindblad_noise: bool = self.lindblad_ops != []
 
-        self.full_interaction_matrix: torch.Tensor | None = None
+        self.full_interaction_matrix = None
         if config.interaction_matrix is not None:
             assert len(config.interaction_matrix) == self.qubit_count, (
                 "The number of qubits in the register should be the same as the size of "

@@ -11,7 +11,9 @@ file_dir = Path(__file__).parent
 def extract_version_from_file(filepath: Path, pattern: str) -> Optional[str]:
     with open(filepath, "r") as f:
         for line in f:
-            match = re.search(pattern + r'\s*>?=*\s*"?([0-9]+(?:\.[0-9*]+){2})"?', line)
+            match = re.search(
+                pattern + r'\s*>?=*\s*"?([0-9]+(?:\.[^\s"\.\,]+){2})"?', line
+            )
             if match:
                 return match.group(1)
     return None

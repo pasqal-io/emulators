@@ -34,9 +34,9 @@ class MPSBackend(EmulatorBackend):
 
         impl.autosave_file = autosave_file
         impl.last_save_time = time.time()
-        init_logging(impl.config.log_level, impl.config.log_file)
+        logger = init_logging(impl.config.log_level, impl.config.log_file)
 
-        impl.config.logger.warning(
+        logger.warning(
             f"Resuming simulation from file {autosave_file}\n"
             f"Saving simulation state every {impl.config.autosave_dt} seconds"
         )

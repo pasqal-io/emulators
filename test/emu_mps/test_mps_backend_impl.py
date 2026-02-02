@@ -303,8 +303,7 @@ def test_init_initial_state_default():
     }
     victim.eigenstates = ("g", "r")
 
-    victim.config.precision = 0.001
-    victim.config.max_bond_dim = 100
+    victim.config = victim.config.with_changes(precision=0.001, max_bond_dim=100)
     victim.resolved_num_gpus = 0
     victim.init_dark_qubits()
     victim.init_initial_state()

@@ -2,6 +2,7 @@ from abc import abstractmethod
 import time
 import typing
 import torch
+import logging
 
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
@@ -49,8 +50,7 @@ class Statistics(Observable):
             or isinstance(state, DensityMatrix)
             and state.matrix.is_cuda
         )
-
-        config.logger.info(
+        logging.getLogger("emulators").info(
             f"step = {len(self.data)}/{self.timestep_count}, "
             + f"RSS = {max_mem:.3f} MB, "
             + f"Δt = {duration:.3f} s"

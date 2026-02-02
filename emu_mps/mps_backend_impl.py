@@ -6,6 +6,7 @@ import random
 import time
 import typing
 import uuid
+import logging
 
 from copy import deepcopy
 from collections import Counter
@@ -71,7 +72,7 @@ class Statistics(Observable):
         duration = self.data[-1]
         max_mem = get_max_rss(state.factors[0].is_cuda)
 
-        config.logger.info(
+        logging.getLogger("emulators").info(
             f"step = {len(self.data)}/{self.timestep_count}, "
             + f"χ = {state.get_max_bond_dim()}, "
             + f"|ψ| = {state.get_memory_footprint():.3f} MB, "
@@ -153,7 +154,7 @@ class MPSBackendImpl:
             timestep_count=self.timestep_count,
         )
         self.autosave_file = self._get_autosave_filepath(self.config.autosave_prefix)
-        self.config.logger.debug(
+        logging.getLogger("emulators").debug(
             f"""Will save simulation state to file "{self.autosave_file.name}"
             every {self.config.autosave_dt} seconds.\n"""
             f"""To resume: `MPSBackend().resume("{self.autosave_file}")`"""
@@ -164,7 +165,7 @@ class MPSBackendImpl:
         if requested_num_gpus is None:
             requested_num_gpus = DEVICE_COUNT
         elif requested_num_gpus > DEVICE_COUNT:
-            self.config.logger.warning(
+            logging.getLogger("emulators").warning(
                 f"Requested to use {requested_num_gpus} GPU(s) "
                 f"but only {DEVICE_COUNT if DEVICE_COUNT > 0 else 'cpu'} available"
             )
@@ -499,7 +500,7 @@ class MPSBackendImpl:
 
         self.last_save_time = time.time()
 
-        self.config.logger.debug(
+        logging.getLogger("emulators").debug(
             f"Saved simulation state in file {self.autosave_file} ({autosave_filesize}MB)"
         )
 
