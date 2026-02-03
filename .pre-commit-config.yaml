@@ -34,3 +34,14 @@ repos:
       - id: mypy
         exclude: examples|test|ci
         additional_dependencies: [torch==2.9.0, "pulser-core==1.6.*"]  # The version in pyproject.toml must match
+
+  - repo: https://github.com/murogrande/doc_checker
+    rev: 5cfe1b9772fda54f8f0ef3d385eee25b3f644ce1
+    hooks:
+     - id: doc-checker-basic
+       language: system
+       args: ["--warn-only","--ignore-submodules", "emu_mps.optimatrix"]
+     - id: doc-checker-links
+       language: system
+       args: ["--ignore-submodules", "emu_mps.optimatrix"]
+       verbose: true
