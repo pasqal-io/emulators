@@ -41,7 +41,7 @@ class MPS(State[complex, torch.Tensor]):
         precision: the threshold for truncating singular values during SVD
             operations. Any singular value below this threshold will be
             discarded, effectively reducing the bond dimension and improving
-            computational efficiency
+            computational efficiency.
             Check [precision in config](advanced/config.md#precision)
         max_bond_dim: the maximum bond dimension to allow for this MPS
         num_gpus_to_use: number of GPUs to use for placing MPS factors.
