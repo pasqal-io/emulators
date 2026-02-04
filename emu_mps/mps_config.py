@@ -124,7 +124,7 @@ class MPSConfig(EmulationConfig):
             solver=solver,
             **kwargs,
         )
-        self.logger = init_logging(log_level, log_file)
+        logger = init_logging(log_level, log_file)
 
         MIN_AUTOSAVE_DT = 10
         assert (
@@ -135,7 +135,7 @@ class MPSConfig(EmulationConfig):
         prod_tol = precision * extra_krylov_tolerance
         if prod_tol < MIN_KRYLOV_TOL:
             new_extra_krylov_tolerance = MIN_KRYLOV_TOL / precision
-            self.logger.warning(
+            logger.warning(
                 f"Requested Lanczos convergence tolerance "
                 f"(precision * extra_krylov_tolerance = {prod_tol:.2e}) "
                 f"is below minimum threshold {MIN_KRYLOV_TOL:.2e}. "
@@ -143,9 +143,9 @@ class MPSConfig(EmulationConfig):
                 f"{extra_krylov_tolerance:.2e} to {new_extra_krylov_tolerance:.2e} "
                 f"to maintain numerical stability."
             )
-            self.extra_krylov_tolerance = new_extra_krylov_tolerance
         else:
-            self.extra_krylov_tolerance = extra_krylov_tolerance
+            new_extra_krylov_tolerance = extra_krylov_tolerance
+        self._backend_options["extra_krylov_tolerance"] = new_extra_krylov_tolerance
 
         self.monkeypatch_observables()
 
@@ -153,7 +153,7 @@ class MPSConfig(EmulationConfig):
             self.noise_model.samples_per_run != 1
             and self.noise_model.samples_per_run is not None
         ):
-            self.logger.warning(
+            logger.warning(
                 "Warning: The runs and samples_per_run values of the NoiseModel are ignored!"
             )
         self._backend_options[
@@ -202,7 +202,7 @@ class MPSConfig(EmulationConfig):
                     energy_mps_impl, obs_copy
                 )
             obs_list.append(obs_copy)
-        self.observables = tuple(obs_list)
+        self._backend_options["observables"] = tuple(obs_list)
 
     def check_permutable_observables(self) -> bool:
         allowed_permutable_obs = set(
@@ -220,7 +220,7 @@ class MPSConfig(EmulationConfig):
         actual_obs = set([obs._base_tag for obs in self.observables])
         not_allowed = actual_obs.difference(allowed_permutable_obs)
         if not_allowed:
-            self.logger.warning(
+            logging.getLogger("emulators").warning(
                 f"emu-mps allows only {allowed_permutable_obs} observables with"
                 " `optimize_qubit_ordering = True`."
                 f" you provided unsupported {not_allowed}"

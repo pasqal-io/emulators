@@ -2,13 +2,13 @@ from abc import abstractmethod
 import time
 import typing
 import torch
+import logging
 
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
-from pulser import Sequence
 
 from pulser.backend import Results, Observable, State, EmulationConfig
-from emu_base import PulserData, get_max_rss
+from emu_base import SequenceData, get_max_rss
 
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
@@ -50,8 +50,7 @@ class Statistics(Observable):
             or isinstance(state, DensityMatrix)
             and state.matrix.is_cuda
         )
-
-        config.logger.info(
+        logging.getLogger("emulators").info(
             f"step = {len(self.data)}/{self.timestep_count}, "
             + f"RSS = {max_mem:.3f} MB, "
             + f"Δt = {duration:.3f} s"
@@ -70,20 +69,20 @@ class BaseSVBackendImpl:
 
     well_prepared_qubits_filter: typing.Optional[torch.Tensor]
 
-    def __init__(self, config: SVConfig, pulser_data: PulserData):
+    def __init__(self, config: SVConfig, data: SequenceData):
         self._config = config
-        self._pulser_data = pulser_data
-        self.target_times = pulser_data.target_times
-        self.omega = pulser_data.omega
-        self.delta = pulser_data.delta
-        self.phi = pulser_data.phi
-        self.nsteps = pulser_data.omega.shape[0]
-        self.nqubits = pulser_data.omega.shape[1]
-        self.full_interaction_matrix = pulser_data.full_interaction_matrix
+        self._data = data
+        self.target_times = data.target_times
+        self.omega = data.omega
+        self.delta = data.delta
+        self.phi = data.phi
+        self.nsteps = data.omega.shape[0]
+        self.nqubits = data.omega.shape[1]
+        self.full_interaction_matrix = data.full_interaction_matrix
         self.state: State
         self.time = time.time()
         self.results = Results(
-            atom_order=pulser_data.qubit_ids,
+            atom_order=data.qubit_ids,
             total_duration=int(self.target_times[-1]),
         )
         self.statistics = Statistics(
@@ -103,7 +102,7 @@ class BaseSVBackendImpl:
 
         if (
             self._config.initial_state is not None
-            and self._pulser_data.noise_model.state_prep_error > 0.0
+            and self._data.noise_model.state_prep_error > 0.0
         ):
             raise NotImplementedError(
                 "Initial state and state preparation error can not be together."
@@ -115,10 +114,10 @@ class BaseSVBackendImpl:
         self.resolved_gpu = requested_gpu
 
     def init_dark_qubits(self) -> None:
-        if self._pulser_data.noise_model.state_prep_error > 0.0:
-            bad_atoms = self._pulser_data.hamiltonian.bad_atoms
+        if self._data.noise_model.state_prep_error > 0.0:
+            bad_atoms = self._data.bad_atoms
             self.well_prepared_qubits_filter = torch.tensor(
-                [bool(bad_atoms[x]) for x in self._pulser_data.qubit_ids]
+                [bool(bad_atoms[x]) for x in self._data.qubit_ids]
             )
         else:
             self.well_prepared_qubits_filter = None
@@ -210,16 +209,16 @@ class BaseSVBackendImpl:
 
 class SVBackendImpl(BaseSVBackendImpl):
 
-    def __init__(self, config: SVConfig, pulser_data: PulserData):
+    def __init__(self, config: SVConfig, data: SequenceData):
         """
         For running sequences without noise. The state will evolve according
         to e^(-iH t)
 
         Args:
             config: The configuration for the emulator.
-            pulser_data: The data for the sequence to be emulated.
+            data: The data for the sequence to be emulated.
         """
-        super().__init__(config, pulser_data)
+        super().__init__(config, data)
         self.state: StateVector = (
             StateVector.make(self.nqubits, gpu=self.resolved_gpu)
             if self._config.initial_state is None
@@ -245,7 +244,7 @@ class SVBackendImpl(BaseSVBackendImpl):
 
 class NoisySVBackendImpl(BaseSVBackendImpl):
 
-    def __init__(self, config: SVConfig, pulser_data: PulserData):
+    def __init__(self, config: SVConfig, data: SequenceData):
         """
         Initializes the NoisySVBackendImpl, master equation version.
         This class handles the Lindblad operators and
@@ -253,12 +252,12 @@ class NoisySVBackendImpl(BaseSVBackendImpl):
 
         Args:
             config: The configuration for the emulator.
-            pulser_data: The data for the sequence to be emulated.
+            data: The data for the sequence to be emulated.
         """
 
-        super().__init__(config, pulser_data)
+        super().__init__(config, data)
 
-        self.pulser_lindblads = pulser_data.lindblad_ops
+        self.pulser_lindblads = data.lindblad_ops
 
         self.state: DensityMatrix = (
             DensityMatrix.make(self.nqubits, gpu=self.resolved_gpu)
@@ -281,7 +280,7 @@ class NoisySVBackendImpl(BaseSVBackendImpl):
         )
 
 
-def create_impl(sequence: Sequence, config: SVConfig) -> BaseSVBackendImpl:
+def create_impl(data: SequenceData, config: SVConfig) -> BaseSVBackendImpl:
     """
     Creates the backend implementation for the given sequence and config.
 
@@ -292,8 +291,7 @@ def create_impl(sequence: Sequence, config: SVConfig) -> BaseSVBackendImpl:
     Returns:
         An instance of SVBackendImpl.
     """
-    pulse_data = PulserData(sequence=sequence, config=config, dt=config.dt)
-    if pulse_data.has_lindblad_noise:
-        return NoisySVBackendImpl(config, pulse_data)
+    if data.lindblad_ops:
+        return NoisySVBackendImpl(config, data)
     else:
-        return SVBackendImpl(config, pulse_data)
+        return SVBackendImpl(config, data)

@@ -7,6 +7,7 @@ import pulser
 from pulser.backend import EmulationConfig, Observable
 from pulser.noise_model import NoiseModel
 from pulser.math import AbstractArray
+from pulser._hamiltonian_data.hamiltonian_data import SamplesWithReps
 
 from emu_base.pulser_adapter import (
     _extract_omega_delta_phi,
@@ -549,7 +550,7 @@ def test_get_all_lindblad_operators():
 
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
-def test_parsed_sequence(mock_data):
+def test_get_sequences_1_trajectory(mock_data):
     TEST_DURATION = 10
     dt = 2.0
     adressed_basis = "XY"
@@ -614,10 +615,15 @@ def test_parsed_sequence(mock_data):
     sample_instance.to_nested_dict.return_value = {"Local": mock_pulser_dict}
     mock_from_sequence = MagicMock()
     mock_data.from_sequence.return_value = mock_from_sequence
-    mock_from_sequence.dim = 2
-    mock_from_sequence.noisy_samples = sample_instance
-    mock_from_sequence.noisy_samples.max_duration = TEST_DURATION
-    mock_from_sequence.interaction_type = adressed_basis
+    mock_from_sequence.basis_data.dim = 2
+    mock_trajectory = MagicMock()
+    mock_trajectory.bad_atoms = {x: False for x in TEST_QUBIT_IDS}
+    mock_from_sequence.noisy_samples = [
+        SamplesWithReps(mock_trajectory, sample_instance, 1)
+    ]
+    sample_instance.max_duration = TEST_DURATION
+    sample_instance.interaction_type = adressed_basis
+    mock_from_sequence.basis_data.interaction_type = adressed_basis
 
     interaction_matrix = [
         [0.0, 0.0929, -0.4],
@@ -643,6 +649,8 @@ def test_parsed_sequence(mock_data):
     )
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
+    samples = list(parsed_sequence.get_sequences())
+    assert len(samples) == 1
     omega, delta, phi = _extract_omega_delta_phi(
         sample_instance, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
@@ -652,49 +660,43 @@ def test_parsed_sequence(mock_data):
         dtype=torch.float64,
     )
 
-    assert torch.allclose(parsed_sequence.omega, omega)
-    assert torch.allclose(parsed_sequence.delta, delta)
-    assert torch.allclose(parsed_sequence.phi, phi)
-    assert torch.allclose(
-        parsed_sequence.full_interaction_matrix, cutoff_interaction_matrix
-    )
-    assert torch.allclose(
-        parsed_sequence.masked_interaction_matrix, cutoff_interaction_matrix
-    )
-    assert parsed_sequence.slm_end_time == 0.0
+    assert torch.allclose(samples[0].omega, omega)
+    assert torch.allclose(samples[0].delta, delta)
+    assert torch.allclose(samples[0].phi, phi)
+    assert torch.allclose(samples[0].full_interaction_matrix, cutoff_interaction_matrix)
+    assert torch.allclose(samples[0].masked_interaction_matrix, cutoff_interaction_matrix)
+    assert samples[0].slm_end_time == 0.0
 
-    assert parsed_sequence.hamiltonian_type == HamiltonianType.XY
+    assert samples[0].hamiltonian_type == HamiltonianType.XY
 
     ops = _get_all_lindblad_noise_operators(
-        noise_model, interact_type=parsed_sequence.hamiltonian.interaction_type
+        noise_model, interact_type=samples[0].hamiltonian_type
     )
-    assert len(parsed_sequence.lindblad_ops) == len(ops)
+    assert len(samples[0].lindblad_ops) == len(ops)
     for i in range(len(ops)):
-        assert torch.allclose(ops[i], parsed_sequence.lindblad_ops[i])
+        assert torch.allclose(ops[i], samples[0].lindblad_ops[i])
 
     sequence._slm_mask_time = [1.0, 10.0]
     sequence._slm_mask_targets = [1]
     masked_interaction_matrix = cutoff_interaction_matrix.clone().detach()
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
+    samples = list(parsed_sequence.get_sequences())
+    assert len(samples) == 1
     omega, delta, phi = _extract_omega_delta_phi(
         sample_instance, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
 
-    assert torch.allclose(parsed_sequence.omega, omega)
-    assert torch.allclose(parsed_sequence.delta, delta)
-    assert torch.allclose(parsed_sequence.phi, phi)
-    assert torch.allclose(
-        parsed_sequence.full_interaction_matrix, cutoff_interaction_matrix
-    )
-    assert torch.allclose(
-        parsed_sequence.masked_interaction_matrix, masked_interaction_matrix
-    )
-    assert parsed_sequence.slm_end_time == 10.0
-    assert parsed_sequence.hamiltonian_type == HamiltonianType.XY
-    assert len(parsed_sequence.lindblad_ops) == len(ops)
+    assert torch.allclose(samples[0].omega, omega)
+    assert torch.allclose(samples[0].delta, delta)
+    assert torch.allclose(samples[0].phi, phi)
+    assert torch.allclose(samples[0].full_interaction_matrix, cutoff_interaction_matrix)
+    assert torch.allclose(samples[0].masked_interaction_matrix, masked_interaction_matrix)
+    assert samples[0].slm_end_time == 10.0
+    assert samples[0].hamiltonian_type == HamiltonianType.XY
+    assert len(samples[0].lindblad_ops) == len(ops)
     for i in range(len(ops)):
-        assert torch.allclose(ops[i], parsed_sequence.lindblad_ops[i])
+        assert torch.allclose(ops[i], samples[0].lindblad_ops[i])
 
     assert torch.allclose(  # the position of the elements are the same
         ops[-1], math.sqrt(effective_noise_rates[0]) * random_collapse
@@ -702,7 +704,7 @@ def test_parsed_sequence(mock_data):
 
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
-def test_pulser_data(mock_data):
+def test_get_sequences_2_trajectories(mock_data):
     TEST_DURATION = 13
     dt = 2
 
@@ -715,9 +717,15 @@ def test_pulser_data(mock_data):
     sequence.get_duration.return_value = TEST_DURATION
     adressed_basis = "ground-rydberg"
     sequence.get_addressed_bases.return_value = [adressed_basis]
-    mock_from_sequence.noisy_samples = mock_sample(adressed_basis)
-    mock_from_sequence.noisy_samples.max_duration = TEST_DURATION
-    mock_from_sequence.interaction_type = "ising"
+    ms = mock_sample(adressed_basis)
+    mock_trajectory = MagicMock()
+    mock_trajectory.bad_atoms = {x: False for x in TEST_QUBIT_IDS}
+    mock_from_sequence.noisy_samples = [
+        SamplesWithReps(mock_trajectory, ms, 3),
+        SamplesWithReps(mock_trajectory, ms, 2),
+    ]
+    ms.max_duration = TEST_DURATION
+    mock_from_sequence.basis_data.interaction_type = "ising"
 
     mat = torch.randn(3, 3, dtype=float)
     interaction_matrix = (mat + mat.T).fill_diagonal_(0).tolist()
@@ -734,17 +742,18 @@ def test_pulser_data(mock_data):
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
     )
-    torch.manual_seed(1337)
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
-    torch.manual_seed(1337)
+    samples = list(parsed_sequence.get_sequences())
+    assert len(samples) == 5
     omega, delta, phi = _extract_omega_delta_phi(
-        noisy_samples=mock_from_sequence.noisy_samples,
+        noisy_samples=mock_from_sequence.noisy_samples[0].samples,
         target_times=target_times,
         qubit_ids=sequence.register.qubit_ids,
     )
-    assert torch.allclose(omega, parsed_sequence.omega)
-    assert torch.allclose(delta, parsed_sequence.delta)
-    assert torch.allclose(phi, parsed_sequence.phi)
+    for sample in samples:
+        assert torch.allclose(omega, sample.omega)
+        assert torch.allclose(delta, sample.delta)
+        assert torch.allclose(phi, sample.phi)
 
 
 @pytest.mark.parametrize("with_modulation", [True, False])
@@ -879,9 +888,7 @@ def test_non_lindbladian_noise(prefer_device_model):
 
     # this should not error if the custom noise model is used
     data = PulserData(sequence=seq, config=config, dt=10)
-    assert data.noise_model == (
-        noise if not prefer_device_model else pulser.MockDevice.default_noise_model
-    )
+    assert data.noise_model == (noise if not prefer_device_model else NoiseModel())
 
 
 def test_extract_omega_delta_phi_missing_qubit():
