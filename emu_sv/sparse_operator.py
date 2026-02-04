@@ -40,12 +40,14 @@ def sparse_kron(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 
 
 class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
-    """This operator is used to represent a sparse matrix in CSR (Compressed Sparse Row)
-    format for efficient computation on the EMU-SV emulator
+    """This operator is used to represent a sparse matrix in CSR (Compressed
+    Sparse Row) format for efficient computation on the emu-sv emulator
 
     Args:
         matrix (torch.Tensor): The CSR matrix representation of the operator.
-        gpu (bool): Use GPU for computation. True uses the CPU if GPU not available.
+
+        gpu (bool): If True (by default), run on GPU when available; otherwise
+        fall back to CPU. If False, always run on CPU.
     """
 
     def __init__(
