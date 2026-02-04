@@ -20,7 +20,23 @@ dtype = torch.complex128
 
 
 class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
-    """DenseOperator in EMU-SV use dense matrices"""
+    """DenseOperator in emu-sv uses dense matrices. This class represents a
+    quantum operator backed by a dense PyTorch tensor for state-vector
+    simulation.
+
+    Args:
+        matrix (torch.Tensor): Square complex tensor of shape (2ⁿ, 2ⁿ)
+            representing the operator in the computational basis.
+        gpu (bool, optional): If True, place the operator on a CUDA device when
+            available. Default: True (and only 1 GPU).
+
+    Returns:
+        DenseOperator: An operator object wrapping the provided matrix.
+
+    Raises:
+        ValueError: If 'matrix' is not a 2-D square tensor.
+        RuntimeError: If gpu=True but CUDA is not available (if applicable).
+    """
 
     def __init__(
         self,
@@ -121,7 +137,8 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
         Construct a DenseOperator from an operator representation.
 
         Args:
-            eigenstates: the eigenstates of the basis to use, e.g. ("r", "g") or ("0", "1").
+            eigenstates: the eigenstates of the basis to use, e.g. ("r", "g")
+                or ("0", "1").
             n_qudits: number of qudits in the system.
             operations: which bitstrings make up the state with what weight.
 
