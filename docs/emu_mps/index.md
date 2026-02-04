@@ -34,7 +34,7 @@ The following features are currently supported:
 - Specification of:
     - Initial state ( as `MPS` or `MPS._from_state_amplitudes`)
     - Various precision parameters
-    - Whether to run on cpu or gpu(s)
+    - Whether to run on CPU or GPU(s)
     - The interaction coefficients $U_{ij}$ from [here](./advanced/hamiltonian.md#qpu-hamiltonian)
     - A cutoff below which $U_{ij}$ are set to 0 (this makes the computation more memory efficient)
 
