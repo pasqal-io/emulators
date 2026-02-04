@@ -246,6 +246,8 @@ class PulserData:
                 else samples.trajectory.interaction_matrix.as_tensor()
             )
 
+            full_interaction_matrix = full_interaction_matrix.clone()
+
             full_interaction_matrix[
                 torch.abs(full_interaction_matrix) < self.interaction_cutoff
             ] = 0.0

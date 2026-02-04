@@ -98,4 +98,23 @@ if pulser_pre_commit_version != pulser_root_dep:
         f" - pulser-core in .pre-commit version {pulser_pre_commit_version}"
         f" != pulser-core in pyproject.toml {pulser_root_dep}"
     )
+
+print("Checking torch:")
+
+# torch in .pre-commit-config.yaml
+torch_pre_commit_version = extract_version_from_file(
+    file_dir / ".pre-commit-config.yaml", "torch"
+)
+print(f" - pre-commit uses torch version {torch_pre_commit_version}")
+
+# torch in pyproject.toml
+torch_pyproject_version = extract_version_from_file(file_dir / "pyproject.toml", "torch")
+print(f" - pyproject.toml uses torch version {torch_pyproject_version}")
+
+if torch_pre_commit_version != torch_pyproject_version:
+    fail(
+        f" - torch in .pre-commit version {torch_pre_commit_version}"
+        f" != torch in pyproject.toml {torch_pyproject_version}"
+    )
+
 print("All checks passed.")

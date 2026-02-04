@@ -61,8 +61,8 @@ def get_lindblad_operators(
             )
 
         lindblad_ops = [  # lindblad operators with XY pulser basis are fine
-            math.sqrt(rate) * torch.as_tensor(op)
-            for rate, op in zip(noise_model.eff_noise_rates, noise_model.eff_noise_opers)
+            math.sqrt(rate) * op
+            for rate, op in zip(noise_model.eff_noise_rates, torch_ops)
         ]
 
         # pulser ising basis changing to emu-mps ising basis

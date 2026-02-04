@@ -550,7 +550,7 @@ def test_get_all_lindblad_operators():
 
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
-def test_parsed_sequence(mock_data):
+def test_get_sequences_1_trajectory(mock_data):
     TEST_DURATION = 10
     dt = 2.0
     adressed_basis = "XY"
@@ -704,7 +704,7 @@ def test_parsed_sequence(mock_data):
 
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
-def test_pulser_data(mock_data):
+def test_get_sequences_2_trajectories(mock_data):
     TEST_DURATION = 13
     dt = 2
 
@@ -720,7 +720,10 @@ def test_pulser_data(mock_data):
     ms = mock_sample(adressed_basis)
     mock_trajectory = MagicMock()
     mock_trajectory.bad_atoms = {x: False for x in TEST_QUBIT_IDS}
-    mock_from_sequence.noisy_samples = [SamplesWithReps(mock_trajectory, ms, 2)]
+    mock_from_sequence.noisy_samples = [
+        SamplesWithReps(mock_trajectory, ms, 3),
+        SamplesWithReps(mock_trajectory, ms, 2),
+    ]
     ms.max_duration = TEST_DURATION
     mock_from_sequence.basis_data.interaction_type = "ising"
 
@@ -739,11 +742,9 @@ def test_pulser_data(mock_data):
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
     )
-    torch.manual_seed(1337)
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
     samples = list(parsed_sequence.get_sequences())
-    assert len(samples) == 2
-    torch.manual_seed(1337)
+    assert len(samples) == 5
     omega, delta, phi = _extract_omega_delta_phi(
         noisy_samples=mock_from_sequence.noisy_samples[0].samples,
         target_times=target_times,
