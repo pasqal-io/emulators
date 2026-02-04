@@ -66,8 +66,7 @@ def krylov_energy_minimization_impl(
         beta = w.norm()
         T[j + 1, j] = beta
 
-        effective_dim = len(lanczos_vectors)
-        size = effective_dim + (0 if beta < norm_tolerance else 1)
+        size = len(lanczos_vectors)
         T_truncated = T[:size, :size]
 
         ground_energy, ground_eigenvector = _lowest_eigen_pair(
