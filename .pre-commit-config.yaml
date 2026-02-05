@@ -36,7 +36,7 @@ repos:
         additional_dependencies: [torch==2.9.0, "pulser-core==1.6.*"]  # The version in pyproject.toml must match
 
   - repo: https://github.com/murogrande/doc_checker
-    rev: 5cfe1b9772fda54f8f0ef3d385eee25b3f644ce1 # commit version
+    rev: 70b79c286be9e095d935c96a5c48481bd24c40c6 # NOTE: this should the version not the commit
     hooks:
      - id: doc-checker-basic
        language: system
