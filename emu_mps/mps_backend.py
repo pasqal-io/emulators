@@ -1,6 +1,6 @@
 from pulser.backend import EmulatorBackend, Results, BitStrings
 from emu_mps.mps_config import MPSConfig
-from emu_base import init_logging
+from emu_base import init_logging, PulserData
 from emu_mps.mps_backend_impl import create_impl, MPSBackendImpl
 import pickle
 import os
@@ -38,9 +38,9 @@ class MPSBackend(EmulatorBackend):
 
         impl.autosave_file = autosave_file
         impl.last_save_time = time.time()
-        init_logging(impl.config.log_level, impl.config.log_file)
+        logger = init_logging(impl.config.log_level, impl.config.log_file)
 
-        impl.config.logger.warning(
+        logger.warning(
             f"Resuming simulation from file {autosave_file}\n"
             f"Saving simulation state every {impl.config.autosave_dt} seconds"
         )
@@ -56,12 +56,18 @@ class MPSBackend(EmulatorBackend):
         """
         assert isinstance(self._config, MPSConfig)
 
-        impl = create_impl(self._sequence, self._config)
-        impl.init()  # This is separate from the constructor for testing purposes.
-
-        results = self._run(impl)
-
-        return impl.permute_results(results, self._config.optimize_qubit_ordering)
+        pulser_data = PulserData(
+            sequence=self._sequence, config=self._config, dt=self._config.dt
+        )
+        results = []
+        for sequence_data in pulser_data.get_sequences():
+            impl = create_impl(sequence_data, self._config)
+            impl.init()  # This is separate from the constructor for testing purposes.
+            result = self._run(impl)
+            results.append(
+                impl.permute_results(result, self._config.optimize_qubit_ordering)
+            )
+        return Results.aggregate(results)
 
     @staticmethod
     def _run(impl: MPSBackendImpl) -> Results:

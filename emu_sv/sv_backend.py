@@ -1,6 +1,7 @@
 from pulser.backend import EmulatorBackend, Results, BitStrings
 from emu_sv.sv_config import SVConfig
 from emu_sv.sv_backend_impl import create_impl
+from emu_base import PulserData
 
 
 class SVBackend(EmulatorBackend):
@@ -15,7 +16,7 @@ class SVBackend(EmulatorBackend):
 
     default_config = SVConfig(observables=[BitStrings(evaluation_times=[1.0])])
 
-    def run(self) -> Results:
+    def run(self) -> Results | list[Results]:
         """
         Emulates the given sequence.
 
@@ -23,6 +24,11 @@ class SVBackend(EmulatorBackend):
             the simulation results
         """
         assert isinstance(self._config, SVConfig)
-
-        impl = create_impl(self._sequence, self._config)
-        return impl._run()
+        pulser_data = PulserData(
+            sequence=self._sequence, config=self._config, dt=self._config.dt
+        )
+        results = []
+        for sequence_data in pulser_data.get_sequences():
+            impl = create_impl(sequence_data, self._config)
+            results.append(impl._run())
+        return Results.aggregate(results)

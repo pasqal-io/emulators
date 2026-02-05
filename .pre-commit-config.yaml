@@ -32,8 +32,8 @@ repos:
     rev: v1.16.0
     hooks:
       - id: mypy
-        exclude: examples|test|ci
-        additional_dependencies: [torch==2.9.0, "pulser-core==1.6.*"]  # The version in pyproject.toml must match
+        exclude: examples|test|cid
+        additional_dependencies: ["pulser-core[torch]>=1.7.0rc2", "torch>=2.9.0"]  # The version in pyproject.toml must match
 
   - repo: https://github.com/murogrande/doc_checker
     rev: 70b79c286be9e095d935c96a5c48481bd24c40c6 # NOTE: this should the version not the commit

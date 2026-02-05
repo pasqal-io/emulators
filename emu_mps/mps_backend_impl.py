@@ -6,6 +6,7 @@ import random
 import time
 import typing
 import uuid
+import logging
 
 from copy import deepcopy
 from collections import Counter
@@ -14,10 +15,9 @@ from types import MethodType
 from typing import Any, Optional
 
 import torch
-from pulser import Sequence
 from pulser.backend import EmulationConfig, Observable, Results, State
 
-from emu_base import DEVICE_COUNT, PulserData, get_max_rss
+from emu_base import DEVICE_COUNT, SequenceData, get_max_rss
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.utils import deallocate_tensor
 
@@ -72,7 +72,7 @@ class Statistics(Observable):
         duration = self.data[-1]
         max_mem = get_max_rss(state.factors[0].is_cuda)
 
-        config.logger.info(
+        logging.getLogger("emulators").info(
             f"step = {len(self.data)}/{self.timestep_count}, "
             + f"χ = {state.get_max_bond_dim()}, "
             + f"|ψ| = {state.get_memory_footprint():.3f} MB, "
@@ -107,7 +107,7 @@ class MPSBackendImpl:
     target_time: float
     results: Results
 
-    def __init__(self, mps_config: MPSConfig, pulser_data: PulserData):
+    def __init__(self, mps_config: MPSConfig, pulser_data: SequenceData):
         self.config = mps_config
         self.target_times = pulser_data.target_times
         self.target_time = self.target_times[1]
@@ -118,7 +118,7 @@ class MPSBackendImpl:
         self.delta = pulser_data.delta
         self.phi = pulser_data.phi
         self.timestep_count: int = self.omega.shape[0]
-        self.has_lindblad_noise = pulser_data.has_lindblad_noise
+        self.has_lindblad_noise = len(pulser_data.lindblad_ops) > 0
         self.eigenstates = pulser_data.eigenstates
         self.dim = pulser_data.dim
         self.lindblad_noise = torch.zeros(self.dim, self.dim, dtype=dtype)
@@ -154,7 +154,7 @@ class MPSBackendImpl:
             timestep_count=self.timestep_count,
         )
         self.autosave_file = self._get_autosave_filepath(self.config.autosave_prefix)
-        self.config.logger.debug(
+        logging.getLogger("emulators").debug(
             f"""Will save simulation state to file "{self.autosave_file.name}"
             every {self.config.autosave_dt} seconds.\n"""
             f"""To resume: `MPSBackend().resume("{self.autosave_file}")`"""
@@ -165,7 +165,7 @@ class MPSBackendImpl:
         if requested_num_gpus is None:
             requested_num_gpus = DEVICE_COUNT
         elif requested_num_gpus > DEVICE_COUNT:
-            self.config.logger.warning(
+            logging.getLogger("emulators").warning(
                 f"Requested to use {requested_num_gpus} GPU(s) "
                 f"but only {DEVICE_COUNT if DEVICE_COUNT > 0 else 'cpu'} available"
             )
@@ -194,7 +194,7 @@ class MPSBackendImpl:
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
         if self.pulser_data.noise_model.state_prep_error > 0.0:
-            bad_atoms = self.pulser_data.hamiltonian.bad_atoms
+            bad_atoms = self.pulser_data.bad_atoms
             self.well_prepared_qubits_filter = torch.logical_not(
                 torch.tensor(list(bool(x) for x in bad_atoms.values()))
             )
@@ -500,7 +500,7 @@ class MPSBackendImpl:
 
         self.last_save_time = time.time()
 
-        self.config.logger.debug(
+        logging.getLogger("emulators").debug(
             f"Saved simulation state in file {self.autosave_file} ({autosave_filesize}MB)"
         )
 
@@ -629,12 +629,12 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
     norm_gap_before_jump: float
     root_finder: Optional[BrentsRootFinder]
 
-    def __init__(self, config: MPSConfig, pulser_data: PulserData):
+    def __init__(self, config: MPSConfig, pulser_data: SequenceData):
         super().__init__(config, pulser_data)
         self.lindblad_ops = pulser_data.lindblad_ops
         self.root_finder = None
 
-        assert self.has_lindblad_noise
+        assert self.lindblad_ops
 
     def init_lindblad_noise(self) -> None:
         stacked = torch.stack(self.lindblad_ops)
@@ -726,7 +726,7 @@ class DMRGBackendImpl(MPSBackendImpl):
     def __init__(
         self,
         mps_config: MPSConfig,
-        pulser_data: PulserData,
+        pulser_data: SequenceData,
         energy_tolerance: float = 1e-5,
         max_sweeps: int = 2000,
     ):
@@ -833,11 +833,10 @@ class DMRGBackendImpl(MPSBackendImpl):
         self.current_energy = None
 
 
-def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
-    pulser_data = PulserData(sequence=sequence, config=config, dt=config.dt)
+def create_impl(data: SequenceData, config: MPSConfig) -> MPSBackendImpl:
 
-    if pulser_data.has_lindblad_noise:
-        return NoisyMPSBackendImpl(config, pulser_data)
+    if data.lindblad_ops:
+        return NoisyMPSBackendImpl(config, data)
     if config.solver == Solver.DMRG:
-        return DMRGBackendImpl(config, pulser_data)
-    return MPSBackendImpl(config, pulser_data)
+        return DMRGBackendImpl(config, data)
+    return MPSBackendImpl(config, data)

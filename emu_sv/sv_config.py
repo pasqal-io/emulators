@@ -92,13 +92,13 @@ class SVConfig(EmulationConfig):
         )
 
         self.monkeypatch_observables()
-        self.logger = init_logging(log_level, log_file)
+        logger = init_logging(log_level, log_file)
 
         if (self.noise_model.runs != 1 and self.noise_model.runs is not None) or (
             self.noise_model.samples_per_run != 1
             and self.noise_model.samples_per_run is not None
         ):
-            self.logger.warning(
+            logger.warning(
                 "Warning: The runs and samples_per_run "
                 "values of the NoiseModel are ignored!"
             )
@@ -145,4 +145,4 @@ class SVConfig(EmulationConfig):
                     obs_copy,
                 )
             obs_list.append(obs_copy)
-        self.observables = tuple(obs_list)
+        self._backend_options["observables"] = tuple(obs_list)

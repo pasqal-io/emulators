@@ -52,18 +52,17 @@ def get_lindblad_operators(
         return [depolarizing_x, depolarizing_y, depolarizing_z]
 
     if noise_type == "eff_noise":
-        if not all(
-            isinstance(op, torch.Tensor) and op.shape == (dim, dim)
-            for op in noise_model.eff_noise_opers
-        ):
+        torch_ops = [
+            torch.tensor(op, dtype=torch.complex128) for op in noise_model.eff_noise_opers
+        ]
+        if not all(op.shape == (dim, dim) for op in torch_ops):
             raise ValueError(
-                f"Only {dim} by {dim} effective noise operator matrices are "
-                "supported and it should be given as torch tensors "
+                f"Only {dim} by {dim} effective noise operator matrices are supported"
             )
 
         lindblad_ops = [  # lindblad operators with XY pulser basis are fine
-            math.sqrt(rate) * torch.as_tensor(op)
-            for rate, op in zip(noise_model.eff_noise_rates, noise_model.eff_noise_opers)
+            math.sqrt(rate) * op
+            for rate, op in zip(noise_model.eff_noise_rates, torch_ops)
         ]
 
         # pulser ising basis changing to emu-mps ising basis
