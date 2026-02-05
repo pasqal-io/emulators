@@ -73,7 +73,6 @@ def check(
     assert result.iteration_count in {
         expected_iteration_count,
         expected_iteration_count + 1,
-        expected_iteration_count + 2,
     }
     E_approx = result.ground_energy.real
     psi_approx = result.ground_state
@@ -181,7 +180,7 @@ def test_ising_hamiltonian():
         residual_tolerance=1e-8,
         expect_converged=True,
         expect_happy_breakdown=False,
-        expected_iteration_count=27,
+        expected_iteration_count=28,
     )
 
 
