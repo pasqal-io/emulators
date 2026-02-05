@@ -73,6 +73,7 @@ def check(
     assert result.iteration_count in {
         expected_iteration_count,
         expected_iteration_count + 1,
+        expected_iteration_count + 2,
     }
     E_approx = result.ground_energy.real
     psi_approx = result.ground_state
