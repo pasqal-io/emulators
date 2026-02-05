@@ -71,7 +71,6 @@ class MPSBackend(EmulatorBackend):
 
     @staticmethod
     def _run(impl: MPSBackendImpl) -> Results:
-        impl.fill_results()  # at t == 0 for pulser compatibility
         while not impl.is_finished():
             impl.progress()
 

@@ -360,9 +360,9 @@ def test_init_initial_state_provided_normalized():
 
 @patch("emu_mps.mps_backend_impl.make_H")
 @patch("emu_mps.mps_backend_impl.update_H")
-def test_init_hamiltonian(update_H_mock, make_H_mock):
+def test_init_noiseless_hamiltonian(update_H_mock, make_H_mock):
     victim = create_victim()
-    victim.init_hamiltonian()
+    victim.init_noiseless_hamiltonian()
     assert make_H_mock.call_count == 1
     assert update_H_mock.call_count == 1
 
