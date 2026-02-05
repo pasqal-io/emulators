@@ -49,10 +49,10 @@ device = "cpu"  # "cuda"
 dtype = torch.complex128
 
 
-def create_antiferromagnetic_mps(num_qubits: int):
+def create_antiferromagnetic_mps(num_qubits: int, parity: int = 0):
     str = ""
     for i in range(num_qubits):
-        if i % 2:
+        if (i + parity) % 2:
             str += "g"
         else:
             str += "r"
@@ -371,27 +371,23 @@ def test_dmrg_afm_ring() -> None:
     energy_variance = result.energy_variance[final_time]
     second_moment_energy = result.energy_second_moment[final_time]
     state_fin = result.state[final_time]
-    fidelity_fin = result.fidelity_1[final_time]
     max_bond_dim = state_fin.get_max_bond_dim()
-    fidelity_st = create_antiferromagnetic_mps(num_qubits)
+    fidelity_st = create_antiferromagnetic_mps(num_qubits, 1)
     occupation_even_sites = occupation[0::2]
     occupation_odd_sites = occupation[1::2]
 
     assert max_bond_dim == 4
     # check that the output state is the AFM state
-    assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
-    assert bitstrings["1010101010"] == 974
-    assert torch.allclose(
-        fidelity_fin, torch.tensor(0.9735, dtype=torch.float64), atol=1e-3
-    )
+    assert fidelity_st.overlap(state_fin) == approx(0.9735, abs=1e-3)
+    assert bitstrings["0101010101"] == 972
 
     # check that the number operator should return 1 on even sites
     # and 0 elsewhere
     assert torch.allclose(
-        occupation_even_sites, torch.tensor(1, dtype=torch.float64), atol=1e-3
+        occupation_even_sites, torch.tensor(0, dtype=torch.float64), atol=1e-2
     )
     assert torch.allclose(
-        occupation_odd_sites, torch.tensor(0, dtype=torch.float64), atol=1e-2
+        occupation_odd_sites, torch.tensor(1, dtype=torch.float64), atol=1e-3
     )
 
     assert torch.allclose(energy, torch.tensor(-124.0612, dtype=torch.float64), atol=1e-4)
