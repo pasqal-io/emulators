@@ -75,7 +75,7 @@ def krylov_exp_impl(
         lanczos_vectors.append(w)
 
         # Compute exponential of extended T matrix
-        T[j + 2, j + 1] = 1
+        T[j + 2, j + 1] = 1  # will be overwritten by line 62 in the next iteration
         expd = torch.linalg.matrix_exp(T[: j + 3, : j + 3])
 
         # Local truncation error estimation
