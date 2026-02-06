@@ -28,7 +28,7 @@ class RydbergLindbladian:
         phis (torch.Tensor): phases 𝜙ᵢ for each qubit.
         interaction_matrix (torch.Tensor): interaction_matrix (torch.Tensor): matrix Uᵢⱼ
             representing pairwise Rydberg interaction strengths between qubits.
-        pulser_linblads (list[torch.Tensor]): List of 2x2 local Lindblad (jump)
+        pulser_lindblads (list[torch.Tensor]): List of 2x2 local Lindblad (jump)
             operators acting on each qubit.
         device (torch.device): device on which tensors are allocated. cpu or gpu: cuda.
         complex (bool): flag indicating whether any drive phase is nonzero
@@ -52,7 +52,7 @@ class RydbergLindbladian:
         omegas: torch.Tensor,
         deltas: torch.Tensor,
         phis: torch.Tensor,
-        pulser_linblads: list[torch.Tensor],
+        pulser_lindblads: list[torch.Tensor],
         interaction_matrix: torch.Tensor,
         device: torch.device,
     ):
@@ -61,7 +61,7 @@ class RydbergLindbladian:
         self.deltas: torch.Tensor = deltas
         self.phis: torch.Tensor = phis
         self.interaction_matrix: torch.Tensor = interaction_matrix
-        self.pulser_linblads: list[torch.Tensor] = pulser_linblads
+        self.pulser_lindblads: list[torch.Tensor] = pulser_lindblads
         self.device: torch.device = device
         self.complex = self.phis.any()
 
@@ -185,7 +185,7 @@ class RydbergLindbladian:
         """
 
         # compute -0.5i ∑ₖ Lₖ† Lₖ
-        sum_lindblad_local = compute_noise_from_lindbladians(self.pulser_linblads).to(
+        sum_lindblad_local = compute_noise_from_lindbladians(self.pulser_lindblads).to(
             self.device
         )
         # Heff = Hρ  -0.5i ∑ₖ Lₖ† Lₖ ρ
@@ -204,7 +204,7 @@ class RydbergLindbladian:
                 qubit,
             )
             for qubit in range(self.nqubits)
-            for L in self.pulser_linblads
+            for L in self.pulser_lindblads
         )
 
         return H_den_matrix + 1.0j * L_den_matrix_Ldag

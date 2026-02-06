@@ -56,16 +56,24 @@ class Statistics(Observable):
         }
 
 
-class BaseSVBackendImpl:
+class SVBackendImpl:
     """
     This class is used to handle the state vector and density matrix evolution.
     """
 
     well_prepared_qubits_filter: typing.Optional[torch.Tensor]
 
-    def __init__(self, config: SVConfig, data: SequenceData, state_type: typing.Literal[NoisySVBackendImpl, SVBackendImpl], stepper):
-        self.stepper = stepper
+    def __init__(self, config: SVConfig, data: SequenceData):
         self.pulser_lindblads = data.lindblad_ops
+        stepper: type[EvolveStateVector] | type[EvolveDensityMatrix]
+        state_type: type[StateVector] | type[DensityMatrix]
+        if self.pulser_lindblads:
+            stepper = EvolveDensityMatrix
+            state_type = DensityMatrix
+        else:
+            stepper = EvolveStateVector
+            state_type = StateVector
+        self.stepper = stepper
         self._config = config
         self._data = data
         self.target_times = data.target_times
@@ -82,7 +90,7 @@ class BaseSVBackendImpl:
 
         self.resolved_gpu = requested_gpu
 
-        self.state: State = (
+        self.state: DensityMatrix | StateVector = (
             state_type.make(self.nqubits, gpu=self.resolved_gpu)
             if config.initial_state is None
             else state_type(config.initial_state.data.clone(), gpu=self.resolved_gpu)
@@ -145,7 +153,7 @@ class BaseSVBackendImpl:
 
     def _evolve_step(self, dt: float, step_idx: int) -> None:
         """One step evolution"""
-        self.state.data, self._current_H = self.stepper(
+        self.state.data, self._current_H = self.stepper.apply(
             dt * _TIME_CONVERSION_COEFF,
             self.omega[step_idx],
             self.delta[step_idx],
@@ -187,6 +195,15 @@ class BaseSVBackendImpl:
             for callback in self._config.observables
             if self._is_evaluation_time(callback, norm_time)
         ]
+        if not self._current_H and callbacks_for_current_time_step:
+            self._current_H = self.stepper.get_hamiltonian(
+                omegas=self.omega[0],
+                deltas=self.delta[0],
+                phis=self.phi[0],
+                pulser_lindblads=self.pulser_lindblads,
+                interaction_matrix=self.full_interaction_matrix,
+                device=self.state.data.device,
+            )
         for callback in callbacks_for_current_time_step:
             callback(
                 self._config,
@@ -216,52 +233,3 @@ class BaseSVBackendImpl:
             self.step(step)
 
         return self.results
-
-
-class SVBackendImpl(BaseSVBackendImpl):
-
-    def __init__(self, config: SVConfig, data: SequenceData):
-        """
-        For running sequences without noise. The state will evolve according
-        to e^(-iH t)
-
-        Args:
-            config: The configuration for the emulator.
-            data: The data for the sequence to be emulated.
-        """
-        stepper = EvolveStateVector.apply
-
-        super().__init__(config, data, StateVector, stepper)
-
-
-class NoisySVBackendImpl(BaseSVBackendImpl):
-
-    def __init__(self, config: SVConfig, data: SequenceData):
-        """
-        Initializes the NoisySVBackendImpl, master equation version.
-        This class handles the Lindblad operators and
-        solves the Lindblad master equation
-
-        Args:
-            config: The configuration for the emulator.
-            data: The data for the sequence to be emulated.
-        """
-        stepper = EvolveDensityMatrix.evolve
-        super().__init__(config, data, DensityMatrix, stepper)
-
-
-def create_impl(data: SequenceData, config: SVConfig) -> BaseSVBackendImpl:
-    """
-    Creates the backend implementation for the given sequence and config.
-
-    Args:
-        sequence: The sequence to be emulated.
-        config: configuration for the emulator.
-
-    Returns:
-        An instance of SVBackendImpl.
-    """
-    if data.lindblad_ops:
-        return NoisySVBackendImpl(config, data)
-    else:
-        return SVBackendImpl(config, data)
