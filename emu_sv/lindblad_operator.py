@@ -211,7 +211,7 @@ class RydbergLindbladian:
 
     def expect(self, state: DensityMatrix) -> torch.Tensor:
         """Return the energy expectation value E=tr(H𝜌)"""
-        en = (self.h_eff(state.matrix)).trace()
+        en = (self.h_eff(state.data)).trace()
 
         assert torch.allclose(en.imag, torch.zeros_like(en.imag), atol=1e-8)
         return en.real

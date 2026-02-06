@@ -1,4 +1,3 @@
-from abc import abstractmethod
 import time
 import typing
 import torch
@@ -44,12 +43,7 @@ class Statistics(Observable):
         assert isinstance(state, StateVector | DensityMatrix)
         assert isinstance(config, SVConfig)
         duration = self.data[-1]
-        max_mem = get_max_rss(
-            isinstance(state, StateVector)
-            and state.vector.is_cuda
-            or isinstance(state, DensityMatrix)
-            and state.matrix.is_cuda
-        )
+        max_mem = get_max_rss(state.data.is_cuda)
         logging.getLogger("emulators").info(
             f"step = {len(self.data)}/{self.timestep_count}, "
             + f"RSS = {max_mem:.3f} MB, "
@@ -69,7 +63,9 @@ class BaseSVBackendImpl:
 
     well_prepared_qubits_filter: typing.Optional[torch.Tensor]
 
-    def __init__(self, config: SVConfig, data: SequenceData):
+    def __init__(self, config: SVConfig, data: SequenceData, state_type: typing.Literal[NoisySVBackendImpl, SVBackendImpl], stepper):
+        self.stepper = stepper
+        self.pulser_lindblads = data.lindblad_ops
         self._config = config
         self._data = data
         self.target_times = data.target_times
@@ -79,7 +75,18 @@ class BaseSVBackendImpl:
         self.nsteps = data.omega.shape[0]
         self.nqubits = data.omega.shape[1]
         self.full_interaction_matrix = data.full_interaction_matrix
-        self.state: State
+
+        requested_gpu = self._config.gpu
+        if requested_gpu is None:
+            requested_gpu = True
+
+        self.resolved_gpu = requested_gpu
+
+        self.state: State = (
+            state_type.make(self.nqubits, gpu=self.resolved_gpu)
+            if config.initial_state is None
+            else state_type(config.initial_state.data.clone(), gpu=self.resolved_gpu)
+        )
         self.time = time.time()
         self.results = Results(
             atom_order=data.qubit_ids,
@@ -107,11 +114,6 @@ class BaseSVBackendImpl:
             raise NotImplementedError(
                 "Initial state and state preparation error can not be together."
             )
-        requested_gpu = self._config.gpu
-        if requested_gpu is None:
-            requested_gpu = True
-
-        self.resolved_gpu = requested_gpu
 
     def init_dark_qubits(self) -> None:
         if self._data.noise_model.state_prep_error > 0.0:
@@ -141,9 +143,18 @@ class BaseSVBackendImpl:
     def _compute_dt(self, step_idx: int) -> float:
         return self.target_times[step_idx + 1] - self.target_times[step_idx]
 
-    @abstractmethod
     def _evolve_step(self, dt: float, step_idx: int) -> None:
         """One step evolution"""
+        self.state.data, self._current_H = self.stepper(
+            dt * _TIME_CONVERSION_COEFF,
+            self.omega[step_idx],
+            self.delta[step_idx],
+            self.phi[step_idx],
+            self.full_interaction_matrix,
+            self.state.data,
+            self._config.krylov_tolerance,
+            self.pulser_lindblads,
+        )
 
     def _is_evaluation_time(
         self,
@@ -218,28 +229,9 @@ class SVBackendImpl(BaseSVBackendImpl):
             config: The configuration for the emulator.
             data: The data for the sequence to be emulated.
         """
-        super().__init__(config, data)
-        self.state: StateVector = (
-            StateVector.make(self.nqubits, gpu=self.resolved_gpu)
-            if self._config.initial_state is None
-            else StateVector(
-                self._config.initial_state.vector.clone(),
-                gpu=self.resolved_gpu,
-            )
-        )
+        stepper = EvolveStateVector.apply
 
-        self.stepper = EvolveStateVector.apply
-
-    def _evolve_step(self, dt: float, step_idx: int) -> None:
-        self.state.vector, self._current_H = self.stepper(
-            dt * _TIME_CONVERSION_COEFF,
-            self.omega[step_idx],
-            self.delta[step_idx],
-            self.phi[step_idx],
-            self.full_interaction_matrix,
-            self.state.vector,
-            self._config.krylov_tolerance,
-        )
+        super().__init__(config, data, StateVector, stepper)
 
 
 class NoisySVBackendImpl(BaseSVBackendImpl):
@@ -254,30 +246,8 @@ class NoisySVBackendImpl(BaseSVBackendImpl):
             config: The configuration for the emulator.
             data: The data for the sequence to be emulated.
         """
-
-        super().__init__(config, data)
-
-        self.pulser_lindblads = data.lindblad_ops
-
-        self.state: DensityMatrix = (
-            DensityMatrix.make(self.nqubits, gpu=self.resolved_gpu)
-            if self._config.initial_state is None
-            else DensityMatrix(
-                self._config.initial_state.matrix.clone(), gpu=self.resolved_gpu
-            )
-        )
-
-    def _evolve_step(self, dt: float, step_idx: int) -> None:
-        self.state.matrix, self._current_H = EvolveDensityMatrix.evolve(
-            dt * _TIME_CONVERSION_COEFF,
-            self.omega[step_idx],
-            self.delta[step_idx],
-            self.phi[step_idx],
-            self.full_interaction_matrix,
-            self.state.matrix,
-            self._config.krylov_tolerance,
-            self.pulser_lindblads,
-        )
+        stepper = EvolveDensityMatrix.evolve
+        super().__init__(config, data, DensityMatrix, stepper)
 
 
 def create_impl(data: SequenceData, config: SVConfig) -> BaseSVBackendImpl:

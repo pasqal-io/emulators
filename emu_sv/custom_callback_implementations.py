@@ -27,9 +27,9 @@ def qubit_occupation_sv_impl(
     Custom implementation of the occupation ❬ψ|nᵢ|ψ❭ for the state vector solver.
     """
     nqubits = state.n_qudits
-    occupation = torch.zeros(nqubits, dtype=dtype, device=state.vector.device)
+    occupation = torch.zeros(nqubits, dtype=dtype, device=state.data.device)
     for i in range(nqubits):
-        state_tensor = state.vector.view(2**i, 2, -1)
+        state_tensor = state.data.view(2**i, 2, -1)
         # nᵢ is a projector and therefore nᵢ == nᵢnᵢ
         # ❬ψ|nᵢ|ψ❭ == ❬ψ|nᵢnᵢ|ψ❭ == ❬ψ|nᵢ * nᵢ|ψ❭ == ❬ϕ|ϕ❭ == |ϕ|**2
         occupation[i] = torch.linalg.vector_norm(state_tensor[:, 1]) ** 2
@@ -55,8 +55,8 @@ def qubit_occupation_sv_den_mat_impl(
     will be <nᵢ> = Tr(ρnᵢ), or [ <n₁>, <n₂>, <n₃> ].
     """
     nqubits = state.n_qudits
-    occupation = torch.zeros(nqubits, dtype=dtype, device=state.matrix.device)
-    diag_state_tensor = state.matrix.diagonal()
+    occupation = torch.zeros(nqubits, dtype=dtype, device=state.data.device)
+    diag_state_tensor = state.data.diagonal()
     for i in range(nqubits):
         state_tensor = diag_state_tensor.view(2**i, 2, 2 ** (nqubits - i - 1))[:, 1, :]
         occupation[i] = state_tensor.sum().real
@@ -76,10 +76,10 @@ def correlation_matrix_sv_impl(
     TODO: extend to arbitrary two-point correlation ❬ψ|AᵢBⱼ|ψ❭
     """
     nqubits = state.n_qudits
-    correlation = torch.zeros(nqubits, nqubits, dtype=dtype, device=state.vector.device)
+    correlation = torch.zeros(nqubits, nqubits, dtype=dtype, device=state.data.device)
 
     for i in range(nqubits):
-        select_i = state.vector.view(2**i, 2, -1)
+        select_i = state.data.view(2**i, 2, -1)
         select_i = select_i[:, 1]
         correlation[i, i] = torch.linalg.vector_norm(select_i) ** 2
         for j in range(i + 1, nqubits):  # select the upper triangle
@@ -104,7 +104,7 @@ def correlation_matrix_sv_den_mat_impl(
     """
     nqubits = state.n_qudits
     correlation = torch.zeros(nqubits, nqubits, dtype=dtype)
-    state_diag_matrix = state.matrix.diagonal()
+    state_diag_matrix = state.data.diagonal()
     for i in range(nqubits):  # applying ni
         shapei = (2**i, 2, 2 ** (nqubits - i - 1))
         state_diag_ni = state_diag_matrix.view(*shapei)[:, 1, :]
@@ -127,9 +127,9 @@ def energy_variance_sv_impl(
     """
     Custom implementation of the energy variance ❬ψ|H²|ψ❭-❬ψ|H|ψ❭² for the state vector solver.
     """
-    hstate = hamiltonian * state.vector
+    hstate = hamiltonian * state.data
     h_squared = torch.vdot(hstate, hstate).real
-    energy = torch.vdot(state.vector, hstate).real
+    energy = torch.vdot(state.data, hstate).real
     en_var: torch.Tensor = h_squared - energy**2
     return en_var.cpu()
 
@@ -145,8 +145,8 @@ def energy_variance_sv_den_mat_impl(
     Custom implementation of the energy variance tr(ρH²)-tr(ρH)² for the
     lindblad equation solver.
     """
-    h_dense_matrix = hamiltonian.h_eff(state.matrix)  # Hρ
-    gpu = state.matrix.is_cuda
+    h_dense_matrix = hamiltonian.h_eff(state.data)  # Hρ
+    gpu = state.data.is_cuda
     h_squared_dense_mat = hamiltonian.expect(
         DensityMatrix(h_dense_matrix, gpu=gpu)
     )  # tr(ρH²)
@@ -165,7 +165,7 @@ def energy_second_moment_sv_impl(
     Custom implementation of the second moment of energy ❬ψ|H²|ψ❭
     for the state vector solver.
     """
-    hstate = hamiltonian * state.vector
+    hstate = hamiltonian * state.data
     en_2_mom: torch.Tensor = torch.vdot(hstate, hstate).real
     return en_2_mom.cpu()
 
@@ -181,8 +181,8 @@ def energy_second_moment_den_mat_impl(
     Custom implementation of the second moment of energy tr(ρH²) for the
     lindblad equation solver.
     """
-    h_dense_matrix = hamiltonian.h_eff(state.matrix)  # Hρ
-    gpu = state.matrix.is_cuda
+    h_dense_matrix = hamiltonian.h_eff(state.data)  # Hρ
+    gpu = state.data.is_cuda
 
     return hamiltonian.expect(
         DensityMatrix(h_dense_matrix, gpu=gpu)

@@ -150,6 +150,6 @@ class RydbergHamiltonian:
         assert isinstance(
             state, StateVector
         ), "Currently, only expectation values of StateVectors are supported"
-        en = torch.vdot(state.vector, self * state.vector)
+        en = torch.vdot(state.data, self * state.data)
         assert torch.allclose(en.imag, torch.zeros_like(en.imag), atol=1e-8)
         return en.real

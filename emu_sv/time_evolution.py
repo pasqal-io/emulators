@@ -132,6 +132,7 @@ class EvolveStateVector(torch.autograd.Function):
         interaction_matrix: torch.Tensor,
         state: torch.Tensor,
         krylov_tolerance: float,
+        pulser_lindblads: list[torch.Tensor],
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         ham = RydbergHamiltonian(
             omegas=omegas,
@@ -163,6 +164,7 @@ class EvolveStateVector(torch.autograd.Function):
         interaction_matrix: torch.Tensor,
         state: torch.Tensor,
         krylov_tolerance: float,
+        pulser_lindblads: list[torch.Tensor],
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         """
         Returns the time evolved state
@@ -179,10 +181,18 @@ class EvolveStateVector(torch.autograd.Function):
             interaction_matrix (torch.Tensor): matrix representing the interaction
                 strengths between each pair of qubits.
             state (Tensor): input state to be evolved
-            krylov_tolerance (float):
+            krylov_tolerance (float): tolerance for krylov_exp
+            pulser_lindblads: unused, present for compatibility with EvolveDensityMatrix
         """
         res, ham = EvolveStateVector.evolve(
-            dt, omegas, deltas, phis, interaction_matrix, state, krylov_tolerance
+            dt,
+            omegas,
+            deltas,
+            phis,
+            interaction_matrix,
+            state,
+            krylov_tolerance,
+            pulser_lindblads,
         )
         ctx.save_for_backward(omegas, deltas, phis, interaction_matrix, state)
         ctx.dt = dt
@@ -200,6 +210,7 @@ class EvolveStateVector(torch.autograd.Function):
         torch.Tensor | None,
         torch.Tensor | None,
         torch.Tensor | None,
+        None,
         None,
     ]:
         """
@@ -335,6 +346,7 @@ class EvolveStateVector(torch.autograd.Function):
             grad_phis,
             grad_int_mat,
             grad_state_in,
+            None,
             None,
         )
 
