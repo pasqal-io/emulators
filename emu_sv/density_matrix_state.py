@@ -48,12 +48,12 @@ class DensityMatrix(State[complex, torch.Tensor]):
         # NOTE: this accepts also zero matrices.
 
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
-        self.matrix = matrix.to(dtype=dtype, device=device)
+        self.data = matrix.to(dtype=dtype, device=device)
 
     @property
     def n_qudits(self) -> int:
         """The number of qudits in the state."""
-        nqudits = math.log2(self.matrix.shape[0])
+        nqudits = math.log2(self.data.shape[0])
         return int(nqudits)
 
     @classmethod
@@ -72,9 +72,9 @@ class DensityMatrix(State[complex, torch.Tensor]):
     def _normalize(self) -> None:
         # NOTE: use this in the callbacks
         """Normalize the density matrix state"""
-        matrix_trace = torch.trace(self.matrix)
+        matrix_trace = torch.trace(self.data)
         if not torch.allclose(matrix_trace, torch.tensor(1.0, dtype=torch.float64)):
-            self.matrix = self.matrix / matrix_trace
+            self.data = self.data / matrix_trace
 
     def overlap(self, other: State) -> torch.Tensor:
         """
@@ -104,12 +104,10 @@ class DensityMatrix(State[complex, torch.Tensor]):
             other, DensityMatrix
         ), "Other state also needs to be a DensityMatrix"
         assert (
-            self.matrix.shape == other.matrix.shape
+            self.data.shape == other.data.shape
         ), "States do not have the same number of sites"
 
-        return torch.vdot(
-            self.matrix.flatten(), other.matrix.to(self.matrix.device).flatten()
-        )
+        return torch.vdot(self.data.flatten(), other.data.to(self.data.device).flatten())
 
     @classmethod
     def from_state_vector(cls, state: StateVector) -> DensityMatrix:
@@ -124,7 +122,7 @@ class DensityMatrix(State[complex, torch.Tensor]):
             dtype=torch.complex128)
             bell_state = StateVector(bell_state_vec, gpu=False)
             density = DensityMatrix.from_state_vector(bell_state)
-            print(density.matrix)
+            print(density.data)
             ```
 
             Output:
@@ -137,9 +135,7 @@ class DensityMatrix(State[complex, torch.Tensor]):
             ```
         """
 
-        return cls(
-            torch.outer(state.vector, state.vector.conj()), gpu=state.vector.is_cuda
-        )
+        return cls(torch.outer(state.data, state.data.conj()), gpu=state.data.is_cuda)
 
     @classmethod
     def _from_state_amplitudes(
@@ -170,7 +166,7 @@ class DensityMatrix(State[complex, torch.Tensor]):
             n = 2
             dense_mat=DensityMatrix.from_state_amplitudes(eigenstates=eigenstates,
             amplitudes={"rr":1.0,"gg":1.0})
-            print(dense_mat.matrix)
+            print(dense_mat.data)
             ```
 
             Output:
@@ -224,7 +220,7 @@ class DensityMatrix(State[complex, torch.Tensor]):
             ```
         """
 
-        probabilities = torch.abs(self.matrix.diagonal())
+        probabilities = torch.abs(self.data.diagonal())
 
         outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
 

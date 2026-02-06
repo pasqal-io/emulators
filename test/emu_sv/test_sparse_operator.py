@@ -33,12 +33,12 @@ def test_from_operator_repr_and_rmul() -> None:
         operations=operations,
     )
     expected = torch.kron(1j * Y, Z)
-    assert torch.allclose(operator.matrix.to_dense().cpu(), expected)
+    assert torch.allclose(operator.data.to_dense().cpu(), expected)
 
     # multiplying an operator by a number
     operator = 3 * operator  # testing __rmul__
     expected = 3 * expected
-    assert torch.allclose(operator.matrix.to_dense().cpu(), expected)
+    assert torch.allclose(operator.data.to_dense().cpu(), expected)
 
 
 def test_add() -> None:
@@ -77,7 +77,7 @@ def test_add() -> None:
     # sum of 2 operators
     op = operator_1 + operator_2  # testing __add__
     expected = torch.kron(2 * X, Id) + torch.kron(Id, Z)
-    assert torch.allclose(op.matrix.to_dense().cpu(), expected)
+    assert torch.allclose(op.data.to_dense().cpu(), expected)
 
 
 def test_applyto_expect() -> None:
@@ -113,7 +113,7 @@ def test_applyto_expect() -> None:
     mult_state = reduce(torch.kron, [X, Id, Z]) @ state_torch
     mult_state = mult_state.T
 
-    assert torch.allclose(mult_state, result.vector.cpu())
+    assert torch.allclose(mult_state, result.data.cpu())
 
     # expectation value
     res = operator.expect(state_from_string)

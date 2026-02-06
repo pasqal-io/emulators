@@ -51,12 +51,7 @@ def test_forward_with_requires_grad(requires_grad):
         1, with_phase=False, requires_grad=not requires_grad
     )
     state_in = get_randn_state(1, device=device, requires_grad=requires_grad)
-    state_out, _ = EvolveStateVector.apply(
-        0.3,
-        *ham_params,
-        state_in,
-        1e-5,
-    )
+    state_out, _ = EvolveStateVector.apply(0.3, *ham_params, state_in, 1e-5, None)
     assert state_out.requires_grad
 
 
@@ -76,12 +71,7 @@ def test_forward_accuracy(N: int, tolerance: float, with_phase: bool) -> None:
     dt = 1.0  # 1 μs big time step
 
     expected = do_dense_time_step(dt, *ham_params, state_in)
-    state_out, _ = EvolveStateVector.apply(
-        dt,
-        *ham_params,
-        state_in,
-        tolerance,
-    )
+    state_out, _ = EvolveStateVector.apply(dt, *ham_params, state_in, tolerance, None)
     assert torch.allclose(expected, state_out, atol=tolerance)
 
 
@@ -99,7 +89,7 @@ def test_backward_accuracy(N, tolerance):
     r = torch.randn(2**N, dtype=state_in.dtype, device=state_in.device)
     r *= 0.71 / r.norm()
 
-    state_out, _ = EvolveStateVector.apply(dt, *ham_params, state_in, tolerance)
+    state_out, _ = EvolveStateVector.apply(dt, *ham_params, state_in, tolerance, None)
     scalar = torch.vdot(r, state_out).real
     grads = torch.autograd.grad(scalar, (*ham_params, state_in))
 
