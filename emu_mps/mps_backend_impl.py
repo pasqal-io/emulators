@@ -189,7 +189,9 @@ class MPSBackendImpl:
 
     @staticmethod
     def _get_autosave_filepath(autosave_prefix: str) -> pathlib.Path:
-        return pathlib.Path(os.getcwd()) / (autosave_prefix + str(uuid.uuid1()) + ".dat")
+        return pathlib.Path(os.getcwd()) / (
+            autosave_prefix + str(uuid.uuid1(clock_seq=1337)) + ".dat"
+        )
 
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
