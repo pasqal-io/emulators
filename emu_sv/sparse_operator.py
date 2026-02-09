@@ -76,7 +76,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
             other, SparseOperator
         ), "SparseOperator can only be added to another SparseOperator."
         # TODO: figure out a better algorithm.
-        # self.data + other.matrix doesn't work on mac.
+        # self.data + other.data doesn't work on mac.
         return SparseOperator(
             sparse_add(
                 self.data.to_sparse_coo(), other.data.to_sparse_coo()

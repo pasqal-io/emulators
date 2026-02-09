@@ -73,6 +73,7 @@ class SVBackendImpl:
         else:
             stepper = EvolveStateVector
             state_type = StateVector
+
         self.stepper = stepper
         self._config = config
         self._data = data
@@ -90,11 +91,15 @@ class SVBackendImpl:
 
         self.resolved_gpu = requested_gpu
 
-        self.state: DensityMatrix | StateVector = (
-            state_type.make(self.nqubits, gpu=self.resolved_gpu)
-            if config.initial_state is None
-            else state_type(config.initial_state.data.clone(), gpu=self.resolved_gpu)
-        )
+        self.state: DensityMatrix | StateVector
+        if config.initial_state is not None:
+            assert isinstance(config.initial_state, state_type)
+            self.state = state_type(
+                config.initial_state.data.clone(), gpu=self.resolved_gpu
+            )
+        else:
+            self.state = state_type.make(self.nqubits, gpu=self.resolved_gpu)
+
         self.time = time.time()
         self.results = Results(
             atom_order=data.qubit_ids,
@@ -153,6 +158,7 @@ class SVBackendImpl:
 
     def _evolve_step(self, dt: float, step_idx: int) -> None:
         """One step evolution"""
+        self._current_H = None  # save a bit of memory
         self.state.data, self._current_H = self.stepper.apply(
             dt * _TIME_CONVERSION_COEFF,
             self.omega[step_idx],
@@ -225,7 +231,6 @@ class SVBackendImpl:
             self.results,
         )
         self.time = time.time()
-        self._current_H = None
 
     def _run(self) -> Results:
         self._apply_observables(0)  # at t == 0 for pulser compatibility
