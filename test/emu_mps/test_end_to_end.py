@@ -835,17 +835,17 @@ def test_autosave() -> None:
 
     counter = 100  # Number of simulation steps before crashing
 
-    def save_simulation_mock_side_effect(self):
+    def save_simulation_mock_side_effect(self, f=save_simulation_original):
         nonlocal counter
         counter -= 1
         if counter > 0:
             self.last_save_time = time.time() + 999
-            return save_simulation_original(self)
+            return f(self)
 
         assert self.timestep_index == 11
 
         self.last_save_time = 0  # Trigger saving regardless of time
-        save_simulation_original(self)
+        f(self)
         nonlocal save_file
         save_file = self.autosave_file
         raise Exception("Process killed!")

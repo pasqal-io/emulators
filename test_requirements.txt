@@ -1,4 +1,4 @@
-pytest==8.*
+pytest
 pytest-cov
 nbmake
 readme-coverage-badger
