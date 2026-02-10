@@ -1,4 +1,5 @@
 import logging
+import os
 import math
 import random
 import time
@@ -810,7 +811,8 @@ def test_laser_waist() -> None:
     assert pytest.approx(final_state.inner(expected_state)) == -1.0
 
 
-def test_autosave() -> None:
+def test_autosave(tmp_path) -> None:
+    os.chdir(tmp_path)
     duration = 300
     rows, cols = 2, 3
     reg = pulser.Register.rectangle(
@@ -835,17 +837,17 @@ def test_autosave() -> None:
 
     counter = 100  # Number of simulation steps before crashing
 
-    def save_simulation_mock_side_effect(self, f=save_simulation_original):
+    def save_simulation_mock_side_effect(self):
         nonlocal counter
         counter -= 1
         if counter > 0:
             self.last_save_time = time.time() + 999
-            return f(self)
+            return save_simulation_original(self)
 
         assert self.timestep_index == 11
 
         self.last_save_time = 0  # Trigger saving regardless of time
-        f(self)
+        save_simulation_original(self)
         nonlocal save_file
         save_file = self.autosave_file
         raise Exception("Process killed!")
