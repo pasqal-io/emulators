@@ -1,5 +1,4 @@
 import logging
-import os
 import math
 import random
 import time
@@ -811,8 +810,8 @@ def test_laser_waist() -> None:
     assert pytest.approx(final_state.inner(expected_state)) == -1.0
 
 
-def test_autosave(tmp_path) -> None:
-    os.chdir(tmp_path)
+def test_autosave(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
     duration = 300
     rows, cols = 2, 3
     reg = pulser.Register.rectangle(
