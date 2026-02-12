@@ -174,7 +174,7 @@ class MPSBackendImpl:
     def __getstate__(self) -> dict:
         d = self.__dict__.copy()
         options = deepcopy(self.config._backend_options)
-        cp = type(self.config)(**options)
+        cp = type(self.config)(**options)  # BackendConfig does not deepcopy directly
         d["config"] = cp
         d["state"].config = cp
         for obs in cp.observables:
