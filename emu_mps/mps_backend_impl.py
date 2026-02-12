@@ -173,7 +173,8 @@ class MPSBackendImpl:
 
     def __getstate__(self) -> dict:
         d = self.__dict__.copy()
-        cp = deepcopy(self.config)
+        options = deepcopy(self.config._backend_options)
+        cp = type(self.config)(**options)  # BackendConfig does not deepcopy directly
         d["config"] = cp
         d["state"].config = cp
         for obs in cp.observables:
@@ -189,7 +190,9 @@ class MPSBackendImpl:
 
     @staticmethod
     def _get_autosave_filepath(autosave_prefix: str) -> pathlib.Path:
-        return pathlib.Path(os.getcwd()) / (autosave_prefix + str(uuid.uuid1()) + ".dat")
+        return pathlib.Path(os.getcwd()) / (
+            autosave_prefix + str(uuid.uuid1(clock_seq=1337)) + ".dat"
+        )
 
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
