@@ -20,6 +20,7 @@ def test_sv_impl():
         noise_model=NoiseModel(),
         target_times=[1.0],
         qubit_ids=(),
+        lindblad_ops=[],
     )
     bknd_impl = SVBackendImpl(config, pulser_data)
     bknd_impl._evolve_step(1.0, 0)

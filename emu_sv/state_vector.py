@@ -48,12 +48,12 @@ class StateVector(State[complex, torch.Tensor]):
 
         super().__init__(eigenstates=eigenstates)
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
-        self.vector = vector.to(dtype=dtype, device=device)
+        self.data = vector.to(dtype=dtype, device=device)
 
     @property
     def n_qudits(self) -> int:
         """The number of qudits in the state."""
-        nqudits = math.log2(self.vector.view(-1).shape[0])
+        nqudits = math.log2(self.data.view(-1).shape[0])
         return int(nqudits)
 
     def _normalize(self) -> None:
@@ -66,11 +66,11 @@ class StateVector(State[complex, torch.Tensor]):
             This method is intended to be used in callbacks.
         """
 
-        norm = torch.linalg.vector_norm(self.vector)
+        norm = torch.linalg.vector_norm(self.data)
 
         # This must duplicate the tolerance in pulsers State._to_abstract_repr
         if abs(self.norm() ** 4 - 1.0) > 1e-12:
-            self.vector = self.vector / norm
+            self.data = self.data / norm
 
     @classmethod
     def zero(
@@ -128,7 +128,7 @@ class StateVector(State[complex, torch.Tensor]):
         """
 
         result = cls.zero(num_sites=num_sites, gpu=gpu)
-        result.vector[0] = 1.0
+        result.data[0] = 1.0
         return result
 
     def inner(self, other: State) -> torch.Tensor:
@@ -142,12 +142,10 @@ class StateVector(State[complex, torch.Tensor]):
             the inner product
         """
         assert isinstance(other, StateVector), "Other state must be a StateVector"
-        assert (
-            self.vector.shape == other.vector.shape
-        ), "States do not have the same shape"
+        assert self.data.shape == other.data.shape, "States do not have the same shape"
 
         # by our internal convention inner and norm return to cpu
-        return torch.vdot(self.vector, other.vector.to(self.vector.device)).cpu()
+        return torch.vdot(self.data, other.data.to(self.data.device)).cpu()
 
     def sample(
         self,
@@ -169,7 +167,7 @@ class StateVector(State[complex, torch.Tensor]):
             the measured bitstrings, by count
         """
 
-        probabilities = torch.abs(self.vector) ** 2
+        probabilities = torch.abs(self.data) ** 2
 
         outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
 
@@ -200,8 +198,8 @@ class StateVector(State[complex, torch.Tensor]):
             self.eigenstates == other.eigenstates
         ), f"`Other` state has basis {other.eigenstates} != {self.eigenstates}"
         return StateVector(
-            self.vector + other.vector,
-            gpu=self.vector.is_cuda,
+            self.data + other.data,
+            gpu=self.data.is_cuda,
             eigenstates=self.eigenstates,
         )
 
@@ -215,8 +213,8 @@ class StateVector(State[complex, torch.Tensor]):
             The scaled state
         """
         return StateVector(
-            scalar * self.vector,
-            gpu=self.vector.is_cuda,
+            scalar * self.data,
+            gpu=self.data.is_cuda,
             eigenstates=self.eigenstates,
         )
 
@@ -226,11 +224,11 @@ class StateVector(State[complex, torch.Tensor]):
         Returns:
             the norm of the state
         """
-        nrm: torch.Tensor = torch.linalg.vector_norm(self.vector).cpu()
+        nrm: torch.Tensor = torch.linalg.vector_norm(self.data).cpu()
         return nrm
 
     def __repr__(self) -> str:
-        return repr(self.vector)
+        return repr(self.data)
 
     @classmethod
     def _from_state_amplitudes(
@@ -285,7 +283,7 @@ class StateVector(State[complex, torch.Tensor]):
             bin_to_int = int(
                 state.replace(one, "1").replace("g", "0"), 2
             )  # "0" basis is already in "0"
-            accum_state.vector[bin_to_int] = amplitude  # type: ignore [assignment]
+            accum_state.data[bin_to_int] = amplitude  # type: ignore [assignment]
 
         accum_state._normalize()
 
@@ -333,8 +331,8 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
         ```
     """
 
-    assert (left.vector.shape == right.vector.shape) and (left.vector.dim() == 1), (
-        "Shape of left.vector and right.vector should be",
+    assert (left.data.shape == right.data.shape) and (left.data.dim() == 1), (
+        "Shape of left.data and right.data should be",
         " the same and both need to be 1D tesnor",
     )
     return left.inner(right)

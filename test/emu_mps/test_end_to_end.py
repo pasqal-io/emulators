@@ -1182,3 +1182,30 @@ def test_trajectories():
     assert torch.allclose(
         mps_results.occupation[-1], torch.ones(3, dtype=torch.float64) * 0.6667, atol=1e-4
     )
+
+
+def test_observables_time_0():
+    seq = pulser_afm_sequence_grid(
+        rows=2,
+        columns=1,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=10,
+        t_fall=10,
+    )
+
+    observables = [
+        Energy(evaluation_times=[0]),
+    ]
+    noise_model = pulser.noise_model.NoiseModel(depolarizing_rate=0.2)
+
+    config = emu_mps.MPSConfig(
+        observables=observables,
+        noise_model=noise_model,
+    )
+    backend = emu_mps.MPSBackend(seq, config=config)
+    result = backend.run()
+
+    assert torch.isreal(result.energy[0])

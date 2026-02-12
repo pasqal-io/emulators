@@ -260,7 +260,7 @@ class MPSBackendImpl:
         self.state = initial_state
         self.state.orthogonalize(0)
 
-    def init_hamiltonian(self) -> None:
+    def init_noiseless_hamiltonian(self) -> None:
         """
         Must be called AFTER init_dark_qubits otherwise,
         too many factors are put in the Hamiltonian
@@ -275,13 +275,24 @@ class MPSBackendImpl:
             num_gpus_to_use=self.resolved_num_gpus,
             dim=self.dim,
         )
+        self.update_H_no_noise()
 
+    def update_H(self) -> None:
         update_H(
             hamiltonian=self.hamiltonian,
             omega=self.omega[self.timestep_index, :],
             delta=self.delta[self.timestep_index, :],
             phi=self.phi[self.timestep_index, :],
             noise=self.lindblad_noise,
+        )
+
+    def update_H_no_noise(self) -> None:
+        update_H(
+            hamiltonian=self.hamiltonian,
+            omega=self.omega[self.timestep_index, :],
+            delta=self.delta[self.timestep_index, :],
+            phi=self.phi[self.timestep_index, :],
+            noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
         )
 
     def init_baths(self) -> None:
@@ -300,7 +311,9 @@ class MPSBackendImpl:
     def init(self) -> None:
         self.init_dark_qubits()
         self.init_initial_state(self.config.initial_state)
-        self.init_hamiltonian()
+        self.init_noiseless_hamiltonian()
+        self.fill_results()  # at t == 0 for pulser compatibility
+        self.update_H()
         self.init_baths()
 
     def is_finished(self) -> bool:
@@ -466,13 +479,7 @@ class MPSBackendImpl:
 
         if not self.is_finished():
             self.target_time = self.target_times[self.timestep_index + 1]
-            update_H(
-                hamiltonian=self.hamiltonian,
-                omega=self.omega[self.timestep_index, :],
-                delta=self.delta[self.timestep_index, :],
-                phi=self.phi[self.timestep_index, :],
-                noise=self.lindblad_noise,
-            )
+            self.update_H()
             self.init_baths()
 
         self.statistics.data.append(time.time() - self.time)
@@ -709,19 +716,8 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
         assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
         self.set_jump_threshold(norm_after_normalizing**2)
 
-    def remove_noise_from_hamiltonian(self) -> None:
-        # Remove the noise from self.hamiltonian for the callbacks.
-        # Since update_H is called at the start of do_time_step this is safe.
-        update_H(
-            hamiltonian=self.hamiltonian,
-            omega=self.omega[self.timestep_index - 1, :],  # Meh
-            delta=self.delta[self.timestep_index - 1, :],
-            phi=self.phi[self.timestep_index - 1, :],
-            noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
-        )
-
     def timestep_complete(self) -> None:
-        self.remove_noise_from_hamiltonian()
+        self.update_H_no_noise()
         super().timestep_complete()
 
 

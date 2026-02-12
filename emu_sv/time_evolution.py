@@ -124,6 +124,23 @@ class EvolveStateVector(torch.autograd.Function):
     """Custom autograd implementation of a step in the time evolution."""
 
     @staticmethod
+    def get_hamiltonian(
+        omegas: torch.Tensor,
+        deltas: torch.Tensor,
+        phis: torch.Tensor,
+        pulser_lindblads: list[torch.Tensor],
+        interaction_matrix: torch.Tensor,
+        device: torch.device,
+    ) -> RydbergHamiltonian:
+        return RydbergHamiltonian(
+            omegas=omegas,
+            deltas=deltas,
+            phis=phis,
+            interaction_matrix=interaction_matrix,
+            device=device,
+        )
+
+    @staticmethod
     def evolve(
         dt: float,
         omegas: torch.Tensor,
@@ -132,11 +149,13 @@ class EvolveStateVector(torch.autograd.Function):
         interaction_matrix: torch.Tensor,
         state: torch.Tensor,
         krylov_tolerance: float,
+        pulser_lindblads: list[torch.Tensor],
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
-        ham = RydbergHamiltonian(
+        ham = EvolveStateVector.get_hamiltonian(
             omegas=omegas,
             deltas=deltas,
             phis=phis,
+            pulser_lindblads=pulser_lindblads,
             interaction_matrix=interaction_matrix,
             device=state.device,
         )
@@ -163,6 +182,7 @@ class EvolveStateVector(torch.autograd.Function):
         interaction_matrix: torch.Tensor,
         state: torch.Tensor,
         krylov_tolerance: float,
+        pulser_lindblads: list[torch.Tensor],
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         """
         Returns the time evolved state
@@ -179,10 +199,18 @@ class EvolveStateVector(torch.autograd.Function):
             interaction_matrix (torch.Tensor): matrix representing the interaction
                 strengths between each pair of qubits.
             state (Tensor): input state to be evolved
-            krylov_tolerance (float):
+            krylov_tolerance (float): tolerance for krylov_exp
+            pulser_lindblads: unused, present for compatibility with EvolveDensityMatrix
         """
         res, ham = EvolveStateVector.evolve(
-            dt, omegas, deltas, phis, interaction_matrix, state, krylov_tolerance
+            dt,
+            omegas,
+            deltas,
+            phis,
+            interaction_matrix,
+            state,
+            krylov_tolerance,
+            pulser_lindblads,
         )
         ctx.save_for_backward(omegas, deltas, phis, interaction_matrix, state)
         ctx.dt = dt
@@ -200,6 +228,7 @@ class EvolveStateVector(torch.autograd.Function):
         torch.Tensor | None,
         torch.Tensor | None,
         torch.Tensor | None,
+        None,
         None,
     ]:
         """
@@ -267,10 +296,11 @@ class EvolveStateVector(torch.autograd.Function):
         grad_int_mat = None
         grad_state_in = None
 
-        ham = RydbergHamiltonian(
+        ham = EvolveStateVector.get_hamiltonian(
             omegas=omegas,
             deltas=deltas,
             phis=phis,
+            pulser_lindblads=[],
             interaction_matrix=interaction_matrix,
             device=state.device,
         )
@@ -336,6 +366,7 @@ class EvolveStateVector(torch.autograd.Function):
             grad_int_mat,
             grad_state_in,
             None,
+            None,
         )
 
 
@@ -343,7 +374,25 @@ class EvolveDensityMatrix:
     """Evolution of a density matrix under a Lindbladian operator."""
 
     @staticmethod
-    def evolve(
+    def get_hamiltonian(
+        omegas: torch.Tensor,
+        deltas: torch.Tensor,
+        phis: torch.Tensor,
+        pulser_lindblads: list[torch.Tensor],
+        interaction_matrix: torch.Tensor,
+        device: torch.device,
+    ) -> RydbergLindbladian:
+        return RydbergLindbladian(
+            omegas=omegas,
+            deltas=deltas,
+            phis=phis,
+            pulser_lindblads=pulser_lindblads,
+            interaction_matrix=interaction_matrix,
+            device=device,
+        )
+
+    @staticmethod
+    def apply(
         dt: float,
         omegas: torch.Tensor,
         deltas: torch.Tensor,
@@ -353,11 +402,11 @@ class EvolveDensityMatrix:
         krylov_tolerance: float,
         pulser_lindblads: list[torch.Tensor],
     ) -> tuple[torch.Tensor, RydbergLindbladian]:
-        ham = RydbergLindbladian(
+        ham = EvolveDensityMatrix.get_hamiltonian(
             omegas=omegas,
             deltas=deltas,
             phis=phis,
-            pulser_linblads=pulser_lindblads,
+            pulser_lindblads=pulser_lindblads,
             interaction_matrix=full_interaction_matrix,
             device=density_matrix.device,
         )

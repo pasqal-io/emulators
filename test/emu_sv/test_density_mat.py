@@ -78,13 +78,13 @@ def test_make():
     ground_density = DensityMatrix.make(n_atoms, gpu=gpu)
     zeros_mat = torch.zeros(2**n_atoms, 2**n_atoms, dtype=dtype, device=device)
     zeros_mat[0, 0] = 1.0
-    assert torch.allclose(ground_density.matrix, zeros_mat)
+    assert torch.allclose(ground_density.data, zeros_mat)
 
     n_atoms = 7
     ground_density = DensityMatrix.make(n_atoms, gpu=gpu)
     zeros_mat = torch.zeros(2**n_atoms, 2**n_atoms, dtype=dtype, device=device)
     zeros_mat[0, 0] = 1.0
-    assert torch.allclose(ground_density.matrix, zeros_mat)
+    assert torch.allclose(ground_density.data, zeros_mat)
 
 
 def test_from_state_vector():
@@ -93,7 +93,7 @@ def test_from_state_vector():
 
     density = DensityMatrix.from_state_vector(bell_state)
 
-    assert torch.allclose(density.matrix, density_bell_state)
+    assert torch.allclose(density.data, density_bell_state)
 
     n_atoms = 6
     state_vector = StateVector.make(n_atoms, gpu=gpu)
@@ -102,7 +102,7 @@ def test_from_state_vector():
     expected = torch.zeros((2**n_atoms, 2**n_atoms), dtype=dtype, device=device)
     expected[0, 0] = 1.0
 
-    assert torch.allclose(density.matrix, expected)
+    assert torch.allclose(density.data, expected)
 
 
 def test_from_state_string():
@@ -113,7 +113,7 @@ def test_from_state_string():
         eigenstates=eigenstates, n_qudits=n_atoms, amplitudes=amplitudes
     )
 
-    assert torch.allclose(density.matrix, density_bell_state_complex)
+    assert torch.allclose(density.data, density_bell_state_complex)
 
     n_atoms = 3
     amplitudes = {"rrr": 1.0}
@@ -124,7 +124,7 @@ def test_from_state_string():
 
     dummu_mat = torch.zeros((2**n_atoms, 2**n_atoms), dtype=dtype, device=device)
     dummu_mat[7, 7] = 1.0
-    assert torch.allclose(density.matrix, dummu_mat)
+    assert torch.allclose(density.data, dummu_mat)
 
 
 def test_probabilities():

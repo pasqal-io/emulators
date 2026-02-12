@@ -158,14 +158,14 @@ def test_custom_energy_and_variance_and_second(noise) -> None:
     if noise:
         state = DensityMatrix.from_state_vector(state)
 
-        pulser_linblads = pulser.noise_model.NoiseModel(
+        pulser_lindblads = pulser.noise_model.NoiseModel(
             depolarizing_rate=0.1,
         )
         hamiltonian = RydbergLindbladian(
             omegas=omegas,
             deltas=deltas,
             phis=phis,
-            pulser_linblads=pulser_linblads,
+            pulser_lindblads=pulser_lindblads,
             interaction_matrix=interaction_matrix,
             device=device,
         )

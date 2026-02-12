@@ -99,9 +99,9 @@ def test_call_sigma_real_complex() -> None:
             deltas=deltas,
             phis=torch.randn(2),
             interaction_matrix=interaction_matrix,
-            device=state.vector.device,
+            device=state.data.device,
         )
-        ham_w_phase * state.vector
+        ham_w_phase * state.data
         assert ham_w_phase.complex
         ham_w_phase._apply_sigma_operators_complex.assert_called_once()
 
@@ -115,8 +115,8 @@ def test_call_sigma_real_complex() -> None:
             deltas=deltas,
             phis=torch.zeros(2),
             interaction_matrix=interaction_matrix,
-            device=state.vector.device,
+            device=state.data.device,
         )
-        ham_zero_phase * state.vector
+        ham_zero_phase * state.data
         assert not ham_zero_phase.complex
         ham_zero_phase._apply_sigma_operators_real.assert_called_once()
