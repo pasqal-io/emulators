@@ -33,4 +33,4 @@ repos:
     hooks:
       - id: mypy
         exclude: examples|test|ci
-        additional_dependencies: ["pulser-core[torch]>=1.7.0rc2", "torch>=2.9.0"]  # The version in pyproject.toml must match
+        additional_dependencies: ["pulser-core[torch]>=1.7.0", "torch>=2.9.0"]  # The version in pyproject.toml must match
