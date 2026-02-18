@@ -625,11 +625,16 @@ def test_get_sequences_1_trajectory(mock_data):
     sample_instance.interaction_type = adressed_basis
     mock_from_sequence.basis_data.interaction_type = adressed_basis
 
-    interaction_matrix = [
-        [0.0, 0.0929, -0.4],
-        [0.0929, 0.0, 0.1067],
-        [-0.4, 0.1067, 0.0],
-    ]
+    def interaction_matrix(t: float) -> torch.Tensor:
+        return torch.tensor(
+            [
+                [0.0, 0.0929, -0.4],
+                [0.0929, 0.0, 0.1067],
+                [-0.4, 0.1067, 0.0],
+            ],
+            dtype=torch.float64,
+        )
+
     sequence._slm_mask_time = []
 
     random_collapse = torch.rand(2, 2, dtype=dtype)  # in pulser XY basis
@@ -644,7 +649,7 @@ def test_get_sequences_1_trajectory(mock_data):
     config = EmulationConfig(
         observables=[mock_observable],
         noise_model=noise_model,
-        interaction_matrix=interaction_matrix,
+        interaction_matrix=interaction_matrix(0.0),
         interaction_cutoff=0.15,
     )
 
@@ -663,8 +668,8 @@ def test_get_sequences_1_trajectory(mock_data):
     assert torch.allclose(samples[0].omega, omega)
     assert torch.allclose(samples[0].delta, delta)
     assert torch.allclose(samples[0].phi, phi)
-    assert torch.allclose(samples[0].full_interaction_matrix, cutoff_interaction_matrix)
-    assert torch.allclose(samples[0].masked_interaction_matrix, cutoff_interaction_matrix)
+    assert torch.allclose(samples[0].interaction_matrix(0.0), cutoff_interaction_matrix)
+    assert torch.allclose(samples[0].interaction_matrix(0.0), cutoff_interaction_matrix)
     assert samples[0].slm_end_time == 0.0
 
     assert samples[0].hamiltonian_type == HamiltonianType.XY
@@ -690,8 +695,8 @@ def test_get_sequences_1_trajectory(mock_data):
     assert torch.allclose(samples[0].omega, omega)
     assert torch.allclose(samples[0].delta, delta)
     assert torch.allclose(samples[0].phi, phi)
-    assert torch.allclose(samples[0].full_interaction_matrix, cutoff_interaction_matrix)
-    assert torch.allclose(samples[0].masked_interaction_matrix, masked_interaction_matrix)
+    assert torch.allclose(samples[0].interaction_matrix(0.0), cutoff_interaction_matrix)
+    assert torch.allclose(samples[0].interaction_matrix(0.0), masked_interaction_matrix)
     assert samples[0].slm_end_time == 10.0
     assert samples[0].hamiltonian_type == HamiltonianType.XY
     assert len(samples[0].lindblad_ops) == len(ops)

@@ -38,8 +38,7 @@ def _create_victim(constructor, dt, noise_model):
     mock_pulser_data = MagicMock()
     mock_pulser_data.qubit_count = QUBIT_COUNT
     mock_pulser_data.qubit_ids = tuple([i for i in range(QUBIT_COUNT)])
-    mock_pulser_data.full_interaction_matrix = torch.eye(QUBIT_COUNT)
-    mock_pulser_data.masked_interaction_matrix = torch.eye(QUBIT_COUNT)
+    mock_pulser_data.interaction_matrix = lambda t: torch.eye(QUBIT_COUNT)
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.dim = 2
     mock_pulser_data.noise_model = noise_model
@@ -74,8 +73,7 @@ def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
     mock_pulser_data = MagicMock()
     mock_pulser_data.qubit_count = QUBIT_COUNT
     mock_pulser_data.qubit_ids = tuple([i for i in range(QUBIT_COUNT)])
-    mock_pulser_data.full_interaction_matrix = torch.eye(QUBIT_COUNT)
-    mock_pulser_data.masked_interaction_matrix = torch.eye(QUBIT_COUNT)
+    mock_pulser_data.interaction_matrix = lambda t: torch.eye(QUBIT_COUNT)
     mock_pulser_data.has_lindblad_noise = False
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.eigenstates = ("g", "r")
@@ -160,7 +158,7 @@ def test_init_dark_qubits_with_state_prep_error():
         "q4": True,
     }
 
-    victim.full_interaction_matrix = torch.tensor(
+    victim.interaction_matrix = lambda t: torch.tensor(
         [
             [0, 1, 2, 3, 4],
             [10, 11, 12, 13, 14],
@@ -169,7 +167,7 @@ def test_init_dark_qubits_with_state_prep_error():
             [40, 41, 42, 43, 44],
         ]
     )
-    victim.masked_interaction_matrix = victim.full_interaction_matrix
+    # victim.masked_interaction_matrix = victim.full_interaction_matrix
     victim.omega = torch.tensor(
         [
             [0, 1, 2, 3, 4],
@@ -197,7 +195,7 @@ def test_init_dark_qubits_with_state_prep_error():
     )
 
     assert torch.allclose(
-        victim.masked_interaction_matrix,
+        victim.interaction_matrix(0.0),
         torch.tensor(
             [
                 [0, 2, 3],
@@ -207,7 +205,7 @@ def test_init_dark_qubits_with_state_prep_error():
         ),
     )
     assert torch.allclose(
-        victim.masked_interaction_matrix, victim.full_interaction_matrix
+        victim.interaction_matrix(0.0), victim.interaction_matrix(11.0)  # after SLM
     )
 
     assert torch.allclose(

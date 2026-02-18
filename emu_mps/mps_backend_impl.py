@@ -12,7 +12,7 @@ from copy import deepcopy
 from collections import Counter
 from enum import Enum, auto
 from types import MethodType
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import torch
 from pulser.backend import EmulationConfig, Observable, Results, State
@@ -43,6 +43,37 @@ from emu_mps.utils import (
 )
 
 dtype = torch.complex128
+
+
+class _PermutedInteractionMatrix:
+    """
+    Gets the interaction matrix from pulser_data and permutes it according
+    to the qubit permutation.
+    Supports for picking out the well-prepared qubits in the presence of
+    state preparation errors.
+    """
+
+    def __init__(self, original: Callable[[float], torch.Tensor], perm: torch.Tensor):
+        self.original = original
+        self.perm = perm
+
+    def __call__(self, t: float) -> torch.Tensor:
+        return optimat.permute_tensor(self.original(t), self.perm)
+
+
+class _FilteredInteractionMatrix:
+    """
+    Gets the interaction matrix from pulser_data and filters out the bad qubits
+    Support for picking out the well-prepared qubits in the presence of
+    state preparation errors.
+    """
+
+    def __init__(self, original: Callable[[float], torch.Tensor], filt: torch.Tensor):
+        self.original = original
+        self.filt = filt
+
+    def __call__(self, t: float) -> torch.Tensor:
+        return self.original(t)[self.filt, :][:, self.filt]
 
 
 class Statistics(Observable):
@@ -122,18 +153,22 @@ class MPSBackendImpl:
         self.eigenstates = pulser_data.eigenstates
         self.dim = pulser_data.dim
         self.lindblad_noise = torch.zeros(self.dim, self.dim, dtype=dtype)
+        self.interaction_matrix = pulser_data.interaction_matrix
+
         self.qubit_permutation = (
-            optimat.minimize_bandwidth(pulser_data.full_interaction_matrix)
+            optimat.minimize_bandwidth(pulser_data.interaction_matrix(0.0))
             if self.config.optimize_qubit_ordering
             else optimat.eye_permutation(self.qubit_count)
         )
-        self.full_interaction_matrix = optimat.permute_tensor(
-            pulser_data.full_interaction_matrix, self.qubit_permutation
-        )
 
-        self.masked_interaction_matrix = optimat.permute_tensor(
-            pulser_data.masked_interaction_matrix, self.qubit_permutation
-        )
+        perm = self.qubit_permutation
+        original = self.interaction_matrix
+
+        # def interaction_matrix(t: float) -> torch.Tensor:
+        #     return optimat.permute_tensor(original(t), perm)
+
+        self.interaction_matrix = _PermutedInteractionMatrix(original, perm)
+
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.slm_end_time = pulser_data.slm_end_time
         self.is_masked = self.slm_end_time > 0.0
@@ -171,6 +206,9 @@ class MPSBackendImpl:
             )
         self.resolved_num_gpus = requested_num_gpus
 
+    def _get_interaction_matrix(self) -> torch.Tensor:
+        return self.interaction_matrix(self.current_time)
+
     def __getstate__(self) -> dict:
         d = self.__dict__.copy()
         options = deepcopy(self.config._backend_options)
@@ -196,7 +234,7 @@ class MPSBackendImpl:
 
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
-        if self.pulser_data.noise_model.state_prep_error > 0.0:
+        if self.pulser_data.noise_model.state_prep_error > 0.0:  # only state_prep
             bad_atoms = self.pulser_data.bad_atoms
             self.well_prepared_qubits_filter = torch.logical_not(
                 torch.tensor(list(bool(x) for x in bad_atoms.values()))
@@ -207,12 +245,17 @@ class MPSBackendImpl:
         if self.well_prepared_qubits_filter is not None:
             self.qubit_count = sum(1 for x in self.well_prepared_qubits_filter if x)
 
-            self.full_interaction_matrix = self.full_interaction_matrix[
-                self.well_prepared_qubits_filter, :
-            ][:, self.well_prepared_qubits_filter]
-            self.masked_interaction_matrix = self.masked_interaction_matrix[
-                self.well_prepared_qubits_filter, :
-            ][:, self.well_prepared_qubits_filter]
+            # self.full_interaction_matrix = self.full_interaction_matrix[
+            #     self.well_prepared_qubits_filter, :
+            # ][:, self.well_prepared_qubits_filter]
+            # self.masked_interaction_matrix = self.masked_interaction_matrix[
+            #     self.well_prepared_qubits_filter, :
+            # ][:, self.well_prepared_qubits_filter]
+            original_inter_matrix = self.interaction_matrix
+            filt = self.well_prepared_qubits_filter
+            self.interaction_matrix = _FilteredInteractionMatrix(
+                original_inter_matrix, filt
+            )
             self.omega = self.omega[:, self.well_prepared_qubits_filter]
             self.delta = self.delta[:, self.well_prepared_qubits_filter]
             self.phi = self.phi[:, self.well_prepared_qubits_filter]
@@ -266,11 +309,7 @@ class MPSBackendImpl:
         too many factors are put in the Hamiltonian
         """
         self.hamiltonian = make_H(
-            interaction_matrix=(
-                self.masked_interaction_matrix
-                if self.is_masked
-                else self.full_interaction_matrix
-            ),
+            interaction_matrix=self._get_interaction_matrix(),
             hamiltonian_type=self.hamiltonian_type,
             num_gpus_to_use=self.resolved_num_gpus,
             dim=self.dim,
@@ -471,7 +510,7 @@ class MPSBackendImpl:
         if self.is_masked and self.current_time >= self.slm_end_time:
             self.is_masked = False
             self.hamiltonian = make_H(
-                interaction_matrix=self.full_interaction_matrix,
+                interaction_matrix=self._get_interaction_matrix(),
                 hamiltonian_type=self.hamiltonian_type,
                 dim=self.dim,
                 num_gpus_to_use=self.resolved_num_gpus,
