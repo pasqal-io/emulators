@@ -47,33 +47,41 @@ dtype = torch.complex128
 
 class _PermutedInteractionMatrix:
     """
-    Gets the interaction matrix from pulser_data and permutes it according
-    to the qubit permutation.
-    Supports for picking out the well-prepared qubits in the presence of
-    state preparation errors.
+    Callable wrapper that permutes an interaction matrix to match the MPS
+    site ordering.
+
+    Applies a qubit permutation to the interaction matrix at each time step.
+    Implemented as a class rather than a lambda to support pickling.
     """
 
-    def __init__(self, original: Callable[[float], torch.Tensor], perm: torch.Tensor):
-        self.original = original
-        self.perm = perm
+    def __init__(
+        self, original_matrix: Callable[[float], torch.Tensor], permutation: torch.Tensor
+    ):
+        self.original_matrix = original_matrix
+        self.permutation = permutation
 
     def __call__(self, t: float) -> torch.Tensor:
-        return optimat.permute_tensor(self.original(t), self.perm)
+        return optimat.permute_tensor(self.original_matrix(t), self.permutation)
 
 
 class _FilteredInteractionMatrix:
     """
-    Gets the interaction matrix from pulser_data and filters out the bad qubits
-    Support for picking out the well-prepared qubits in the presence of
-    state preparation errors.
+    Callable wrapper that filters an interaction matrix to retain only
+    well-prepared qubits.
+
+    Removes rows/columns corresponding to qubits affected by state preparation
+    errors, returning the reduced matrix at each time step. Implemented as a
+    class to support pickling.
     """
 
-    def __init__(self, original: Callable[[float], torch.Tensor], filt: torch.Tensor):
-        self.original = original
-        self.filt = filt
+    def __init__(
+        self, original_matrix: Callable[[float], torch.Tensor], filter: torch.Tensor
+    ):
+        self.original_matrix = original_matrix
+        self.filter = filter
 
     def __call__(self, t: float) -> torch.Tensor:
-        return self.original(t)[self.filt, :][:, self.filt]
+        return self.original_matrix(t)[self.filter, :][:, self.filter]
 
 
 class Statistics(Observable):
@@ -161,13 +169,13 @@ class MPSBackendImpl:
             else optimat.eye_permutation(self.qubit_count)
         )
 
-        perm = self.qubit_permutation
+        permutation = self.qubit_permutation
         original = self.interaction_matrix
 
         # def interaction_matrix(t: float) -> torch.Tensor:
         #     return optimat.permute_tensor(original(t), perm)
 
-        self.interaction_matrix = _PermutedInteractionMatrix(original, perm)
+        self.interaction_matrix = _PermutedInteractionMatrix(original, permutation)
 
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.slm_end_time = pulser_data.slm_end_time
@@ -252,9 +260,9 @@ class MPSBackendImpl:
             #     self.well_prepared_qubits_filter, :
             # ][:, self.well_prepared_qubits_filter]
             original_inter_matrix = self.interaction_matrix
-            filt = self.well_prepared_qubits_filter
+            filter = self.well_prepared_qubits_filter
             self.interaction_matrix = _FilteredInteractionMatrix(
-                original_inter_matrix, filt
+                original_inter_matrix, filter
             )
             self.omega = self.omega[:, self.well_prepared_qubits_filter]
             self.delta = self.delta[:, self.well_prepared_qubits_filter]
@@ -409,7 +417,8 @@ class MPSBackendImpl:
         """
         Do one unit of simulation work given the current state.
         Update the state accordingly.
-        The state of the simulation is stored in self.sweep_index and self.swipe_direction.
+        The state of the simulation is stored in self.sweep_index and
+        self.swipe_direction.
         """
         if self.is_finished():
             return

@@ -158,10 +158,13 @@ def _extract_omega_delta_phi(
 
 class _InteractionMatrixCallable:
     """
-    Callable that returns the masked interaction matrix before the SLM end
-    time and the full interaction matrix after.
-    This support pikling the interaction matrix in the SV backend, which is
-    not possible with a lambda function.
+    Callable wrapper returning the SLM-masked or full interaction matrix
+    depending on time.
+
+    Returns the masked matrix before the SLM end time, and the full matrix
+    after.
+    Implemented as a class (rather than a lambda) to support pickling in the
+    MPSbackend.
     """
 
     def __init__(
