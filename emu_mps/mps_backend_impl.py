@@ -170,12 +170,12 @@ class MPSBackendImpl:
         )
 
         permutation = self.qubit_permutation
-        original = self.interaction_matrix
+        original_matrix = self.interaction_matrix
 
-        # def interaction_matrix(t: float) -> torch.Tensor:
+        # def interaction_matrix_permuted(t: float) -> torch.Tensor:
         #     return optimat.permute_tensor(original(t), perm)
 
-        self.interaction_matrix = _PermutedInteractionMatrix(original, permutation)
+        self.interaction_matrix = _PermutedInteractionMatrix(original_matrix, permutation)
 
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.slm_end_time = pulser_data.slm_end_time
