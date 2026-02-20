@@ -166,7 +166,7 @@ def test_ising_hamiltonian():
     eigvals, eigvecs = torch.linalg.eigh(H_small)
     ground_state_small = eigvecs[:, 0]
 
-    v = torch.ones(d**N)
+    v = torch.ones(d**N, dtype=ground_state_small.dtype)
     v[: d**N_small] = ground_state_small
     v = v / v.norm()
 
