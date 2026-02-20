@@ -21,9 +21,13 @@ def _ritz_vector(
     return psi / norm
 
 
+def _dotc(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    return torch.vdot(a.reshape(-1), b.reshape(-1))
+
+
 def _mgs_reorthogonalize(v: torch.Tensor, basis: list[torch.Tensor]) -> torch.Tensor:
     for q in basis:
-        v = v - torch.vdot(q, v) * q
+        v -= _dotc(q, v) * q
     return v
 
 
@@ -110,7 +114,7 @@ def krylov_energy_minimization_impl(
         # Best within this cycle
         best_state = lanczos_vectors[0]
         best_energy = (
-            torch.vdot(best_state, op(best_state)) / torch.vdot(best_state, best_state)
+            _dotc(best_state, op(best_state)) / _dotc(best_state, best_state)
         ).real.to(real_dtype)
         best_resid = torch.tensor(float("inf"), device=device, dtype=real_dtype)
 
@@ -123,7 +127,7 @@ def krylov_energy_minimization_impl(
 
             # 3-term recurrence fill (real symmetric T)
             for k in range(max(0, j - 1), j + 1):
-                alpha = torch.vdot(lanczos_vectors[k], w).real
+                alpha = _dotc(lanczos_vectors[k], w).real
                 T[k, j] = alpha
                 w = w - alpha * lanczos_vectors[k]
 
