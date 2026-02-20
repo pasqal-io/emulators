@@ -201,12 +201,12 @@ def test_live_data(lb, rb, combined_hamiltonian_factors, v, krylov_dim):
     def op(x: torch.Tensor) -> torch.Tensor:
         return tensored_h @ x
 
-    ed = torch.linalg.eigh(tensored_h)
-    min_ed, e_ed = ed.eigenvectors[:, 0], ed.eigenvalues[0]
+    eigenvalues, eigenvectors = torch.linalg.eigh(tensored_h)
+    min_ed, e_ed = eigenvectors[:, 0], eigenvalues[0]
     result = krylov_energy_minimization_impl(op, v, 1e-8, 1e-5, krylov_dim)
     e_vec = result.ground_energy.real
     min_vec = result.ground_state
     assert torch.allclose(torch.tensor([e_vec], dtype=torch.float64), e_ed)
-    assert torch.allclose(
-        min_vec, min_vec[0] / min_ed[0] * min_ed
-    )  # there's a phase ambiguity
+
+    complex_phase = torch.vdot(min_ed, min_vec) / torch.vdot(min_ed, min_ed)
+    assert torch.allclose(min_vec, complex_phase * min_ed, rtol=1e-5, atol=1e-7)
