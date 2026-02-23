@@ -48,10 +48,10 @@ jobs:
         with:
           python-version: '3.12'
       - name: Test CI pyproject installations
-        run: |
+      - run: |
           for pyproject in ci/*/pyproject.toml; do
             dir=$(dirname "$pyproject")
             echo "Testing installation from $dir"
             pip install "$dir" || exit 1
           done
-        run: python -c "import emu_base; import emu_mps; import emu_sv"
+      - run: python -c "import emu_base; import emu_mps; import emu_sv"
