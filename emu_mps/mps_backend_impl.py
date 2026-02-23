@@ -114,9 +114,8 @@ class MPSBackendImpl:
         self.target_time = self.target_times[1]
         self.pulser_data = pulser_data
         self.qubit_count = pulser_data.qubit_count
-        assert self.qubit_count >= 2
-        # "emu_mps is not designed for less than 2 qubits. Consider using a
-        # different backend or adding a special case for 1 qubit."
+        assert self.qubit_count >= 2, "emu_mps is not designed for less than 2 "
+        "qubits. Consider using emu_sv backend. "
         self.omega = pulser_data.omega
         self.delta = pulser_data.delta
         self.phi = pulser_data.phi
@@ -137,15 +136,7 @@ class MPSBackendImpl:
             else optimat.eye_permutation(self.qubit_count)
         )
 
-        # permutation = self.qubit_permutation
-        # original_matrix = self.interaction_matrix
-
-        # def interaction_matrix_permuted(t: float) -> torch.Tensor:
-        #     return optimat.permute_tensor(original(t), perm)
-
         self.hamiltonian_type = pulser_data.hamiltonian_type
-        # self.slm_end_time = pulser_data.slm_end_time
-        # self.is_masked = self.slm_end_time > 0.0
         self.left_baths: list[torch.Tensor]
         self.time = time.time()
         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
@@ -181,7 +172,8 @@ class MPSBackendImpl:
         self.resolved_num_gpus = requested_num_gpus
 
     def _get_interaction_matrix(self) -> torch.Tensor:
-        # return self.interaction_matrix(self.current_time)
+        """Get the interaction matrix for the current time step, applying qubit
+        permutation and dark qubit filtering if necessary."""
         matrix = self.pulser_data.interaction_matrix(self.current_time)
 
         # permutation if optimization is enabled
