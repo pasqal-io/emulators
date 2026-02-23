@@ -26,21 +26,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python ./test_dependency_versions.py
-#  test:
-#    needs: check_dependency_versions
-#    runs-on: ${{ matrix.os }}
-#    steps:
-#      - uses: actions/checkout@v4
-#      - uses: actions/setup-python@v5
-#        with:
-#          python-version: ${{ matrix.python-version }}
-#      - run: pip install -r test_requirements.txt
-#      - run: pip install -e .
-#      - run: pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv --cov=optimatrix
-#      - run: pytest --nbmake -k ipynb
-#      - run: readme-cov
+  test:
+    needs: check_dependency_versions
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -r test_requirements.txt
+      - run: pip install -e .
+      - run: pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv --cov=optimatrix
+      - run: pytest --nbmake -k ipynb
+      - run: readme-cov
   test_ci_pyproject_installs:
-    #needs: test
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
