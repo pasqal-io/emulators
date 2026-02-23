@@ -54,3 +54,4 @@ jobs:
             echo "Testing installation from $dir"
             pip install "$dir" || exit 1
           done
+        run: python -c "import emu_base; import emu_mps; import emu_sv"
