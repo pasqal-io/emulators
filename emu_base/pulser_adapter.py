@@ -295,11 +295,6 @@ class PulserData:
                 samples.samples, self.qubit_ids, self.target_times
             )
 
-            # interaction_matrix = lambda t: (
-            #     masked_interaction_matrix
-            #     if t < self.slm_end_time
-            #     else full_interaction_matrix
-            # )
             interaction_matrix = _InteractionMatrixCallable(
                 full_matrix=full_interaction_matrix,
                 masked_matrix=masked_interaction_matrix,

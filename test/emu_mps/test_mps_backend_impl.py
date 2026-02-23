@@ -20,9 +20,6 @@ import pytest
 from collections import Counter
 
 
-_ATOL = 1e-10
-
-
 QUBIT_COUNT = 5
 
 dtype = torch.complex128
@@ -158,16 +155,6 @@ def test_init_dark_qubits_with_state_prep_error():
         "q4": True,
     }
 
-    victim.interaction_matrix = lambda t: torch.tensor(
-        [
-            [0, 1, 2, 3, 4],
-            [10, 11, 12, 13, 14],
-            [20, 21, 22, 23, 24],
-            [30, 31, 32, 33, 34],
-            [40, 41, 42, 43, 44],
-        ]
-    )
-    # victim.masked_interaction_matrix = victim.full_interaction_matrix
     victim.omega = torch.tensor(
         [
             [0, 1, 2, 3, 4],
@@ -192,20 +179,6 @@ def test_init_dark_qubits_with_state_prep_error():
     assert torch.equal(
         victim.well_prepared_qubits_filter,
         torch.tensor([True, False, True, True, False]),
-    )
-
-    assert torch.allclose(
-        victim.interaction_matrix(0.0),
-        torch.tensor(
-            [
-                [0, 2, 3],
-                [20, 22, 23],
-                [30, 32, 33],
-            ]
-        ),
-    )
-    assert torch.allclose(
-        victim.interaction_matrix(0.0), victim.interaction_matrix(11.0)  # after SLM
     )
 
     assert torch.allclose(
@@ -356,10 +329,103 @@ def test_init_initial_state_provided_normalized():
     )
 
 
+def test_get_interaction_matrix_identity_permutation_no_filter():
+    """Test that _get_interaction_matrix returns pulser_data interaction matrix
+    when no permutation or filtering"""
+    victim = create_victim()
+
+    expected_matrix = torch.tensor(
+        [
+            [0, 1, 2, 3, 4],
+            [1, 0, 5, 6, 7],
+            [2, 5, 0, 8, 9],
+            [3, 6, 8, 0, 10],
+            [4, 7, 9, 10, 0],
+        ],
+        dtype=torch.float64,
+    )
+
+    victim.pulser_data.interaction_matrix = lambda t: expected_matrix
+    victim.qubit_permutation = torch.arange(QUBIT_COUNT)
+    victim.well_prepared_qubits_filter = None
+
+    result = victim._get_interaction_matrix()
+
+    assert torch.equal(result, expected_matrix)
+
+
+@patch("emu_mps.mps_backend_impl.optimat.permute_tensor")
+def test_get_interaction_matrix_with_permutation_no_filter(mock_permute_tensor):
+    victim = create_victim()
+
+    # Set up a non-identity permutation
+    victim.qubit_permutation = torch.tensor([1, 0, 2, 3, 4])
+    victim.well_prepared_qubits_filter = None
+
+    # Mock the interaction matrix from pulser_data
+    expected_matrix = torch.eye(QUBIT_COUNT)
+    victim.pulser_data.interaction_matrix = MagicMock(return_value=expected_matrix)
+
+    # Mock the permuted result
+    permuted_matrix = torch.ones(QUBIT_COUNT, QUBIT_COUNT)
+    mock_permute_tensor.return_value = permuted_matrix
+
+    result = victim._get_interaction_matrix()
+
+    # Verify interaction_matrix was called with current_time
+    victim.pulser_data.interaction_matrix.assert_called_once_with(victim.current_time)
+
+    # Verify permute_tensor was called with the matrix and permutation
+    mock_permute_tensor.assert_called_once_with(expected_matrix, victim.qubit_permutation)
+
+    # Verify the result is the permuted matrix
+    assert torch.equal(result, permuted_matrix)
+
+
+def test_get_interaction_matrix_with_dark_qubits_no_permutation():
+    """Test interaction matrix filtering with dark qubits and no permutation"""
+    victim = create_victim()
+
+    # Set up identity permutation
+    victim.qubit_permutation = torch.tensor([0, 1, 2, 3, 4])
+
+    # Set up dark qubits filter (qubits 1 and 4 are dark)
+    victim.well_prepared_qubits_filter = torch.tensor([True, False, True, True, False])
+
+    # Create a known interaction matrix
+    test_matrix = torch.tensor(
+        [
+            [0, 1, 2, 3, 4],
+            [10, 11, 12, 13, 14],
+            [20, 21, 22, 23, 24],
+            [30, 31, 32, 33, 34],
+            [40, 41, 42, 43, 44],
+        ],
+        dtype=torch.float64,
+    )
+
+    victim.pulser_data.interaction_matrix = lambda t: test_matrix
+
+    result = victim._get_interaction_matrix()
+
+    # Expected result: matrix with rows/columns 1 and 4 removed
+    expected = torch.tensor(
+        [
+            [0, 2, 3],
+            [20, 22, 23],
+            [30, 32, 33],
+        ],
+        dtype=torch.float64,
+    )
+
+    assert torch.allclose(result, expected)
+
+
 @patch("emu_mps.mps_backend_impl.make_H")
 @patch("emu_mps.mps_backend_impl.update_H")
 def test_init_noiseless_hamiltonian(update_H_mock, make_H_mock):
     victim = create_victim()
+    victim.well_prepared_qubits_filter = None
     victim.init_noiseless_hamiltonian()
     assert make_H_mock.call_count == 1
     assert update_H_mock.call_count == 1
