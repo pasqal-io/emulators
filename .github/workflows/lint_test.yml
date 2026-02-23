@@ -49,7 +49,7 @@ jobs:
           python-version: '3.12'
       - name: Test CI pyproject installations
         run: |
-          for pyproject in emulators/ci/*/pyproject.toml; do
+          for pyproject in ci/*/pyproject.toml; do
             dir=$(dirname "$pyproject")
             echo "Testing installation from $dir"
             pip install "$dir" || exit 1
