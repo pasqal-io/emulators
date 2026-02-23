@@ -42,7 +42,6 @@ jobs:
   test_ci_pyproject_installs:
     #needs: test
     runs-on: ubuntu-latest
-    strategy:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
