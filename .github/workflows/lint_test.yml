@@ -54,7 +54,6 @@ jobs:
       - run: |
           for pyproject in ci/*/pyproject.toml; do
             dir=$(dirname "$pyproject")
-            echo "Testing installation from $dir"
             pip install "$dir" || exit 1
-            python -c "import $(basename $pyproject)"
+            python -c "import `basename $dir`"
           done
