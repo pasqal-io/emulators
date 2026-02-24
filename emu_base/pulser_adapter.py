@@ -187,7 +187,6 @@ class SequenceData:
     delta: torch.Tensor
     phi: torch.Tensor
     interaction_matrix: Callable[[float], torch.Tensor]
-    slm_end_time: float
     bad_atoms: dict[str, bool]
     lindblad_ops: list[torch.Tensor]
     noise_model: NoiseModel
@@ -307,7 +306,6 @@ class PulserData:
                     delta,
                     phi,
                     interaction_matrix,
-                    self.slm_end_time,
                     samples.trajectory.bad_atoms,
                     self.lindblad_ops,
                     self.noise_model,

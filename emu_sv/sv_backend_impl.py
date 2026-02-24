@@ -139,8 +139,6 @@ class SVBackendImpl:
 
         if self.well_prepared_qubits_filter is not None:
 
-            # self.full_interaction_matrix[self.well_prepared_qubits_filter, :] = 0.0
-            # self.full_interaction_matrix[:, self.well_prepared_qubits_filter] = 0.0
             original = self.interaction_matrix
 
             indices = torch.where(self.well_prepared_qubits_filter)[0]
@@ -219,7 +217,9 @@ class SVBackendImpl:
                 deltas=self.delta[0],
                 phis=self.phi[0],
                 pulser_lindblads=self.pulser_lindblads,
-                interaction_matrix=self.interaction_matrix(self.target_times[step_idx]),
+                interaction_matrix=self.interaction_matrix(
+                    0.5 * (self.target_times[step_idx] + self.target_times[step_idx + 1])
+                ),
                 device=self.state.data.device,
             )
         for callback in callbacks_for_current_time_step:

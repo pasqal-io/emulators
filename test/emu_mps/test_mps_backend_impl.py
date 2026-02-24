@@ -373,7 +373,9 @@ def test_get_interaction_matrix_with_permutation_no_filter(mock_permute_tensor):
     result = victim._get_interaction_matrix()
 
     # Verify interaction_matrix was called with current_time
-    victim.pulser_data.interaction_matrix.assert_called_once_with(victim.current_time)
+    victim.pulser_data.interaction_matrix.assert_called_once_with(
+        0.5 * (victim.current_time + victim.target_time)
+    )
 
     # Verify permute_tensor was called with the matrix and permutation
     mock_permute_tensor.assert_called_once_with(expected_matrix, victim.qubit_permutation)

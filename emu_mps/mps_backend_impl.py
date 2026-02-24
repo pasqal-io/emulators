@@ -114,8 +114,8 @@ class MPSBackendImpl:
         self.target_time = self.target_times[1]
         self.pulser_data = pulser_data
         self.qubit_count = pulser_data.qubit_count
-        assert self.qubit_count >= 2, "emu_mps is not designed for less than 2 "
-        "qubits. Consider using emu_sv backend. "
+        assert self.qubit_count >= 2, "emu_mps is not designed for less than "
+        " 2 qubits. Consider using emu_sv backend. "
         self.omega = pulser_data.omega
         self.delta = pulser_data.delta
         self.phi = pulser_data.phi
@@ -174,7 +174,9 @@ class MPSBackendImpl:
     def _get_interaction_matrix(self) -> torch.Tensor:
         """Get the interaction matrix for the current time step, applying qubit
         permutation and dark qubit filtering if necessary."""
-        matrix = self.pulser_data.interaction_matrix(self.current_time)
+        matrix = self.pulser_data.interaction_matrix(
+            0.5 * (self.current_time + self.target_time)
+        )
 
         # permutation if optimization is enabled
         if not torch.equal(
@@ -222,7 +224,9 @@ class MPSBackendImpl:
             )
         else:
             self.well_prepared_qubits_filter = None
-        print("init dark qubits filter:", self.well_prepared_qubits_filter)
+        logging.getLogger("emulators").info(
+            f"Init dark qubits filter: {self.well_prepared_qubits_filter}"
+        )
 
         if self.well_prepared_qubits_filter is not None:
             self.qubit_count = sum(1 for x in self.well_prepared_qubits_filter if x)
