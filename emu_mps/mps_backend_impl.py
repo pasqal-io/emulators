@@ -114,8 +114,10 @@ class MPSBackendImpl:
         self.target_time = self.target_times[1]
         self.pulser_data = pulser_data
         self.qubit_count = pulser_data.qubit_count
-        assert self.qubit_count >= 2, "emu_mps is designed for more than 2"
-        " qubits. Consider using emu_sv backend. "
+        assert self.qubit_count >= 2, (
+            "emu_mps is designed for more than 2 qubits. "
+            "Consider using the emu_sv backend."
+        )
         self.omega = pulser_data.omega
         self.delta = pulser_data.delta
         self.phi = pulser_data.phi
@@ -179,12 +181,11 @@ class MPSBackendImpl:
         )
 
         # permutation if optimization is enabled
-        if not torch.equal(
+        if not torch.allclose(
             self.qubit_permutation, optimat.eye_permutation(self.qubit_count)
         ):
             matrix = optimat.permute_tensor(matrix, self.qubit_permutation)
 
-        # dark qubit filtering if present
         if self.well_prepared_qubits_filter is not None:
             matrix = matrix[self.well_prepared_qubits_filter, :][
                 :, self.well_prepared_qubits_filter
@@ -217,14 +218,14 @@ class MPSBackendImpl:
 
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
-        if self.pulser_data.noise_model.state_prep_error > 0.0:  # only state_prep
+        if self.pulser_data.noise_model.state_prep_error > 0.0:
             bad_atoms = self.pulser_data.bad_atoms
             self.well_prepared_qubits_filter = torch.logical_not(
                 torch.tensor(list(bool(x) for x in bad_atoms.values()))
             )
         else:
             self.well_prepared_qubits_filter = None
-        logging.getLogger("emulators").info(
+        logging.getLogger("emulators").debug(
             f"Init dark qubits filter: {self.well_prepared_qubits_filter}"
         )
 
