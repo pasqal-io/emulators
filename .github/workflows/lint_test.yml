@@ -56,6 +56,5 @@ jobs:
             dir=$(dirname "$pyproject")
             echo "Testing installation from $dir"
             pip install "$dir" || exit 1
-            python -c "import "
+            python -c "import $(basename $pyproject)"
           done
-      - run: python -c "import `basename $pyproject`"
