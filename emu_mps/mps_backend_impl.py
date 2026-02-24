@@ -118,6 +118,7 @@ class MPSBackendImpl:
             "emu_mps is designed for more than 2 qubits. "
             "Consider using the emu_sv backend."
         )
+
         self.omega = pulser_data.omega
         self.delta = pulser_data.delta
         self.phi = pulser_data.phi
