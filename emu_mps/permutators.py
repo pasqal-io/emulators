@@ -11,13 +11,6 @@ from pulser.backend import Results
 import emu_mps.optimatrix as optimat
 
 
-# pylint: disable=protected-access
-
-#TODO check if it is possible to avoid protected accesses from objects (e.g. results._results)
-
-#TODO correct docstrings
-
-
 def permute_bitstrings(results: Results, perm: torch.Tensor) -> None:
     """
     Bitstring permutator functions

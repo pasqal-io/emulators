@@ -2,6 +2,7 @@
 This module contains the implementation of the backend for Matrix Product States
 computations.
 """
+
 import math
 import os
 import pathlib
@@ -13,7 +14,8 @@ import uuid
 import logging
 
 from copy import deepcopy
-#from collections import Counter
+
+# from collections import Counter
 from enum import Enum, auto
 from types import MethodType
 from typing import Any, Optional
@@ -51,20 +53,13 @@ from emu_mps.utils import (
 from .permutators import (
     permute_bitstrings,
     permute_atom_order,
-    permute_occupations_and_correlations
+    permute_occupations_and_correlations,
 )
 
 dtype = torch.complex128
 
 
 class Statistics(Observable):
-    """
-    Definition of what the class Statistics
-
-    Attributes:
-    
-       Observable: The Observable used to make the evaluation.
-    """
     def __init__(
         self,
         evaluation_times: typing.Sequence[float] | None,
@@ -108,21 +103,12 @@ class Statistics(Observable):
 
 
 class SwipeDirection(Enum):
-    """
-    Enumerator for the swipe direction
-    """
     LEFT_TO_RIGHT = auto()
     RIGHT_TO_LEFT = auto()
 
 
-# pylint: disable=too-many-instance-attributes
 class MPSBackendImpl(ABC):
-    """
-    MPS Backend implementation
-    """
-    current_time: float = (
-        0.0  # While dt is an integer, noisy collapse can happen at non-integer times.
-    )
+    current_time = 0.0
     well_prepared_qubits_filter: Optional[torch.Tensor]
     hamiltonian: MPO
     state: MPS
@@ -166,7 +152,6 @@ class MPSBackendImpl(ABC):
         self.left_baths: list[torch.Tensor]
         self.time = time.time()
         self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
-        self.sweep_count: int = 0 # for DMRGBackendImpl took it from there
         self.sweep_index = 0
         self.timestep_index = 0
         self.results = Results(
@@ -222,9 +207,6 @@ class MPSBackendImpl(ABC):
         )
 
     def init_dark_qubits(self) -> None:
-        """
-        Add docstring for init_dark_qubits
-        """
         # has_state_preparation_error
         if self.pulser_data.noise_model.state_prep_error > 0.0:
             bad_atoms = self.pulser_data.bad_atoms
@@ -248,12 +230,6 @@ class MPSBackendImpl(ABC):
             self.phi = self.phi[:, self.well_prepared_qubits_filter]
 
     def init_initial_state(self, initial_state: State | None = None) -> None:
-        """
-        Definition of an initial state. before launching the MPS.
-
-        Args:
-           initial_state (State): A state that takes None as a default value
-        """
         if initial_state is None:
             self.state = MPS.make(
                 self.qubit_count,
@@ -275,7 +251,9 @@ class MPSBackendImpl(ABC):
             self.qubit_permutation, optimat.eye_permutation(self.qubit_count)
         ):
             # permute the initial state to match with permuted Hamiltonian
-            abstr_repr = initial_state._to_abstract_repr()  # pylint: disable=protected-access
+            abstr_repr = (
+                initial_state._to_abstract_repr()
+            )  # pylint: disable=protected-access
             eigs = abstr_repr["eigenstates"]
             ampl = {
                 optimat.permute_string(bstr, self.qubit_permutation): amp
@@ -298,10 +276,9 @@ class MPSBackendImpl(ABC):
 
     def init_noiseless_hamiltonian(self) -> None:
         """
-        Hamiltonian initialzer
+        Must be called AFTER init_dark_qubits otherwise,
+        too many factors are put in the Hamiltonian
         """
-        # Must be called AFTER init_dark_qubits otherwise,
-        # too many factors are put in the Hamiltonian
         self.hamiltonian = make_H(
             interaction_matrix=(
                 self.masked_interaction_matrix
@@ -333,9 +310,6 @@ class MPSBackendImpl(ABC):
         )
 
     def init_baths(self) -> None:
-        """
-        Baths initializer
-        """
         self.left_baths = [
             torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
         ]
@@ -343,27 +317,12 @@ class MPSBackendImpl(ABC):
         assert len(self.right_baths) == self.qubit_count - 1
 
     def get_current_right_bath(self) -> torch.Tensor:
-        """
-        Method that returns the current right bath as a torch tensor
-
-        Returns:
-            right_baths (torch.Tensor): Tensor corresponding to the right bath
-        """
         return self.right_baths[-1]
 
     def get_current_left_bath(self) -> torch.Tensor:
-        """
-        Method that returns the current left bath
-
-        Returns:
-            left_bath (torch.Tensor): Tensor corresponding to the left bath
-        """
         return self.left_baths[-1]
 
     def init(self) -> None:
-        """
-        Method that initializes the 'environment' for the simulation
-        """
         self.init_dark_qubits()
         self.init_initial_state(self.config.initial_state)
         self.init_noiseless_hamiltonian()
@@ -372,9 +331,6 @@ class MPSBackendImpl(ABC):
         self.init_baths()
 
     def is_finished(self) -> bool:
-        """
-        Method to stop the simulation once it has reached the timestep count
-        """
         return self.timestep_index >= self.timestep_count
 
     def _evolve(
@@ -426,15 +382,11 @@ class MPSBackendImpl(ABC):
 
     @abstractmethod
     def progress(self) -> None:
-        """
-        Abstract method of progress, to be defined in child classes
-        """
+        pass
 
     @abstractmethod
     def sweep_complete(self) -> None:
-        """
-        Abstract method for sweep complete, to be defined in child classes
-        """
+        pass
 
     def _left_to_right_update(self, idx: int) -> None:
         """
@@ -556,23 +508,10 @@ class MPSBackendImpl(ABC):
         return is_observable_eval_time or is_default_eval_time
 
     def fill_results(self) -> None:
-        """
-        Method that fills the results
-        """
         normalized_state = 1 / self.state.norm() * self.state
 
         fractional_time = self.current_time / self.target_times[-1]
 
-        if self.well_prepared_qubits_filter is None:
-            for callback in self.config.observables:
-                callback(
-                    self.config,
-                    fractional_time,
-                    normalized_state,
-                    self.hamiltonian,
-                    self.results,
-                )
-            # The empty return below is supposed to return None right ?
         callbacks_for_current_time_step = [
             callback
             for callback in self.config.observables
@@ -616,16 +555,6 @@ class MPSBackendImpl(ABC):
             )
 
     def permute_results(self, results: Results, permute: bool) -> Results:
-        """
-        Method that makes permutations in the results
-
-        Args:
-            results (Results): A Result object
-            permute (bool): A boolean, if True, a permutation is made in the results
-
-        Returns:
-            An object of type Results
-        """
         if permute:
             inv_perm = optimat.inv_permutation(self.qubit_permutation)
             permute_bitstrings(results, inv_perm)
@@ -635,21 +564,7 @@ class MPSBackendImpl(ABC):
 
 
 class TDVPBackendImpl(MPSBackendImpl):
-    """
-    New implementation of an MPS using the TDVP method
-    """
-
-    def __init__(
-            self,
-            mps_config: MPSConfig,
-            pulser_data: PulserData,
-    ):
-        super().__init__(mps_config, pulser_data)
-
-    def progress(self):
-        """
-        progress method for TDVP
-        """
+    def progress(self) -> None:
         if self.is_finished():
             return
 
@@ -725,7 +640,7 @@ class TDVPBackendImpl(MPSBackendImpl):
 
         self.save_simulation()
 
-    def sweep_complete(self):
+    def sweep_complete(self) -> None:
         """
         Marks the completion of a TDVP sweep.
 
@@ -737,11 +652,6 @@ class TDVPBackendImpl(MPSBackendImpl):
 
 
 class NoisyTDVPBackendImpl(TDVPBackendImpl):
-    """
-    Version of MPSBackendImpl with non-zero lindbladian noise.
-    Implements the Monte-Carlo Wave Function jump method.
-    """
-
     jump_threshold: float
     aggregated_lindblad_ops: torch.Tensor
     norm_gap_before_jump: float
@@ -755,9 +665,6 @@ class NoisyTDVPBackendImpl(TDVPBackendImpl):
         assert self.lindblad_ops
 
     def init_lindblad_noise(self) -> None:
-        """
-        Initialization of the lindblad_noise
-        """
         stacked = torch.stack(self.lindblad_ops)
         # The below is used for batch computation of noise collapse weights.
         self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
@@ -765,12 +672,6 @@ class NoisyTDVPBackendImpl(TDVPBackendImpl):
         self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops, self.dim)
 
     def set_jump_threshold(self, bound: float) -> None:
-        """
-        Method that sets the jump threshold
-
-        Attributes:
-            bound (float): A Float used as a parameter to define the jump threshold
-        """
         self.jump_threshold = random.uniform(0.0, bound)
         self.norm_gap_before_jump = self.state.norm().item() ** 2 - self.jump_threshold
 
@@ -821,9 +722,6 @@ class NoisyTDVPBackendImpl(TDVPBackendImpl):
             self.target_time = self.root_finder.get_next_abscissa()
 
     def do_random_quantum_jump(self) -> None:
-        """
-        This method makes random quantum jumps
-        """
         jump_operator_weights = self.state.expect_batch(self.aggregated_lindblad_ops).real
         jumped_qubit_index, jump_operator = random.choices(
             [
@@ -849,9 +747,6 @@ class NoisyTDVPBackendImpl(TDVPBackendImpl):
 
 
 class DMRGBackendImpl(MPSBackendImpl):
-    """
-    Implementation of the MPS with DMRG method
-    """
     def __init__(
         self,
         mps_config: MPSConfig,
@@ -868,23 +763,11 @@ class DMRGBackendImpl(MPSBackendImpl):
         super().__init__(mps_config, pulser_data)
         self.previous_energy: Optional[float] = None
         self.current_energy: Optional[float] = None
+        self.sweep_count: int = 0
         self.energy_tolerance = energy_tolerance
         self.max_sweeps = max_sweeps
 
     def convergence_check(self, energy_tolerance: float) -> bool:
-        """
-        Methods that checks if the simulation has converged by comparing the energy
-        difference between two round to a tolerance threshold
-
-        Args:
-
-            energy_tolerance (float): The energy tolerence threshold
-
-        Returns:
-
-            A boolean that returns True if the difference between the current energy
-            and the previous one is inferior to the threshold energy
-        """
         if self.previous_energy is None or self.current_energy is None:
             return False
         return abs(self.current_energy - self.previous_energy) < energy_tolerance
@@ -952,21 +835,11 @@ class DMRGBackendImpl(MPSBackendImpl):
         self.current_energy = None
 
 
-def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
-    """
-    Creates the implementation of the MPS backend
-    """
-    pulser_data = PulserData(sequence=sequence, config=config, dt=config.dt)
-
-    if pulser_data.has_lindblad_noise:
-        return NoisyTDVPBackendImpl(config, pulser_data)
-    if config.solver == Solver.DMRG:
-        return DMRGBackendImpl(config, pulser_data)
-    return TDVPBackendImpl(config, pulser_data)
 def create_impl(data: SequenceData, config: MPSConfig) -> MPSBackendImpl:
-
     if data.lindblad_ops:
-        return NoisyMPSBackendImpl(config, data)
+        if config.solver == Solver.DMRG:
+            raise NotImplementedError("DMRG solver does not support lindbladian noise")
+        return NoisyTDVPBackendImpl(config, data)
     if config.solver == Solver.DMRG:
         return DMRGBackendImpl(config, data)
-    return MPSBackendImpl(config, data)
+    return TDVPBackendImpl(config, data)
