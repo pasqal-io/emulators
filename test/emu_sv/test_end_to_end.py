@@ -1,39 +1,41 @@
+import logging
 import math
 import random
-from unittest.mock import ANY, MagicMock, patch
-import pytest
-import numpy as np
-import torch
-from pytest import approx
 from typing import Any
+from unittest.mock import ANY, MagicMock, patch
 
+import numpy as np
 import pulser
 import pulser.noise_model
+import pytest
+import torch
+from pytest import approx
+
 
 from emu_sv import (
     SVBackend,
     SVConfig,
-    StateVector,
-    DenseOperator,
-    SparseOperator,
+    BitStrings,
     CorrelationMatrix,
+    DenseOperator,
+    DensityMatrix,
+    Energy,
     EnergySecondMoment,
     EnergyVariance,
-    Occupation,
-    BitStrings,
-    Energy,
-    Fidelity,
     Expectation,
+    Fidelity,
+    Occupation,
     Results,
+    SparseOperator,
     StateResult,
-    DensityMatrix,
+    StateVector,
 )
 
 from test.utils_testing import (
+    pulser_afm_sequence_grid,
     pulser_afm_sequence_ring,
     pulser_blackman,
 )
-
 
 seed = 1337
 
@@ -72,7 +74,7 @@ def create_antiferromagnetic_state_vector(
 def simulate(
     seq: pulser.Sequence,
     *,
-    dt: int = 100,
+    dt: float = 100.0,
     noise_model: Any | None = None,
     state_prep_error: float = 0,
     p_false_pos: float = 0,
@@ -133,7 +135,7 @@ def simulate(
 def simulate_with_den_matrix(
     seq: pulser.Sequence,
     *,
-    dt: int = 100,
+    dt: float = 100.0,
     noise_model: Any,
     state_prep_error: float = 0,
     p_false_pos: float = 0,
@@ -209,6 +211,8 @@ def test_end_to_end_afm_ring() -> None:
     assert bitstrings["10" * int(num_qubits / 2)] == 136
     assert bitstrings["01" * int(num_qubits / 2)] == 159
     assert torch.allclose(fidelity_state.overlap(final_state), final_fidelity, atol=1e-10)
+
+    assert result.atom_order == tuple(f"q{i}" for i in range(num_qubits))
 
     occupation = result.occupation[final_time]
 
@@ -306,7 +310,7 @@ def test_end_to_end_pi_half_pulse() -> None:
     final_state = result.state[final_time]
 
     expected = torch.tensor([1, -1j], dtype=dtype) / math.sqrt(2)
-    assert torch.allclose(final_state.vector.cpu(), expected, atol=1e-8)
+    assert torch.allclose(final_state.data.cpu(), expected, atol=1e-8)
 
 
 def test_end_to_end_pi_half_pulse_with_phase() -> None:
@@ -323,7 +327,7 @@ def test_end_to_end_pi_half_pulse_with_phase() -> None:
     # with the phase we expect |ψ❭=(|0❭+|1❭)/sqrt(2)
     expected = torch.tensor([1, 1], dtype=dtype) / math.sqrt(2)
 
-    assert torch.allclose(final_state.vector.cpu(), expected, atol=1e-8)
+    assert torch.allclose(final_state.data.cpu(), expected, atol=1e-8)
 
 
 def test_initial_state() -> None:
@@ -388,8 +392,8 @@ def test_initial_state_with_den_matrix() -> None:
     state = DensityMatrix.from_state_amplitudes(
         eigenstates=("r", "g"), amplitudes={"r" * (natoms): 1.0}
     )
-    state.matrix = state.matrix.to("cpu")
-    assert state.matrix.trace() == approx(1.0)  # assert unit norm
+    state.data = state.data.to("cpu")
+    assert state.data.trace() == approx(1.0)  # assert unit norm
 
     state_result = StateResult(evaluation_times=[1.0])
     noise_model = pulser.noise_model.NoiseModel(
@@ -406,7 +410,7 @@ def test_initial_state_with_den_matrix() -> None:
     # assert that the initial state was used by the emulator
 
     assert torch.allclose(
-        results.get_result(state_result, 1.0).matrix.cpu(), state.matrix.cpu(), atol=1e-8
+        results.get_result(state_result, 1.0).data.cpu(), state.data.cpu(), atol=1e-8
     )
 
     assert results.get_result(state_result, 1.0) is not state
@@ -427,7 +431,7 @@ def test_initial_state_den_mat_wrong_atoms():
     )
 
     with pytest.raises(ValueError) as excinfo:
-        state.matrix = state.matrix.to("cpu")
+        state.data = state.data.to("cpu")
 
         state_result = StateResult(evaluation_times=[1.0])
         noise_model = pulser.noise_model.NoiseModel(
@@ -465,7 +469,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     seq.add(pulse, "ising_global")
 
     # emu-sv parameters
-    dt = 100
+    dt = 100.0
     times = [1.0]
     eigenstate = ("r", "g")
     amplitudes = {"r" * natoms: 1.0}
@@ -510,14 +514,14 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
         dtype=dtype,
         device=device,
     )
-    assert torch.allclose(result.state[-1].matrix, expected_state, atol=1e-4)
+    assert torch.allclose(result.state[-1].data, expected_state, atol=1e-4)
 
 
 def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
     natoms = 4
-    dt = 10
+    dt = 10.0
     state_prep_error = 0.1
     times = [1.0]
     total_time = 250  # bitstring at the end: "1111":1000
@@ -554,9 +558,9 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
 
         final_state = result.state[-1]
         expected = StateVector.zero(natoms, gpu=gpu)
-        expected.vector[-2] = 1.0j  # |1110> state
+        expected.data[-2] = 1.0j  # |1110> state
 
-        assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
+        assert torch.allclose(final_state.data, expected.data, atol=1e-4)
 
         probabilities = result.bitstrings[-1]
 
@@ -572,9 +576,9 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
 
         final_state = result.state[-1]
         expected = StateVector.zero(natoms, gpu=gpu)
-        expected.vector[-3] = 1.0j  # |1101> state
+        expected.data[-3] = 1.0j  # |1101> state
 
-        assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
+        assert torch.allclose(final_state.data, expected.data, atol=1e-4)
 
         probabilities = result.bitstrings[-1]
 
@@ -590,9 +594,9 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
 
         final_state = result.state[-1]
         expected = StateVector.zero(natoms, gpu=gpu)
-        expected.vector[11] = 1.0j  # |1011> state
+        expected.data[11] = 1.0j  # |1011> state
 
-        assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
+        assert torch.allclose(final_state.data, expected.data, atol=1e-4)
 
         probabilities = result.bitstrings[-1]
 
@@ -608,9 +612,9 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
 
         final_state = result.state[-1]
         expected = StateVector.zero(natoms, gpu=gpu)
-        expected.vector[7] = 1.0j  # |0111> state
+        expected.data[7] = 1.0j  # |0111> state
 
-        assert torch.allclose(final_state.vector, expected.vector, atol=1e-4)
+        assert torch.allclose(final_state.data, expected.data, atol=1e-4)
 
         probabilities = result.bitstrings[-1]
 
@@ -853,3 +857,87 @@ def test_sparse_expectation():
     results = backend.run()
     for i in range(len(evaluation_times)):
         assert torch.allclose(results.expectation_sparse[i], results.expectation_dense[i])
+
+
+def test_end_to_end_observable_time_as_in_pulser():
+    T = 20  # 16 is min
+    dt = 2.5
+
+    reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
+    seq = pulser.Sequence(reg, pulser.AnalogDevice)
+    seq.declare_channel("ryd", "rydberg_global")
+    pulse = pulser.Pulse.ConstantPulse(T, 5, 0, 0)
+    seq.add(pulse, channel="ryd")
+
+    eval_times = [0.0, 1 / 3, 1.0]  # emulators ignored initial time 0
+    occ = Occupation(evaluation_times=eval_times)
+    obs = (occ,)
+
+    sv_config = SVConfig(dt=dt, observables=obs, log_level=logging.WARN)
+    sv_backend = SVBackend(seq, config=sv_config)
+    sv_results = sv_backend.run()
+
+    sv_occ_t = sv_results.get_result_times(occ)
+    expected = [0.0, 0.3333333333333333, 1.0]
+
+    assert np.allclose(sv_occ_t, expected), f"\nsv = {sv_occ_t}, \nq = {expected}"
+
+
+def test_trajectories():
+    reg = pulser.Register({"q0": [-1e5, 0], "q1": [1e5, 0], "q2": [0, 1e5]})
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ryd", "rydberg_global")
+    seq.add(
+        pulser.Pulse.ConstantDetuning(pulser.BlackmanWaveform(100, torch.pi), 0.0, 0.0),
+        "ryd",
+    )
+
+    occup = Occupation(evaluation_times=[1.0])
+
+    sv_config = SVConfig(
+        observables=(occup,),
+        log_level=logging.WARN,
+        n_trajectories=3,
+        noise_model=pulser.NoiseModel(state_prep_error=1 / 3),
+    )
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
+    ) as bad_atoms_mock:
+        bad_atoms_mock.side_effect = [
+            np.array([0.1, 0.5, 0.6]),
+            np.array([0.5, 0.1, 0.6]),
+            np.array([0.5, 0.6, 0.1]),
+        ]
+        sv_backend = SVBackend(seq, config=sv_config)
+        sv_results = sv_backend.run()
+
+    assert torch.allclose(
+        sv_results.occupation[-1], torch.ones(3, dtype=torch.float64) * 0.6667, atol=1e-4
+    )
+
+
+def test_observables_time_0():
+    seq = pulser_afm_sequence_grid(
+        rows=2,
+        columns=1,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=10,
+        t_fall=10,
+    )
+
+    observables = [
+        Energy(evaluation_times=[0]),
+    ]
+    noise_model = pulser.noise_model.NoiseModel(depolarizing_rate=0.2)
+
+    config = SVConfig(
+        observables=observables,
+        noise_model=noise_model,
+    )
+    backend = SVBackend(seq, config=config)
+    result = backend.run()
+
+    assert torch.isreal(result.energy[0])

@@ -23,11 +23,35 @@ DEFAULT_MAX_BOND_DIM = 1024
 
 class MPS(State[complex, torch.Tensor]):
     """
-    Matrix Product State, aka tensor train.
-
+    Matrix Product State, a.k.a tensor train.
     Each tensor has 3 dimensions ordered as such: (left bond, site, right bond).
+    Only qubits and qutrits (using the leakage state: 'x') are supported. This
+    constructor creates a MPS directly from a list of tensors.
 
-    Only qubits are supported.
+    Args:
+        factors: the tensors for each site. WARNING: for efficiency, this list
+            of tensors IS NOT DEEP-COPIED. Therefore, the new MPS object is not
+            necessarily the exclusive owner of the list and its tensors.
+            As a consequence, beware of potential external modifications
+            affecting the list or the tensors.
+            You are responsible for deciding whether to pass its own exclusive
+            copy of the data to this constructor, or some shared objects.
+        orthogonality_center: the orthogonality center of the MPS, or None
+            (in which case it will be orthogonalized when needed)
+        precision: the threshold for truncating singular values during SVD
+            operations. Any singular value below this threshold will be
+            discarded, effectively reducing the bond dimension and improving
+            computational efficiency.
+            Check [precision in config](advanced/config.md#precision)
+        max_bond_dim: the maximum bond dimension to allow for this MPS
+        num_gpus_to_use: number of GPUs to use for placing MPS factors.
+            - If set to 0, all factors are placed on CPU.
+            - If set to None, factors retain their current device assignment.
+            - Otherwise, factors are distributed across the specified number of
+            GPUs.
+        eigenstates: the basis states for each qudit (['0','1'] or ['r','g'])
+            or qutrit ['g','r','x'], where 'x' is the leakage state
+            (default: ['0','1'])
     """
 
     def __init__(
@@ -41,25 +65,6 @@ class MPS(State[complex, torch.Tensor]):
         num_gpus_to_use: Optional[int] = DEVICE_COUNT,
         eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
-        """
-        This constructor creates a MPS directly from a list of tensors. It is
-        for internal use only.
-
-        Args:
-            factors: the tensors for each site
-                WARNING: for efficiency in a lot of use cases, this list of tensors
-                IS NOT DEEP-COPIED. Therefore, the new MPS object is not necessarily
-                the exclusive owner of the list and its tensors. As a consequence,
-                beware of potential external modifications affecting the list or the tensors.
-                You are responsible for deciding whether to pass its own exclusive copy
-                of the data to this constructor, or some shared objects.
-            orthogonality_center: the orthogonality center of the MPS, or None (in which case
-                it will be orthogonalized when needed)
-            precision: the precision with which to keep this MPS
-            max_bond_dim: the maximum bond dimension to allow for this MPS
-            num_gpus_to_use: distribute the factors over this many GPUs
-                0=all factors to cpu, None=keep the existing device assignment.
-        """
         super().__init__(eigenstates=eigenstates)
         self.precision = precision
         self.max_bond_dim = max_bond_dim
@@ -555,8 +560,8 @@ class MPS(State[complex, torch.Tensor]):
     ) -> torch.Tensor:
         """
         Efficiently compute the symmetric correlation matrix
-            C_ij = <self|operator_i operator_j|self>
-        in basis ("r", "g").
+        $C_{ij} = \\langle \\text{self}|\\text{operator}_i \\text{operator}_j|\\text{self}\\rangle$
+        in basis ("r", "g"), ("0","1"), and ("r","g","x").
 
         Args:
             operator: a 2x2 (or 3x3) Torch tensor to use
@@ -609,13 +614,22 @@ class MPS(State[complex, torch.Tensor]):
 
 def inner(left: MPS, right: MPS) -> torch.Tensor:
     """
-    Wrapper around MPS.inner.
+    Computes the inner product ⟨left|right⟩ between two MPS states
+    (convenience wrapper for MPS.inner). Both MPS must have the same number of
+    sites and the same local (physical) dimension at each site.
 
     Args:
-        left: the anti-linear argument
-        right: the linear argument
+        left: Left state (conjugated in the inner product).
+        right: Right state (not conjugated).
 
     Returns:
-        the inner product
+        A scalar torch.Tensor equal to ⟨left|right⟩ (typically complex-valued).
+            Use result.item() to convert to a Python number.
+
+    Raises:
+        ValueError: If the MPS are incompatible (e.g., different lengths or
+            dimensions).
+        RuntimeError: If tensors are on incompatible
+            devices/dtypes (as raised by PyTorch).
     """
     return left.inner(right)

@@ -7,11 +7,13 @@ import pulser
 from pulser.backend import EmulationConfig, Observable
 from pulser.noise_model import NoiseModel
 from pulser.math import AbstractArray
+from pulser._hamiltonian_data.hamiltonian_data import SamplesWithReps
 
 from emu_base.pulser_adapter import (
     _extract_omega_delta_phi,
     _get_all_lindblad_noise_operators,
     _get_target_times,
+    _unique_observable_times,
     PulserData,
     HamiltonianType,
 )
@@ -259,7 +261,8 @@ def test_extract_omega_delta_phi_dt_2(
     Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
     TEST_DURATION = 13
     dt = 2
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
     sequence.get_duration.return_value = TEST_DURATION
 
     noisy_samples = mock_sample(hamiltonian_type)
@@ -269,45 +272,48 @@ def test_extract_omega_delta_phi_dt_2(
         noisy_samples=noisy_samples, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
 
-    expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
-    assert len(actual_omega) == expected_number_of_samples
-
+    # we sample omega at t == (target_times[i] + target_times[i+1])/2
+    assert len(actual_omega) == len(target_times) - 1  # number of midpoints
     expected_omega = torch.tensor(
         [
-            [4.75, 0.0, 4.75],
-            [8.25, 0.0, 8.25],
-            [10.0, 10.0, 10.0],
+            [4.7500, 0.0000, 4.7500],
+            [8.2500, 0.0000, 8.2500],
+            [10.000, 10.000, 10.000],
             [7.1429, 7.1429, 7.1429],
             [4.2857, 4.2857, 4.2857],
             [1.4286, 1.4286, 1.4286],
+            [0.0000, 0.0000, 0.0000],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
     expected_delta = torch.tensor(
         [
             [-1.3750, 0.0000, 0.0000],
             [-7.1250, 0.0000, 0.0000],
-            [-10.0000, -10.0000, -10.0000],
+            [-10.000, -10.000, -10.000],
             [-4.2857, -4.2857, -4.2857],
             [1.4286, 1.4286, 1.4286],
             [7.1429, 7.1429, 7.1429],
+            [11.4286, 11.4286, 11.4286],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
     expected_phi = torch.tensor(
         [
-            [0.1000, 0.0000, 0.0000],
-            [0.1000, 0.0000, 0.0000],
-            [0.2000, 0.2000, 0.2000],
-            [0.2000, 0.2000, 0.2000],
-            [0.2000, 0.2000, 0.2000],
-            [0.2000, 0.2000, 0.2000],
+            [0.1, 0.0, 0.0],
+            [0.1, 0.0, 0.0],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
+            [0.2, 0.2, 0.2],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
-    assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_delta, expected_delta, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_phi, expected_phi, rtol=0, atol=1e-4)
+
+    assert torch.allclose(actual_omega, expected_omega, atol=1e-4)
+    assert torch.allclose(actual_delta, expected_delta, atol=1e-4)
+    assert torch.allclose(actual_phi, expected_phi, atol=1e-4)
 
 
 @pytest.mark.parametrize(
@@ -327,7 +333,8 @@ def test_extract_omega_delta_phi_dt_1(
     Global pulse: Pulse(RampWaveform(8,10.0,0.0),RampWaveform(8,-10,10),0.2)"""
     TEST_DURATION = 13
     dt = 1
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
     sequence.get_duration.return_value = TEST_DURATION
 
     noisy_samples = mock_sample(hamiltonian_type)
@@ -337,197 +344,103 @@ def test_extract_omega_delta_phi_dt_1(
         noisy_samples=noisy_samples, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
 
-    expected_number_of_samples = math.ceil(TEST_DURATION / dt - 0.5)
-    assert len(actual_omega) == expected_number_of_samples
+    # sample omega at midpoints t == (target_times[i] + target_times[i+1])/2
+    assert len(actual_omega) == len(target_times) - 1  # number of midpoints
 
     expected_omega = torch.tensor(
         [
-            [
-                3.875,
-                5.625,
-                7.375,
-                9.125,
-                10.0,
-                9.285714285000001,
-                7.857142855,
-                6.428571425,
-                5.0,
-                3.5714285749999997,
-                2.1428571450000002,
-                0.714285715,
-                0.0,
-            ],
-            [
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                5.0,
-                9.285714285000001,
-                7.857142855,
-                6.428571425,
-                5.0,
-                3.5714285749999997,
-                2.1428571450000002,
-                0.714285715,
-                0.0,
-            ],
-            [
-                3.875,
-                5.625,
-                7.375,
-                9.125,
-                10.0,
-                9.285714285000001,
-                7.857142855,
-                6.428571425,
-                5.0,
-                3.5714285749999997,
-                2.1428571450000002,
-                0.714285715,
-                0.0,
-            ],
+            [3.8750, 0.0000, 3.8750],
+            [5.6250, 0.0000, 5.6250],
+            [7.3750, 0.0000, 7.3750],
+            [9.3438, 0.0000, 9.3438],
+            [10.000, 5.0000, 10.000],
+            [9.4643, 9.4643, 9.4643],
+            [7.8571, 7.8571, 7.8571],
+            [6.4286, 6.4286, 6.4286],
+            [5.0000, 5.0000, 5.0000],
+            [3.5714, 3.5714, 3.5714],
+            [2.1429, 2.1429, 2.1429],
+            [0.7143, 0.7143, 0.7143],
+            [0.0000, 0.0000, 0.0000],
         ],
-        dtype=dtype,
-    ).T
+        dtype=torch.complex128,
+    )
     # the element omega[4,0] should not simply be multiplied by wais_amplitudes
     # it is the average of two samples, one of which should be multiplied, and the other not
     # this test has different qubit positions than the dt=2 one to test precisely this.
     expected_delta = torch.tensor(
         [
-            [
-                0.0625,
-                -2.8125,
-                -5.6875,
-                -8.5625,
-                -10.0,
-                -8.57142857,
-                -5.714285715,
-                -2.8571428599999997,
-                0.0,
-                2.8571428599999997,
-                5.714285715,
-                8.57142857,
-                11.42857143,
-            ],
-            [
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                -5.0,
-                -8.57142857,
-                -5.714285715,
-                -2.8571428599999997,
-                0.0,
-                2.8571428599999997,
-                5.714285715,
-                8.57142857,
-                11.42857143,
-            ],
-            [
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                -5.0,
-                -8.57142857,
-                -5.714285715,
-                -2.8571428599999997,
-                0.0,
-                2.8571428599999997,
-                5.714285715,
-                8.57142857,
-                11.42857143,
-            ],
+            [0.0625, 0.0000, 0.0000],
+            [-2.8125, 0.0000, 0.0000],
+            [-5.6875, 0.0000, 0.0000],
+            [-8.9219, 0.0000, 0.0000],
+            [-10.000, -5.0000, -5.0000],
+            [-8.9286, -8.9286, -8.9286],
+            [-5.7143, -5.7143, -5.7143],
+            [-2.8571, -2.8571, -2.8571],
+            [0.0000, 0.0000, 0.0000],
+            [2.8571, 2.8571, 2.8571],
+            [5.7143, 5.7143, 5.7143],
+            [8.5714, 8.5714, 8.5714],
+            [11.4286, 11.4286, 11.4286],
         ],
-        dtype=dtype,
-    ).T
+        dtype=torch.complex128,
+    )
     expected_phi = torch.tensor(
         [
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.1000 + 0.0j, 0.0000 + 0.0j, 0.0000 + 0.0j],
-            [0.1500 + 0.0j, 0.1000 + 0.0j, 0.1000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
-            [0.2000 + 0.0j, 0.2000 + 0.0j, 0.2000 + 0.0j],
+            [0.10, 0.0, 0.0],
+            [0.10, 0.0, 0.0],
+            [0.10, 0.0, 0.0],
+            [0.10, 0.0, 0.0],
+            [0.15, 0.1, 0.1],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
+            [0.20, 0.2, 0.2],
         ],
-        dtype=dtype,
+        dtype=torch.complex128,
     )
 
-    assert torch.allclose(actual_omega, expected_omega, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_delta, expected_delta, rtol=0, atol=1e-4)
-    assert torch.allclose(actual_phi, expected_phi, rtol=0, atol=1e-4)
+    assert torch.allclose(actual_omega, expected_omega, atol=1e-4)
+    assert torch.allclose(actual_delta, expected_delta, atol=1e-4)
+    assert torch.allclose(actual_phi, expected_phi, atol=1e-4)
 
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
 def test_autograd(mock_data):
     TEST_DURATION = 10
     dt = 2
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
     sequence.get_duration.return_value = TEST_DURATION
-    amp_tensor = torch.tensor(
+
+    amp_det_phase = torch.tensor(
         [
-            10.0,
-            8.88888889,
-            7.77777778,
-            6.66666667,
-            5.55555556,
-            4.44444444,
-            3.33333333,
-            2.22222222,
-            1.11111111,
-            0.0,
+            [10.0000000, -10.0000000, 0.2],
+            [8.88888889, -7.77777778, 0.2],
+            [7.77777778, -5.55555556, 0.2],
+            [6.66666667, -3.33333333, 0.2],
+            [5.55555556, -1.11111111, 0.2],
+            [4.44444444, 1.11111111, 0.2],
+            [3.33333333, 3.33333333, 0.2],
+            [2.22222222, 5.55555556, 0.2],
+            [1.11111111, 7.77777778, 0.2],
+            [0.00000000, 10.0000000, 0.2],
         ],
         dtype=dtype,
         requires_grad=True,
-    )
-    det_tensor = torch.tensor(
-        [
-            -10.0,
-            -7.77777778,
-            -5.55555556,
-            -3.33333333,
-            -1.11111111,
-            1.11111111,
-            3.33333333,
-            5.55555556,
-            7.77777778,
-            10.0,
-        ],
-        dtype=dtype,
-        requires_grad=True,
-    )
-    phase_tensor = torch.tensor(
-        [0.2] * 10,
-        dtype=dtype,
-        requires_grad=True,
-    )
+    )  # shape: (T=10, 3) = [amp, det, phase]
+
+    amp, det, phase = amp_det_phase.unbind(dim=-1)  # each shape: (10,)
 
     mock_pulser_dict = {
         "ground-rydberg": {
-            TEST_QUBIT_IDS[1]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
-            TEST_QUBIT_IDS[2]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
-            TEST_QUBIT_IDS[0]: {
-                "amp": amp_tensor,
-                "det": det_tensor,
-                "phase": phase_tensor,
-            },
+            qid: {"amp": amp, "det": det, "phase": phase} for qid in TEST_QUBIT_IDS
         }
     }
 
@@ -637,9 +550,9 @@ def test_get_all_lindblad_operators():
 
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
-def test_parsed_sequence(mock_data):
+def test_get_sequences_1_trajectory(mock_data):
     TEST_DURATION = 10
-    dt = 2
+    dt = 2.0
     adressed_basis = "XY"
 
     target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
@@ -702,10 +615,15 @@ def test_parsed_sequence(mock_data):
     sample_instance.to_nested_dict.return_value = {"Local": mock_pulser_dict}
     mock_from_sequence = MagicMock()
     mock_data.from_sequence.return_value = mock_from_sequence
-    mock_from_sequence.dim = 2
-    mock_from_sequence.noisy_samples = sample_instance
-    mock_from_sequence.noisy_samples.max_duration = TEST_DURATION
-    mock_from_sequence.interaction_type = adressed_basis
+    mock_from_sequence.basis_data.dim = 2
+    mock_trajectory = MagicMock()
+    mock_trajectory.bad_atoms = {x: False for x in TEST_QUBIT_IDS}
+    mock_from_sequence.noisy_samples = [
+        SamplesWithReps(mock_trajectory, sample_instance, 1)
+    ]
+    sample_instance.max_duration = TEST_DURATION
+    sample_instance.interaction_type = adressed_basis
+    mock_from_sequence.basis_data.interaction_type = adressed_basis
 
     interaction_matrix = [
         [0.0, 0.0929, -0.4],
@@ -731,6 +649,8 @@ def test_parsed_sequence(mock_data):
     )
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
+    samples = list(parsed_sequence.get_sequences())
+    assert len(samples) == 1
     omega, delta, phi = _extract_omega_delta_phi(
         sample_instance, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
@@ -740,49 +660,43 @@ def test_parsed_sequence(mock_data):
         dtype=torch.float64,
     )
 
-    assert torch.allclose(parsed_sequence.omega, omega)
-    assert torch.allclose(parsed_sequence.delta, delta)
-    assert torch.allclose(parsed_sequence.phi, phi)
-    assert torch.allclose(
-        parsed_sequence.full_interaction_matrix, cutoff_interaction_matrix
-    )
-    assert torch.allclose(
-        parsed_sequence.masked_interaction_matrix, cutoff_interaction_matrix
-    )
-    assert parsed_sequence.slm_end_time == 0.0
+    assert torch.allclose(samples[0].omega, omega)
+    assert torch.allclose(samples[0].delta, delta)
+    assert torch.allclose(samples[0].phi, phi)
+    assert torch.allclose(samples[0].full_interaction_matrix, cutoff_interaction_matrix)
+    assert torch.allclose(samples[0].masked_interaction_matrix, cutoff_interaction_matrix)
+    assert samples[0].slm_end_time == 0.0
 
-    assert parsed_sequence.hamiltonian_type == HamiltonianType.XY
+    assert samples[0].hamiltonian_type == HamiltonianType.XY
 
     ops = _get_all_lindblad_noise_operators(
-        noise_model, interact_type=parsed_sequence.hamiltonian.interaction_type
+        noise_model, interact_type=samples[0].hamiltonian_type
     )
-    assert len(parsed_sequence.lindblad_ops) == len(ops)
+    assert len(samples[0].lindblad_ops) == len(ops)
     for i in range(len(ops)):
-        assert torch.allclose(ops[i], parsed_sequence.lindblad_ops[i])
+        assert torch.allclose(ops[i], samples[0].lindblad_ops[i])
 
     sequence._slm_mask_time = [1.0, 10.0]
     sequence._slm_mask_targets = [1]
     masked_interaction_matrix = cutoff_interaction_matrix.clone().detach()
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
+    samples = list(parsed_sequence.get_sequences())
+    assert len(samples) == 1
     omega, delta, phi = _extract_omega_delta_phi(
         sample_instance, target_times=target_times, qubit_ids=TEST_QUBIT_IDS
     )
 
-    assert torch.allclose(parsed_sequence.omega, omega)
-    assert torch.allclose(parsed_sequence.delta, delta)
-    assert torch.allclose(parsed_sequence.phi, phi)
-    assert torch.allclose(
-        parsed_sequence.full_interaction_matrix, cutoff_interaction_matrix
-    )
-    assert torch.allclose(
-        parsed_sequence.masked_interaction_matrix, masked_interaction_matrix
-    )
-    assert parsed_sequence.slm_end_time == 10.0
-    assert parsed_sequence.hamiltonian_type == HamiltonianType.XY
-    assert len(parsed_sequence.lindblad_ops) == len(ops)
+    assert torch.allclose(samples[0].omega, omega)
+    assert torch.allclose(samples[0].delta, delta)
+    assert torch.allclose(samples[0].phi, phi)
+    assert torch.allclose(samples[0].full_interaction_matrix, cutoff_interaction_matrix)
+    assert torch.allclose(samples[0].masked_interaction_matrix, masked_interaction_matrix)
+    assert samples[0].slm_end_time == 10.0
+    assert samples[0].hamiltonian_type == HamiltonianType.XY
+    assert len(samples[0].lindblad_ops) == len(ops)
     for i in range(len(ops)):
-        assert torch.allclose(ops[i], parsed_sequence.lindblad_ops[i])
+        assert torch.allclose(ops[i], samples[0].lindblad_ops[i])
 
     assert torch.allclose(  # the position of the elements are the same
         ops[-1], math.sqrt(effective_noise_rates[0]) * random_collapse
@@ -790,19 +704,28 @@ def test_parsed_sequence(mock_data):
 
 
 @patch("emu_base.pulser_adapter.HamiltonianData")
-def test_pulser_data(mock_data):
-    TEST_DURATION = 10
+def test_get_sequences_2_trajectories(mock_data):
+    TEST_DURATION = 13
     dt = 2
 
     mock_from_sequence = MagicMock()
     mock_data.from_sequence.return_value = mock_from_sequence
-    target_times = torch.arange(0, TEST_DURATION + 1, dt).tolist()
+
+    target_times = list(range(0, TEST_DURATION, dt))
+    target_times.append(TEST_DURATION)
+
     sequence.get_duration.return_value = TEST_DURATION
     adressed_basis = "ground-rydberg"
     sequence.get_addressed_bases.return_value = [adressed_basis]
-    mock_from_sequence.noisy_samples = mock_sample(adressed_basis)
-    mock_from_sequence.noisy_samples.max_duration = TEST_DURATION
-    mock_from_sequence.interaction_type = "ising"
+    ms = mock_sample(adressed_basis)
+    mock_trajectory = MagicMock()
+    mock_trajectory.bad_atoms = {x: False for x in TEST_QUBIT_IDS}
+    mock_from_sequence.noisy_samples = [
+        SamplesWithReps(mock_trajectory, ms, 3),
+        SamplesWithReps(mock_trajectory, ms, 2),
+    ]
+    ms.max_duration = TEST_DURATION
+    mock_from_sequence.basis_data.interaction_type = "ising"
 
     mat = torch.randn(3, 3, dtype=float)
     interaction_matrix = (mat + mat.T).fill_diagonal_(0).tolist()
@@ -819,25 +742,28 @@ def test_pulser_data(mock_data):
         interaction_matrix=interaction_matrix,
         interaction_cutoff=0.15,
     )
-    torch.manual_seed(1337)
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
-    torch.manual_seed(1337)
+    samples = list(parsed_sequence.get_sequences())
+    assert len(samples) == 5
     omega, delta, phi = _extract_omega_delta_phi(
-        noisy_samples=mock_from_sequence.noisy_samples,
+        noisy_samples=mock_from_sequence.noisy_samples[0].samples,
         target_times=target_times,
         qubit_ids=sequence.register.qubit_ids,
     )
-    assert torch.allclose(omega, parsed_sequence.omega)
-    assert torch.allclose(delta, parsed_sequence.delta)
-    assert torch.allclose(phi, parsed_sequence.phi)
+    for sample in samples:
+        assert torch.allclose(omega, sample.omega)
+        assert torch.allclose(delta, sample.delta)
+        assert torch.allclose(phi, sample.phi)
 
 
 @pytest.mark.parametrize("with_modulation", [True, False])
 def test_get_target_times_with_obs_eval_time(with_modulation):
-    duration = 123
-    dt = 3
+    duration = 20
+    dt = 5.5
 
-    obs = MagicMock(spec=Observable, evaluation_times=[0.5, 0.9])
+    eval_times_abs = [0, 0.9, 11.9, 18.1]  # some fractional abs times
+    eval_times = [t / duration for t in eval_times_abs]
+    obs = MagicMock(spec=Observable, evaluation_times=eval_times)
 
     config = EmulationConfig(
         observables=[obs], interaction_cutoff=0.0, with_modulation=with_modulation
@@ -848,19 +774,87 @@ def test_get_target_times_with_obs_eval_time(with_modulation):
         mock_get_duration.return_value = duration
 
         target_times = _get_target_times(sequence, config, dt)
+        time_grid = [0, 5.5, 11, 16.5, 20]
+        expected_times = sorted(set(time_grid + eval_times_abs))
 
-        expected_set = set(range(0, duration + 1, dt))
-        expected_set |= {62, 111, 123}  # evaluation times
-
-        expected = sorted(list(expected_set))
-
-        assert target_times == expected
+        assert torch.allclose(
+            torch.tensor(target_times),
+            torch.tensor(expected_times),
+        )
 
         # get_duration called with the correct 'include_fall_time'
         mock_get_duration.assert_called_once_with(include_fall_time=with_modulation)
 
 
-def test_non_lindbladian_noise():
+@pytest.mark.parametrize("with_modulation", [True, False])
+def test_get_target_times_includes_default_eval_times(with_modulation):
+    duration = 20
+    dt = 5.5
+
+    obs = MagicMock(spec=Observable, evaluation_times=None)
+
+    def_times = [0.5]
+    config = EmulationConfig(
+        observables=[obs],
+        interaction_cutoff=0.0,
+        with_modulation=with_modulation,
+        default_evaluation_times=def_times,
+    )
+
+    with patch.object(sequence, "get_duration") as mock_get_duration:
+
+        mock_get_duration.return_value = duration
+
+        target_times = _get_target_times(sequence, config, dt)
+
+        default_eval_t = [t * duration for t in def_times]
+        time_grid = [0, 5.5, 11, 16.5, 20]
+        expected_times = sorted(time_grid + default_eval_t)
+
+        assert torch.allclose(
+            torch.tensor(target_times),
+            torch.tensor(expected_times),
+        )
+
+        # get_duration called with the correct 'include_fall_time'
+        mock_get_duration.assert_called_once_with(include_fall_time=with_modulation)
+
+
+def test_unique_observable_times():
+    obs_eval_times = [0.2]
+    default_eval_times = [0.5, 0.8]
+
+    obs1 = MagicMock(spec=Observable, evaluation_times=obs_eval_times)
+    obs2 = MagicMock(spec=Observable, evaluation_times=None)
+    obs_vs_expected_times = {obs1: obs_eval_times, obs2: default_eval_times}
+
+    for obs, expected_times in obs_vs_expected_times.items():
+        config = EmulationConfig(
+            observables=[obs],
+            default_evaluation_times=default_eval_times,
+        )
+        times = list(_unique_observable_times(config))
+
+        assert torch.allclose(
+            torch.tensor(times),
+            torch.tensor(expected_times),
+        )
+
+
+def test_unique_observable_times_raises_for_full_default():
+    obs = MagicMock(spec=Observable, evaluation_times=None)
+
+    config = EmulationConfig(
+        observables=[obs],
+        default_evaluation_times="Full",
+    )
+
+    with pytest.raises(ValueError, match="not supported"):
+        _unique_observable_times(config)
+
+
+@pytest.mark.parametrize("prefer_device_model", [True, False])
+def test_non_lindbladian_noise(prefer_device_model):
     q_dict = {
         "q0": [-4.0, 0.0],
         "q1": [4.0, 0.0],
@@ -886,10 +880,15 @@ def test_non_lindbladian_noise():
         state_prep_error=0.5,
         runs=1,
     )
-    config = EmulationConfig(interaction_cutoff=0.0, noise_model=noise)
+    config = EmulationConfig(
+        interaction_cutoff=0.0,
+        noise_model=noise,
+        prefer_device_noise_model=prefer_device_model,
+    )
 
-    # this should not error
-    PulserData(sequence=seq, config=config, dt=10)
+    # this should not error if the custom noise model is used
+    data = PulserData(sequence=seq, config=config, dt=10)
+    assert data.noise_model == (noise if not prefer_device_model else NoiseModel())
 
 
 def test_extract_omega_delta_phi_missing_qubit():
@@ -897,13 +896,15 @@ def test_extract_omega_delta_phi_missing_qubit():
     Test that qubits not present in the pulse samples are filtered out
     Only qubits included in the pulser sequence are used to fill omega, delta, and phi.
     """
-    pulse_duration = 5
+    pulse_duration = 6
     target_times = list(range(pulse_duration + 1))
     qubit_ids = ["q0", "q1", "q2"]
 
     mock_pulser_dict = {
         "ground-rydberg": {
             "q0": {
+                # pulser assumes laser_signal[pulse_duration] == 0,
+                # here for testing simplicity laser_signal[-1] != 0
                 "amp": [1, 2, 3, 4, 5, 6],
                 "det": [0, 0, 0, 0, 0, 0],
                 "phase": [0, 0, 0, 0, 0, 0],
@@ -925,12 +926,10 @@ def test_extract_omega_delta_phi_missing_qubit():
         qubit_ids=qubit_ids,
         target_times=target_times,
     )
-    # Check values of omega for q0 and q2
-    qubit_map = {0: "q0", 1: "q2"}
-    for q_idx, q_id in qubit_map.items():
-        for i in range(omega.shape[0]):
-            expected_omega = (
-                mock_pulser_dict["ground-rydberg"][q_id]["amp"][i]
-                + mock_pulser_dict["ground-rydberg"][q_id]["amp"][i + 1]
-            ) / 2
-            assert omega[i, q_idx] == expected_omega
+    omega_expected = {
+        0: torch.tensor([1.5, 2.5, 3.5, 4.5, 5.5, 6.5], dtype=dtype),  # q0
+        1: torch.tensor([5.5, 4.5, 3.5, 2.5, 1.5, 0.5], dtype=dtype),  # q2
+    }
+
+    for col, expected in omega_expected.items():
+        assert torch.allclose(omega[:, col], expected)

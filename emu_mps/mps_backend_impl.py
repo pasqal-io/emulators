@@ -10,6 +10,7 @@ import random
 import time
 import typing
 import uuid
+import logging
 
 from copy import deepcopy
 #from collections import Counter
@@ -19,10 +20,9 @@ from typing import Any, Optional
 from abc import ABC, abstractmethod
 
 import torch
-from pulser import Sequence
 from pulser.backend import EmulationConfig, Observable, Results, State
 
-from emu_base import DEVICE_COUNT, PulserData, get_max_rss
+from emu_base import DEVICE_COUNT, SequenceData, get_max_rss
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.utils import deallocate_tensor
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
@@ -91,7 +91,7 @@ class Statistics(Observable):
         duration = self.data[-1]
         max_mem = get_max_rss(state.factors[0].is_cuda)
 
-        config.logger.info(
+        logging.getLogger("emulators").info(
             f"step = {len(self.data)}/{self.timestep_count}, "
             + f"χ = {state.get_max_bond_dim()}, "
             + f"|ψ| = {state.get_memory_footprint():.3f} MB, "
@@ -133,7 +133,7 @@ class MPSBackendImpl(ABC):
     target_time: float
     results: Results
 
-    def __init__(self, mps_config: MPSConfig, pulser_data: PulserData):
+    def __init__(self, mps_config: MPSConfig, pulser_data: SequenceData):
         self.config = mps_config
         self.target_times = pulser_data.target_times
         self.target_time = self.target_times[1]
@@ -144,7 +144,7 @@ class MPSBackendImpl(ABC):
         self.delta = pulser_data.delta
         self.phi = pulser_data.phi
         self.timestep_count: int = self.omega.shape[0]
-        self.has_lindblad_noise = pulser_data.has_lindblad_noise
+        self.has_lindblad_noise = len(pulser_data.lindblad_ops) > 0
         self.eigenstates = pulser_data.eigenstates
         self.dim = pulser_data.dim
         self.lindblad_noise = torch.zeros(self.dim, self.dim, dtype=dtype)
@@ -173,7 +173,7 @@ class MPSBackendImpl(ABC):
             atom_order=optimat.permute_tuple(
                 pulser_data.qubit_ids, self.qubit_permutation
             ),
-            total_duration=self.target_times[-1],
+            total_duration=int(self.target_times[-1]),
         )
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
@@ -181,7 +181,7 @@ class MPSBackendImpl(ABC):
             timestep_count=self.timestep_count,
         )
         self.autosave_file = self._get_autosave_filepath(self.config.autosave_prefix)
-        self.config.logger.debug(
+        logging.getLogger("emulators").debug(
             f"""Will save simulation state to file "{self.autosave_file.name}"
             every {self.config.autosave_dt} seconds.\n"""
             f"""To resume: `MPSBackend().resume("{self.autosave_file}")`"""
@@ -192,7 +192,7 @@ class MPSBackendImpl(ABC):
         if requested_num_gpus is None:
             requested_num_gpus = DEVICE_COUNT
         elif requested_num_gpus > DEVICE_COUNT:
-            self.config.logger.warning(
+            logging.getLogger("emulators").warning(
                 f"Requested to use {requested_num_gpus} GPU(s) "
                 f"but only {DEVICE_COUNT if DEVICE_COUNT > 0 else 'cpu'} available"
             )
@@ -200,7 +200,8 @@ class MPSBackendImpl(ABC):
 
     def __getstate__(self) -> dict:
         d = self.__dict__.copy()
-        cp = deepcopy(self.config)
+        options = deepcopy(self.config._backend_options)
+        cp = type(self.config)(**options)  # BackendConfig does not deepcopy directly
         d["config"] = cp
         d["state"].config = cp
         for obs in cp.observables:
@@ -216,15 +217,17 @@ class MPSBackendImpl(ABC):
 
     @staticmethod
     def _get_autosave_filepath(autosave_prefix: str) -> pathlib.Path:
-        return pathlib.Path(os.getcwd()) / (autosave_prefix + str(uuid.uuid1()) + ".dat")
+        return pathlib.Path(os.getcwd()) / (
+            autosave_prefix + str(uuid.uuid1(clock_seq=1337)) + ".dat"
+        )
 
     def init_dark_qubits(self) -> None:
         """
         Add docstring for init_dark_qubits
         """
         # has_state_preparation_error
-        if self.config.noise_model.state_prep_error > 0.0:
-            bad_atoms = self.pulser_data.hamiltonian.bad_atoms
+        if self.pulser_data.noise_model.state_prep_error > 0.0:
+            bad_atoms = self.pulser_data.bad_atoms
             self.well_prepared_qubits_filter = torch.logical_not(
                 torch.tensor(list(bool(x) for x in bad_atoms.values()))
             )
@@ -293,7 +296,7 @@ class MPSBackendImpl(ABC):
         self.state = initial_state
         self.state.orthogonalize(0)
 
-    def init_hamiltonian(self) -> None:
+    def init_noiseless_hamiltonian(self) -> None:
         """
         Hamiltonian initialzer
         """
@@ -309,13 +312,24 @@ class MPSBackendImpl(ABC):
             num_gpus_to_use=self.resolved_num_gpus,
             dim=self.dim,
         )
+        self.update_H_no_noise()
 
+    def update_H(self) -> None:
         update_H(
             hamiltonian=self.hamiltonian,
             omega=self.omega[self.timestep_index, :],
             delta=self.delta[self.timestep_index, :],
             phi=self.phi[self.timestep_index, :],
             noise=self.lindblad_noise,
+        )
+
+    def update_H_no_noise(self) -> None:
+        update_H(
+            hamiltonian=self.hamiltonian,
+            omega=self.omega[self.timestep_index, :],
+            delta=self.delta[self.timestep_index, :],
+            phi=self.phi[self.timestep_index, :],
+            noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
         )
 
     def init_baths(self) -> None:
@@ -352,7 +366,9 @@ class MPSBackendImpl(ABC):
         """
         self.init_dark_qubits()
         self.init_initial_state(self.config.initial_state)
-        self.init_hamiltonian()
+        self.init_noiseless_hamiltonian()
+        self.fill_results()  # at t == 0 for pulser compatibility
+        self.update_H()
         self.init_baths()
 
     def is_finished(self) -> bool:
@@ -477,13 +493,7 @@ class MPSBackendImpl(ABC):
 
         if not self.is_finished():
             self.target_time = self.target_times[self.timestep_index + 1]
-            update_H(
-                hamiltonian=self.hamiltonian,
-                omega=self.omega[self.timestep_index, :],
-                delta=self.delta[self.timestep_index, :],
-                phi=self.phi[self.timestep_index, :],
-                noise=self.lindblad_noise,
-            )
+            self.update_H()
             self.init_baths()
 
         self.statistics.data.append(time.time() - self.time)
@@ -517,9 +527,33 @@ class MPSBackendImpl(ABC):
 
         self.last_save_time = time.time()
 
-        self.config.logger.debug(
+        logging.getLogger("emulators").debug(
             f"Saved simulation state in file {self.autosave_file} ({autosave_filesize}MB)"
         )
+
+    def _is_evaluation_time(
+        self,
+        observable: Observable,
+        t: float,
+        tolerance: float = 1e-10,
+    ) -> bool:
+        """Return True if ``t`` is a genuine sampling time for this observable.
+
+        Filters out nearby points that are close to, but not in, the
+        observable's evaluation times (within ``tolerance``).
+        Prevent false matches by using Pulser's tolerance
+        tol = 0.5 / total_duration. (deep inside pulser Observable class)
+        """
+        times = observable.evaluation_times
+
+        is_observable_eval_time = (
+            times is not None
+            and self.config.is_time_in_evaluation_times(t, times, tol=tolerance)
+        )
+
+        is_default_eval_time = self.config.is_evaluation_time(t, tol=tolerance)
+
+        return is_observable_eval_time or is_default_eval_time
 
     def fill_results(self) -> None:
         """
@@ -527,9 +561,7 @@ class MPSBackendImpl(ABC):
         """
         normalized_state = 1 / self.state.norm() * self.state
 
-        current_time_int: int = round(self.current_time)
         fractional_time = self.current_time / self.target_times[-1]
-        assert abs(self.current_time - current_time_int) < 1e-10
 
         if self.well_prepared_qubits_filter is None:
             for callback in self.config.observables:
@@ -541,39 +573,47 @@ class MPSBackendImpl(ABC):
                     self.results,
                 )
             # The empty return below is supposed to return None right ?
+        callbacks_for_current_time_step = [
+            callback
+            for callback in self.config.observables
+            if self._is_evaluation_time(callback, fractional_time)
+        ]
+        if not callbacks_for_current_time_step:
             return
 
-        full_mpo, full_state = None, None
-        for callback in self.config.observables:
-            time_tol = 0.5 / self.target_times[-1] + 1e-10
-            if (
-                callback.evaluation_times is not None
-                and self.config.is_time_in_evaluation_times(
-                    fractional_time, callback.evaluation_times, tol=time_tol
+        if self.well_prepared_qubits_filter is None:
+            state = normalized_state
+            hamiltonian = self.hamiltonian
+        else:
+            # Only do this potentially expensive step once and when needed.
+            full_mpo = MPO(
+                extended_mpo_factors(
+                    self.hamiltonian.factors, self.well_prepared_qubits_filter
                 )
-            ) or self.config.is_evaluation_time(fractional_time, tol=time_tol):
+            )
+            full_state = MPS(
+                extended_mps_factors(
+                    normalized_state.factors,
+                    self.well_prepared_qubits_filter,
+                ),
+                num_gpus_to_use=None,  # Keep the already assigned devices.
+                orthogonality_center=get_extended_site_index(
+                    self.well_prepared_qubits_filter,
+                    normalized_state.orthogonality_center,
+                ),
+                eigenstates=normalized_state.eigenstates,
+            )
+            state = full_state
+            hamiltonian = full_mpo
 
-                if full_mpo is None or full_state is None:
-                    # Only do this potentially expensive step once and when needed.
-                    full_mpo = MPO(
-                        extended_mpo_factors(
-                            self.hamiltonian.factors, self.well_prepared_qubits_filter
-                        )
-                    )
-                    full_state = MPS(
-                        extended_mps_factors(
-                            normalized_state.factors,
-                            self.well_prepared_qubits_filter,
-                        ),
-                        num_gpus_to_use=None,  # Keep the already assigned devices.
-                        orthogonality_center=get_extended_site_index(
-                            self.well_prepared_qubits_filter,
-                            normalized_state.orthogonality_center,
-                        ),
-                        eigenstates=normalized_state.eigenstates,
-                    )
-
-                callback(self.config, fractional_time, full_state, full_mpo, self.results)
+        for callback in callbacks_for_current_time_step:
+            callback(
+                self.config,
+                fractional_time,
+                state,
+                hamiltonian,
+                self.results,
+            )
 
     def permute_results(self, results: Results, permute: bool) -> Results:
         """
@@ -707,12 +747,12 @@ class NoisyTDVPBackendImpl(TDVPBackendImpl):
     norm_gap_before_jump: float
     root_finder: Optional[BrentsRootFinder]
 
-    def __init__(self, config: MPSConfig, pulser_data: PulserData):
+    def __init__(self, config: MPSConfig, pulser_data: SequenceData):
         super().__init__(config, pulser_data)
         self.lindblad_ops = pulser_data.lindblad_ops
         self.root_finder = None
 
-        assert self.has_lindblad_noise
+        assert self.lindblad_ops
 
     def init_lindblad_noise(self) -> None:
         """
@@ -803,18 +843,9 @@ class NoisyTDVPBackendImpl(TDVPBackendImpl):
         assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
         self.set_jump_threshold(norm_after_normalizing**2)
 
-    def fill_results(self) -> None:
-        # Remove the noise from self.hamiltonian for the callbacks.
-        # Since update_H is called at the start of do_time_step this is safe.
-        update_H(
-            hamiltonian=self.hamiltonian,
-            omega=self.omega[self.timestep_index - 1, :],  # Meh
-            delta=self.delta[self.timestep_index - 1, :],
-            phi=self.phi[self.timestep_index - 1, :],
-            noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
-        )
-
-        super().fill_results()
+    def timestep_complete(self) -> None:
+        self.update_H_no_noise()
+        super().timestep_complete()
 
 
 class DMRGBackendImpl(MPSBackendImpl):
@@ -824,15 +855,15 @@ class DMRGBackendImpl(MPSBackendImpl):
     def __init__(
         self,
         mps_config: MPSConfig,
-        pulser_data: PulserData,
+        pulser_data: SequenceData,
         energy_tolerance: float = 1e-5,
         max_sweeps: int = 2000,
     ):
 
-        if mps_config.noise_model.noise_types != ():
+        if pulser_data.noise_model.noise_types != ():
             raise NotImplementedError(
                 "DMRG solver does not currently support noise types"
-                f"you are using: {mps_config.noise_model.noise_types}"
+                f"you are using: {pulser_data.noise_model.noise_types}"
             )
         super().__init__(mps_config, pulser_data)
         self.previous_energy: Optional[float] = None
@@ -932,3 +963,10 @@ def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
     if config.solver == Solver.DMRG:
         return DMRGBackendImpl(config, pulser_data)
     return TDVPBackendImpl(config, pulser_data)
+def create_impl(data: SequenceData, config: MPSConfig) -> MPSBackendImpl:
+
+    if data.lindblad_ops:
+        return NoisyMPSBackendImpl(config, data)
+    if config.solver == Solver.DMRG:
+        return DMRGBackendImpl(config, data)
+    return MPSBackendImpl(config, data)

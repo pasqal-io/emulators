@@ -198,7 +198,7 @@ def test_evolve_single():
         3 * 2 * 4, -1
     )
 
-    dt = 10
+    dt = 10.0
 
     exp_op = torch.linalg.matrix_exp(-1j * 0.001 * dt * op)
 
@@ -234,7 +234,7 @@ def test_evolve_pair():
         right_bath,
     ).reshape(3 * 2 * 2 * 5, -1)
 
-    dt = 10
+    dt = 10.0
 
     exp_op = torch.linalg.matrix_exp(-1j * 0.001 * dt * op)
 

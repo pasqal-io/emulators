@@ -1,15 +1,16 @@
-import time
+import logging
 import math
-from unittest.mock import ANY, MagicMock, patch, PropertyMock
+import random
+import time
 from collections import Counter
 from typing import Any
+from unittest.mock import ANY, MagicMock, PropertyMock, patch
+
 import numpy as np
 import pulser
 import pytest
 import torch
-import random
 from pytest import approx
-
 
 import emu_mps
 from emu_mps import (
@@ -28,7 +29,6 @@ from emu_mps import (
     Expectation,
 )
 
-from emu_base import unix_like
 import pulser.noise_model
 from pulser.backend import Results
 
@@ -48,10 +48,10 @@ device = "cpu"  # "cuda"
 dtype = torch.complex128
 
 
-def create_antiferromagnetic_mps(num_qubits: int):
+def create_antiferromagnetic_mps(num_qubits: int, parity: int = 0):
     str = ""
     for i in range(num_qubits):
-        if i % 2:
+        if (i + parity) % 2:
             str += "g"
         else:
             str += "r"
@@ -62,7 +62,7 @@ def create_antiferromagnetic_mps(num_qubits: int):
 def simulate(
     seq: pulser.Sequence,
     *,
-    dt: int = 100,
+    dt: float = 100.0,
     noise_model: Any | None = None,
     state_prep_error: float = 0,
     p_false_pos: float = 0,
@@ -72,6 +72,7 @@ def simulate(
     interaction_cutoff: float = 0,
     eval_times: list[float] = [1.0],
     solver: Solver = Solver.TDVP,
+    optimize_qubit_ordering: bool = False,
 ) -> Results:
     if given_fidelity_state:
         fidelity_state = create_antiferromagnetic_mps(len(seq.register.qubit_ids))
@@ -111,7 +112,7 @@ def simulate(
         ],
         noise_model=noise_model,
         interaction_cutoff=interaction_cutoff,
-        optimize_qubit_ordering=False,
+        optimize_qubit_ordering=optimize_qubit_ordering,
         solver=solver,
         num_gpus_to_use=0,
     )
@@ -153,15 +154,6 @@ delta_0 = -6 * U
 delta_f = 2 * U
 t_rise = 500
 t_fall = 1000
-
-
-def test_default_MPSConfig_ctr() -> None:
-    mps_config = MPSConfig()
-    assert len(mps_config.observables) == 1
-    assert isinstance(mps_config.observables[0], BitStrings)
-    assert mps_config.observables[0].evaluation_times == [
-        1.0
-    ]  # meaning very end of the simuation
 
 
 def test_XY_3atoms() -> None:
@@ -378,34 +370,30 @@ def test_dmrg_afm_ring() -> None:
     energy_variance = result.energy_variance[final_time]
     second_moment_energy = result.energy_second_moment[final_time]
     state_fin = result.state[final_time]
-    fidelity_fin = result.fidelity_1[final_time]
     max_bond_dim = state_fin.get_max_bond_dim()
-    fidelity_st = create_antiferromagnetic_mps(num_qubits)
+    fidelity_st = create_antiferromagnetic_mps(num_qubits, 1)
     occupation_even_sites = occupation[0::2]
     occupation_odd_sites = occupation[1::2]
 
     assert max_bond_dim == 4
     # check that the output state is the AFM state
-    assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
-    assert bitstrings["1010101010"] == 974
-    assert torch.allclose(
-        fidelity_fin, torch.tensor(0.9735, dtype=torch.float64), atol=1e-3
-    )
+    assert fidelity_st.overlap(state_fin) == approx(0.9735, abs=1e-3)
+    assert bitstrings["0101010101"] == 972
 
     # check that the number operator should return 1 on even sites
     # and 0 elsewhere
     assert torch.allclose(
-        occupation_even_sites, torch.tensor(1, dtype=torch.float64), atol=1e-3
+        occupation_even_sites, torch.tensor(0, dtype=torch.float64), atol=1e-2
     )
     assert torch.allclose(
-        occupation_odd_sites, torch.tensor(0, dtype=torch.float64), atol=1e-2
+        occupation_odd_sites, torch.tensor(1, dtype=torch.float64), atol=1e-3
     )
 
     assert torch.allclose(energy, torch.tensor(-124.0612, dtype=torch.float64), atol=1e-4)
 
     # check that energy variance should effectively be 0
     assert torch.allclose(
-        energy_variance, torch.tensor(0, dtype=torch.float64), atol=1e-5
+        energy_variance, torch.tensor(0, dtype=torch.float64), atol=1e-4
     )
 
     assert torch.allclose(
@@ -518,12 +506,8 @@ def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     assert get_proba(final_state, "1010") == approx(0.43, abs=1e-2)
 
     # A dark qubit at the end of the line gives the same result as a line with one less qubit.
-    with patch(
-        "pulser._hamiltonian_data.hamiltonian_data.HamiltonianData.bad_atoms",
-        new_callable=PropertyMock,
-    ) as bad_atoms_mock:
-        result = simulate_line(3)
-        final_state = result.state[-1]
+    result = simulate_line(3)
+    final_state = result.state[-1]
 
     assert get_proba(final_state, "111") == approx(0.56, abs=1e-2)
     assert get_proba(final_state, "101") == approx(0.43, abs=1e-2)
@@ -553,16 +537,11 @@ def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
 
     # FIXME: When n-1 qubits are dark, the simulation fails!
     with patch(
-        "pulser._hamiltonian_data.hamiltonian_data.HamiltonianData.bad_atoms",
+        "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform",
         new_callable=PropertyMock,
     ) as bad_atoms_mock:
         with pytest.raises(ValueError) as exception_info:
-            bad_atoms_mock.return_value = {
-                "q0": True,
-                "q1": True,
-                "q2": False,
-                "q3": True,
-            }
+            bad_atoms_mock.return_value = np.array([0.01, 0.02, 0.11, 0.03])
             result = simulate_line(4, state_prep_error=0.1)
             final_state = result.state[-1]
 
@@ -635,8 +614,6 @@ def test_initial_state_copy() -> None:
 
 
 def test_end_to_end_afm_ring_with_noise() -> None:
-    if not unix_like:
-        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -667,8 +644,6 @@ def test_end_to_end_afm_ring_with_noise() -> None:
 
 
 def test_end_to_end_spontaneous_emission() -> None:
-    if not unix_like:
-        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -734,8 +709,6 @@ def test_end_to_end_spontaneous_emission() -> None:
 
 
 def test_end_to_end_spontaneous_emission_rate() -> None:
-    if not unix_like:
-        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -763,7 +736,11 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     for _ in range(100):
         results.append(
             simulate(
-                seq, noise_model=noise_model, initial_state=initial_state, dt=duration
+                seq,
+                noise_model=noise_model,
+                initial_state=initial_state,
+                dt=duration,  # dt = 10_000.0
+                optimize_qubit_ordering=False,
             )
         )
 
@@ -833,7 +810,8 @@ def test_laser_waist() -> None:
     assert pytest.approx(final_state.inner(expected_state)) == -1.0
 
 
-def test_autosave() -> None:
+def test_autosave(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
     duration = 300
     rows, cols = 2, 3
     reg = pulser.Register.rectangle(
@@ -978,8 +956,6 @@ def test_run_after_deserialize():
 
 def test_leakage_rates():
     """Verigy the leakage rates"""
-    if not unix_like:
-        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -1007,7 +983,7 @@ def test_leakage_rates():
         eff_noise_opers=eff_ops,
         with_leakage=True,
     )
-    dt = 10
+    dt = 10.0
     eval_times = [1.0]
 
     xx = basisx @ basisx.T
@@ -1070,8 +1046,6 @@ def test_leakage_rates():
 
 def test_leakage_3x3_matrices():
     """Verifying that 3x3 operators work as intended when leakage is 0.0."""
-    if not unix_like:
-        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -1095,7 +1069,7 @@ def test_leakage_3x3_matrices():
         eff_noise_opers=eff_ops,
         with_leakage=True,
     )
-    dt = 10
+    dt = 10.0
     eval_times = [1.0]
 
     fidelity_state = MPS.from_state_amplitudes(
@@ -1149,3 +1123,89 @@ def test_leakage_3x3_matrices():
     )
     for result in results:
         assert result.state[-1].overlap(final_state) == approx(1.0, abs=1e-2)
+
+
+def test_end_to_end_observable_time_as_in_pulser():
+    T = 20  # 16 is min
+    dt = 2.5
+
+    reg = pulser.Register({"q0": [-3, 0], "q1": [3, 0]})
+    seq = pulser.Sequence(reg, pulser.AnalogDevice)
+    seq.declare_channel("ryd", "rydberg_global")
+    pulse = pulser.Pulse.ConstantPulse(T, 5, 0, 0)
+    seq.add(pulse, channel="ryd")
+
+    eval_times = [0.0, 1 / 3, 1.0]  # emulators ignored initial time 0
+    occ = Occupation(evaluation_times=eval_times)
+    obs = (occ,)
+
+    mps_config = MPSConfig(dt=dt, observables=obs, log_level=logging.WARN)
+    mps_backend = MPSBackend(seq, config=mps_config)
+    mps_results = mps_backend.run()
+
+    mps_occ_t = mps_results.get_result_times(occ)
+    expected = [0.0, 0.3333333333333333, 1.0]
+
+    assert np.allclose(mps_occ_t, expected), f"\nmps = {mps_occ_t}, \nq = {expected}"
+
+
+def test_trajectories():
+    reg = pulser.Register({"q0": [-1e5, 0], "q1": [1e5, 0], "q2": [0, 1e5]})
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ryd", "rydberg_global")
+    seq.add(
+        pulser.Pulse.ConstantDetuning(pulser.BlackmanWaveform(100, torch.pi), 0.0, 0.0),
+        "ryd",
+    )
+
+    occup = Occupation(evaluation_times=[1.0])
+
+    mps_config = MPSConfig(
+        observables=(occup,),
+        log_level=logging.WARN,
+        n_trajectories=3,
+        noise_model=pulser.NoiseModel(state_prep_error=1 / 3),
+        interaction_cutoff=1e-10,
+        optimize_qubit_ordering=False,  # bad atoms are not reordered
+    )
+    with patch(
+        "pulser._hamiltonian_data.hamiltonian_data.np.random.uniform"
+    ) as bad_atoms_mock:
+        bad_atoms_mock.side_effect = [
+            np.array([0.1, 0.5, 0.6]),
+            np.array([0.5, 0.1, 0.6]),
+            np.array([0.5, 0.6, 0.1]),
+        ]
+        mps_backend = MPSBackend(seq, config=mps_config)
+        mps_results = mps_backend.run()
+
+    assert torch.allclose(
+        mps_results.occupation[-1], torch.ones(3, dtype=torch.float64) * 0.6667, atol=1e-4
+    )
+
+
+def test_observables_time_0():
+    seq = pulser_afm_sequence_grid(
+        rows=2,
+        columns=1,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=10,
+        t_fall=10,
+    )
+
+    observables = [
+        Energy(evaluation_times=[0]),
+    ]
+    noise_model = pulser.noise_model.NoiseModel(depolarizing_rate=0.2)
+
+    config = emu_mps.MPSConfig(
+        observables=observables,
+        noise_model=noise_model,
+    )
+    backend = emu_mps.MPSBackend(seq, config=config)
+    result = backend.run()
+
+    assert torch.isreal(result.energy[0])

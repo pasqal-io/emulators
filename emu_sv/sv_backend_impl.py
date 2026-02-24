@@ -1,14 +1,13 @@
-from abc import abstractmethod
 import time
 import typing
 import torch
+import logging
 
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
-from pulser import Sequence
 
 from pulser.backend import Results, Observable, State, EmulationConfig
-from emu_base import PulserData, get_max_rss
+from emu_base import SequenceData, get_max_rss
 
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
@@ -44,14 +43,8 @@ class Statistics(Observable):
         assert isinstance(state, StateVector | DensityMatrix)
         assert isinstance(config, SVConfig)
         duration = self.data[-1]
-        max_mem = get_max_rss(
-            isinstance(state, StateVector)
-            and state.vector.is_cuda
-            or isinstance(state, DensityMatrix)
-            and state.matrix.is_cuda
-        )
-
-        config.logger.info(
+        max_mem = get_max_rss(state.data.is_cuda)
+        logging.getLogger("emulators").info(
             f"step = {len(self.data)}/{self.timestep_count}, "
             + f"RSS = {max_mem:.3f} MB, "
             + f"Δt = {duration:.3f} s"
@@ -63,26 +56,55 @@ class Statistics(Observable):
         }
 
 
-class BaseSVBackendImpl:
+class SVBackendImpl:
     """
     This class is used to handle the state vector and density matrix evolution.
     """
 
     well_prepared_qubits_filter: typing.Optional[torch.Tensor]
 
-    def __init__(self, config: SVConfig, pulser_data: PulserData):
+    def __init__(self, config: SVConfig, data: SequenceData):
+        self.pulser_lindblads = data.lindblad_ops
+        stepper: type[EvolveStateVector] | type[EvolveDensityMatrix]
+        state_type: type[StateVector] | type[DensityMatrix]
+        if self.pulser_lindblads:
+            stepper = EvolveDensityMatrix
+            state_type = DensityMatrix
+        else:
+            stepper = EvolveStateVector
+            state_type = StateVector
+
+        self.stepper = stepper
         self._config = config
-        self._pulser_data = pulser_data
-        self.target_times = pulser_data.target_times
-        self.omega = pulser_data.omega
-        self.delta = pulser_data.delta
-        self.phi = pulser_data.phi
-        self.nsteps = pulser_data.omega.shape[0]
-        self.nqubits = pulser_data.omega.shape[1]
-        self.full_interaction_matrix = pulser_data.full_interaction_matrix
-        self.state: State
+        self._data = data
+        self.target_times = data.target_times
+        self.omega = data.omega
+        self.delta = data.delta
+        self.phi = data.phi
+        self.nsteps = data.omega.shape[0]
+        self.nqubits = data.omega.shape[1]
+        self.full_interaction_matrix = data.full_interaction_matrix
+
+        requested_gpu = self._config.gpu
+        if requested_gpu is None:
+            requested_gpu = True
+
+        self.resolved_gpu = requested_gpu
+
+        self.state: DensityMatrix | StateVector
+        if config.initial_state is not None:
+            assert isinstance(config.initial_state, state_type)
+            self.state = state_type(
+                config.initial_state.data.clone(), gpu=self.resolved_gpu
+            )
+        else:
+            self.state = state_type.make(self.nqubits, gpu=self.resolved_gpu)
+
         self.time = time.time()
-        self.results = Results(atom_order=(), total_duration=self.target_times[-1])
+        self.results = Results(
+            atom_order=data.qubit_ids,
+            total_duration=int(self.target_times[-1]),
+        )
         self.statistics = Statistics(
             evaluation_times=[t / self.target_times[-1] for t in self.target_times],
             data=[],
@@ -100,22 +122,17 @@ class BaseSVBackendImpl:
 
         if (
             self._config.initial_state is not None
-            and self._config.noise_model.state_prep_error > 0.0
+            and self._data.noise_model.state_prep_error > 0.0
         ):
             raise NotImplementedError(
                 "Initial state and state preparation error can not be together."
             )
-        requested_gpu = self._config.gpu
-        if requested_gpu is None:
-            requested_gpu = True
-
-        self.resolved_gpu = requested_gpu
 
     def init_dark_qubits(self) -> None:
-        if self._config.noise_model.state_prep_error > 0.0:
-            bad_atoms = self._pulser_data.hamiltonian.bad_atoms
+        if self._data.noise_model.state_prep_error > 0.0:
+            bad_atoms = self._data.bad_atoms
             self.well_prepared_qubits_filter = torch.tensor(
-                [bool(bad_atoms[x]) for x in self._pulser_data.qubit_ids]
+                [bool(bad_atoms[x]) for x in self._data.qubit_ids]
             )
         else:
             self.well_prepared_qubits_filter = None
@@ -132,19 +149,68 @@ class BaseSVBackendImpl:
         """One step of the evolution"""
         dt = self._compute_dt(step_idx)
         self._evolve_step(dt, step_idx)
+        step_idx += 1
         self._apply_observables(step_idx)
         self._save_statistics(step_idx)
 
     def _compute_dt(self, step_idx: int) -> float:
         return self.target_times[step_idx + 1] - self.target_times[step_idx]
 
-    @abstractmethod
     def _evolve_step(self, dt: float, step_idx: int) -> None:
         """One step evolution"""
+        self._current_H = None  # save a bit of memory
+        self.state.data, self._current_H = self.stepper.apply(
+            dt * _TIME_CONVERSION_COEFF,
+            self.omega[step_idx],
+            self.delta[step_idx],
+            self.phi[step_idx],
+            self.full_interaction_matrix,
+            self.state.data,
+            self._config.krylov_tolerance,
+            self.pulser_lindblads,
+        )
+
+    def _is_evaluation_time(
+        self,
+        observable: Observable,
+        t: float,
+        tolerance: float = 1e-10,
+    ) -> bool:
+        """Return True if ``t`` is a genuine sampling time for this observable.
+
+        Filters out nearby points that are close to, but not in, the
+        observable's evaluation times (within ``tolerance``).
+        Prevent false matches by using Pulser's tolerance
+        tol = 0.5 / total_duration. (deep inside pulser Observable class)
+        """
+        times = observable.evaluation_times
+
+        is_observable_eval_time = (
+            times is not None
+            and self._config.is_time_in_evaluation_times(t, times, tol=tolerance)
+        )
+
+        is_default_eval_time = self._config.is_evaluation_time(t, tol=tolerance)
+
+        return is_observable_eval_time or is_default_eval_time
 
     def _apply_observables(self, step_idx: int) -> None:
-        norm_time = self.target_times[step_idx + 1] / self.target_times[-1]
-        for callback in self._config.observables:
+        norm_time = self.target_times[step_idx] / self.target_times[-1]
+        callbacks_for_current_time_step = [
+            callback
+            for callback in self._config.observables
+            if self._is_evaluation_time(callback, norm_time)
+        ]
+        if not self._current_H and callbacks_for_current_time_step:
+            self._current_H = self.stepper.get_hamiltonian(
+                omegas=self.omega[0],
+                deltas=self.delta[0],
+                phis=self.phi[0],
+                pulser_lindblads=self.pulser_lindblads,
+                interaction_matrix=self.full_interaction_matrix,
+                device=self.state.data.device,
+            )
+        for callback in callbacks_for_current_time_step:
             callback(
                 self._config,
                 norm_time,
@@ -154,7 +220,8 @@ class BaseSVBackendImpl:
             )
 
     def _save_statistics(self, step_idx: int) -> None:
-        norm_time = self.target_times[step_idx + 1] / self.target_times[-1]
+        norm_time = self.target_times[step_idx] / self.target_times[-1]
+
         self.statistics.data.append(time.time() - self.time)
         self.statistics(
             self._config,
@@ -164,101 +231,10 @@ class BaseSVBackendImpl:
             self.results,
         )
         self.time = time.time()
-        self._current_H = None
 
     def _run(self) -> Results:
+        self._apply_observables(0)  # at t == 0 for pulser compatibility
         for step in range(self.nsteps):
             self.step(step)
 
         return self.results
-
-
-class SVBackendImpl(BaseSVBackendImpl):
-
-    def __init__(self, config: SVConfig, pulser_data: PulserData):
-        """
-        For running sequences without noise. The state will evolve according
-        to e^(-iH t)
-
-        Args:
-            config: The configuration for the emulator.
-            pulser_data: The data for the sequence to be emulated.
-        """
-        super().__init__(config, pulser_data)
-        self.state: StateVector = (
-            StateVector.make(self.nqubits, gpu=self.resolved_gpu)
-            if self._config.initial_state is None
-            else StateVector(
-                self._config.initial_state.vector.clone(),
-                gpu=self.resolved_gpu,
-            )
-        )
-
-        self.stepper = EvolveStateVector.apply
-
-    def _evolve_step(self, dt: float, step_idx: int) -> None:
-        self.state.vector, self._current_H = self.stepper(
-            dt * _TIME_CONVERSION_COEFF,
-            self.omega[step_idx],
-            self.delta[step_idx],
-            self.phi[step_idx],
-            self.full_interaction_matrix,
-            self.state.vector,
-            self._config.krylov_tolerance,
-        )
-
-
-class NoisySVBackendImpl(BaseSVBackendImpl):
-
-    def __init__(self, config: SVConfig, pulser_data: PulserData):
-        """
-        Initializes the NoisySVBackendImpl, master equation version.
-        This class handles the Lindblad operators and
-        solves the Lindblad master equation
-
-        Args:
-            config: The configuration for the emulator.
-            pulser_data: The data for the sequence to be emulated.
-        """
-
-        super().__init__(config, pulser_data)
-
-        self.pulser_lindblads = pulser_data.lindblad_ops
-
-        self.state: DensityMatrix = (
-            DensityMatrix.make(self.nqubits, gpu=self.resolved_gpu)
-            if self._config.initial_state is None
-            else DensityMatrix(
-                self._config.initial_state.matrix.clone(), gpu=self.resolved_gpu
-            )
-        )
-
-    def _evolve_step(self, dt: float, step_idx: int) -> None:
-        self.state.matrix, self._current_H = EvolveDensityMatrix.evolve(
-            dt * _TIME_CONVERSION_COEFF,
-            self.omega[step_idx],
-            self.delta[step_idx],
-            self.phi[step_idx],
-            self.full_interaction_matrix,
-            self.state.matrix,
-            self._config.krylov_tolerance,
-            self.pulser_lindblads,
-        )
-
-
-def create_impl(sequence: Sequence, config: SVConfig) -> BaseSVBackendImpl:
-    """
-    Creates the backend implementation for the given sequence and config.
-
-    Args:
-        sequence: The sequence to be emulated.
-        config: configuration for the emulator.
-
-    Returns:
-        An instance of SVBackendImpl.
-    """
-    pulse_data = PulserData(sequence=sequence, config=config, dt=config.dt)
-    if pulse_data.has_lindblad_noise:
-        return NoisySVBackendImpl(config, pulse_data)
-    else:
-        return SVBackendImpl(config, pulse_data)

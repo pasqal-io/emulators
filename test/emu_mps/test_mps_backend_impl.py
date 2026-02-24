@@ -41,8 +41,8 @@ def _create_victim(constructor, dt, noise_model):
     mock_pulser_data.full_interaction_matrix = torch.eye(QUBIT_COUNT)
     mock_pulser_data.masked_interaction_matrix = torch.eye(QUBIT_COUNT)
     mock_pulser_data.slm_end_time = 10.0
-    mock_pulser_data.hamiltonian = MagicMock()
     mock_pulser_data.dim = 2
+    mock_pulser_data.noise_model = noise_model
     victim = constructor(config, mock_pulser_data)
 
     assert victim.qubit_count == QUBIT_COUNT
@@ -79,6 +79,7 @@ def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
     mock_pulser_data.has_lindblad_noise = False
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.eigenstates = ("g", "r")
+    mock_pulser_data.noise_model = NoiseModel()
 
     dmrg_obj = constructor(config, mock_pulser_data)
 
@@ -151,7 +152,7 @@ def test_init_dark_qubits_with_state_prep_error():
     noise_model.state_prep_error = 0.123
     victim = create_victim(noise_model=noise_model)
 
-    victim.pulser_data.hamiltonian.bad_atoms = {
+    victim.pulser_data.bad_atoms = {
         "q0": False,
         "q1": True,
         "q2": False,
@@ -293,7 +294,7 @@ def test_init_initial_state_default():
     noise_model.state_prep_error = 0.1
 
     victim = create_victim(noise_model=noise_model)
-    victim.pulser_data.hamiltonian.bad_atoms = {
+    victim.pulser_data.bad_atoms = {
         "q0": False,
         "q1": True,
         "q2": True,
@@ -302,8 +303,7 @@ def test_init_initial_state_default():
     }
     victim.eigenstates = ("g", "r")
 
-    victim.config.precision = 0.001
-    victim.config.max_bond_dim = 100
+    victim.config = victim.config.with_changes(precision=0.001, max_bond_dim=100)
     victim.resolved_num_gpus = 0
     victim.init_dark_qubits()
     victim.init_initial_state()
@@ -360,9 +360,9 @@ def test_init_initial_state_provided_normalized():
 
 @patch("emu_mps.mps_backend_impl.make_H")
 @patch("emu_mps.mps_backend_impl.update_H")
-def test_init_hamiltonian(update_H_mock, make_H_mock):
+def test_init_noiseless_hamiltonian(update_H_mock, make_H_mock):
     victim = create_victim()
-    victim.init_hamiltonian()
+    victim.init_noiseless_hamiltonian()
     assert make_H_mock.call_count == 1
     assert update_H_mock.call_count == 1
 

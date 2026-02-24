@@ -11,10 +11,12 @@ file_dir = Path(__file__).parent
 def extract_version_from_file(filepath: Path, pattern: str) -> Optional[str]:
     with open(filepath, "r") as f:
         for line in f:
-            match = re.search(pattern + r'\s*>?=*\s*"?([0-9]+(?:\.[0-9*]+){2})"?', line)
+            match = re.search(
+                pattern + r'\s*>?=*\s*"?([0-9]+(?:\.[^\s"\.\,]+){2})"?', line
+            )
             if match:
                 return match.group(1)
-    return None
+    raise Exception("pattern not found")
 
 
 def fail(msg: str) -> None:
@@ -72,12 +74,14 @@ print("Checking pulser_core version:")
 
 # pulser_core -> emu_base
 pulser_base_dep = extract_version_from_file(
-    file_dir / "ci/emu_base/pyproject.toml", "pulser-core"
+    file_dir / "ci/emu_base/pyproject.toml", r"pulser-core\[torch\]"
 )
 print(f" - emu-base depends on pulser-core version {pulser_base_dep}")
 
 # pulser_core in root
-pulser_root_dep = extract_version_from_file(file_dir / "pyproject.toml", "pulser-core")
+pulser_root_dep = extract_version_from_file(
+    file_dir / "pyproject.toml", r"pulser-core\[torch\]"
+)
 print(f" - The root package depends on pulser-core version {pulser_root_dep}")
 
 if pulser_root_dep != pulser_base_dep:
@@ -85,7 +89,7 @@ if pulser_root_dep != pulser_base_dep:
 
 # pulser_core in .pre-commit-config.yaml
 pulser_pre_commit_version = extract_version_from_file(
-    file_dir / ".pre-commit-config.yaml", "pulser-core"
+    file_dir / ".pre-commit-config.yaml", r"pulser-core\[torch\]"
 )
 print(f" - pre-commit uses pulser_core version {pulser_pre_commit_version}")
 

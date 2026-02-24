@@ -26,7 +26,7 @@ noise_model = pulser.NoiseModel(
 )
 
 
-dt = 10
+dt = 10.0
 times = [1.0]
 sv_config = emu_sv.SVConfig(
     dt=dt,
@@ -62,7 +62,7 @@ noise_model = pulser.NoiseModel(
 )
 
 
-dt = 10
+dt = 10.0
 times = [1.0]
 sv_config = emu_sv.SVConfig(
     dt=dt,

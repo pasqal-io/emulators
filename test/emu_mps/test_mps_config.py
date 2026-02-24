@@ -179,3 +179,9 @@ def test_krylov_tolerance_no_adjustment(capsys) -> None:
 
     # Check value was not changed
     assert config.extra_krylov_tolerance == extra_krylov_tolerance
+
+
+def test_default_MPSConfig_ctr() -> None:
+    mps_config = MPSConfig()
+    assert len(mps_config.observables) == 0
+    assert len(mps_config.callbacks) == 0

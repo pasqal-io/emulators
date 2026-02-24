@@ -67,5 +67,5 @@ Each one of the above errors can be controlled (or make it worst ) using `MPSCon
 The following flow diagram, shows the evolution cycle for one time step and highlights where the four error sources come in and what varaibles in the config can control them
 
 <div align="center">
-  <img src="/emu_mps/advanced/mps/images/emu_mps_diagram_errors.svg" width="80%" alt="TDVP Error Sources Diagram">
+  <img src="../mps/images/emu_mps_diagram_errors.svg" width="80%" alt="TDVP Error Sources Diagram">
 </div>

@@ -4,7 +4,7 @@ Here, as anticipated in the [introduction](../benchmarks/index.md) page of the b
 
 ## Adiabatic sequence
 
-We run an adiabatic sequence to make an antiferromagnetic (AFM) state, as taken from one of our [tutorials](../notebooks/getting_started), for a line of atoms. In contrast to emu-mps, the performance of emu-sv does not depend on the type of sequence, other than through its duration, so there is no real benefit to showing results for the adiabatic and the quench sequence separately.
+We run an adiabatic sequence to make an antiferromagnetic (AFM) state, as taken from one of our [tutorials](../notebooks/getting_started.ipynb), for a line of atoms. In contrast to emu-mps, the performance of emu-sv does not depend on the type of sequence, other than through its duration, so there is no real benefit to showing results for the adiabatic and the quench sequence separately.
 
 First, let us compare emu-sv with pulser:
 
@@ -13,7 +13,7 @@ First, let us compare emu-sv with pulser:
 </div>
 
 
-Runtimes are shown for two different values of `dt` which shows that halving `dt` almost doubles the runtime. Halving `dt` doubles the number of timesteps taken by the program, but the algorithm for computing a single timestep converges faster, leading to a sublinear scaling of the runtime in terms of the number of timesteps. For larger values of `dt` emu-sv can be seen to outperform pulser for 8 qubits and up on the cluster, while for the smallest possible `dt = 1`, it will be faster starting at `9` qubits.
+Runtimes are shown for two different values of `dt` which shows that halving `dt` almost doubles the runtime. Halving `dt` doubles the number of timesteps taken by the program, but the algorithm for computing a single timestep converges faster, leading to a sublinear scaling of the runtime in terms of the number of timesteps. For larger values of `dt` emu-sv can be seen to outperform pulser for 8 qubits and up on the cluster, while for the smallest possible `dt = 1.0`, it will be faster starting at `9` qubits.
 
 Next, let us compare runs of emu-sv between CPU and GPU:
 

@@ -39,7 +39,7 @@ def test_creating_state() -> None:
     # test zero()
     nqubits = 3
     state = StateVector.zero(num_sites=nqubits, gpu=gpu)  # create |00..0>
-    tensor = state.vector
+    tensor = state.data
     expected = torch.tensor([0] * 2**nqubits, dtype=dtype, device=device)
     assert torch.allclose(expected, tensor)
 

@@ -75,10 +75,10 @@ def test_flipping_right_elements():
     assert torch.allclose(emu_mps_lindblad[1], expected1)
 
 
-def test_get_lindblad_op_with_invalid_eff_ops():
+def test_get_lindblad_op_with_wrong_dim():
     # pulser convention of basis but with numpy
-    basis0 = np.array([0.0, 1.0]).reshape(2, 1)
-    basis1 = np.array([1.0, 0.0]).reshape(2, 1)
+    basis0 = np.array([0.0, 1.0, 0.0]).reshape(3, 1)
+    basis1 = np.array([1.0, 0.0, 0.0]).reshape(3, 1)
 
     eff_rate = [0.5]
     eff_ops = [basis0 @ basis1.T]  # numpy array will raise an error

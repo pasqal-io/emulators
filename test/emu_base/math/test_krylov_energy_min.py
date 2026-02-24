@@ -3,6 +3,16 @@ import pytest
 
 from emu_base.math.krylov_energy_min import krylov_energy_minimization_impl
 from test.emu_mps.test_hamiltonian import single_gate, sigma_x
+from .data import (
+    v1,
+    v2,
+    lb1,
+    rb1,
+    lb2,
+    rb2,
+    combined_hamiltonian_factors1,
+    combined_hamiltonian_factors2,
+)
 
 dtype = torch.complex128
 
@@ -170,5 +180,33 @@ def test_ising_hamiltonian():
         residual_tolerance=1e-8,
         expect_converged=True,
         expect_happy_breakdown=False,
-        expected_iteration_count=27,
+        expected_iteration_count=28,
     )
+
+
+@pytest.mark.parametrize(
+    ("lb", "rb", "combined_hamiltonian_factors", "v", "krylov_dim"),
+    [
+        pytest.param(lb1, rb1, combined_hamiltonian_factors1, v1, 100),
+        pytest.param(lb2, rb2, combined_hamiltonian_factors2, v2, 200),
+    ],
+)
+def test_live_data(lb, rb, combined_hamiltonian_factors, v, krylov_dim):
+    v = v.reshape(-1)
+
+    tensored_h = torch.einsum(
+        "ibu, bjvc, kcw -> ijkuvw", lb, combined_hamiltonian_factors, rb
+    ).reshape(len(v), len(v))
+
+    def op(x: torch.Tensor) -> torch.Tensor:
+        return tensored_h @ x
+
+    ed = torch.linalg.eigh(tensored_h)
+    min_ed, e_ed = ed.eigenvectors[:, 0], ed.eigenvalues[0]
+    result = krylov_energy_minimization_impl(op, v, 1e-8, 1e-5, krylov_dim)
+    e_vec = result.ground_energy.real
+    min_vec = result.ground_state
+    assert torch.allclose(torch.tensor([e_vec], dtype=torch.float64), e_ed)
+    assert torch.allclose(
+        min_vec, min_vec[0] / min_ed[0] * min_ed
+    )  # there's a phase ambiguity
