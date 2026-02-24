@@ -114,8 +114,8 @@ class MPSBackendImpl:
         self.target_time = self.target_times[1]
         self.pulser_data = pulser_data
         self.qubit_count = pulser_data.qubit_count
-        assert self.qubit_count >= 2, "emu_mps is not designed for less than "
-        " 2 qubits. Consider using emu_sv backend. "
+        assert self.qubit_count >= 2, "emu_mps is designed for more than 2"
+        " qubits. Consider using emu_sv backend. "
         self.omega = pulser_data.omega
         self.delta = pulser_data.delta
         self.phi = pulser_data.phi
