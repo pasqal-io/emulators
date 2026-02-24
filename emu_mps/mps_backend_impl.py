@@ -182,7 +182,7 @@ class MPSBackendImpl:
         )
 
         # permutation if optimization is enabled
-        if not torch.allclose(
+        if not torch.equal(
             self.qubit_permutation, optimat.eye_permutation(self.qubit_count)
         ):
             matrix = optimat.permute_tensor(matrix, self.qubit_permutation)
