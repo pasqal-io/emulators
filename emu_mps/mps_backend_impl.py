@@ -389,13 +389,6 @@ class MPSBackendImpl(ABC):
         pass
 
     def _left_to_right_update(self, idx: int) -> None:
-        """
-        Update baths during left-to-right sweep.
-
-        Appends a new left bath and pops the rightmost bath.
-        This should be called after the state at position idx has been updated.
-        Updates sweep_index.
-        """
         if idx < self.qubit_count - 2:
             self.left_baths.append(
                 new_left_bath(
@@ -409,13 +402,6 @@ class MPSBackendImpl(ABC):
         self.sweep_index += 1
 
     def _right_to_left_update(self, idx: int) -> None:
-        """
-        Update baths during right-to-left sweep.
-
-        Appends a new right bath and pops the leftmost bath.
-        This should be called after the state at position idx+1 has been updated.
-        Updates sweep_index.
-        """
         if idx > 0:
             self.right_baths.append(
                 new_right_bath(
@@ -430,7 +416,7 @@ class MPSBackendImpl(ABC):
 
     def timestep_complete(self) -> None:
         """
-        Method that handles the updates of the different states during simulation
+        Fills the results, sets up the Hamiltonian and the baths for the next timestep.
         """
         self.fill_results()
         self.timestep_index += 1
@@ -459,9 +445,6 @@ class MPSBackendImpl(ABC):
         self.time = time.time()
 
     def save_simulation(self) -> None:
-        """
-        Method that saves the simulation in a file
-        """
         if self.last_save_time > time.time() - self.config.autosave_dt:
             return
 
@@ -641,12 +624,6 @@ class TDVPBackendImpl(MPSBackendImpl):
         self.save_simulation()
 
     def sweep_complete(self) -> None:
-        """
-        Marks the completion of a TDVP sweep.
-
-        Updates the current time to the target time and triggers
-        the timestep completion procedures.
-        """
         self.current_time = self.target_time
         self.timestep_complete()
 
