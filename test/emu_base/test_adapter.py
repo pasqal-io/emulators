@@ -754,6 +754,7 @@ def test_get_sequences_1_trajectory(mock_data):
     mock_from_sequence.basis_data.interaction_type = adressed_basis
 
     def interaction_matrix(t: float) -> torch.Tensor:
+        """Return a fixed interaction matrix for testing purposes."""
         return torch.tensor(
             [
                 [0.0, 0.0929, -0.4],
@@ -797,7 +798,6 @@ def test_get_sequences_1_trajectory(mock_data):
     assert torch.allclose(samples[0].delta, delta)
     assert torch.allclose(samples[0].phi, phi)
     assert torch.allclose(samples[0].interaction_matrix(0.0), cutoff_interaction_matrix)
-    assert torch.allclose(samples[0].interaction_matrix(0.0), cutoff_interaction_matrix)
 
     assert samples[0].hamiltonian_type == HamiltonianType.XY
 
@@ -810,7 +810,6 @@ def test_get_sequences_1_trajectory(mock_data):
 
     sequence._slm_mask_time = [1.0, 10.0]
     sequence._slm_mask_targets = [1]
-    masked_interaction_matrix = cutoff_interaction_matrix.clone().detach()
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
     samples = list(parsed_sequence.get_sequences())
@@ -823,7 +822,6 @@ def test_get_sequences_1_trajectory(mock_data):
     assert torch.allclose(samples[0].delta, delta)
     assert torch.allclose(samples[0].phi, phi)
     assert torch.allclose(samples[0].interaction_matrix(0.0), cutoff_interaction_matrix)
-    assert torch.allclose(samples[0].interaction_matrix(0.0), masked_interaction_matrix)
 
     assert samples[0].hamiltonian_type == HamiltonianType.XY
     assert len(samples[0].lindblad_ops) == len(ops)
