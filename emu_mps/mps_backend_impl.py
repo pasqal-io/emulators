@@ -127,9 +127,6 @@ class MPSBackendImpl:
         self.eigenstates = pulser_data.eigenstates
         self.dim = pulser_data.dim
         self.lindblad_noise = torch.zeros(self.dim, self.dim, dtype=dtype)
-        self.current_interaction_matrix = pulser_data.interaction_matrix(
-            self.current_time
-        )
 
         self.qubit_permutation = (
             optimat.minimize_bandwidth(
@@ -284,8 +281,9 @@ class MPSBackendImpl:
         Must be called AFTER init_dark_qubits otherwise,
         too many factors are put in the Hamiltonian
         """
+        self.current_interaction_matrix = self._get_interaction_matrix()
         self.hamiltonian = make_H(
-            interaction_matrix=self._get_interaction_matrix(),
+            interaction_matrix=self.current_interaction_matrix,
             hamiltonian_type=self.hamiltonian_type,
             num_gpus_to_use=self.resolved_num_gpus,
             dim=self.dim,
@@ -486,9 +484,7 @@ class MPSBackendImpl:
         self.timestep_index += 1
         interaction_matrix = self._get_interaction_matrix()  # at new time
 
-        is_the_same_matrix = (
-            self.current_interaction_matrix.shape == interaction_matrix.shape
-        ) and torch.allclose(
+        is_the_same_matrix = torch.allclose(
             self.current_interaction_matrix,
             interaction_matrix,
             atol=1e-10,
