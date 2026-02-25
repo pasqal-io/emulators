@@ -486,7 +486,14 @@ class MPSBackendImpl:
         self.timestep_index += 1
         interaction_matrix = self._get_interaction_matrix()  # at new time
 
-        if not torch.equal(self.current_interaction_matrix, interaction_matrix):
+        is_the_same_matrix = (
+            self.current_interaction_matrix.shape == interaction_matrix.shape
+        ) and torch.allclose(
+            self.current_interaction_matrix,
+            interaction_matrix,
+            atol=1e-10,
+        )
+        if not is_the_same_matrix:
             self.current_interaction_matrix = interaction_matrix
             self.hamiltonian = make_H(
                 interaction_matrix=self.current_interaction_matrix,
