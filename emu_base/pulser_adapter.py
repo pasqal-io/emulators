@@ -1,4 +1,4 @@
-from typing import Sequence, Iterator
+from typing import Callable, Sequence, Iterator
 from dataclasses import dataclass
 from enum import Enum
 import math
@@ -156,23 +156,52 @@ def _extract_omega_delta_phi(
     return omega_c, delta_c, phi_c
 
 
+class _InteractionMatrixCallable:
+    """
+    Callable wrapper returning the SLM-masked or full interaction matrix
+    depending on time.
+
+    Returns the masked matrix before the SLM end time, and the full matrix
+    after.
+    Implemented as a class (rather than a lambda) to support pickling in the
+    MPSbackend.
+    """
+
+    def __init__(
+        self, full_matrix: torch.Tensor, masked_matrix: torch.Tensor, slm_end_time: float
+    ):
+        self.full_matrix = full_matrix
+        self.masked_matrix = masked_matrix
+        self.slm_end_time = slm_end_time
+
+    def __call__(self, t: float) -> torch.Tensor:
+        if t < self.slm_end_time:
+            return self.masked_matrix
+        else:
+            return self.full_matrix
+
+
 @dataclass(frozen=True)
 class SequenceData:
     omega: torch.Tensor
     delta: torch.Tensor
     phi: torch.Tensor
-    full_interaction_matrix: torch.Tensor
-    masked_interaction_matrix: torch.Tensor
+    interaction_matrix: Callable[[float], torch.Tensor]
     bad_atoms: dict[str, bool]
     lindblad_ops: list[torch.Tensor]
-    noise_model: pulser.NoiseModel
+    noise_model: NoiseModel
     qubit_ids: tuple[QubitId, ...]
     target_times: list[float]
     eigenstates: list[States]
-    qubit_count: int
-    dim: int
     hamiltonian_type: HamiltonianType
-    slm_end_time: float
+
+    @property
+    def qubit_count(self) -> int:
+        return len(self.qubit_ids)
+
+    @property
+    def dim(self) -> int:
+        return len(self.eigenstates)
 
 
 class PulserData:
@@ -265,21 +294,23 @@ class PulserData:
                 samples.samples, self.qubit_ids, self.target_times
             )
 
+            interaction_matrix = _InteractionMatrixCallable(
+                full_matrix=full_interaction_matrix,
+                masked_matrix=masked_interaction_matrix,
+                slm_end_time=self.slm_end_time,
+            )
+
             for _ in range(samples.reps):
                 yield SequenceData(
                     omega,
                     delta,
                     phi,
-                    full_interaction_matrix,
-                    masked_interaction_matrix,
+                    interaction_matrix,
                     samples.trajectory.bad_atoms,
                     self.lindblad_ops,
                     self.noise_model,
                     self.qubit_ids,
                     self.target_times,
                     self.eigenstates,
-                    self.qubit_count,
-                    self.dim,
                     self.hamiltonian_type,
-                    self.slm_end_time,
                 )
