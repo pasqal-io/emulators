@@ -16,7 +16,7 @@ def test_sv_impl():
         omega=torch.tensor([[1.0]], requires_grad=True),
         delta=torch.tensor([[1.0]]),
         phi=torch.tensor([[1.0]]),
-        full_interaction_matrix=torch.tensor(0.0),
+        interaction_matrix=lambda t: torch.tensor(0.0),
         noise_model=NoiseModel(),
         target_times=[1.0],
         qubit_ids=(),
