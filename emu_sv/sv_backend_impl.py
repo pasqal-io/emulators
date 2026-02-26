@@ -83,7 +83,7 @@ class SVBackendImpl:
         self.phi = data.phi
         self.nsteps = data.omega.shape[0]
         self.nqubits = data.omega.shape[1]
-        self.full_interaction_matrix = data.full_interaction_matrix
+        self.interaction_matrix = data.interaction_matrix
 
         requested_gpu = self._config.gpu
         if requested_gpu is None:
@@ -139,8 +139,18 @@ class SVBackendImpl:
 
         if self.well_prepared_qubits_filter is not None:
 
-            self.full_interaction_matrix[self.well_prepared_qubits_filter, :] = 0.0
-            self.full_interaction_matrix[:, self.well_prepared_qubits_filter] = 0.0
+            original = self.interaction_matrix
+
+            indices = torch.where(self.well_prepared_qubits_filter)[0]
+
+            def interaction_matrix(t: float) -> torch.Tensor:
+                mat = original(t).clone()
+                mat[indices, :] = 0.0
+                mat[:, indices] = 0.0
+                return mat
+
+            self.interaction_matrix = interaction_matrix
+
             self.omega[:, self.well_prepared_qubits_filter] = 0.0
             self.delta[:, self.well_prepared_qubits_filter] = 0.0
             self.phi[:, self.well_prepared_qubits_filter] = 0.0
@@ -164,7 +174,7 @@ class SVBackendImpl:
             self.omega[step_idx],
             self.delta[step_idx],
             self.phi[step_idx],
-            self.full_interaction_matrix,
+            self.interaction_matrix(self.target_times[step_idx]),
             self.state.data,
             self._config.krylov_tolerance,
             self.pulser_lindblads,
@@ -207,7 +217,9 @@ class SVBackendImpl:
                 deltas=self.delta[0],
                 phis=self.phi[0],
                 pulser_lindblads=self.pulser_lindblads,
-                interaction_matrix=self.full_interaction_matrix,
+                interaction_matrix=self.interaction_matrix(
+                    0.5 * (self.target_times[step_idx] + self.target_times[step_idx + 1])
+                ),
                 device=self.state.data.device,
             )
         for callback in callbacks_for_current_time_step:
