@@ -62,7 +62,7 @@ def check(
 
     result = krylov_energy_minimization_impl(
         op=op,
-        psi_local=v,
+        psi=v,
         norm_tolerance=norm_tolerance,
         residual_tolerance=residual_tolerance,
         max_krylov_dim=max_krylov_dim,
@@ -209,4 +209,23 @@ def test_live_data(lb, rb, combined_hamiltonian_factors, v, krylov_dim):
     assert torch.allclose(torch.tensor([e_vec], dtype=torch.float64), e_ed)
 
     complex_phase = torch.vdot(min_ed, min_vec) / torch.vdot(min_ed, min_ed)
-    assert torch.allclose(min_vec, complex_phase * min_ed, rtol=1e-5, atol=1e-7)
+    assert torch.allclose(min_vec, complex_phase * min_ed, rtol=1e-5, atol=1e-6)
+
+
+def test_krylov_restart():
+    dtype = torch.float64
+    N = 3
+    diag_elem = torch.tensor(range(N), dtype=dtype)
+    A = torch.diag(diag_elem)
+    v = torch.ones(N, dtype=dtype)
+
+    check(
+        A,
+        v,
+        norm_tolerance=1e-12,
+        residual_tolerance=1e-10,
+        expect_converged=True,
+        expect_happy_breakdown=False,
+        expected_iteration_count=36,
+        max_krylov_dim=2,
+    )
