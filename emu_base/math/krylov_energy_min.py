@@ -49,10 +49,10 @@ def _ritz_vector(coefficients: torch.Tensor, basis: list[torch.Tensor]) -> torch
     c = coefficients.to(device=Q.device, dtype=Q.dtype)
     v = torch.tensordot(c, Q, dims=([0], [0]))
 
-    norm = v.norm()  # mypy requires explicit type
+    norm = v.norm()
     if norm.item() <= NUMERICAL_TOLERANCE:
         raise ValueError("Ritz vector has zero norm")
-    return cast(torch.Tensor, v / norm)
+    return cast(torch.Tensor, v / norm)  # mypy requires explicit type
 
 
 def build_next_lanczos_vector(
