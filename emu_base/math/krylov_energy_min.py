@@ -45,14 +45,14 @@ def _ritz_vector(coefficients: torch.Tensor, basis: list[torch.Tensor]) -> torch
             f"Expected len(coefficients) == len(basis), got {len(coefficients)} != {len(basis)}"
         )
 
-    Q = torch.stack(basis, dim=1)
+    Q = torch.stack(basis)
     c = coefficients.to(device=Q.device, dtype=Q.dtype)
-    v = Q @ c
+    v = torch.tensordot(c, Q, dims=([0], [0]))
 
-    norm = cast(torch.Tensor, v.norm())  # mypy requires explicit type
+    norm = v.norm()  # mypy requires explicit type
     if norm.item() <= NUMERICAL_TOLERANCE:
         raise ValueError("Ritz vector has zero norm")
-    return v / norm
+    return cast(torch.Tensor, v / norm)
 
 
 def build_next_lanczos_vector(
