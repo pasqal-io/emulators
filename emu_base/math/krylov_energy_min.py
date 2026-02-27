@@ -1,21 +1,36 @@
 import torch
-from dataclasses import dataclass
-from typing import Callable, Tuple
+from dataclasses import dataclass, replace
+from typing import Callable, Tuple, cast
 
 DEFAULT_MAX_KRYLOV_DIM: int = 100
 DEFAULT_MAX_RESTARTS: int = 100
 NUMERICAL_TOLERANCE: float = 1e-12
 
 
+@dataclass(slots=True)
+class KrylovEnergyResult:
+    ground_state: torch.Tensor
+    ground_energy: float
+    residual_norm: float
+    converged: bool
+    happy_breakdown: bool
+    iteration_count: int
+    restart_count: int
+
+
+def _dotc(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    return torch.vdot(a.reshape(-1), b.reshape(-1))
+
+
 def _lowest_eigen_pair(h: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Return the lowest eigenpair of the hermitian matrix h.
     """
-    rel_err = (h - h.mH).norm() / h.norm()
-    if rel_err.item() > NUMERICAL_TOLERANCE:
+    err = (h - h.mH).norm()
+    if err.item() > NUMERICAL_TOLERANCE:
         raise ValueError(
             f"Matrix is not Hermitian within tolerance: "
-            f"rel_err={rel_err.item():.3e} > tol={NUMERICAL_TOLERANCE:.3e}"
+            f"rel_err={err.item():.3e} > tol={NUMERICAL_TOLERANCE:.3e}"
         )
     eig_energy, eig_state = torch.linalg.eigh(h)
     return eig_energy[0], eig_state[:, 0]
@@ -34,25 +49,10 @@ def _ritz_vector(coefficients: torch.Tensor, basis: list[torch.Tensor]) -> torch
     c = coefficients.to(device=Q.device, dtype=Q.dtype)
     v = Q @ c
 
-    norm = torch.tensor(torch.linalg.norm(v))  # mypy requires explicit type
+    norm = cast(torch.Tensor, v.norm())  # mypy requires explicit type
     if norm.item() <= NUMERICAL_TOLERANCE:
         raise ValueError("Ritz vector has zero norm")
     return v / norm
-
-
-def _dotc(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    return torch.vdot(a.reshape(-1), b.reshape(-1))
-
-
-@dataclass(slots=True)
-class KrylovEnergyResult:
-    ground_state: torch.Tensor
-    ground_energy: float
-    residual_norm: float
-    converged: bool
-    happy_breakdown: bool
-    iteration_count: int
-    restart_count: int
 
 
 def build_next_lanczos_vector(
@@ -96,7 +96,8 @@ def _lowest_eigenvector_krylov_method(
 
     Builds a Lanczos basis from `v_init`, solves the projected eigenproblem each iteration
     to obtain a Ritz pair, tracks the best (lowest) Ritz value, and stops when the Ritz
-    residual norm meets `residual_tolerance` or a happy breakdown occurs.
+    residual norm meets `residual_tolerance` or a happy breakdown
+    (norm of the new vector is 0) occurs.
     """
 
     device = v_init.device
@@ -113,7 +114,7 @@ def _lowest_eigenvector_krylov_method(
     lanczos_vectors: list[torch.Tensor] = [q_0]
 
     T = torch.zeros(
-        (max_krylov_dim + 2, max_krylov_dim + 2),
+        (max_krylov_dim + 1, max_krylov_dim + 1),
         dtype=real_dtype,
         device=device,
     )
@@ -132,7 +133,7 @@ def _lowest_eigenvector_krylov_method(
 
         beta = T[j, j + 1]
         if beta < norm_tolerance:
-            # Happy breakdown: no new direction
+            # Happy breakdown: A*lanczos_vectors doesn't produce new direction
             best_state, best_energy = ritz_vec, ritz_value
             best_resid = 0.0
             converged, happy_breakdown = True, True
@@ -202,12 +203,12 @@ def krylov_energy_minimization_impl(
             max_krylov_dim=max_krylov_dim,
         )
 
-        result.restart_count = r
-
+        result = replace(result, restart_count=r)
         if result.happy_breakdown or result.converged:
             break
 
-    result.iteration_count += max_krylov_dim * result.restart_count
+    total_iterations = result.iteration_count + max_krylov_dim * result.restart_count
+    result = replace(result, iteration_count=total_iterations)
 
     return result
 
