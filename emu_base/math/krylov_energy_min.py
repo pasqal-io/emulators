@@ -4,12 +4,19 @@ from typing import Callable, Tuple
 
 DEFAULT_MAX_KRYLOV_DIM: int = 100
 DEFAULT_MAX_RESTARTS: int = 100
+NUMERICAL_TOLERANCE: float = 1e-12
 
 
 def _lowest_eigen_pair(h: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Return the lowest eigenpair of the hermitian matrix h.
     """
+    rel_err = (h - h.mH).norm() / h.norm()
+    if rel_err.item() > NUMERICAL_TOLERANCE:
+        raise ValueError(
+            f"Matrix is not Hermitian within tolerance: "
+            f"rel_err={rel_err.item():.3e} > tol={NUMERICAL_TOLERANCE:.3e}"
+        )
     eig_energy, eig_state = torch.linalg.eigh(h)
     return eig_energy[0], eig_state[:, 0]
 
@@ -18,30 +25,23 @@ def _ritz_vector(coefficients: torch.Tensor, basis: list[torch.Tensor]) -> torch
     """
     Return the normalized Ritz vector from Lanczos basis vectors.
     """
-    assert len(coefficients) == len(basis)
-    v = torch.zeros_like(basis[0])
-    for c_i, basis_i in zip(coefficients, basis):
-        v += c_i * basis_i
+    if len(coefficients) != len(basis):
+        raise ValueError(
+            f"Expected len(coefficients) == len(basis), got {len(coefficients)} != {len(basis)}"
+        )
 
-    norm = torch.linalg.norm(v)
-    assert isinstance(norm, torch.Tensor)
+    Q = torch.stack(basis, dim=1)
+    c = coefficients.to(device=Q.device, dtype=Q.dtype)
+    v = Q @ c
+
+    norm = torch.tensor(torch.linalg.norm(v))  # mypy requires explicit type
+    if norm.item() <= NUMERICAL_TOLERANCE:
+        raise ValueError("Ritz vector has zero norm")
     return v / norm
 
 
 def _dotc(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     return torch.vdot(a.reshape(-1), b.reshape(-1))
-
-
-def _mgs_reorthogonalize(v: torch.Tensor, basis: list[torch.Tensor]) -> torch.Tensor:
-    """
-    Re-orthogonalize `v` against `basis` using modified Gram–Schmidt.
-
-    Iteratively subtracts projections onto each vector `q` in `basis`:
-    v <- v - <q, v> q, where <·,·> is computed by `_dotc`.
-    """
-    for q in basis:
-        v -= _dotc(q, v) * q
-    return v
 
 
 @dataclass(slots=True)
@@ -59,8 +59,6 @@ def build_next_lanczos_vector(
     op: Callable[[torch.Tensor], torch.Tensor],
     lanczos_vectors: list[torch.Tensor],
     T_matrix: torch.Tensor,
-    *,
-    full_reorth: bool = False,
 ) -> torch.Tensor:
     """
     Perform one Lanczos iteration step.
@@ -79,9 +77,6 @@ def build_next_lanczos_vector(
     if i > 0:
         beta_prev = T_matrix[i, i - 1]
         w -= beta_prev * lanczos_vectors[i - 1]
-
-    if full_reorth:
-        w = _mgs_reorthogonalize(w, lanczos_vectors)
 
     beta = w.norm()
     T_matrix[i + 1, i] = beta
@@ -129,7 +124,7 @@ def _lowest_eigenvector_krylov_method(
 
     for j in range(max_krylov_dim):
         n_iteration += 1
-        w = build_next_lanczos_vector(op, lanczos_vectors, T, full_reorth=False)
+        w = build_next_lanczos_vector(op, lanczos_vectors, T)
 
         m = len(lanczos_vectors)
         ritz_value, y = _lowest_eigen_pair(T[:m, :m])

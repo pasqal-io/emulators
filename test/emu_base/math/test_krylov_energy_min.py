@@ -1,7 +1,11 @@
 import torch
 import pytest
 
-from emu_base.math.krylov_energy_min import krylov_energy_minimization_impl
+from emu_base.math.krylov_energy_min import (
+    _lowest_eigen_pair,
+    _ritz_vector,
+    krylov_energy_minimization_impl,
+)
 from test.emu_mps.test_hamiltonian import single_gate, sigma_x
 from .data import (
     v1,
@@ -267,3 +271,54 @@ def test_krylov_restart_misconvergence():
         expected_iteration_count=8,
         max_krylov_dim=2,
     )
+
+
+def test_lowest_eigen_pair_hermitian():
+    h = torch.tensor(
+        [
+            [0.0, 1.0],
+            [1.0, 0.0],
+        ]
+    )
+    e0, v0 = _lowest_eigen_pair(h)
+
+    expected_e0 = torch.tensor(-1.0)
+    expected_v0 = torch.tensor([1.0, -1.0]) / torch.sqrt(torch.tensor(2))
+    sgn = expected_v0 @ v0
+    expected_v0 *= sgn
+    assert torch.allclose(e0, expected_e0)
+    assert torch.allclose(v0, expected_v0)
+
+
+def test_lowest_eigen_pair_rejects_non_hermitian():
+    h = torch.tensor([[1.0, 2.0], [0.0, 1.0]])
+
+    with pytest.raises(ValueError, match="not Hermitian"):
+        _lowest_eigen_pair(h)
+
+
+def test_ritz_vector_normalized_and_correct():
+    basis = [torch.tensor([1.0, 0.0]), torch.tensor([0.0, 1.0])]
+    coeffs = torch.tensor([3.0, 4.0])
+
+    v = _ritz_vector(coeffs, basis)
+
+    expected = torch.tensor([3.0, 4.0]) / 5.0
+    assert torch.allclose(v, expected)
+    assert torch.allclose(torch.linalg.norm(v), torch.tensor(1.0))
+
+
+def test_ritz_vector_len_mismatch_raises():
+    basis = [torch.tensor([1.0, 0.0]), torch.tensor([0.0, 1.0])]
+    coeffs = torch.tensor([1.0, 2.0, 3.0])
+
+    with pytest.raises(ValueError, match="3 != 2"):
+        _ritz_vector(coeffs, basis)
+
+
+def test_ritz_vector_zero_norm_raises():
+    basis = [torch.tensor([1.0, 0.0]), torch.tensor([0.0, 1.0])]
+    coeffs = torch.tensor([0.0, 0.0])
+
+    with pytest.raises(ValueError, match="zero norm"):
+        _ritz_vector(coeffs, basis)
