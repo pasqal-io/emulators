@@ -182,18 +182,17 @@ def krylov_energy_minimization_impl(
       - happy breakdown: beta < norm_tolerance
     """
 
-    best_resid_glob = float("inf")
-
     result = KrylovEnergyResult(
         ground_state=psi,
         ground_energy=_dotc(psi, op(psi)).item(),
-        residual_norm=best_resid_glob,
+        residual_norm=float("inf"),
         converged=False,
         happy_breakdown=False,
         iteration_count=0,
         restart_count=0,
     )
 
+    total_iters = 0
     for r in range(max_restarts + 1):
         result = _lowest_eigenvector_krylov_method(
             op=op,
@@ -203,12 +202,11 @@ def krylov_energy_minimization_impl(
             max_krylov_dim=max_krylov_dim,
         )
 
-        result = replace(result, restart_count=r)
+        total_iters += result.iteration_count
+        result = replace(result, restart_count=r, iteration_count=total_iters)
+
         if result.happy_breakdown or result.converged:
             break
-
-    total_iterations = result.iteration_count + max_krylov_dim * result.restart_count
-    result = replace(result, iteration_count=total_iterations)
 
     return result
 
