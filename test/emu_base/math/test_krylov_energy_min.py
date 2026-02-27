@@ -229,3 +229,41 @@ def test_krylov_restart():
         expected_iteration_count=36,
         max_krylov_dim=2,
     )
+
+
+def test_krylov_restart_misconvergence():
+    dtype = torch.float64
+    N = 3
+    diag_elem = torch.tensor([1, 2, 3], dtype=dtype)
+    A = torch.diag(diag_elem)  # eigenvectors are [1,0,0], [0,1,0], [0,0,1]
+    v_init = torch.ones(N, dtype=dtype)
+    v_init[0] = 0  # v_init == [0,1,0] + [0,0,1], it doesnt contain [1,0,0] direction
+
+    with pytest.raises(AssertionError):
+        # Since (v_init * [1,0,0]) == 0, the Krylov subspace will never include
+        # direction [1,0,0].
+        # This can cause the iteration to miss the true ground state and instead
+        # converge to the next eigenvector.
+        # Making it small solves the problem `v_init += 1e-3[1,0,0]`
+        check(
+            A,
+            v_init,
+            norm_tolerance=1e-12,
+            residual_tolerance=1e-10,
+            expect_converged=True,
+            expect_happy_breakdown=True,
+            expected_iteration_count=2,
+            max_krylov_dim=2,
+        )
+
+    v_init[0] = 1e-3
+    check(
+        A,
+        v_init,
+        norm_tolerance=1e-12,
+        residual_tolerance=1e-10,
+        expect_converged=True,
+        expect_happy_breakdown=False,
+        expected_iteration_count=8,
+        max_krylov_dim=2,
+    )
