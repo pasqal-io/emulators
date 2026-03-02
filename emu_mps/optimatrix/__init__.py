@@ -8,7 +8,6 @@ from .permutations import (
     permute_tuple,
 )
 
-
 __all__ = [
     "minimize_bandwidth",
     "eye_permutation",

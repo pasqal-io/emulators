@@ -11,7 +11,10 @@ class SVBackend(EmulatorBackend):
     noise channel or jump operators
 
     Args:
+        sequence: The sequence to be executed.
         config (SVConfig): Configuration for the SV backend.
+        mimic_qpu: Whether to enforce Register constrains imposed
+            by the device in the Sequence.
     """
 
     default_config = SVConfig(observables=[BitStrings(evaluation_times=[1.0])])

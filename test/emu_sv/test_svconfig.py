@@ -8,7 +8,6 @@ import numpy as np
 from pulser.backend.config import EmulationConfig
 from pulser.backend import BitStrings
 
-
 # copypaste sv_config.py specific attributes
 # attributes from SVConfig._expected_kwargs
 # Arguments are arbitrary just to be != default, no deep meaning behind

@@ -11,7 +11,6 @@ from emu_base import HamiltonianType
 import torch
 from emu_mps.mpo import MPO
 
-
 dtype = torch.complex128
 
 

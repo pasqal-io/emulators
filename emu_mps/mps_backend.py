@@ -14,8 +14,10 @@ class MPSBackend(EmulatorBackend):
     aka tensor trains.
 
     Args:
+        sequence: The sequence to be executed.
         config (MPSConfig): Configuration for the MPS backend.
-
+        mimic_qpu: Whether to enforce Register constrains imposed
+            by the device in the Sequence.
     """
 
     default_config = MPSConfig(observables=[BitStrings(evaluation_times=[1.0])])

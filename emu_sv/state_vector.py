@@ -30,7 +30,7 @@ class StateVector(State[complex, torch.Tensor]):
         vector: 1D tensor representation of a state vector.
         gpu: store the vector on GPU if True, otherwise on CPU
         eigenstates: sequence of eigenstates used as basis only qubit basis are
-        supported (default: ('r','g'))
+            supported (default: ('r','g'))
     """
 
     def __init__(

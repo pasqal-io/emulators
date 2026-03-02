@@ -52,8 +52,8 @@ class MPSConfig(EmulationConfig):
             - if it is set to `n = 0`, the entire simulation runs on the CPU.
             - if it is `None` (the default value), the backend internally
                 chooses the number of GPUs
-            based on the hardware availability during runtime.
-        As shown in the benchmarks, using multiple GPUs might
+                based on the hardware availability during runtime.
+            As shown in the benchmarks, using multiple GPUs might
             alleviate memory pressure per GPU, but the runtime should
             be similar.
         optimize_qubit_ordering: Optimize the register ordering. Improves

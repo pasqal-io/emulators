@@ -7,7 +7,6 @@ from emu_mps.hamiltonian import make_H, update_H
 from emu_base.pulser_adapter import HamiltonianType
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 
-
 #########################################
 # Code for building the hamiltonian in
 # state vector form. For use in the tests
