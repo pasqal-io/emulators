@@ -1,3 +1,20 @@
+"""
+To implement the thick-restart Lanczos algorithm, I followed:
+(0) Thick-Restart Lanczos Method for Large Symmetric
+Eigenvalue Problems, K. Wu, H. Simon
+https://doi.org/10.1137/S0895479898334605
+(1) Numerical Methods for Large Eigenvalue Problems, Y. Saad.
+https://epubs.siam.org/doi/book/10.1137/1.9781611970739
+Standard SIAM book on Krylov methods
+(2) Applied numerical linear algebra, J. Demmel
+https://www.stat.uchicago.edu/~lekheng/courses/302/demmel/
+Chapter 7 shows cases on misconvergence and residual growth.
+(3) Numerical Methods for Solving Large Scale Eigenvalue Problems, P. Arbenz
+https://people.inf.ethz.ch/arbenz/ewp/lnotes.html
+Chapter 11. Explain the original paper and
+Restarting Arnodli and Lanczos algorithms, algo 11.4
+"""
+
 import torch
 from dataclasses import dataclass, replace
 from typing import Callable, Tuple, cast
@@ -67,26 +84,30 @@ def _ritz_vector(
 def _next_lanczos_iteration(
     op: Callable[[torch.Tensor], torch.Tensor],
     lanczos_vectors: list[torch.Tensor],
+    alphas: torch.Tensor,
     betas: torch.Tensor,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> torch.Tensor:
     """
-    Compute the next Lanczos vector (aka residual)`w` and
-    tridiagonal coefficients `alpha`, `beta`.
+    Compute the next Lanczos vector (aka residual)`w` and the next
+    coefficients `alpha[i]`, `beta[i]`.
 
     Applies `op` to the most recent Lanczos vector `q_i`, orthogonalizes the result
-    against `q_i` and `q_{i-1}` using `beta_prev`, and returns `(w, alpha, beta)`
-    where `alpha = <q_i, op(q_i)>`, `beta = ||w||`, and `w` is the unnormalized
-    candidate used to form `q_{i+1} = w / beta`.
+    against `q_i` and `q_{i-1}` and returns `(w, alpha, beta)`
+    where
+    `w = op(q_i) - alpha[i] * q_i - beta_{i-1} * q_{i-1}`,
+    `alpha[i] = <q_i, op(q_i)>`,
+    `beta[i] = ||w||`,
+    `w` is the unnormalized candidate to form `q_{i+1} = w / ||w||`.
     """
     i = len(lanczos_vectors) - 1
     w = op(lanczos_vectors[i])
 
-    alpha = _dotc(lanczos_vectors[i], w)
-    w -= alpha * lanczos_vectors[i]
+    alphas[i] = torch.vdot(lanczos_vectors[i].reshape(-1), w.reshape(-1))
+    w -= alphas[i] * lanczos_vectors[i]
     if i > 0:
         w -= betas[i - 1] * lanczos_vectors[i - 1]
-    beta = cast(torch.Tensor, w.norm())
-    return w, alpha, beta
+    betas[i] = cast(torch.Tensor, w.norm())
+    return w
 
 
 def _lowest_eigenvector_krylov_method(
@@ -127,7 +148,7 @@ def _lowest_eigenvector_krylov_method(
 
     for j in range(max_krylov_dim):
         n_iteration += 1
-        w, alphas[j], betas[j] = _next_lanczos_iteration(op, lanczos_vectors, betas)
+        w = _next_lanczos_iteration(op, lanczos_vectors, alphas, betas)
 
         m = len(lanczos_vectors)
         ritz_value, y = _lowest_ritz_pair_tridiagonal(alphas[:m], betas[: m - 1])
@@ -140,7 +161,8 @@ def _lowest_eigenvector_krylov_method(
             converged, happy_breakdown = True, True
             break
 
-        resid = (betas[j] * y[-1]).abs()  # == norm(op(ritz_vec) - ritz_value * ritz_vec)
+        # Residual equivalence: see Saad (1), Prop. 6.8 (Ch. 6, p. 131).
+        resid = (betas[j] * y[j]).abs()  # == norm(op(ritz_vec) - ritz_value * ritz_vec)
         if resid < best_resid:
             best_state, best_energy = ritz_vec, ritz_value
             best_resid = resid.item()
