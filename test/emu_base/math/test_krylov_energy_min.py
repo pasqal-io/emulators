@@ -73,37 +73,28 @@ def check(
 
     assert result.converged == expect_converged
     assert result.happy_breakdown == expect_happy_breakdown
-    assert result.iteration_count in {
-        expected_iteration_count,
-        expected_iteration_count + 1,
-    }
+    assert result.iteration_count == expected_iteration_count
     E_approx = result.ground_energy.real
     psi_approx = result.ground_state
 
     eigen_energy, eigen_state = torch.linalg.eigh(A)
-    E_exact = eigen_energy[0].item()
+    E_exact = eigen_energy[0]
     psi_exact = eigen_state[:, 0]
 
     # test residual norm criterion
-    if expect_converged and expect_happy_breakdown is False:
+    if expect_converged:
         assert torch.allclose(
             torch.tensor(E_approx), torch.tensor(E_exact), atol=norm_tolerance
         )
-
         res = torch.norm(op(psi_approx) - E_approx * psi_approx).item()
         assert res < residual_tolerance
 
-    # test happy breakdown criterion
-    if expect_happy_breakdown and expect_converged:
-        assert torch.allclose(
-            torch.tensor(E_approx), torch.tensor(E_exact), atol=norm_tolerance
-        )
-
-        res = torch.norm(op(psi_approx) - E_approx * psi_approx).item()
-        assert res < norm_tolerance
-
-        overlap = torch.norm(torch.dot(psi_exact.conj(), psi_approx))
-        assert torch.allclose(overlap, torch.tensor(1.0, dtype=overlap.dtype), atol=1e-8)
+        # test happy breakdown criterion
+        if expect_happy_breakdown:
+            overlap = torch.norm(torch.dot(psi_exact.conj(), psi_approx))
+            assert torch.allclose(
+                overlap, torch.tensor(1.0, dtype=overlap.dtype), atol=1e-8
+            )
 
 
 def test_id():

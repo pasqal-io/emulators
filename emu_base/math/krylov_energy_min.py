@@ -11,7 +11,7 @@ https://www.stat.uchicago.edu/~lekheng/courses/302/demmel/
 Chapter 7 shows cases on misconvergence and residual growth.
 (3) Numerical Methods for Solving Large Scale Eigenvalue Problems, P. Arbenz
 https://people.inf.ethz.ch/arbenz/ewp/lnotes.html
-Chapter 11. Explain the original paper and
+Chapter 11. Explain the original paper an
 Restarting Arnodli and Lanczos algorithms, algo 11.4
 """
 
@@ -27,16 +27,12 @@ NUMERICAL_TOLERANCE: float = 1e-12
 @dataclass(slots=True)
 class KrylovEnergyResult:
     ground_state: torch.Tensor
-    ground_energy: float
-    residual_norm: float
+    ground_energy: torch.Tensor
+    residual_norm: torch.Tensor
     converged: bool
     happy_breakdown: bool
     iteration_count: int
     restart_count: int
-
-
-def _dotc(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    return torch.vdot(a.reshape(-1), b.reshape(-1))
 
 
 def _lowest_ritz_pair_tridiagonal(
@@ -128,20 +124,18 @@ def _lowest_eigenvector_krylov_method(
 
     device = v_init.device
     real_dtype = v_init.real.dtype
-    v_init_norm = v_init.norm()
-    if v_init_norm < norm_tolerance:
+    v_init_norm = cast(torch.Tensor, v_init.norm())
+    if v_init_norm.item() < norm_tolerance:
         raise ValueError("Starting vector has zero norm")
 
     q_0 = v_init / v_init_norm
-    best_state: torch.Tensor = q_0
-    best_energy = (_dotc(q_0, op(q_0))).real
-    best_resid = float("inf")
-
     lanczos_vectors: list[torch.Tensor] = [q_0]
+    alphas = torch.zeros(max_krylov_dim, dtype=real_dtype, device=device)
+    betas = torch.zeros(max_krylov_dim, dtype=real_dtype, device=device)
 
-    alphas = torch.zeros(max_krylov_dim + 1, dtype=real_dtype, device=device)
-    betas = torch.zeros(max_krylov_dim + 1, dtype=real_dtype, device=device)
-
+    best_state: torch.Tensor = q_0
+    best_energy = torch.tensor(float("inf"), device=device)
+    best_resid = torch.tensor(float("inf"), device=device)
     converged = False
     happy_breakdown = False
     n_iteration = 0
@@ -153,21 +147,19 @@ def _lowest_eigenvector_krylov_method(
         m = len(lanczos_vectors)
         ritz_value, y = _lowest_ritz_pair_tridiagonal(alphas[:m], betas[: m - 1])
         ritz_vec = _ritz_vector(y, lanczos_vectors)
+        # Residual equivalence: see Saad (1), Prop. 6.8 (Ch. 6, p. 131).
+        resid = (betas[j] * y[j]).abs()  # == norm(op(ritz_vec) - ritz_value * ritz_vec)
+
+        if resid < best_resid:
+            best_state, best_energy = ritz_vec, ritz_value
+            best_resid = resid
 
         if betas[j] < norm_tolerance:
             # Happy breakdown: A*lanczos_vectors doesn't produce new direction
-            best_state, best_energy = ritz_vec, ritz_value
-            best_resid = 0.0
             converged, happy_breakdown = True, True
             break
 
-        # Residual equivalence: see Saad (1), Prop. 6.8 (Ch. 6, p. 131).
-        resid = (betas[j] * y[j]).abs()  # == norm(op(ritz_vec) - ritz_value * ritz_vec)
-        if resid < best_resid:
-            best_state, best_energy = ritz_vec, ritz_value
-            best_resid = resid.item()
-
-        if resid < residual_tolerance:
+        if resid.item() < residual_tolerance:
             converged = True
             break
 
@@ -175,7 +167,7 @@ def _lowest_eigenvector_krylov_method(
 
     return KrylovEnergyResult(
         ground_state=best_state,
-        ground_energy=best_energy.item(),
+        ground_energy=best_energy,
         residual_norm=best_resid,
         converged=converged,
         happy_breakdown=happy_breakdown,
@@ -207,8 +199,8 @@ def krylov_energy_minimization_impl(
 
     result = KrylovEnergyResult(
         ground_state=psi,
-        ground_energy=_dotc(psi, op(psi)).item(),
-        residual_norm=float("inf"),
+        ground_energy=torch.tensor(float("inf"), device=psi.device),
+        residual_norm=torch.tensor(float("inf"), device=psi.device),
         converged=False,
         happy_breakdown=False,
         iteration_count=0,
@@ -255,4 +247,4 @@ def krylov_energy_minimization(
             "Krylov ground state solver did not converge within allotted iterations."
         )
 
-    return result.ground_state, result.ground_energy
+    return result.ground_state, result.ground_energy.item()
