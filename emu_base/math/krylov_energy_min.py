@@ -11,7 +11,7 @@ https://www.stat.uchicago.edu/~lekheng/courses/302/demmel/
 Chapter 7 shows cases on misconvergence and residual growth.
 (3) Numerical Methods for Solving Large Scale Eigenvalue Problems, P. Arbenz
 https://people.inf.ethz.ch/arbenz/ewp/lnotes.html
-Chapter 11. Explain the original paper an
+Chapter 11. Explain the original paper and
 Restarting Arnodli and Lanczos algorithms, algo 11.4
 """
 
