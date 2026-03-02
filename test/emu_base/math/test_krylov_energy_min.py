@@ -2,7 +2,6 @@ import torch
 import pytest
 
 from emu_base.math.krylov_energy_min import (
-    _lowest_eigen_pair,
     _ritz_vector,
     krylov_energy_minimization_impl,
 )
@@ -273,31 +272,7 @@ def test_krylov_restart_misconvergence():
     )
 
 
-def test_lowest_eigen_pair_hermitian():
-    h = torch.tensor(
-        [
-            [0.0, 1.0],
-            [1.0, 0.0],
-        ]
-    )
-    e0, v0 = _lowest_eigen_pair(h)
-
-    expected_e0 = torch.tensor(-1.0)
-    expected_v0 = torch.tensor([1.0, -1.0]) / torch.sqrt(torch.tensor(2))
-    sgn = expected_v0 @ v0
-    expected_v0 *= sgn
-    assert torch.allclose(e0, expected_e0)
-    assert torch.allclose(v0, expected_v0)
-
-
-def test_lowest_eigen_pair_rejects_non_hermitian():
-    h = torch.tensor([[1.0, 2.0], [0.0, 1.0]])
-
-    with pytest.raises(ValueError, match="not Hermitian"):
-        _lowest_eigen_pair(h)
-
-
-def test_ritz_vector_normalized_and_correct():
+def test_ritz_vector():
     basis = [torch.tensor([1.0, 0.0]), torch.tensor([0.0, 1.0])]
     coeffs = torch.tensor([3.0, 4.0])
 

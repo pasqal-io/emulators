@@ -22,21 +22,32 @@ def _dotc(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     return torch.vdot(a.reshape(-1), b.reshape(-1))
 
 
-def _lowest_eigen_pair(h: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+def _lowest_ritz_pair_tridiagonal(
+    alphas: torch.Tensor,
+    betas: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Return the lowest eigenpair of the hermitian matrix h.
+    Compute the lowest Ritz pair - smallest eigenvalue and eigenvector of a
+    symmetric/Hermitian tridiagonal matrix defined by its diagonal `alphas`
+    and subdiagonal `betas`.
+
+    Note on implementation:
+        `torch.linalg.eigh` by default requires the lower triangular part of
+        the input symmetric/Hermitian matrix via UPLO='L'.
     """
-    err = (h - h.mH).norm()
-    if err.item() > NUMERICAL_TOLERANCE:
-        raise ValueError(
-            f"Matrix is not Hermitian within tolerance: "
-            f"rel_err={err.item():.3e} > tol={NUMERICAL_TOLERANCE:.3e}"
-        )
-    eig_energy, eig_state = torch.linalg.eigh(h)
+    n = alphas.numel()
+    h = alphas.new_zeros((n, n))
+    h.diagonal(0).copy_(alphas)
+    h.diagonal(-1).copy_(betas)
+
+    eig_energy, eig_state = torch.linalg.eigh(h, UPLO="L")
     return eig_energy[0], eig_state[:, 0]
 
 
-def _ritz_vector(coefficients: torch.Tensor, basis: list[torch.Tensor]) -> torch.Tensor:
+def _ritz_vector(
+    coefficients: torch.Tensor,
+    basis: list[torch.Tensor],
+) -> torch.Tensor:
     """
     Return the normalized Ritz vector from Lanczos basis vectors.
     """
@@ -45,43 +56,37 @@ def _ritz_vector(coefficients: torch.Tensor, basis: list[torch.Tensor]) -> torch
             f"Expected len(coefficients) == len(basis), got {len(coefficients)} != {len(basis)}"
         )
 
-    Q = torch.stack(basis)
-    c = coefficients.to(device=Q.device, dtype=Q.dtype)
-    v = torch.tensordot(c, Q, dims=([0], [0]))
+    ritz_v = sum(c * vec for c, vec in zip(coefficients, basis))
 
-    norm = v.norm()
+    norm = ritz_v.norm()
     if norm.item() <= NUMERICAL_TOLERANCE:
         raise ValueError("Ritz vector has zero norm")
-    return cast(torch.Tensor, v / norm)  # mypy requires explicit type
+    return cast(torch.Tensor, ritz_v / norm)  # mypy requires explicit type
 
 
-def build_next_lanczos_vector(
+def _next_lanczos_iteration(
     op: Callable[[torch.Tensor], torch.Tensor],
     lanczos_vectors: list[torch.Tensor],
-    T_matrix: torch.Tensor,
-) -> torch.Tensor:
+    betas: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
-    Perform one Lanczos iteration step.
+    Compute the next Lanczos vector (aka residual)`w` and
+    tridiagonal coefficients `alpha`, `beta`.
 
-    Applies `op` to the latest Lanczos vector, updates the tridiagonal entries
-    `T_matrix[i,i]=alpha` and `T_matrix[i,i±1]=beta`, and returns the unnormalized
-    vector for forming the next Lanczos basis vector.
+    Applies `op` to the most recent Lanczos vector `q_i`, orthogonalizes the result
+    against `q_i` and `q_{i-1}` using `beta_prev`, and returns `(w, alpha, beta)`
+    where `alpha = <q_i, op(q_i)>`, `beta = ||w||`, and `w` is the unnormalized
+    candidate used to form `q_{i+1} = w / beta`.
     """
     i = len(lanczos_vectors) - 1
     w = op(lanczos_vectors[i])
 
-    alpha = _dotc(lanczos_vectors[i], w).real
-    T_matrix[i, i] = alpha
-
+    alpha = _dotc(lanczos_vectors[i], w)
     w -= alpha * lanczos_vectors[i]
     if i > 0:
-        beta_prev = T_matrix[i, i - 1]
-        w -= beta_prev * lanczos_vectors[i - 1]
-
-    beta = w.norm()
-    T_matrix[i + 1, i] = beta
-    T_matrix[i, i + 1] = beta
-    return w
+        w -= betas[i - 1] * lanczos_vectors[i - 1]
+    beta = cast(torch.Tensor, w.norm())
+    return w, alpha, beta
 
 
 def _lowest_eigenvector_krylov_method(
@@ -113,11 +118,8 @@ def _lowest_eigenvector_krylov_method(
 
     lanczos_vectors: list[torch.Tensor] = [q_0]
 
-    T = torch.zeros(
-        (max_krylov_dim + 1, max_krylov_dim + 1),
-        dtype=real_dtype,
-        device=device,
-    )
+    alphas = torch.zeros(max_krylov_dim + 1, dtype=real_dtype, device=device)
+    betas = torch.zeros(max_krylov_dim + 1, dtype=real_dtype, device=device)
 
     converged = False
     happy_breakdown = False
@@ -125,21 +127,20 @@ def _lowest_eigenvector_krylov_method(
 
     for j in range(max_krylov_dim):
         n_iteration += 1
-        w = build_next_lanczos_vector(op, lanczos_vectors, T)
+        w, alphas[j], betas[j] = _next_lanczos_iteration(op, lanczos_vectors, betas)
 
         m = len(lanczos_vectors)
-        ritz_value, y = _lowest_eigen_pair(T[:m, :m])
+        ritz_value, y = _lowest_ritz_pair_tridiagonal(alphas[:m], betas[: m - 1])
         ritz_vec = _ritz_vector(y, lanczos_vectors)
 
-        beta = T[j, j + 1]
-        if beta < norm_tolerance:
+        if betas[j] < norm_tolerance:
             # Happy breakdown: A*lanczos_vectors doesn't produce new direction
             best_state, best_energy = ritz_vec, ritz_value
             best_resid = 0.0
             converged, happy_breakdown = True, True
             break
 
-        resid = (beta * y[-1]).abs()  # == norm(op(ritz_vec) - ritz_value * ritz_vec)
+        resid = (betas[j] * y[-1]).abs()  # == norm(op(ritz_vec) - ritz_value * ritz_vec)
         if resid < best_resid:
             best_state, best_energy = ritz_vec, ritz_value
             best_resid = resid.item()
@@ -148,7 +149,7 @@ def _lowest_eigenvector_krylov_method(
             converged = True
             break
 
-        lanczos_vectors.append(w / beta)
+        lanczos_vectors.append(w / betas[j])
 
     return KrylovEnergyResult(
         ground_state=best_state,
