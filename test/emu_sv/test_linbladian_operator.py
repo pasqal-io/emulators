@@ -9,7 +9,6 @@ from test.utils_testing import (
     list_to_kron,
 )
 
-
 dtype = torch.complex128
 dtype_adp = torch.float64
 device = "cpu"
