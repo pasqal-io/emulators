@@ -39,9 +39,7 @@ repos:
     rev: 53bb9d79b85d2bdc8ec7ffbc05b97749c3593583 # full SHA for the commit to use
     hooks:
      - id: doc-checker-basic
-       language: system
        args: ["--ignore-submodules", "emu_mps.optimatrix"]
      - id: doc-checker-links
-       language: system
        args: ["--ignore-submodules", "emu_mps.optimatrix"]
        verbose: true
