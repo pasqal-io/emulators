@@ -27,8 +27,8 @@ state2 = DensityMatrix.from_state_vector(
 )
 
 
-print(state1.matrix)
-print(state2.matrix)
+print(state1.data)
+print(state2.data)
 print("\nsampling state2:", state2.sample())
 
 print("\ninner product:", state1.overlap(state2))
@@ -42,7 +42,7 @@ eigenstates = ("r", "g")
 density, input_amplitudes = DensityMatrix._from_state_amplitudes(
     eigenstates=eigenstates, n_qudits=n_atoms, amplitudes=amplitudes
 )
-print("\nDensity matrix from state amplitudes:\n", density.matrix)
+print("\nDensity matrix from state amplitudes:\n", density.data)
 print("\nAmplitudes:\n", input_amplitudes)
 
 
@@ -50,4 +50,4 @@ print("\nAmplitudes:\n", input_amplitudes)
 
 n_qubits = 4
 ground_state = DensityMatrix.make(n_atoms, gpu=False)
-print("\nGround state density matrix:\n", ground_state.matrix)
+print("\nGround state density matrix:\n", ground_state.data)

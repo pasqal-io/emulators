@@ -15,7 +15,6 @@ from .mps import MPS, inner
 from .mps_backend import MPSBackend
 from .observables import EntanglementEntropy
 
-
 __all__ = [
     "__version__",
     "MPO",
@@ -36,4 +35,4 @@ __all__ = [
     "EntanglementEntropy",
 ]
 
-__version__ = "2.7.0"
+__version__ = "2.7.1"

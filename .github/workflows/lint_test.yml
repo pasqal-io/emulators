@@ -16,8 +16,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-      - run: pip install pre-commit pyproject-flake8
+          python-version: "3.10"
+      - run: pip install pre-commit "doc-checker @ git+https://github.com/pasqal-io/doc_checker.git"
+      - run: pip install -e .
       - run: pre-commit install
       - run: pre-commit run --all-files
   check_dependency_versions:
@@ -43,3 +44,17 @@ jobs:
       - run: pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv --cov=optimatrix
       - run: pytest --nbmake -k ipynb
       - run: readme-cov
+  test_ci_pyproject_installs:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          for pyproject in ci/*/pyproject.toml; do
+            dir=$(dirname "$pyproject")
+            pip install "$dir" || exit 1
+            python -c "import `basename $dir`"
+          done

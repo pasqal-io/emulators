@@ -4,7 +4,7 @@ Here, as anticipated in the [introduction](../benchmarks/index.md) page of the b
 
 ## Adiabatic sequence
 
-We run an adiabatic sequence to make an antiferromagnetic (AFM) state, as taken from one of our [tutorials](../notebooks/getting_started), for a line of atoms. In contrast to emu-mps, the performance of emu-sv does not depend on the type of sequence, other than through its duration, so there is no real benefit to showing results for the adiabatic and the quench sequence separately.
+We run an adiabatic sequence to make an antiferromagnetic (AFM) state, as taken from one of our [tutorials](../notebooks/getting_started.ipynb), for a line of atoms. In contrast to emu-mps, the performance of emu-sv does not depend on the type of sequence, other than through its duration, so there is no real benefit to showing results for the adiabatic and the quench sequence separately.
 
 First, let us compare emu-sv with pulser:
 

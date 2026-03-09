@@ -29,9 +29,6 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
             (implementation-dependent placement). If None, uses all available
             GPUs.
 
-    Returns:
-        MPO: A matrix product operator constructed from the provided factors.
-
     Raises:
         ValueError: If any factor is not 4D or if neighboring bond dimensions
             do not match.
@@ -144,9 +141,7 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
         Returns:
             the expectation
         """
-        assert isinstance(
-            state, MPS
-        ), "currently, only expectation values of MPSs are \
+        assert isinstance(state, MPS), "currently, only expectation values of MPSs are \
         supported"
         acc = torch.ones(
             1, 1, 1, dtype=state.factors[0].dtype, device=state.factors[0].device

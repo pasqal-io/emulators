@@ -10,6 +10,7 @@ from pulser.math import AbstractArray
 from pulser._hamiltonian_data.hamiltonian_data import SamplesWithReps
 
 from emu_base.pulser_adapter import (
+    _InteractionMatrixCallable,
     _extract_omega_delta_phi,
     _get_all_lindblad_noise_operators,
     _get_target_times,
@@ -410,6 +411,133 @@ def test_extract_omega_delta_phi_dt_1(
     assert torch.allclose(actual_phi, expected_phi, atol=1e-4)
 
 
+def test_interaction_matrix_callable_at_slm_end_time():
+    """Test that _InteractionMatrixCallable returns full_matrix when t
+    equals slm_end_time"""
+    full_matrix = torch.tensor(
+        [
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+            [13.0, 14.0, 15.0, 16.0],
+        ],
+        dtype=torch.float64,
+    )
+    masked_matrix = torch.tensor(
+        [
+            [1.0, 0.0, 3.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [9.0, 0.0, 11.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+        ],
+        dtype=torch.float64,
+    )
+    slm_end_time = 5.0
+
+    callable_matrix = _InteractionMatrixCallable(
+        full_matrix=full_matrix, masked_matrix=masked_matrix, slm_end_time=slm_end_time
+    )
+
+    result = callable_matrix(slm_end_time)
+
+    assert torch.allclose(result, full_matrix)
+
+
+def test_interaction_matrix_callable_returns_masked_at_zero():
+    """Test that _InteractionMatrixCallable returns masked_matrix when time is zero"""
+    full_matrix = torch.tensor(
+        [
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+            [13.0, 14.0, 15.0, 16.0],
+        ],
+        dtype=torch.float64,
+    )
+    masked_matrix = torch.tensor(
+        [
+            [1.0, 0.0, 3.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [9.0, 0.0, 11.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+        ],
+        dtype=torch.float64,
+    )
+    slm_end_time = 5.0
+
+    interaction_matrix_callable = _InteractionMatrixCallable(
+        full_matrix=full_matrix,
+        masked_matrix=masked_matrix,
+        slm_end_time=slm_end_time,
+    )
+
+    result = interaction_matrix_callable(0.0)
+
+    assert torch.allclose(result, masked_matrix)
+
+
+def test_interaction_matrix_callable_slightly_before_slm_end():
+    """Test that masked_matrix is returned when t is slightly less
+    than slm_end_time"""
+    full_matrix = torch.tensor(
+        [
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+            [13.0, 14.0, 15.0, 16.0],
+        ],
+        dtype=torch.float64,
+    )
+    masked_matrix = torch.tensor(
+        [
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 6.0, 7.0, 0.0],
+            [0.0, 10.0, 11.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+        ],
+        dtype=torch.float64,
+    )
+    slm_end_time = 10.0
+
+    callable_matrix = _InteractionMatrixCallable(full_matrix, masked_matrix, slm_end_time)
+
+    result = callable_matrix(9.999)
+
+    assert torch.allclose(result, masked_matrix)
+
+
+def test_interaction_matrix_callable_time_slightly_greater_than_slm_end_time():
+    """Test that full_matrix is returned when time is slightly greater
+    than slm_end_time"""
+    full_matrix = torch.tensor(
+        [
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+            [13.0, 14.0, 15.0, 16.0],
+        ],
+        dtype=torch.float64,
+    )
+    masked_matrix = torch.tensor(
+        [
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 6.0, 7.0, 0.0],
+            [0.0, 10.0, 11.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+        ],
+        dtype=torch.float64,
+    )
+    slm_end_time = 10.0
+
+    interaction_callable = _InteractionMatrixCallable(
+        full_matrix=full_matrix, masked_matrix=masked_matrix, slm_end_time=slm_end_time
+    )
+
+    result = interaction_callable(10.1)
+
+    assert torch.allclose(result, full_matrix)
+
+
 @patch("emu_base.pulser_adapter.HamiltonianData")
 def test_autograd(mock_data):
     TEST_DURATION = 10
@@ -625,11 +753,17 @@ def test_get_sequences_1_trajectory(mock_data):
     sample_instance.interaction_type = adressed_basis
     mock_from_sequence.basis_data.interaction_type = adressed_basis
 
-    interaction_matrix = [
-        [0.0, 0.0929, -0.4],
-        [0.0929, 0.0, 0.1067],
-        [-0.4, 0.1067, 0.0],
-    ]
+    def interaction_matrix(t: float) -> torch.Tensor:
+        """Return a fixed interaction matrix for testing purposes."""
+        return torch.tensor(
+            [
+                [0.0, 0.0929, -0.4],
+                [0.0929, 0.0, 0.1067],
+                [-0.4, 0.1067, 0.0],
+            ],
+            dtype=torch.float64,
+        )
+
     sequence._slm_mask_time = []
 
     random_collapse = torch.rand(2, 2, dtype=dtype)  # in pulser XY basis
@@ -644,7 +778,7 @@ def test_get_sequences_1_trajectory(mock_data):
     config = EmulationConfig(
         observables=[mock_observable],
         noise_model=noise_model,
-        interaction_matrix=interaction_matrix,
+        interaction_matrix=interaction_matrix(0.0),
         interaction_cutoff=0.15,
     )
 
@@ -663,9 +797,7 @@ def test_get_sequences_1_trajectory(mock_data):
     assert torch.allclose(samples[0].omega, omega)
     assert torch.allclose(samples[0].delta, delta)
     assert torch.allclose(samples[0].phi, phi)
-    assert torch.allclose(samples[0].full_interaction_matrix, cutoff_interaction_matrix)
-    assert torch.allclose(samples[0].masked_interaction_matrix, cutoff_interaction_matrix)
-    assert samples[0].slm_end_time == 0.0
+    assert torch.allclose(samples[0].interaction_matrix(0.0), cutoff_interaction_matrix)
 
     assert samples[0].hamiltonian_type == HamiltonianType.XY
 
@@ -678,7 +810,6 @@ def test_get_sequences_1_trajectory(mock_data):
 
     sequence._slm_mask_time = [1.0, 10.0]
     sequence._slm_mask_targets = [1]
-    masked_interaction_matrix = cutoff_interaction_matrix.clone().detach()
 
     parsed_sequence = PulserData(sequence=sequence, config=config, dt=dt)
     samples = list(parsed_sequence.get_sequences())
@@ -690,9 +821,8 @@ def test_get_sequences_1_trajectory(mock_data):
     assert torch.allclose(samples[0].omega, omega)
     assert torch.allclose(samples[0].delta, delta)
     assert torch.allclose(samples[0].phi, phi)
-    assert torch.allclose(samples[0].full_interaction_matrix, cutoff_interaction_matrix)
-    assert torch.allclose(samples[0].masked_interaction_matrix, masked_interaction_matrix)
-    assert samples[0].slm_end_time == 10.0
+    assert torch.allclose(samples[0].interaction_matrix(0.0), cutoff_interaction_matrix)
+
     assert samples[0].hamiltonian_type == HamiltonianType.XY
     assert len(samples[0].lindblad_ops) == len(ops)
     for i in range(len(ops)):

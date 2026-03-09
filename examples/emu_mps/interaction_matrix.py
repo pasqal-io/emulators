@@ -4,7 +4,6 @@ import numpy as np
 import pulser
 from pulser.devices import AnalogDevice
 
-
 # emu_mps backend, confing and observables
 from emu_mps import MPS, MPSConfig, MPSBackend, StateResult, BitStrings, Fidelity
 

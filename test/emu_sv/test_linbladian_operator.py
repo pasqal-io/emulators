@@ -9,7 +9,6 @@ from test.utils_testing import (
     list_to_kron,
 )
 
-
 dtype = torch.complex128
 dtype_adp = torch.float64
 device = "cpu"
@@ -31,7 +30,7 @@ def test_ham_matmul_density():
         omegas=omegas,
         deltas=deltas,
         phis=phis,
-        pulser_linblads=pulser_linblad,
+        pulser_lindblads=pulser_linblad,
         interaction_matrix=interaction_matrix,
         device=device,
     )
@@ -63,7 +62,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
         omegas=omegas,
         deltas=deltas,
         phis=phis,
-        pulser_linblads=pulser_linblad,
+        pulser_lindblads=pulser_linblad,
         interaction_matrix=interaction_matrix,
         device=device,
     )
@@ -123,7 +122,7 @@ def test_matmul_linblad_class():
     omegas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     deltas = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
     phis = torch.rand(nqubits, dtype=dtype_adp, device=device).to(dtype)
-    pulser_linblads = [
+    pulser_lindblads = [
         math.sqrt(1 / 3) * torch.rand(2, 2, dtype=dtype, device="cpu"),  # always on cpu
         math.sqrt(1 / 2) * torch.rand(2, 2, dtype=dtype, device="cpu"),  # always on cpu
     ]
@@ -135,7 +134,7 @@ def test_matmul_linblad_class():
         omegas=omegas,
         deltas=deltas,
         phis=phis,
-        pulser_linblads=pulser_linblads,
+        pulser_lindblads=pulser_lindblads,
         interaction_matrix=interaction_matrix,
         device=device,
     )
@@ -152,7 +151,7 @@ def test_matmul_linblad_class():
     ident = torch.eye(2, dtype=dtype, device=device)
 
     lista = []
-    for lind in pulser_linblads:
+    for lind in pulser_lindblads:
         for i in range(nqubits):
             identities = [ident] * nqubits
             lind = lind.to(device)
@@ -171,7 +170,7 @@ def test_matmul_linblad_class():
 
     lista1 = []
     lista2 = []
-    for lind in pulser_linblads:
+    for lind in pulser_lindblads:
         for i in range(nqubits):
             identities = [ident] * nqubits
             identities[i] = lind.to(device)

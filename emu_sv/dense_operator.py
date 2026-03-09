@@ -30,9 +30,6 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
         gpu (bool, optional): If True, place the operator on a CUDA device when
             available. Default: True (and only 1 GPU).
 
-    Returns:
-        DenseOperator: An operator object wrapping the provided matrix.
-
     Raises:
         ValueError: If 'matrix' is not a 2-D square tensor.
         RuntimeError: If gpu=True but CUDA is not available (if applicable).
@@ -45,10 +42,10 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
         gpu: bool = True,
     ):
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
-        self.matrix = matrix.to(dtype=dtype, device=device)
+        self.data = matrix.to(dtype=dtype, device=device)
 
     def __repr__(self) -> str:
-        return repr(self.matrix)
+        return repr(self.data)
 
     def __matmul__(self, other: Operator) -> DenseOperator:
         """
@@ -63,7 +60,7 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
         assert isinstance(
             other, DenseOperator
         ), "DenseOperator can only be multiplied with a DenseOperator."
-        return DenseOperator(self.matrix @ other.matrix)
+        return DenseOperator(self.data @ other.data)
 
     def __add__(self, other: Operator) -> DenseOperator:
         """
@@ -78,7 +75,7 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
         assert isinstance(
             other, DenseOperator
         ), "DenseOperator can only be added to another DenseOperator."
-        return DenseOperator(self.matrix + other.matrix)
+        return DenseOperator(self.data + other.data)
 
     def __rmul__(self, scalar: complex) -> DenseOperator:
         """
@@ -91,7 +88,7 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
             A new DenseOperator scaled by the given scalar.
         """
 
-        return DenseOperator(scalar * self.matrix)
+        return DenseOperator(scalar * self.data)
 
     def apply_to(self, other: State) -> StateVector:
         """
@@ -107,7 +104,7 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
             other, StateVector
         ), "DenseOperator can only be applied to a StateVector."
 
-        return StateVector(self.matrix @ other.vector)
+        return StateVector(self.data @ other.data)
 
     def expect(self, state: State) -> torch.Tensor:
         """
@@ -123,7 +120,7 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
             state, StateVector
         ), "Only expectation values of StateVectors are supported."
 
-        return torch.vdot(state.vector, self.apply_to(state).vector).cpu()
+        return torch.vdot(state.data, self.apply_to(state).data).cpu()
 
     @classmethod
     def _from_operator_repr(

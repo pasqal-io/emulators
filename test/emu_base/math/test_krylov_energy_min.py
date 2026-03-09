@@ -1,8 +1,21 @@
 import torch
 import pytest
 
-from emu_base.math.krylov_energy_min import krylov_energy_minimization_impl
+from emu_base.math.krylov_energy_min import (
+    _ritz_vector,
+    krylov_energy_minimization_impl,
+)
 from test.emu_mps.test_hamiltonian import single_gate, sigma_x
+from .data import (
+    v1,
+    v2,
+    lb1,
+    rb1,
+    lb2,
+    rb2,
+    combined_hamiltonian_factors1,
+    combined_hamiltonian_factors2,
+)
 
 dtype = torch.complex128
 
@@ -52,7 +65,7 @@ def check(
 
     result = krylov_energy_minimization_impl(
         op=op,
-        psi_local=v,
+        psi=v,
         norm_tolerance=norm_tolerance,
         residual_tolerance=residual_tolerance,
         max_krylov_dim=max_krylov_dim,
@@ -60,37 +73,28 @@ def check(
 
     assert result.converged == expect_converged
     assert result.happy_breakdown == expect_happy_breakdown
-    assert result.iteration_count in {
-        expected_iteration_count,
-        expected_iteration_count + 1,
-    }
+    assert result.iteration_count == expected_iteration_count
     E_approx = result.ground_energy.real
     psi_approx = result.ground_state
 
     eigen_energy, eigen_state = torch.linalg.eigh(A)
-    E_exact = eigen_energy[0].item()
+    E_exact = eigen_energy[0]
     psi_exact = eigen_state[:, 0]
 
     # test residual norm criterion
-    if expect_converged and expect_happy_breakdown is False:
+    if expect_converged:
         assert torch.allclose(
             torch.tensor(E_approx), torch.tensor(E_exact), atol=norm_tolerance
         )
-
         res = torch.norm(op(psi_approx) - E_approx * psi_approx).item()
         assert res < residual_tolerance
 
-    # test happy breakdown criterion
-    if expect_happy_breakdown and expect_converged:
-        assert torch.allclose(
-            torch.tensor(E_approx), torch.tensor(E_exact), atol=norm_tolerance
-        )
-
-        res = torch.norm(op(psi_approx) - E_approx * psi_approx).item()
-        assert res < norm_tolerance
-
-        overlap = torch.norm(torch.dot(psi_exact.conj(), psi_approx))
-        assert torch.allclose(overlap, torch.tensor(1.0, dtype=overlap.dtype), atol=1e-8)
+        # test happy breakdown criterion
+        if expect_happy_breakdown:
+            overlap = torch.norm(torch.dot(psi_exact.conj(), psi_approx))
+            assert torch.allclose(
+                overlap, torch.tensor(1.0, dtype=overlap.dtype), atol=1e-8
+            )
 
 
 def test_id():
@@ -156,7 +160,7 @@ def test_ising_hamiltonian():
     eigvals, eigvecs = torch.linalg.eigh(H_small)
     ground_state_small = eigvecs[:, 0]
 
-    v = torch.ones(d**N)
+    v = torch.ones(d**N, dtype=ground_state_small.dtype)
     v[: d**N_small] = ground_state_small
     v = v / v.norm()
 
@@ -170,5 +174,109 @@ def test_ising_hamiltonian():
         residual_tolerance=1e-8,
         expect_converged=True,
         expect_happy_breakdown=False,
-        expected_iteration_count=27,
+        expected_iteration_count=28,
     )
+
+
+@pytest.mark.parametrize(
+    ("lb", "rb", "combined_hamiltonian_factors", "v", "krylov_dim"),
+    [
+        pytest.param(lb1, rb1, combined_hamiltonian_factors1, v1, 10),
+        pytest.param(lb2, rb2, combined_hamiltonian_factors2, v2, 100),
+    ],
+)
+def test_live_data(lb, rb, combined_hamiltonian_factors, v, krylov_dim):
+    v = v.reshape(-1)
+
+    tensored_h = torch.einsum(
+        "ibu, bjvc, kcw -> ijkuvw", lb, combined_hamiltonian_factors, rb
+    ).reshape(len(v), len(v))
+
+    def op(x: torch.Tensor) -> torch.Tensor:
+        return tensored_h @ x
+
+    eigenvalues, eigenvectors = torch.linalg.eigh(tensored_h)
+    min_ed, e_ed = eigenvectors[:, 0], eigenvalues[0]
+    result = krylov_energy_minimization_impl(op, v, 1e-8, 1e-5, krylov_dim)
+    e_vec = result.ground_energy.real
+    min_vec = result.ground_state
+    assert torch.allclose(torch.tensor([e_vec], dtype=torch.float64), e_ed)
+
+    complex_phase = torch.vdot(min_ed, min_vec) / torch.vdot(min_ed, min_ed)
+    assert torch.allclose(min_vec, complex_phase * min_ed, rtol=1e-5, atol=1e-6)
+
+
+def test_krylov_restart():
+    dtype = torch.float64
+    N = 3
+    diag_elem = torch.tensor(range(N), dtype=dtype)
+    A = torch.diag(diag_elem)
+    v = torch.ones(N, dtype=dtype)
+
+    check(
+        A,
+        v,
+        norm_tolerance=1e-12,
+        residual_tolerance=1e-10,
+        expect_converged=True,
+        expect_happy_breakdown=False,
+        expected_iteration_count=36,
+        max_krylov_dim=2,
+    )
+
+
+def test_krylov_restart_misconvergence():
+    dtype = torch.float64
+    N = 3
+    diag_elem = torch.tensor([1, 2, 3], dtype=dtype)
+    A = torch.diag(diag_elem)  # eigenvectors are [1,0,0], [0,1,0], [0,0,1]
+    v_init = torch.ones(N, dtype=dtype)
+    v_init[0] = 0  # v_init == [0,1,0] + [0,0,1], it doesnt contain [1,0,0] direction
+
+    with pytest.raises(AssertionError):
+        # Since (v_init * [1,0,0]) == 0, the Krylov subspace will never include
+        # direction [1,0,0].
+        # This can cause the iteration to miss the true ground state and instead
+        # converge to the next eigenvector.
+        # Making it small solves the problem `v_init += 1e-3[1,0,0]`
+        check(
+            A,
+            v_init,
+            norm_tolerance=1e-12,
+            residual_tolerance=1e-10,
+            expect_converged=True,
+            expect_happy_breakdown=True,
+            expected_iteration_count=2,
+            max_krylov_dim=2,
+        )
+
+    v_init[0] = 1e-3
+    check(
+        A,
+        v_init,
+        norm_tolerance=1e-12,
+        residual_tolerance=1e-10,
+        expect_converged=True,
+        expect_happy_breakdown=False,
+        expected_iteration_count=8,
+        max_krylov_dim=2,
+    )
+
+
+def test_ritz_vector():
+    basis = [torch.tensor([1.0, 0.0]), torch.tensor([0.0, 1.0])]
+    coeffs = torch.tensor([3.0, 4.0])
+
+    v = _ritz_vector(coeffs, basis)
+
+    expected = torch.tensor([3.0, 4.0]) / 5.0
+    assert torch.allclose(v, expected)
+    assert torch.allclose(torch.linalg.norm(v), torch.tensor(1.0))
+
+
+def test_ritz_vector_zero_norm_raises():
+    basis = [torch.tensor([1.0, 0.0]), torch.tensor([0.0, 1.0])]
+    coeffs = torch.tensor([0.0, 0.0])
+
+    with pytest.raises(ValueError, match="zero norm"):
+        _ritz_vector(coeffs, basis)

@@ -29,7 +29,6 @@ from emu_mps import (
     Expectation,
 )
 
-from emu_base import unix_like
 import pulser.noise_model
 from pulser.backend import Results
 
@@ -49,10 +48,10 @@ device = "cpu"  # "cuda"
 dtype = torch.complex128
 
 
-def create_antiferromagnetic_mps(num_qubits: int):
+def create_antiferromagnetic_mps(num_qubits: int, parity: int = 0):
     str = ""
     for i in range(num_qubits):
-        if i % 2:
+        if (i + parity) % 2:
             str += "g"
         else:
             str += "r"
@@ -371,27 +370,23 @@ def test_dmrg_afm_ring() -> None:
     energy_variance = result.energy_variance[final_time]
     second_moment_energy = result.energy_second_moment[final_time]
     state_fin = result.state[final_time]
-    fidelity_fin = result.fidelity_1[final_time]
     max_bond_dim = state_fin.get_max_bond_dim()
-    fidelity_st = create_antiferromagnetic_mps(num_qubits)
+    fidelity_st = create_antiferromagnetic_mps(num_qubits, 1)
     occupation_even_sites = occupation[0::2]
     occupation_odd_sites = occupation[1::2]
 
     assert max_bond_dim == 4
     # check that the output state is the AFM state
-    assert fidelity_st.overlap(state_fin) == approx(fidelity_fin, abs=1e-10)
-    assert bitstrings["1010101010"] == 974
-    assert torch.allclose(
-        fidelity_fin, torch.tensor(0.9735, dtype=torch.float64), atol=1e-3
-    )
+    assert fidelity_st.overlap(state_fin) == approx(0.9735, abs=1e-3)
+    assert bitstrings["0101010101"] == 972
 
     # check that the number operator should return 1 on even sites
     # and 0 elsewhere
     assert torch.allclose(
-        occupation_even_sites, torch.tensor(1, dtype=torch.float64), atol=1e-3
+        occupation_even_sites, torch.tensor(0, dtype=torch.float64), atol=1e-2
     )
     assert torch.allclose(
-        occupation_odd_sites, torch.tensor(0, dtype=torch.float64), atol=1e-2
+        occupation_odd_sites, torch.tensor(1, dtype=torch.float64), atol=1e-3
     )
 
     assert torch.allclose(energy, torch.tensor(-124.0612, dtype=torch.float64), atol=1e-4)
@@ -619,8 +614,6 @@ def test_initial_state_copy() -> None:
 
 
 def test_end_to_end_afm_ring_with_noise() -> None:
-    if not unix_like:
-        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -651,8 +644,6 @@ def test_end_to_end_afm_ring_with_noise() -> None:
 
 
 def test_end_to_end_spontaneous_emission() -> None:
-    if not unix_like:
-        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -718,8 +709,6 @@ def test_end_to_end_spontaneous_emission() -> None:
 
 
 def test_end_to_end_spontaneous_emission_rate() -> None:
-    if not unix_like:
-        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -821,7 +810,8 @@ def test_laser_waist() -> None:
     assert pytest.approx(final_state.inner(expected_state)) == -1.0
 
 
-def test_autosave() -> None:
+def test_autosave(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
     duration = 300
     rows, cols = 2, 3
     reg = pulser.Register.rectangle(
@@ -966,8 +956,6 @@ def test_run_after_deserialize():
 
 def test_leakage_rates():
     """Verigy the leakage rates"""
-    if not unix_like:
-        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -1058,8 +1046,6 @@ def test_leakage_rates():
 
 def test_leakage_3x3_matrices():
     """Verifying that 3x3 operators work as intended when leakage is 0.0."""
-    if not unix_like:
-        pytest.skip(reason="fails due to different RNG on windows")
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
 
@@ -1196,3 +1182,30 @@ def test_trajectories():
     assert torch.allclose(
         mps_results.occupation[-1], torch.ones(3, dtype=torch.float64) * 0.6667, atol=1e-4
     )
+
+
+def test_observables_time_0():
+    seq = pulser_afm_sequence_grid(
+        rows=2,
+        columns=1,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=10,
+        t_fall=10,
+    )
+
+    observables = [
+        Energy(evaluation_times=[0]),
+    ]
+    noise_model = pulser.noise_model.NoiseModel(depolarizing_rate=0.2)
+
+    config = emu_mps.MPSConfig(
+        observables=observables,
+        noise_model=noise_model,
+    )
+    backend = emu_mps.MPSBackend(seq, config=config)
+    result = backend.run()
+
+    assert torch.isreal(result.energy[0])

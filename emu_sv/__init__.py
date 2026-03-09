@@ -18,7 +18,6 @@ from .sv_backend import SVBackend, SVConfig
 from .state_vector import StateVector, inner
 from .density_matrix_state import DensityMatrix
 
-
 __all__ = [
     "__version__",
     "BitStrings",
@@ -40,4 +39,4 @@ __all__ = [
     "SparseOperator",
 ]
 
-__version__ = "2.7.0"
+__version__ = "2.7.1"

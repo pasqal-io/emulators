@@ -7,7 +7,6 @@ from test.utils_testing import cpu_multinomial_wrapper, ghz_state_factors
 
 from unittest.mock import patch
 
-
 seed = 1337  # any number will do
 device = "cpu"  # 'cuda'
 

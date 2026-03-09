@@ -1,6 +1,6 @@
 from pulser.backend import EmulatorBackend, Results, BitStrings
 from emu_sv.sv_config import SVConfig
-from emu_sv.sv_backend_impl import create_impl
+from emu_sv.sv_backend_impl import SVBackendImpl
 from emu_base import PulserData
 
 
@@ -11,7 +11,10 @@ class SVBackend(EmulatorBackend):
     noise channel or jump operators
 
     Args:
+        sequence: The sequence to be executed.
         config (SVConfig): Configuration for the SV backend.
+        mimic_qpu: Whether to enforce Register constrains imposed
+            by the device in the Sequence.
     """
 
     default_config = SVConfig(observables=[BitStrings(evaluation_times=[1.0])])
@@ -29,6 +32,6 @@ class SVBackend(EmulatorBackend):
         )
         results = []
         for sequence_data in pulser_data.get_sequences():
-            impl = create_impl(sequence_data, self._config)
+            impl = SVBackendImpl(self._config, sequence_data)
             results.append(impl._run())
         return Results.aggregate(results)
