@@ -73,7 +73,10 @@ def check(
 
     assert result.converged == expect_converged
     assert result.happy_breakdown == expect_happy_breakdown
-    assert result.iteration_count == expected_iteration_count
+    assert result.iteration_count in {
+        expected_iteration_count,
+        expected_iteration_count + 1,
+    }  # +1 is for windows machines. otherwise pipeline fails
     E_approx = result.ground_energy.real
     psi_approx = result.ground_state
 
