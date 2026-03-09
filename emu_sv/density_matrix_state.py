@@ -27,9 +27,6 @@ class DensityMatrix(State[complex, torch.Tensor]):
         gpu (bool, optional): If True, place the operator on a CUDA device when
             available. Default: True.
 
-    Returns:
-        DensityMatrix: A density-matrix wrapper around the provided tensor."
-
     Raises:
         ValueError: If matrix is not a square 2D tensor of shape (2ⁿ, 2ⁿ) or
             fails validation (e.g., not Hermitian / trace != 1) if validation

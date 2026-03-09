@@ -19,7 +19,6 @@ import torch
 import pytest
 from collections import Counter
 
-
 QUBIT_COUNT = 5
 
 dtype = torch.complex128

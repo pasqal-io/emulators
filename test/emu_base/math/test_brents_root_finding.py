@@ -5,7 +5,6 @@ import torch
 
 from emu_base.math.brents_root_finding import find_root_brents
 
-
 test_tolerance = 1e-10
 
 """

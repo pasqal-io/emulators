@@ -13,7 +13,6 @@ from emu_mps.utils import (
     tensor_trace,
 )
 
-
 ArgScalarType = TypeVar("ArgScalarType")
 dtype = torch.complex128
 

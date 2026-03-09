@@ -47,7 +47,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
         matrix (torch.Tensor): The CSR matrix representation of the operator.
 
         gpu (bool): If True (by default), run on GPU when available; otherwise
-        fall back to CPU. If False, always run on CPU.
+            fall back to CPU. If False, always run on CPU.
     """
 
     def __init__(

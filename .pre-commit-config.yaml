@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -11,7 +11,7 @@ repos:
       - id: check-added-large-files
 
   - repo: https://github.com/ambv/black
-    rev: 25.1.0
+    rev: 26.1.0
     hooks:
       - id: black
 
@@ -23,14 +23,23 @@ repos:
         additional_dependencies: [pyproject-flake8]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.0
+    rev: v0.15.4
     hooks:
       - id: ruff
         args: [--fix, --ignore,  E741]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.16.0
+    rev: v1.19.1
     hooks:
       - id: mypy
         exclude: examples|test|ci
         additional_dependencies: ["pulser-core[torch]>=1.7.0", "torch>=2.9.0"]  # The version in pyproject.toml must match
+
+  - repo: https://github.com/pasqal-io/doc_checker
+    rev: 53bb9d79b85d2bdc8ec7ffbc05b97749c3593583 # full SHA for the commit to use
+    hooks:
+     - id: doc-checker-basic
+       args: ["--ignore-submodules", "emu_mps.optimatrix"]
+     - id: doc-checker-links
+       args: ["--ignore-submodules", "emu_mps.optimatrix"]
+       verbose: true

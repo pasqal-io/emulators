@@ -15,7 +15,6 @@ from .mps import MPS, inner
 from .mps_backend import MPSBackend
 from .observables import EntanglementEntropy
 
-
 __all__ = [
     "__version__",
     "MPO",

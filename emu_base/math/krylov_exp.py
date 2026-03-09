@@ -1,7 +1,6 @@
 from typing import Callable
 import torch
 
-
 DEFAULT_MAX_KRYLOV_DIM: int = 100
 
 
