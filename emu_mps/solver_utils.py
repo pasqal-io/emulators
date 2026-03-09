@@ -248,7 +248,7 @@ def minimize_energy_pair(
     Minimizes the state factors (ψ_i, ψ_{i+1}) using the Lanczos/Arnoldi method
     """
 
-    time_step = 1
+    time_step = 1.0
     combined_state_factors, right_device, op = make_op(
         time_step=time_step,
         state_factors=state_factors,
