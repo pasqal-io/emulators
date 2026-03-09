@@ -779,13 +779,6 @@ class DMRGBackendImpl(MPSBackendImpl):
             SwipeDirection.RIGHT_TO_LEFT,
         ), "Unknown Swipe direction"
 
-        #num_noise_ampl = 1./self.config.dt
-        #self.state.factors[idx] += num_noise_ampl * torch.randn_like(self.state.factors[idx])
-        #self.state.factors[idx+1] += num_noise_ampl * torch.randn_like(self.state.factors[idx+1])
-
-        #self.state.factors[idx] /= self.state.factors[idx].norm()
-        #self.state.factors[idx+1] /= self.state.factors[idx+1].norm()
-
         orth_center_right = self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
         new_L, new_R, energy = minimize_energy_pair(
             state_factors=self.state.factors[idx : idx + 2],

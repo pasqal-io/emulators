@@ -53,7 +53,8 @@ def krylov_energy_minimization(
 
     if not result.converged and not result.happy_breakdown:
         raise RecursionError(
-            f"Krylov ground state solver did not converge within allotted {max_krylov_dim} iterations."
+            "Krylov ground state solver did not converge "
+            f"within allotted {max_krylov_dim} iterations."
         )
 
     return result.ground_state, result.ground_energy.item()
