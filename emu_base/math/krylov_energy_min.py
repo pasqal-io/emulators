@@ -48,7 +48,6 @@ def krylov_energy_minimization(
         psi=psi,
         norm_tolerance=norm_tolerance,
         residual_tolerance=residual_tolerance,
-        norm_tolerance=norm_tolerance,
         max_krylov_dim=max_krylov_dim,
     )
 
