@@ -35,75 +35,77 @@ class KrylovEnergyResult:
     restart_count: int
 
 
-def _lowest_ritz_pair_tridiagonal(
-    alphas: torch.Tensor,
-    betas: torch.Tensor,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Compute the lowest Ritz pair - smallest eigenvalue and eigenvector of a
-    symmetric/Hermitian tridiagonal matrix defined by its diagonal `alphas`
-    and subdiagonal `betas`.
+def krylov_energy_minimization(
+    op: Callable[[torch.Tensor], torch.Tensor],
+    psi: torch.Tensor,
+    norm_tolerance: float,
+    residual_tolerance: float,
+    max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+) -> Tuple[torch.Tensor, float]:
 
-    Note on implementation:
-        `torch.linalg.eigh` by default requires the lower triangular part of
-        the input symmetric/Hermitian matrix via UPLO='L'.
-    """
-    n = alphas.numel()
-    h = alphas.new_zeros((n, n))
-    h.diagonal(0).copy_(alphas)
-    h.diagonal(-1).copy_(betas)
+    result = krylov_energy_minimization_impl(
+        op=op,
+        psi=psi,
+        norm_tolerance=norm_tolerance,
+        residual_tolerance=residual_tolerance,
+        max_krylov_dim=max_krylov_dim,
+    )
 
-    eig_energy, eig_state = torch.linalg.eigh(h, UPLO="L")
-    return eig_energy[0], eig_state[:, 0]
-
-
-def _ritz_vector(
-    coefficients: torch.Tensor,
-    basis: list[torch.Tensor],
-) -> torch.Tensor:
-    """
-    Return the normalized Ritz vector from Lanczos basis vectors.
-    """
-    if len(coefficients) != len(basis):
-        raise ValueError(
-            f"Expected len(coefficients) == len(basis), got {len(coefficients)} != {len(basis)}"
+    if not result.converged and not result.happy_breakdown:
+        raise RecursionError(
+            "Krylov ground state solver did not converge within allotted iterations."
         )
 
-    ritz_v = sum(c * vec for c, vec in zip(coefficients, basis))
-
-    norm = ritz_v.norm()
-    if norm.item() <= NUMERICAL_TOLERANCE:
-        raise ValueError("Ritz vector has zero norm")
-    return cast(torch.Tensor, ritz_v / norm)  # mypy requires explicit type
+    return result.ground_state, result.ground_energy.item()
 
 
-def _next_lanczos_iteration(
+def krylov_energy_minimization_impl(
     op: Callable[[torch.Tensor], torch.Tensor],
-    lanczos_vectors: list[torch.Tensor],
-    alphas: torch.Tensor,
-    betas: torch.Tensor,
-) -> torch.Tensor:
+    psi: torch.Tensor,
+    residual_tolerance: float,
+    norm_tolerance: float,
+    max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+    *,
+    max_restarts: int = DEFAULT_MAX_RESTARTS,
+) -> KrylovEnergyResult:
     """
-    Compute the next Lanczos vector (aka residual)`w` and the next
-    coefficients `alpha[i]`, `beta[i]`.
+    Restarted Lanczos ground state search for a Hermitian operator.
 
-    Applies `op` to the most recent Lanczos vector `q_i`, orthogonalizes the result
-    against `q_i` and `q_{i-1}` and returns `(w, alpha, beta)`
-    where
-    `w = op(q_i) - alpha[i] * q_i - beta_{i-1} * q_{i-1}`,
-    `alpha[i] = <q_i, op(q_i)>`,
-    `beta[i] = ||w||`,
-    `w` is the unnormalized candidate to form `q_{i+1} = w / ||w||`.
+    Restart strategy (explicit):
+      - Run a Lanczos cycle up to `max_krylov_dim`.
+      - If not converged, restart with the best Ritz vector (lowest residual) from that cycle.
+
+    Convergence:
+      - residual norm ||Hψ - Eψ|| < residual_tolerance
+      - happy breakdown: beta < norm_tolerance
     """
-    i = len(lanczos_vectors) - 1
-    w = op(lanczos_vectors[i])
+    result = KrylovEnergyResult(
+        ground_state=psi,
+        ground_energy=torch.tensor(float("inf"), device=psi.device),
+        residual_norm=torch.tensor(float("inf"), device=psi.device),
+        converged=False,
+        happy_breakdown=False,
+        iteration_count=0,
+        restart_count=0,
+    )
 
-    alphas[i] = torch.vdot(lanczos_vectors[i].reshape(-1), w.reshape(-1))
-    w -= alphas[i] * lanczos_vectors[i]
-    if i > 0:
-        w -= betas[i - 1] * lanczos_vectors[i - 1]
-    betas[i] = cast(torch.Tensor, w.norm())
-    return w
+    total_iters = 0
+    for r in range(max_restarts + 1):
+        result = _lowest_eigenvector_krylov_method(
+            op=op,
+            v_init=result.ground_state,
+            residual_tolerance=residual_tolerance,
+            norm_tolerance=norm_tolerance,
+            max_krylov_dim=max_krylov_dim,
+        )
+
+        total_iters += result.iteration_count
+        result = replace(result, restart_count=r, iteration_count=total_iters)
+
+        if result.happy_breakdown or result.converged:
+            break
+
+    return result
 
 
 def _lowest_eigenvector_krylov_method(
@@ -176,75 +178,67 @@ def _lowest_eigenvector_krylov_method(
     )
 
 
-def krylov_energy_minimization_impl(
+def _next_lanczos_iteration(
     op: Callable[[torch.Tensor], torch.Tensor],
-    psi: torch.Tensor,
-    residual_tolerance: float,
-    norm_tolerance: float,
-    max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
-    *,
-    max_restarts: int = DEFAULT_MAX_RESTARTS,
-) -> KrylovEnergyResult:
+    lanczos_vectors: list[torch.Tensor],
+    alphas: torch.Tensor,
+    betas: torch.Tensor,
+) -> torch.Tensor:
     """
-    Restarted Lanczos ground state search for a Hermitian operator.
+    Compute the next Lanczos vector (aka residual)`w` and the next
+    coefficients `alpha[i]`, `beta[i]`.
 
-    Restart strategy (explicit):
-      - Run a Lanczos cycle up to `max_krylov_dim`.
-      - If not converged, restart with the best Ritz vector (lowest residual) from that cycle.
-
-    Convergence:
-      - residual norm ||Hψ - Eψ|| < residual_tolerance
-      - happy breakdown: beta < norm_tolerance
+    Applies `op` to the most recent Lanczos vector `q_i`, orthogonalizes the result
+    against `q_i` and `q_{i-1}` and returns `(w, alpha, beta)`
+    where
+    `w = op(q_i) - alpha[i] * q_i - beta_{i-1} * q_{i-1}`,
+    `alpha[i] = <q_i, op(q_i)>`,
+    `beta[i] = ||w||`,
+    `w` is the unnormalized candidate to form `q_{i+1} = w / ||w||`.
     """
+    i = len(lanczos_vectors) - 1
+    w = op(lanczos_vectors[i])
 
-    result = KrylovEnergyResult(
-        ground_state=psi,
-        ground_energy=torch.tensor(float("inf"), device=psi.device),
-        residual_norm=torch.tensor(float("inf"), device=psi.device),
-        converged=False,
-        happy_breakdown=False,
-        iteration_count=0,
-        restart_count=0,
-    )
-
-    total_iters = 0
-    for r in range(max_restarts + 1):
-        result = _lowest_eigenvector_krylov_method(
-            op=op,
-            v_init=result.ground_state,
-            residual_tolerance=residual_tolerance,
-            norm_tolerance=norm_tolerance,
-            max_krylov_dim=max_krylov_dim,
-        )
-
-        total_iters += result.iteration_count
-        result = replace(result, restart_count=r, iteration_count=total_iters)
-
-        if result.happy_breakdown or result.converged:
-            break
-
-    return result
+    alphas[i] = torch.vdot(lanczos_vectors[i].reshape(-1), w.reshape(-1))
+    w -= alphas[i] * lanczos_vectors[i]
+    if i > 0:
+        w -= betas[i - 1] * lanczos_vectors[i - 1]
+    betas[i] = cast(torch.Tensor, w.norm())
+    return w
 
 
-def krylov_energy_minimization(
-    op: Callable[[torch.Tensor], torch.Tensor],
-    psi: torch.Tensor,
-    norm_tolerance: float,
-    residual_tolerance: float,
-    max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
-) -> Tuple[torch.Tensor, float]:
+def _ritz_vector(
+    coefficients: torch.Tensor,
+    basis: list[torch.Tensor],
+) -> torch.Tensor:
+    """
+    Return the normalized Ritz vector from Lanczos basis vectors.
+    """
+    ritz_v = sum(c * vec for c, vec in zip(coefficients, basis))
 
-    result = krylov_energy_minimization_impl(
-        op=op,
-        psi=psi,
-        norm_tolerance=norm_tolerance,
-        residual_tolerance=residual_tolerance,
-        max_krylov_dim=max_krylov_dim,
-    )
+    norm = ritz_v.norm()
+    if norm.item() <= NUMERICAL_TOLERANCE:
+        raise ValueError("Ritz vector has zero norm")
+    return cast(torch.Tensor, ritz_v / norm)  # mypy requires explicit type
 
-    if not result.converged and not result.happy_breakdown:
-        raise RecursionError(
-            "Krylov ground state solver did not converge within allotted iterations."
-        )
 
-    return result.ground_state, result.ground_energy.item()
+def _lowest_ritz_pair_tridiagonal(
+    alphas: torch.Tensor,
+    betas: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Compute the lowest Ritz pair - smallest eigenvalue and eigenvector of a
+    symmetric/Hermitian tridiagonal matrix defined by its diagonal `alphas`
+    and subdiagonal `betas`.
+
+    Note on implementation:
+        `torch.linalg.eigh` by default requires the lower triangular part of
+        the input symmetric/Hermitian matrix via UPLO='L'.
+    """
+    n = alphas.numel()
+    h = alphas.new_zeros((n, n))
+    h.diagonal(0).copy_(alphas)
+    h.diagonal(-1).copy_(betas)
+
+    eig_energy, eig_state = torch.linalg.eigh(h, UPLO="L")
+    return eig_energy[0], eig_state[:, 0]

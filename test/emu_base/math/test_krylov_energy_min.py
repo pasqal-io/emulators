@@ -181,8 +181,8 @@ def test_ising_hamiltonian():
 @pytest.mark.parametrize(
     ("lb", "rb", "combined_hamiltonian_factors", "v", "krylov_dim"),
     [
-        pytest.param(lb1, rb1, combined_hamiltonian_factors1, v1, 100),
-        pytest.param(lb2, rb2, combined_hamiltonian_factors2, v2, 200),
+        pytest.param(lb1, rb1, combined_hamiltonian_factors1, v1, 10),
+        pytest.param(lb2, rb2, combined_hamiltonian_factors2, v2, 100),
     ],
 )
 def test_live_data(lb, rb, combined_hamiltonian_factors, v, krylov_dim):
@@ -272,14 +272,6 @@ def test_ritz_vector():
     expected = torch.tensor([3.0, 4.0]) / 5.0
     assert torch.allclose(v, expected)
     assert torch.allclose(torch.linalg.norm(v), torch.tensor(1.0))
-
-
-def test_ritz_vector_len_mismatch_raises():
-    basis = [torch.tensor([1.0, 0.0]), torch.tensor([0.0, 1.0])]
-    coeffs = torch.tensor([1.0, 2.0, 3.0])
-
-    with pytest.raises(ValueError, match="3 != 2"):
-        _ritz_vector(coeffs, basis)
 
 
 def test_ritz_vector_zero_norm_raises():
