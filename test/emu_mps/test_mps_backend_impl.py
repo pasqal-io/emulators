@@ -505,12 +505,12 @@ def test_progress_at_random_middle_mpssite(
     mock_new_left_bath.return_value = torch.zeros(1)
 
     dmrg = create_dmrg_mock()
-    dmrg.timestep_index = 0
+    dmrg._timestep_index = 0
     dmrg.timestep_count = 2
 
     dmrg.hamiltonian = MagicMock(factors=[None] * QUBIT_COUNT)
     dmrg.state = MagicMock(factors=[None] * QUBIT_COUNT, orthogonality_center=1)
-    dmrg.sweep_index = dmrg.state.orthogonality_center
+    dmrg._sweep_index = dmrg.state.orthogonality_center
 
     # at the 2nd MPS site (orthogonality_center = 1), the left bath must be a
     # list of 1 element
@@ -527,11 +527,11 @@ def test_progress_at_random_middle_mpssite(
 
     mock_minimize.assert_called_once()
     assert dmrg.current_energy == current_energy
-    assert dmrg.sweep_index == 2
+    assert dmrg._sweep_index == 2
     assert dmrg.state.orthogonality_center == 2
     assert len(dmrg.left_baths) == 2
     assert len(dmrg.right_baths) == 2
-    assert dmrg.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+    assert dmrg._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
 
 
 @patch("emu_mps.mps_backend_impl.new_left_bath")
@@ -548,11 +548,11 @@ def test_progress_at_right_mps_boundary(
     mock_new_left_bath.return_value = torch.zeros(1)
 
     dmrg = create_dmrg_mock()
-    dmrg.timestep_index = 0
+    dmrg._timestep_index = 0
     dmrg.timestep_count = 2
 
     dmrg.state = MagicMock(factors=[None] * QUBIT_COUNT, orthogonality_center=2)
-    dmrg.sweep_index = dmrg.state.orthogonality_center
+    dmrg._sweep_index = dmrg.state.orthogonality_center
 
     dmrg.hamiltonian = MagicMock(factors=[None] * QUBIT_COUNT)
     # at the 3rd MPS site (orthogonality_center = 2), the left bath must be a
@@ -570,11 +570,11 @@ def test_progress_at_right_mps_boundary(
 
     mock_minimize.assert_called_once()
     assert dmrg.current_energy == pytest.approx(0.5)
-    assert dmrg.sweep_index == 3
+    assert dmrg._sweep_index == 3
     assert dmrg.state.orthogonality_center == 3
     assert len(dmrg.left_baths) == 3
     assert len(dmrg.right_baths) == 1
-    assert dmrg.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
+    assert dmrg._swipe_direction == SwipeDirection.RIGHT_TO_LEFT
 
 
 @patch("emu_mps.mps_backend_impl.new_left_bath")
@@ -593,17 +593,17 @@ def test_left_to_right_update(
 
     dmrg = create_dmrg_mock()
     dmrg.init()
-    dmrg.sweep_index = 1
-    dmrg.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+    dmrg._sweep_index = 1
+    dmrg._swipe_direction = SwipeDirection.LEFT_TO_RIGHT
     dmrg.left_baths = [torch.zeros(1)]
     dmrg.right_baths = [torch.zeros(1)] * 3
 
     dmrg._left_to_right_update(idx=1)
 
-    assert dmrg.sweep_index == 2
+    assert dmrg._sweep_index == 2
     assert len(dmrg.left_baths) == 2
     assert len(dmrg.right_baths) == 2
-    dmrg.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+    dmrg._swipe_direction = SwipeDirection.LEFT_TO_RIGHT
 
 
 @patch("emu_mps.mps_backend_impl.new_left_bath")
@@ -630,8 +630,8 @@ def test_right_to_left_update(
 
     dmrg = create_dmrg_mock()
     dmrg.init()
-    dmrg.sweep_index = 2
-    dmrg.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+    dmrg._sweep_index = 2
+    dmrg._swipe_direction = SwipeDirection.RIGHT_TO_LEFT
     dmrg.left_baths = [
         torch.zeros(1, 1, 1, dtype=dtype, device=dmrg.state.factors[0].device)
     ] * 2
@@ -643,5 +643,5 @@ def test_right_to_left_update(
 
     assert len(dmrg.left_baths) == 1
     assert len(dmrg.right_baths) == 2
-    assert dmrg.sweep_index == 1
-    assert dmrg.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
+    assert dmrg._sweep_index == 1
+    assert dmrg._swipe_direction == SwipeDirection.RIGHT_TO_LEFT
