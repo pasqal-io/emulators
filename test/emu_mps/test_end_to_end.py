@@ -677,8 +677,8 @@ def test_end_to_end_spontaneous_emission() -> None:
         # the right baths administration happens properly when a quantum jump occurs.
 
         assert len(impl.right_baths) in [
-            impl.state.num_sites - impl.sweep_index,
-            impl.state.num_sites - impl.sweep_index - 1,
+            impl.state.num_sites - impl._sweep_index,
+            impl.state.num_sites - impl._sweep_index - 1,
         ]
 
         expected_right_baths = right_baths(
@@ -843,7 +843,7 @@ def test_autosave(tmp_path, monkeypatch) -> None:
             self.last_save_time = time.time() + 999
             return save_simulation_original(self)
 
-        assert self.timestep_index == 11
+        assert self._timestep_index == 11
 
         self.last_save_time = 0  # Trigger saving regardless of time
         save_simulation_original(self)
