@@ -103,6 +103,8 @@ class MPSBackendImpl:
     state: MPS
     left_baths: list[torch.Tensor]
     right_baths: list[torch.Tensor]
+    left_baths_compressed: list[torch.Tensor]
+    right_baths_compressed: list[torch.Tensor]
     target_time: float
     results: Results
     _swipe_direction = SwipeDirection.LEFT_TO_RIGHT
@@ -311,6 +313,10 @@ class MPSBackendImpl:
             torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
         ]
         self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
+
+        self.left_baths_compressed = [t.clone() for t in self.left_baths]
+        self.right_baths_compressed = [t.clone() for t in self.right_baths]
+
         assert len(self.right_baths) == self.qubit_count - 1
 
     def get_current_right_bath(self) -> torch.Tensor:
