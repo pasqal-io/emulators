@@ -105,7 +105,7 @@ class MPSBackendImpl:
     right_baths: list[torch.Tensor]
     target_time: float
     results: Results
-    _swipe_direction: SwipeDirection
+    _swipe_direction: SwipeDirection = SwipeDirection.LEFT_TO_RIGHT
     _sweep_index: int = 0
     _timestep_index: int = 0
 
@@ -139,7 +139,6 @@ class MPSBackendImpl:
 
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.time = time.time()
-        self._swipe_direction = SwipeDirection.LEFT_TO_RIGHT
 
         self.results = Results(
             atom_order=optimat.permute_tuple(
