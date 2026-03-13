@@ -101,12 +101,13 @@ class MPSBackendImpl:
     well_prepared_qubits_filter: Optional[torch.Tensor]
     hamiltonian: MPO
     state: MPS
+    left_baths: list[torch.Tensor]
     right_baths: list[torch.Tensor]
-    sweep_index: int
-    swipe_direction: SwipeDirection
-    timestep_index: int
     target_time: float
     results: Results
+    _swipe_direction: SwipeDirection = SwipeDirection.LEFT_TO_RIGHT
+    _sweep_index: int = 0
+    _timestep_index: int = 0
 
     def __init__(self, mps_config: MPSConfig, pulser_data: SequenceData):
         self.config = mps_config
@@ -137,11 +138,8 @@ class MPSBackendImpl:
         )
 
         self.hamiltonian_type = pulser_data.hamiltonian_type
-        self.left_baths: list[torch.Tensor]
         self.time = time.time()
-        self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
-        self.sweep_index = 0
-        self.timestep_index = 0
+
         self.results = Results(
             atom_order=optimat.permute_tuple(
                 pulser_data.qubit_ids, self.qubit_permutation
@@ -293,18 +291,18 @@ class MPSBackendImpl:
     def update_H(self) -> None:
         update_H(
             hamiltonian=self.hamiltonian,
-            omega=self.omega[self.timestep_index, :],
-            delta=self.delta[self.timestep_index, :],
-            phi=self.phi[self.timestep_index, :],
+            omega=self.omega[self._timestep_index, :],
+            delta=self.delta[self._timestep_index, :],
+            phi=self.phi[self._timestep_index, :],
             noise=self.lindblad_noise,
         )
 
     def update_H_no_noise(self) -> None:
         update_H(
             hamiltonian=self.hamiltonian,
-            omega=self.omega[self.timestep_index, :],
-            delta=self.delta[self.timestep_index, :],
-            phi=self.phi[self.timestep_index, :],
+            omega=self.omega[self._timestep_index, :],
+            delta=self.delta[self._timestep_index, :],
+            phi=self.phi[self._timestep_index, :],
             noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
         )
 
@@ -330,7 +328,7 @@ class MPSBackendImpl:
         self.init_baths()
 
     def is_finished(self) -> bool:
-        return self.timestep_index >= self.timestep_count
+        return self._timestep_index >= self.timestep_count
 
     def _evolve(
         self, *indices: int, dt: float, orth_center_right: Optional[bool] = None
@@ -383,8 +381,8 @@ class MPSBackendImpl:
         """
         Do one unit of simulation work given the current state.
         Update the state accordingly.
-        The state of the simulation is stored in self.sweep_index and
-        self.swipe_direction.
+        The state of the simulation is stored in self._sweep_index and
+        self._swipe_direction.
         """
         if self.is_finished():
             return
@@ -394,8 +392,8 @@ class MPSBackendImpl:
         assert self.qubit_count >= 1
         if 1 <= self.qubit_count <= 2:
             # Corner case: only 1 or 2 qubits
-            assert self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-            assert self.sweep_index == 0
+            assert self._swipe_direction is SwipeDirection.LEFT_TO_RIGHT
+            assert self._sweep_index == 0
 
             if self.qubit_count == 1:
                 self._evolve(0, dt=delta_time)
@@ -403,77 +401,70 @@ class MPSBackendImpl:
                 self._evolve(0, 1, dt=delta_time, orth_center_right=False)
 
             self.sweep_complete()
+            self.save_simulation()
+            return
 
-        elif (
-            self.sweep_index < self.qubit_count - 2
-            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-        ):
-            # Left-to-right swipe of TDVP
+        if self._swipe_direction is SwipeDirection.LEFT_TO_RIGHT:
+            self._left_to_right_update_tdvp(delta_time=delta_time)
+        else:
+            self._right_to_left_update_tdvp(delta_time=delta_time)
+
+        self.save_simulation()
+
+    def _left_to_right_update_tdvp(self, delta_time: float) -> None:
+        # Left-to-right swipe of TDVP
+        if self._sweep_index < self.qubit_count - 2:
             self._evolve(
-                self.sweep_index,
-                self.sweep_index + 1,
+                self._sweep_index,
+                self._sweep_index + 1,
                 dt=delta_time / 2,
                 orth_center_right=True,
             )
             self.left_baths.append(
                 new_left_bath(
                     self.get_current_left_bath(),
-                    self.state.factors[self.sweep_index],
-                    self.hamiltonian.factors[self.sweep_index],
-                ).to(self.state.factors[self.sweep_index + 1].device)
+                    self.state.factors[self._sweep_index],
+                    self.hamiltonian.factors[self._sweep_index],
+                ).to(self.state.factors[self._sweep_index + 1].device)
             )
-            self._evolve(self.sweep_index + 1, dt=-delta_time / 2)
+            self._evolve(self._sweep_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
-            self.sweep_index += 1
-
-        elif (
-            self.sweep_index == self.qubit_count - 2
-            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-        ):
+            self._sweep_index += 1
+        else:
             # Time-evolution of the rightmost 2 tensors
             self._evolve(
-                self.sweep_index,
-                self.sweep_index + 1,
+                self._sweep_index,
+                self._sweep_index + 1,
                 dt=delta_time,
                 orth_center_right=False,
             )
-            self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+            self._swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
-        elif (
-            1 <= self.sweep_index and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
-        ):
-            # Right-to-left swipe of TDVP
-            assert self.sweep_index <= self.qubit_count - 2
+    def _right_to_left_update_tdvp(self, delta_time: float) -> None:
+        if self._sweep_index > 0:
             self.right_baths.append(
                 new_right_bath(
                     self.get_current_right_bath(),
-                    self.state.factors[self.sweep_index + 1],
-                    self.hamiltonian.factors[self.sweep_index + 1],
-                ).to(self.state.factors[self.sweep_index].device)
+                    self.state.factors[self._sweep_index + 1],
+                    self.hamiltonian.factors[self._sweep_index + 1],
+                ).to(self.state.factors[self._sweep_index].device)
             )
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
                 deallocate_tensor(self.right_baths[-2])
-
-            self._evolve(self.sweep_index, dt=-delta_time / 2)
+            self._evolve(self._sweep_index, dt=-delta_time / 2)
             self.left_baths.pop()
-
             self._evolve(
-                self.sweep_index - 1,
-                self.sweep_index,
+                self._sweep_index - 1,
+                self._sweep_index,
                 dt=delta_time / 2,
                 orth_center_right=False,
             )
-            self.sweep_index -= 1
+            self._sweep_index -= 1
 
-            if self.sweep_index == 0:
-                self.sweep_complete()
-                self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
-
-        else:
-            raise Exception("Didn't expect this")
-
-        self.save_simulation()
+        if self._sweep_index == 0:
+            self.sweep_complete()
+            self._swipe_direction = SwipeDirection.LEFT_TO_RIGHT
 
     def sweep_complete(self) -> None:
         self.current_time = self.target_time
@@ -481,7 +472,7 @@ class MPSBackendImpl:
 
     def timestep_complete(self) -> None:
         self.fill_results()
-        self.timestep_index += 1
+        self._timestep_index += 1
         interaction_matrix = self._get_interaction_matrix()  # at new time
 
         is_the_same_matrix = torch.allclose(
@@ -499,7 +490,7 @@ class MPSBackendImpl:
             )
 
         if not self.is_finished():
-            self.target_time = self.target_times[self.timestep_index + 1]
+            self.target_time = self.target_times[self._timestep_index + 1]
             self.update_H()
             self.init_baths()
 
@@ -712,7 +703,7 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
 
         if self.root_finder.is_converged(tolerance=1):
             self.do_random_quantum_jump()
-            self.target_time = self.target_times[self.timestep_index + 1]
+            self.target_time = self.target_times[self._timestep_index + 1]
             self.root_finder = None
         else:
             self.target_time = self.root_finder.get_next_abscissa()
@@ -773,13 +764,13 @@ class DMRGBackendImpl(MPSBackendImpl):
             return
 
         # perform one two-site energy minimization and update
-        idx = self.sweep_index
-        assert self.swipe_direction in (
+        idx = self._sweep_index
+        assert self._swipe_direction in (
             SwipeDirection.LEFT_TO_RIGHT,
             SwipeDirection.RIGHT_TO_LEFT,
         ), "Unknown Swipe direction"
 
-        orth_center_right = self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+        orth_center_right = self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
         new_L, new_R, energy = minimize_energy_pair(
             state_factors=self.state.factors[idx : idx + 2],
             ham_factors=self.hamiltonian.factors[idx : idx + 2],
@@ -793,9 +784,9 @@ class DMRGBackendImpl(MPSBackendImpl):
         self.current_energy = energy
 
         # updating baths and orthogonality center
-        if self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
+        if self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
             self._left_to_right_update(idx)
-        elif self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
+        elif self._swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
             self._right_to_left_update(idx)
         else:
             raise Exception("Did not expect this")
@@ -812,10 +803,10 @@ class DMRGBackendImpl(MPSBackendImpl):
                 ).to(self.state.factors[idx + 1].device)
             )
             self.right_baths.pop()
-            self.sweep_index += 1
+            self._sweep_index += 1
 
-        if self.sweep_index == self.qubit_count - 2:
-            self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+        if self._sweep_index == self.qubit_count - 2:
+            self._swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
     def _right_to_left_update(self, idx: int) -> None:
         if idx > 0:
@@ -827,11 +818,11 @@ class DMRGBackendImpl(MPSBackendImpl):
                 ).to(self.state.factors[idx].device)
             )
             self.left_baths.pop()
-            self.sweep_index -= 1
+            self._sweep_index -= 1
 
-        if self.sweep_index == 0:
+        if self._sweep_index == 0:
             self.state.orthogonalize(0)
-            self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+            self._swipe_direction = SwipeDirection.LEFT_TO_RIGHT
             self.sweep_count += 1
             self.sweep_complete()
 
@@ -847,9 +838,9 @@ class DMRGBackendImpl(MPSBackendImpl):
             # not converged for the current sweep. restart
             self.previous_energy = self.current_energy
 
-        assert self.sweep_index == 0
+        assert self._sweep_index == 0
         assert self.state.orthogonality_center == 0
-        assert self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+        assert self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
         self.current_energy = None
 
 
