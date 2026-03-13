@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, cast
 import torch
 
 
@@ -218,3 +218,84 @@ def tensor_trace(tensor: torch.Tensor, dim1: int, dim2: int) -> torch.Tensor:
     """
     assert tensor.shape[dim1] == tensor.shape[dim2], "dimensions should match"
     return tensor.diagonal(offset=0, dim1=dim1, dim2=dim2).sum(-1)
+
+
+def my_hermitean_svd(
+    m: torch.Tensor,
+    tol: float = 1e-5,
+) -> torch.Tensor:
+    # Hermitian eigendecomposition
+    evals, Q = torch.linalg.eigh(m)
+    # keep only important modes
+    mask = evals.abs() >= tol
+    evals = evals[mask]
+    Q = Q[:, mask]
+    if evals.numel() == 0:
+        return cast(torch.Tensor, Q)
+
+    evals = evals.to(Q)
+    sqrt_evals = torch.sqrt(evals)
+
+    u_comp = Q * sqrt_evals.unsqueeze(0)
+
+    # assert torch.allclose(m, u_comp @ u_comp.mH, atol=1e-3)
+
+    return cast(torch.Tensor, u_comp)
+
+
+def my_svd(
+    m: torch.Tensor,
+    tol: float = 1e-5,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    U, S, Vh = torch.linalg.svd(m, full_matrices=True)
+
+    mask = S >= tol
+
+    # S_sgn = torch.sgn(S)
+    # S = S @ S_sgn
+    # Vh = (S_sgn ).unsqueeze(1) * Vh
+    # pseudo_id = torch.abs(U @ torch.diag_embed(S) @ Vh)  # up to sign
+    # id = torch.eye(pseudo_id.shape[0], dtype=pseudo_id.dtype)
+    # if(not torch.allclose(pseudo_id, id, atol=1e-5)):
+    #    assert torch.allclose(pseudo_id, id, atol=1e-5)
+
+    U_cut = U[:, mask]
+    S_cut = S[mask]
+    Vh_cut = Vh[mask, :]
+
+    sqrt_S = torch.sqrt(S_cut)
+    U_cut = U_cut * sqrt_S.unsqueeze(0)
+    Vh_cut = (sqrt_S).unsqueeze(1) * Vh_cut
+    # assert torch.allclose(m, U @ Vh, atol=tol)
+    return U_cut, Vh_cut
+
+
+def split_bath_node(
+    bath_node: torch.Tensor,
+    max_error: float = 1e-5,
+    max_rank: int = 1024,
+    orth_center_right: bool = True,
+    preserve_norm: bool = False,
+) -> list[list[torch.Tensor]]:
+    assert bath_node.ndim == 3
+    assert bath_node.shape[0] == bath_node.shape[2]
+
+    slices = [bath_node[:, i, :] for i in range(bath_node.shape[1])]
+
+    svd_slices_l: list[torch.Tensor] = []
+    svd_slices_r: list[torch.Tensor] = []
+    for s in slices:
+        assert torch.allclose(s, s.mH, atol=1e-5)
+        # u, v = my_svd(s, tol=max_error)
+        u_h = my_hermitean_svd(s, tol=max_error)
+
+        # l_s, r_s = split_matrix(s, max_error, max_rank, orth_center_right, preserve_norm)
+        svd_slices_l.append(u_h)
+        svd_slices_r.append(u_h)
+
+    # l: torch.Tensor = torch.stack(svd_slices_l, dim=0)
+    # r: torch.Tensor = torch.stack(svd_slices_r, dim=0)
+    assert len(svd_slices_l) == len(svd_slices_r)
+    assert len(svd_slices_l) == bath_node.shape[1]
+
+    return [svd_slices_l, svd_slices_r]

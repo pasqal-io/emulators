@@ -45,6 +45,25 @@ from emu_mps.utils import (
 dtype = torch.complex128
 
 
+def tensor_memory_bytes(obj: list | tuple | torch.Tensor) -> float:
+    if isinstance(obj, torch.Tensor):
+        return obj.numel() * obj.element_size()
+    elif isinstance(obj, list):
+        return sum(tensor_memory_bytes(x) for x in obj)
+    elif isinstance(obj, tuple):
+        return sum(tensor_memory_bytes(x) for x in obj)
+    else:
+        return 0
+
+
+def human_bytes(n: float) -> str:
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if n < 1024:
+            return f"{n:.2f} {unit}"
+        n /= 1024
+    return f"{n:.2f} PB"
+
+
 class Statistics(Observable):
     def __init__(
         self,
@@ -103,6 +122,8 @@ class MPSBackendImpl:
     state: MPS
     left_baths: list[torch.Tensor]
     right_baths: list[torch.Tensor]
+    left_baths_compressed: list[list[torch.Tensor]]
+    right_baths_compressed: list[list[torch.Tensor]]
     target_time: float
     results: Results
     _swipe_direction: SwipeDirection = SwipeDirection.LEFT_TO_RIGHT
@@ -312,8 +333,8 @@ class MPSBackendImpl:
         ]
         self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
 
-        self.left_baths_compressed = [t.clone() for t in self.left_baths]
-        self.right_baths_compressed = [t.clone() for t in self.right_baths]
+        self.left_baths_compressed = [[t.clone()] for t in self.left_baths]
+        self.right_baths_compressed = [[t.clone()] for t in self.right_baths]
 
         assert len(self.right_baths) == self.qubit_count - 1
 
@@ -322,6 +343,12 @@ class MPSBackendImpl:
 
     def get_current_left_bath(self) -> torch.Tensor:
         return self.left_baths[-1]
+
+    def get_current_right_bath_compressed(self) -> list[torch.Tensor]:
+        return self.right_baths_compressed[-1]
+
+    def get_current_left_bath_compressed(self) -> list[torch.Tensor]:
+        return self.left_baths_compressed[-1]
 
     def init(self) -> None:
         self.init_dark_qubits()
@@ -413,6 +440,23 @@ class MPSBackendImpl:
         else:
             self._right_to_left_update_tdvp(delta_time=delta_time)
 
+        # noncompressed = sum(
+        #    tensor_memory_bytes(t) for t in [self.left_baths, self.right_baths]
+        # )
+        # compressed = sum(
+        #    tensor_memory_bytes(t)
+        #    for t in [self.left_baths_compressed, self.right_baths_compressed]
+        # )
+
+        # ratio = compressed / noncompressed
+
+        # hc = human_bytes(compressed)
+        # hnc = human_bytes(noncompressed)
+        # wf = human_bytes(tensor_memory_bytes(self.state.factors))
+        # if (ratio > 1):
+        # print(f"MPS: {wf}, bath : {hnc}, compressed bath : {hc}")
+        # print(ratio)
+
         self.save_simulation()
 
     def _left_to_right_update_tdvp(self, delta_time: float) -> None:
@@ -434,6 +478,34 @@ class MPSBackendImpl:
             self._evolve(self._sweep_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
             self._sweep_index += 1
+
+            # Operate with compressed bath
+            from emu_mps.utils import split_bath_node
+
+            l, r = split_bath_node(
+                self.left_baths[-1],
+                max_error=self.config.precision,
+                max_rank=self.config.max_bond_dim,
+                orth_center_right=False,
+                preserve_norm=False,  # only relevant for computing jump times
+            )
+            self.left_baths_compressed.append(l)
+            self.right_baths_compressed.pop()
+
+            assert len(self.left_baths_compressed) == len(self.left_baths)
+            assert len(self.right_baths_compressed) == len(self.right_baths)
+
+            noncompressed = tensor_memory_bytes(self.left_baths[-1])
+            compressed = tensor_memory_bytes(self.left_baths_compressed[-1])
+
+            hc = human_bytes(compressed)
+            hnc = human_bytes(noncompressed)
+            wf = human_bytes(tensor_memory_bytes(self.state.factors))
+            # if (compressed / noncompressed > 1):
+            print(
+                f"step : {self._sweep_index} MPS: {wf}, bath : {hnc}, compressed bath : {hc}"
+            )
+
         else:
             # Time-evolution of the rightmost 2 tensors
             self._evolve(
@@ -465,6 +537,33 @@ class MPSBackendImpl:
                 orth_center_right=False,
             )
             self._sweep_index -= 1
+
+            # Operate with compressed bath
+            from emu_mps.utils import split_bath_node
+
+            l, r = split_bath_node(
+                self.right_baths[-1],
+                max_error=self.config.precision,
+                max_rank=self.config.max_bond_dim,
+                orth_center_right=False,
+                preserve_norm=False,  # only relevant for computing jump times
+            )
+            self.right_baths_compressed.append(l)
+            self.left_baths_compressed.pop()
+
+            assert len(self.left_baths_compressed) == len(self.left_baths)
+            assert len(self.right_baths_compressed) == len(self.right_baths)
+
+            noncompressed = tensor_memory_bytes(self.right_baths[-1])
+            compressed = tensor_memory_bytes(self.right_baths_compressed[-1])
+
+            hc = human_bytes(compressed)
+            hnc = human_bytes(noncompressed)
+            wf = human_bytes(tensor_memory_bytes(self.state.factors))
+            # if (compressed / noncompressed > 1):
+            print(
+                f"step : {self._sweep_index} MPS: {wf}, bath : {hnc}, compressed bath : {hc}"
+            )
 
         if self._sweep_index == 0:
             self.sweep_complete()
