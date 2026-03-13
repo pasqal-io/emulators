@@ -103,11 +103,9 @@ class MPSBackendImpl:
     state: MPS
     left_baths: list[torch.Tensor]
     right_baths: list[torch.Tensor]
-    left_baths_compressed: list[torch.Tensor]
-    right_baths_compressed: list[torch.Tensor]
     target_time: float
     results: Results
-    _swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+    _swipe_direction: SwipeDirection = SwipeDirection.LEFT_TO_RIGHT
     _sweep_index: int = 0
     _timestep_index: int = 0
 
@@ -387,7 +385,7 @@ class MPSBackendImpl:
         """
         Do one unit of simulation work given the current state.
         Update the state accordingly.
-        The state of the simulation is stored in self.__sweep_index and
+        The state of the simulation is stored in self._sweep_index and
         self._swipe_direction.
         """
         if self.is_finished():
@@ -398,7 +396,7 @@ class MPSBackendImpl:
         assert self.qubit_count >= 1
         if 1 <= self.qubit_count <= 2:
             # Corner case: only 1 or 2 qubits
-            assert self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+            assert self._swipe_direction is SwipeDirection.LEFT_TO_RIGHT
             assert self._sweep_index == 0
 
             if self.qubit_count == 1:
@@ -407,12 +405,19 @@ class MPSBackendImpl:
                 self._evolve(0, 1, dt=delta_time, orth_center_right=False)
 
             self.sweep_complete()
+            self.save_simulation()
+            return
 
-        elif (
-            self._sweep_index < self.qubit_count - 2
-            and self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-        ):
-            # Left-to-right swipe of TDVP
+        if self._swipe_direction is SwipeDirection.LEFT_TO_RIGHT:
+            self._left_to_right_update_tdvp(delta_time=delta_time)
+        else:
+            self._right_to_left_update_tdvp(delta_time=delta_time)
+
+        self.save_simulation()
+
+    def _left_to_right_update_tdvp(self, delta_time: float) -> None:
+        # Left-to-right swipe of TDVP
+        if self._sweep_index < self.qubit_count - 2:
             self._evolve(
                 self._sweep_index,
                 self._sweep_index + 1,
@@ -429,11 +434,7 @@ class MPSBackendImpl:
             self._evolve(self._sweep_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
             self._sweep_index += 1
-
-        elif (
-            self._sweep_index == self.qubit_count - 2
-            and self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-        ):
+        else:
             # Time-evolution of the rightmost 2 tensors
             self._evolve(
                 self._sweep_index,
@@ -443,12 +444,8 @@ class MPSBackendImpl:
             )
             self._swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
-        elif (
-            1 <= self._sweep_index
-            and self._swipe_direction == SwipeDirection.RIGHT_TO_LEFT
-        ):
-            # Right-to-left swipe of TDVP
-            assert self._sweep_index <= self.qubit_count - 2
+    def _right_to_left_update_tdvp(self, delta_time: float) -> None:
+        if self._sweep_index > 0:
             self.right_baths.append(
                 new_right_bath(
                     self.get_current_right_bath(),
@@ -459,10 +456,8 @@ class MPSBackendImpl:
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
                 deallocate_tensor(self.right_baths[-2])
-
             self._evolve(self._sweep_index, dt=-delta_time / 2)
             self.left_baths.pop()
-
             self._evolve(
                 self._sweep_index - 1,
                 self._sweep_index,
@@ -471,14 +466,9 @@ class MPSBackendImpl:
             )
             self._sweep_index -= 1
 
-            if self._sweep_index == 0:
-                self.sweep_complete()
-                self._swipe_direction = SwipeDirection.LEFT_TO_RIGHT
-
-        else:
-            raise Exception("Didn't expect this")
-
-        self.save_simulation()
+        if self._sweep_index == 0:
+            self.sweep_complete()
+            self._swipe_direction = SwipeDirection.LEFT_TO_RIGHT
 
     def sweep_complete(self) -> None:
         self.current_time = self.target_time
