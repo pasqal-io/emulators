@@ -27,6 +27,12 @@ class Operators:
 
 
 class HamiltonianMPOFactors(ABC):
+    """Abstract generator for MPO factors of a two-body Hamiltonian.
+
+    Subclasses implement the local MPO tensor at each position in the chain:
+    first site, left half, middle, right half, and last site.
+    """
+
     def __init__(self, interaction_matrix: torch.Tensor, dim: int = 2):
         assert interaction_matrix.ndim == 2, "interaction matrix is not a matrix"
         assert (
@@ -40,6 +46,7 @@ class HamiltonianMPOFactors(ABC):
         self.identity = Operators.id if self.dim == 2 else Operators.id_3x3
 
     def __iter__(self) -> Iterator[torch.Tensor]:
+        """Yield the full ordered list of MPO factors for the Hamiltonian."""
         yield self.first_factor()
 
         for n in range(1, self.middle):
@@ -55,22 +62,27 @@ class HamiltonianMPOFactors(ABC):
 
     @abstractmethod
     def first_factor(self) -> torch.Tensor:
+        """Return the MPO factor for the first site."""
         pass
 
     @abstractmethod
     def left_factor(self, n: int) -> torch.Tensor:
+        """Return the MPO factor for site ``n`` in the left half of the chain."""
         pass
 
     @abstractmethod
     def middle_factor(self) -> torch.Tensor:
+        """Return the MPO factor at the central site bridging both halves."""
         pass
 
     @abstractmethod
     def right_factor(self, n: int) -> torch.Tensor:
+        """Return the MPO factor for site ``n`` in the right half of the chain."""
         pass
 
     @abstractmethod
     def last_factor(self) -> torch.Tensor:
+        """Return the MPO factor for the last site."""
         pass
 
 
@@ -440,7 +452,7 @@ def update_H(
         Defaults to a zero tensor.
     """
 
-    assert noise.shape == (2, 2) or (3, 3)
+    assert noise.shape in [(2, 2), (3, 3)]
     nqubits = omega.size(dim=0)
 
     a = torch.tensordot(omega * torch.cos(phi), Operators.sx, dims=0)
