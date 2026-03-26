@@ -85,13 +85,16 @@ class HamiltonianMPOFactors(ABC):
         """Return the MPO factor for the last site."""
         pass
 
+    def _has_right_interaction(self, site: int) -> bool:
+        return bool(self.interaction_matrix[site, site + 1 :].any())
+
 
 class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
     def first_factor(self) -> torch.Tensor:
-        has_right_interaction = self.interaction_matrix[0, 1:].any()
-        fac = torch.zeros(
-            1, self.dim, self.dim, 3 if has_right_interaction else 2, dtype=dtype
-        )
+        has_right_interaction = self._has_right_interaction(site=0)
+        bond_dim = 3 if has_right_interaction else 2
+        fac = torch.zeros(1, self.dim, self.dim, bond_dim, dtype=dtype)
+
         fac[0, :, :, 1] = self.identity
         if has_right_interaction:
             fac[0, :2, :2, 2] = Operators.n
@@ -99,7 +102,7 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
         return fac
 
     def left_factor(self, n: int) -> torch.Tensor:
-        has_right_interaction = self.interaction_matrix[n, n + 1 :].any()
+        has_right_interaction = self._has_right_interaction(site=n)
         current_left_interactions = self.interaction_matrix[:n, n:].any(dim=1)
         left_interactions_to_keep = self.interaction_matrix[:n, n + 1 :].any(dim=1)
 
@@ -212,7 +215,7 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
 
 class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
     def first_factor(self) -> torch.Tensor:
-        has_right_interaction = self.interaction_matrix[0, 1:].any()
+        has_right_interaction = self._has_right_interaction(site=0)
         fac = torch.zeros(
             1, self.dim, self.dim, 4 if has_right_interaction else 2, dtype=dtype
         )
@@ -224,7 +227,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         return fac
 
     def left_factor(self, n: int) -> torch.Tensor:
-        has_right_interaction = self.interaction_matrix[n, n + 1 :].any()
+        has_right_interaction = self._has_right_interaction(site=n)
         current_left_interactions = self.interaction_matrix[:n, n:].any(dim=1)
         left_interactions_to_keep = self.interaction_matrix[:n, n + 1 :].any(dim=1)
 
