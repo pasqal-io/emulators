@@ -27,7 +27,7 @@ class Operators:
 
 
 class HamiltonianMPOFactors(ABC):
-    """Abstract generator for MPO factors of a two-body Hamiltonian.
+    """Abstract class for MPO factors of a two-body Hamiltonian.
 
     Subclasses implement the local MPO tensor at each position in the chain:
     first site, left half, middle, right half, and last site.
@@ -238,8 +238,10 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         fac = torch.zeros(left_bond_dim, self.dim, self.dim, right_bond_dim, dtype=dtype)
         fac[0, :, :, 1] = self.identity
         if has_right_interaction:
-            fac[0, :2, :2, 2] = Operators.creation
-            fac[0, :2, :2, 3] = Operators.creation.T
+            # fac[0, :2, :2, 2] = Operators.creation
+            # fac[0, :2, :2, 3] = Operators.creation.T
+            fac[0, :2, :2, 2] = Operators.sx
+            fac[0, :2, :2, 3] = Operators.sy
 
         return fac
 
@@ -265,16 +267,28 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         fac[0, :, :, 0] = self.identity
         fac[1, :, :, 1] = self.identity
         if has_right_interaction:
-            fac[1, :2, :2, -2] = Operators.creation
-            fac[1, :2, :2, -1] = Operators.creation.T
+            # fac[1, :2, :2, -2] = Operators.creation
+            # fac[1, :2, :2, -1] = Operators.creation.T
+            fac[1, :2, :2, -2] = Operators.sx
+            fac[1, :2, :2, -1] = Operators.sy
 
+        # fac[2::2, :2, :2, 0] = (
+        #     self.interaction_matrix[:n][current_left_interactions, n, None, None]
+        #     * Operators.creation.T
+        # )
+        # fac[3::2, :2, :2, 0] = (
+        #     self.interaction_matrix[:n][current_left_interactions, n, None, None]
+        #     * Operators.creation
+        # )
         fac[2::2, :2, :2, 0] = (
             self.interaction_matrix[:n][current_left_interactions, n, None, None]
-            * Operators.creation.T
+            * 2
+            * Operators.sx
         )
         fac[3::2, :2, :2, 0] = (
             self.interaction_matrix[:n][current_left_interactions, n, None, None]
-            * Operators.creation
+            * 2
+            * Operators.sy
         )
 
         i = 2
@@ -306,32 +320,55 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         fac[0, :, :, 0] = self.identity
         fac[1, :, :, 1] = self.identity
 
+        # fac[2::2, :2, :2, 0] = (
+        #     self.interaction_matrix[:n][current_left_interactions, n, None, None]
+        #     * Operators.creation.T
+        # )
+        # fac[3::2, :2, :2, 0] = (
+        #     self.interaction_matrix[:n][current_left_interactions, n, None, None]
+        #     * Operators.creation
+        # )
+
         fac[2::2, :2, :2, 0] = (
             self.interaction_matrix[:n][current_left_interactions, n, None, None]
-            * Operators.creation.T
+            * 2
+            * Operators.sx
         )
         fac[3::2, :2, :2, 0] = (
             self.interaction_matrix[:n][current_left_interactions, n, None, None]
-            * Operators.creation
+            * 2
+            * Operators.sy
         )
 
-        fac[1, :2, :2, 2::2] = self.interaction_matrix[n + 1 :][
-            None, None, current_right_interactions, n
-        ] * Operators.creation.unsqueeze(-1)
-        fac[1, :2, :2, 3::2] = self.interaction_matrix[n + 1 :][
-            None, None, current_right_interactions, n
-        ] * Operators.creation.T.unsqueeze(-1)
+        # fac[1, :2, :2, 2::2] = self.interaction_matrix[n + 1 :][
+        #     None, None, current_right_interactions, n
+        # ] * Operators.creation.unsqueeze(-1)
+        # fac[1, :2, :2, 3::2] = self.interaction_matrix[n + 1 :][
+        #     None, None, current_right_interactions, n
+        # ] * Operators.creation.T.unsqueeze(-1)
+        fac[1, :2, :2, 2::2] = (
+            self.interaction_matrix[n + 1 :][None, None, current_right_interactions, n]
+            * 2
+            * Operators.sx.unsqueeze(-1)
+        )
+        fac[1, :2, :2, 3::2] = (
+            self.interaction_matrix[n + 1 :][None, None, current_right_interactions, n]
+            * 2
+            * Operators.sy.unsqueeze(-1)
+        )
 
         fac[2::2, :, :, 2::2] = (
             self.interaction_matrix[:n, n + 1 :][current_left_interactions, :][
                 :, None, None, current_right_interactions
             ]
+            * 2
             * self.identity[None, ..., None]
         )
         fac[3::2, :, :, 3::2] = (
             self.interaction_matrix[:n, n + 1 :][current_left_interactions, :][
                 :, None, None, current_right_interactions
             ]
+            * 2
             * self.identity[None, ..., None]
         )
 
@@ -359,15 +396,28 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         fac[0, :, :, 0] = self.identity
         fac[1, :, :, 1] = self.identity
         if has_left_interaction:
-            fac[2, :2, :2, 0] = Operators.creation.T
-            fac[3, :2, :2, 0] = Operators.creation
+            # fac[2, :2, :2, 0] = Operators.creation.T
+            # fac[3, :2, :2, 0] = Operators.creation
+            fac[2, :2, :2, 0] = Operators.sx
+            fac[3, :2, :2, 0] = Operators.sy
 
-        fac[1, :2, :2, 2::2] = self.interaction_matrix[n + 1 :][
-            None, None, current_right_interactions, n
-        ] * Operators.creation.unsqueeze(-1)
-        fac[1, :2, :2, 3::2] = self.interaction_matrix[n + 1 :][
-            None, None, current_right_interactions, n
-        ] * Operators.creation.T.unsqueeze(-1)
+        # fac[1, :2, :2, 2::2] = self.interaction_matrix[n + 1 :][
+        #     None, None, current_right_interactions, n
+        # ] * Operators.creation.unsqueeze(-1)
+        # fac[1, :2, :2, 3::2] = self.interaction_matrix[n + 1 :][
+        #     None, None, current_right_interactions, n
+        # ] * Operators.creation.T.unsqueeze(-1)
+
+        fac[1, :2, :2, 2::2] = (
+            self.interaction_matrix[n + 1 :][None, None, current_right_interactions, n]
+            * 2
+            * Operators.sx.unsqueeze(-1)
+        )
+        fac[1, :2, :2, 3::2] = (
+            self.interaction_matrix[n + 1 :][None, None, current_right_interactions, n]
+            * 2
+            * Operators.sy.unsqueeze(-1)
+        )
 
         i = 4 if has_left_interaction else 2
         j = 2
@@ -387,12 +437,17 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         fac = torch.zeros(left_bond_dim, self.dim, self.dim, right_bond_dim, dtype=dtype)
         fac[0, :, :, 0] = self.identity
         if has_left_interaction:
+            # TODO improve
             if self.qubit_count >= 3:
-                fac[2, :2, :2, 0] = Operators.creation.T
-                fac[3, :2, :2, 0] = Operators.creation
+                # fac[2, :2, :2, 0] = Operators.creation.T
+                # fac[3, :2, :2, 0] = Operators.creation
+                fac[2, :2, :2, 0] = Operators.sx
+                fac[3, :2, :2, 0] = Operators.sy
             else:
-                fac[2, :2, :2, 0] = self.interaction_matrix[0, 1] * Operators.creation.T
-                fac[3, :2, :2, 0] = self.interaction_matrix[0, 1] * Operators.creation
+                # fac[2, :2, :2, 0] = self.interaction_matrix[0, 1] * Operators.creation.T
+                # fac[3, :2, :2, 0] = self.interaction_matrix[0, 1] * Operators.creation
+                fac[2, :2, :2, 0] = self.interaction_matrix[0, 1] * 2 * Operators.sx
+                fac[3, :2, :2, 0] = self.interaction_matrix[0, 1] * 2 * Operators.sy
 
         return fac
 
