@@ -91,6 +91,15 @@ class HamiltonianMPOFactors(ABC):
     def _has_left_interaction(self, site: int) -> bool:
         return bool(self.interaction_matrix[site, :site].any())
 
+    def _empty_factor(self, left_bond_dim: int, right_bond_dim: int) -> torch.Tensor:
+        return torch.zeros(
+            left_bond_dim,
+            self.dim,
+            self.dim,
+            right_bond_dim,
+            dtype=dtype,
+        )
+
 
 class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
     def first_factor(self) -> torch.Tensor:
@@ -98,7 +107,7 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
 
         left_bond_dim = 1
         right_bond_dim = 3 if has_right_interaction else 2
-        fac = torch.zeros(left_bond_dim, self.dim, self.dim, right_bond_dim, dtype=dtype)
+        fac = self._empty_factor(left_bond_dim, right_bond_dim)
 
         fac[0, :, :, 1] = self.identity
         if has_right_interaction:
@@ -115,13 +124,7 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
         right_bond_dim = int(
             left_interactions_to_keep.sum().item() + int(has_right_interaction) + 2
         )
-        fac = torch.zeros(
-            left_bond_dim,
-            self.dim,
-            self.dim,
-            right_bond_dim,
-            dtype=dtype,
-        )
+        fac = self._empty_factor(left_bond_dim, right_bond_dim)
 
         fac[0, :, :, 0] = self.identity
         fac[1, :, :, 1] = self.identity
@@ -147,13 +150,7 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
 
         left_bond_dim = int(current_left_interactions.sum().item() + 2)
         right_bond_dim = int(current_right_interactions.sum().item() + 2)
-        fac = torch.zeros(
-            left_bond_dim,
-            self.dim,
-            self.dim,
-            right_bond_dim,
-            dtype=dtype,
-        )
+        fac = self._empty_factor(left_bond_dim, right_bond_dim)
 
         fac[0, :, :, 0] = self.identity
         fac[1, :, :, 1] = self.identity
@@ -182,13 +179,7 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
             right_interactions_to_keep.sum().item() + int(has_left_interaction) + 2
         )
         right_bond_dim = int(current_right_interactions.sum().item() + 2)
-        fac = torch.zeros(
-            left_bond_dim,
-            self.dim,
-            self.dim,
-            right_bond_dim,
-            dtype=dtype,
-        )
+        fac = self._empty_factor(left_bond_dim, right_bond_dim)
 
         fac[0, :, :, 0] = self.identity
         fac[1, :, :, 1] = self.identity
@@ -214,10 +205,10 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
 
         left_bond_dim = 3 if has_left_interaction else 2
         right_bond_dim = 1
-        fac = torch.zeros(left_bond_dim, self.dim, self.dim, right_bond_dim, dtype=dtype)
+        fac = self._empty_factor(left_bond_dim, right_bond_dim)
         fac[0, :, :, 0] = self.identity
         if has_left_interaction:
-            coeff = 1 if self.qubit_count >= 3 else self.interaction_matrix[0, 1]
+            coeff = self.interaction_matrix[0, 1] if self.qubit_count == 2 else 1
             fac[2, :2, :2, 0] = coeff * Operators.n
 
         return fac
@@ -229,7 +220,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
 
         left_bond_dim = 1
         right_bond_dim = 4 if has_right_interaction else 2
-        fac = torch.zeros(left_bond_dim, self.dim, self.dim, right_bond_dim, dtype=dtype)
+        fac = self._empty_factor(left_bond_dim, right_bond_dim)
         fac[0, :, :, 1] = self.identity
         if has_right_interaction:
             fac[0, :2, :2, 2] = Operators.sx
@@ -248,13 +239,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
             + 2 * int(has_right_interaction)
             + 2
         )
-        fac = torch.zeros(
-            left_bond_dim,
-            self.dim,
-            self.dim,
-            right_bond_dim,
-            dtype=dtype,
-        )
+        fac = self._empty_factor(left_bond_dim, right_bond_dim)
 
         fac[0, :, :, 0] = self.identity
         fac[1, :, :, 1] = self.identity
@@ -284,13 +269,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         left_bond_dim = int(2 * current_left_interactions.sum().item() + 2)
         right_bond_dim = int(2 * current_right_interactions.sum().item() + 2)
 
-        fac = torch.zeros(
-            left_bond_dim,
-            self.dim,
-            self.dim,
-            right_bond_dim,
-            dtype=dtype,
-        )
+        fac = self._empty_factor(left_bond_dim, right_bond_dim)
 
         fac[0, :, :, 0] = self.identity
         fac[1, :, :, 1] = self.identity
@@ -324,13 +303,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
             + 2
         )
         right_bond_dim = int(2 * current_right_interactions.sum().item() + 2)
-        fac = torch.zeros(
-            left_bond_dim,
-            self.dim,
-            self.dim,
-            right_bond_dim,
-            dtype=dtype,
-        )
+        fac = self._empty_factor(left_bond_dim, right_bond_dim)
 
         fac[0, :, :, 0] = self.identity
         fac[1, :, :, 1] = self.identity
@@ -359,10 +332,10 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
 
         left_bond_dim = 4 if has_left_interaction else 2
         right_bond_dim = 1
-        fac = torch.zeros(left_bond_dim, self.dim, self.dim, right_bond_dim, dtype=dtype)
+        fac = self._empty_factor(left_bond_dim, right_bond_dim)
         fac[0, :, :, 0] = self.identity
         if has_left_interaction:
-            coeff = 1 if self.qubit_count >= 3 else 2 * self.interaction_matrix[0, 1]
+            coeff = 2 * self.interaction_matrix[0, 1] if self.qubit_count == 2 else 1
             fac[2, :2, :2, 0] = coeff * Operators.sx
             fac[3, :2, :2, 0] = coeff * Operators.sy
 
