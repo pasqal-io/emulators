@@ -705,7 +705,7 @@ def test_truncation_nn(basis):
 
 
 @pytest.mark.parametrize("h_type", (HamiltonianType.Rydberg, HamiltonianType.XY))
-@pytest.mark.parametrize("nqubits", range(3, 12))
+@pytest.mark.parametrize("nqubits", range(2, 12))
 @pytest.mark.parametrize("phys_dim", (2, 3))
 def test_MPO_factor_hermitean(h_type, nqubits, phys_dim):
     torch.manual_seed(0)

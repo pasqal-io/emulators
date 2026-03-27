@@ -203,9 +203,7 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
         coeff = self._left_interaction_coefficients(n, current_left_interactions)
         factor[2:, :2, :2, 0] = coeff * Operators.n
 
-        coeff = self.interaction_matrix[n + 1 :][
-            None, None, current_right_interactions, n
-        ]
+        coeff = self._right_interaction_coefficients(n, current_right_interactions)
         factor[1, :2, :2, 2:] = coeff * Operators.n.unsqueeze(-1)
 
         coeff = self._middle_interaction_coefficients(
@@ -232,9 +230,7 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
         if has_left_interaction:
             factor[2, :2, :2, 0] = Operators.n
 
-        coeff = self.interaction_matrix[n + 1 :][
-            None, None, current_right_interactions, n
-        ]
+        coeff = self._right_interaction_coefficients(n, current_right_interactions)
         factor[1, :2, :2, 2:] = coeff * Operators.n.unsqueeze(-1)
 
         i = 3 if has_left_interaction else 2
@@ -325,9 +321,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
         factor[2::2, :2, :2, 0] = coeff * 2 * Operators.sx
         factor[3::2, :2, :2, 0] = coeff * 2 * Operators.sy
 
-        coeff = self.interaction_matrix[n + 1 :][
-            None, None, current_right_interactions, n
-        ]
+        coeff = self._right_interaction_coefficients(n, current_right_interactions)
         factor[1, :2, :2, 2::2] = coeff * 2 * Operators.sx.unsqueeze(-1)
         factor[1, :2, :2, 3::2] = coeff * 2 * Operators.sy.unsqueeze(-1)
 
@@ -359,9 +353,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
             factor[2, :2, :2, 0] = Operators.sx
             factor[3, :2, :2, 0] = Operators.sy
 
-        coeff = self.interaction_matrix[n + 1 :][
-            None, None, current_right_interactions, n
-        ]
+        coeff = self._right_interaction_coefficients(n, current_right_interactions)
         factor[1, :2, :2, 2::2] = coeff * 2 * Operators.sx.unsqueeze(-1)
         factor[1, :2, :2, 3::2] = coeff * 2 * Operators.sy.unsqueeze(-1)
 
@@ -401,18 +393,20 @@ def make_H(
     Constructs and returns a Matrix Product Operator (MPO) representing the
     neutral atoms Hamiltonian, parameterized by `omega`, `delta`, and `phi`.
 
-    The linear terms of the Hamiltonian is
+    The linear term of the Hamiltonian is
     H_0 = ∑ⱼΩⱼ[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] - ∑ⱼΔⱼnⱼ
 
-    The Rydberg Hamiltonian H is given by:
-    H_R = H_0 + ∑ᵢ﹥ⱼC⁶/rᵢⱼ⁶ nᵢnⱼ
+    The Rydberg Hamiltonian is given by:
+    H_Ryd = H_0 + ∑ᵢ﹥ⱼC⁶/rᵢⱼ⁶ nᵢnⱼ
 
-    The XY Hamiltonian H is given by:
+    The XY Hamiltonian is given by:
     H_XY = H_0 + ∑ᵢ﹥ⱼC₃/rᵢⱼ³ 2(SˣᵢSˣⱼ + SʸᵢSʸⱼ)
 
     If noise is considered, the Hamiltonian includes an additional term to
     support the Monte Carlo WaveFunction algorithm:
-    H = H_{R|XY} - 0.5i∑ₘ ∑ᵤ Lₘᵘ⁺ Lₘᵘ
+    H = H_Ryd - 0.5i∑ₘ ∑ᵤ Lₘᵘ⁺ Lₘᵘ
+    or
+    H = H_XY - 0.5i∑ₘ ∑ᵤ Lₘᵘ⁺ Lₘᵘ
     where Lₘᵘ are the Lindblad operators representing the noise,
     m for noise channel and u for the number of atoms
 
