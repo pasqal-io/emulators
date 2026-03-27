@@ -702,3 +702,22 @@ def test_truncation_nn(basis):
         sv,
         expected,
     )
+
+
+@pytest.mark.parametrize("h_type", (HamiltonianType.Rydberg, HamiltonianType.XY))
+@pytest.mark.parametrize("nqubits", range(3, 12))
+@pytest.mark.parametrize("phys_dim", (2, 3))
+def test_MPO_factor_hermitean(h_type, nqubits, phys_dim):
+    torch.manual_seed(0)
+    J = torch.randn(nqubits, nqubits)
+    ham = make_H(
+        interaction_matrix=(J + J.T) / 2,
+        num_gpus_to_use=0,
+        hamiltonian_type=h_type,
+        dim=phys_dim,
+    )
+    # Strictly speaking MPO tensor nodes are not required to be Hermitian,
+    # but the resulting Hamiltonian must be Hermitian.
+    # Hermiticity of MPO nodes allows to compress baths in TDVP.
+    for factor in ham.factors:
+        assert torch.allclose(factor, factor.transpose(1, 2).conj())
