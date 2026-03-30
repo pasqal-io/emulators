@@ -257,6 +257,17 @@ class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
 
 
 class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
+    """
+    Note:
+        The XY Hamiltonian is implemented using the Pauli matrices X and Y,
+        which ensures that the MPO nodes are Hermitian. This representation
+        is later used to compress energy baths in TDVP and DMRG.
+
+        An alternative approach is to use the sigma^+ and sigma^- operators.
+        In that case, restoring Hermiticity of the MPO nodes requires adding
+        the Hermitian conjugate via a direct sum.
+    """
+
     def first_factor(self) -> torch.Tensor:
         has_right_interaction = self._has_right_interaction(site=0)
 
