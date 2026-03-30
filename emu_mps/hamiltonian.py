@@ -69,7 +69,8 @@ class HamiltonianMPOFactors(ABC):
 
     @abstractmethod
     def left_factor(self, n: int) -> torch.Tensor:
-        """Return the MPO factor for site ``n`` in the left half of the chain."""
+        """Return the MPO factor for site ``n`` in the left half of the chain
+        except the first factor."""
 
     @abstractmethod
     def middle_factor(self) -> torch.Tensor:
@@ -77,7 +78,8 @@ class HamiltonianMPOFactors(ABC):
 
     @abstractmethod
     def right_factor(self, n: int) -> torch.Tensor:
-        """Return the MPO factor for site ``n`` in the right half of the chain."""
+        """Return the MPO factor for site ``n`` in the right half of the chain
+        except the last factor."""
 
     @abstractmethod
     def last_factor(self) -> torch.Tensor:
@@ -102,7 +104,7 @@ class HamiltonianMPOFactors(ABC):
         """
         For a site in the left half:
         - current_left_interactions[i] tells whether site i < site interacts
-          with current/future sites
+          with current/next sites
         - left_interactions_to_keep[i] tells whether that interaction channel
           remains active after this site
         """
@@ -114,7 +116,7 @@ class HamiltonianMPOFactors(ABC):
         """
         For a site in the right half:
         - current_right_interactions[j] tells whether site j > site interacts
-          with current/past sites
+          with current/previous sites
         - right_interactions_to_keep[j] tells whether that interaction channel
           remains active before this site
         """
@@ -269,6 +271,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
     """
 
     def first_factor(self) -> torch.Tensor:
+        print("SxSy Hamiltonian")
         has_right_interaction = self._has_right_interaction(site=0)
 
         left_bond_dim = 1
