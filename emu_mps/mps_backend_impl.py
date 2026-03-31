@@ -12,12 +12,12 @@ from copy import deepcopy
 from collections import Counter
 from enum import Enum, auto
 from types import MethodType
-from typing import Any, Optional
+from typing import Any, cast, Optional
 
 import torch
 from pulser.backend import EmulationConfig, Observable, Results, State
 
-from emu_base import DEVICE_COUNT, SequenceData, get_max_rss
+from emu_base import DEVICE_COUNT, SequenceData, get_max_rss, PackedHermitianTensor
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.utils import deallocate_tensor
 
@@ -43,25 +43,7 @@ from emu_mps.utils import (
 )
 
 dtype = torch.complex128
-
-
-def tensor_memory_bytes(obj: list | tuple | torch.Tensor) -> float:
-    if isinstance(obj, torch.Tensor):
-        return obj.numel() * obj.element_size()
-    elif isinstance(obj, list):
-        return sum(tensor_memory_bytes(x) for x in obj)
-    elif isinstance(obj, tuple):
-        return sum(tensor_memory_bytes(x) for x in obj)
-    else:
-        return 0
-
-
-def human_bytes(n: float) -> str:
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if n < 1024:
-            return f"{n:.2f} {unit}"
-        n /= 1024
-    return f"{n:.2f} PB"
+Bath = torch.Tensor | PackedHermitianTensor
 
 
 class Statistics(Observable):
@@ -120,10 +102,8 @@ class MPSBackendImpl:
     well_prepared_qubits_filter: Optional[torch.Tensor]
     hamiltonian: MPO
     state: MPS
-    left_baths: list[torch.Tensor]
-    right_baths: list[torch.Tensor]
-    left_baths_compressed: list[list[torch.Tensor]]
-    right_baths_compressed: list[list[torch.Tensor]]
+    left_baths: list[Bath]
+    right_baths: list[Bath]
     target_time: float
     results: Results
     _swipe_direction: SwipeDirection = SwipeDirection.LEFT_TO_RIGHT
@@ -328,27 +308,33 @@ class MPSBackendImpl:
         )
 
     def init_baths(self) -> None:
-        self.left_baths = [
+        _left_baths: list[torch.Tensor] = [
             torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
         ]
-        self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
+        _right_baths: list[torch.Tensor] = right_baths(
+            self.state, self.hamiltonian, final_qubit=2
+        )
 
-        self.left_baths_compressed = [[t.clone()] for t in self.left_baths]
-        self.right_baths_compressed = [[t.clone()] for t in self.right_baths]
+        if isinstance(self, MPSBackendImpl):
+            self.left_baths = [PackedHermitianTensor(t) for t in _left_baths]
+            self.right_baths = [PackedHermitianTensor(t) for t in _right_baths]
+        else:
+            self.left_baths = list(_left_baths)
+            self.right_baths = list(_right_baths)
 
         assert len(self.right_baths) == self.qubit_count - 1
 
     def get_current_right_bath(self) -> torch.Tensor:
-        return self.right_baths[-1]
+        rbath = self.right_baths[-1]
+        if isinstance(rbath, PackedHermitianTensor):
+            return rbath.unpack()
+        return rbath
 
     def get_current_left_bath(self) -> torch.Tensor:
-        return self.left_baths[-1]
-
-    def get_current_right_bath_compressed(self) -> list[torch.Tensor]:
-        return self.right_baths_compressed[-1]
-
-    def get_current_left_bath_compressed(self) -> list[torch.Tensor]:
-        return self.left_baths_compressed[-1]
+        lbath = self.left_baths[-1]
+        if isinstance(lbath, PackedHermitianTensor):
+            return lbath.unpack()
+        return lbath
 
     def init(self) -> None:
         self.init_dark_qubits()
@@ -440,23 +426,6 @@ class MPSBackendImpl:
         else:
             self._right_to_left_update_tdvp(delta_time=delta_time)
 
-        # noncompressed = sum(
-        #    tensor_memory_bytes(t) for t in [self.left_baths, self.right_baths]
-        # )
-        # compressed = sum(
-        #    tensor_memory_bytes(t)
-        #    for t in [self.left_baths_compressed, self.right_baths_compressed]
-        # )
-
-        # ratio = compressed / noncompressed
-
-        # hc = human_bytes(compressed)
-        # hnc = human_bytes(noncompressed)
-        # wf = human_bytes(tensor_memory_bytes(self.state.factors))
-        # if (ratio > 1):
-        # print(f"MPS: {wf}, bath : {hnc}, compressed bath : {hc}")
-        # print(ratio)
-
         self.save_simulation()
 
     def _left_to_right_update_tdvp(self, delta_time: float) -> None:
@@ -468,43 +437,19 @@ class MPSBackendImpl:
                 dt=delta_time / 2,
                 orth_center_right=True,
             )
-            self.left_baths.append(
-                new_left_bath(
-                    self.get_current_left_bath(),
-                    self.state.factors[self._sweep_index],
-                    self.hamiltonian.factors[self._sweep_index],
-                ).to(self.state.factors[self._sweep_index + 1].device)
-            )
+            lb = new_left_bath(
+                self.get_current_left_bath(),
+                self.state.factors[self._sweep_index],
+                self.hamiltonian.factors[self._sweep_index],
+            ).to(self.state.factors[self._sweep_index + 1].device)
+            item: Bath = lb
+            if isinstance(self, MPSBackendImpl):
+                item = PackedHermitianTensor(lb)
+            self.left_baths.append(item)
+
             self._evolve(self._sweep_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
             self._sweep_index += 1
-
-            # Operate with compressed bath
-            from emu_mps.utils import split_bath_node
-
-            l, r = split_bath_node(
-                self.left_baths[-1],
-                max_error=self.config.precision,
-                max_rank=self.config.max_bond_dim,
-                orth_center_right=False,
-                preserve_norm=False,  # only relevant for computing jump times
-            )
-            self.left_baths_compressed.append(l)
-            self.right_baths_compressed.pop()
-
-            assert len(self.left_baths_compressed) == len(self.left_baths)
-            assert len(self.right_baths_compressed) == len(self.right_baths)
-
-            noncompressed = tensor_memory_bytes(self.left_baths[-1])
-            compressed = tensor_memory_bytes(self.left_baths_compressed[-1])
-
-            hc = human_bytes(compressed)
-            hnc = human_bytes(noncompressed)
-            wf = human_bytes(tensor_memory_bytes(self.state.factors))
-            # if (compressed / noncompressed > 1):
-            print(
-                f"step : {self._sweep_index} MPS: {wf}, bath : {hnc}, compressed bath : {hc}"
-            )
 
         else:
             # Time-evolution of the rightmost 2 tensors
@@ -518,16 +463,22 @@ class MPSBackendImpl:
 
     def _right_to_left_update_tdvp(self, delta_time: float) -> None:
         if self._sweep_index > 0:
-            self.right_baths.append(
-                new_right_bath(
-                    self.get_current_right_bath(),
-                    self.state.factors[self._sweep_index + 1],
-                    self.hamiltonian.factors[self._sweep_index + 1],
-                ).to(self.state.factors[self._sweep_index].device)
-            )
+            rb = new_right_bath(
+                self.get_current_right_bath(),
+                self.state.factors[self._sweep_index + 1],
+                self.hamiltonian.factors[self._sweep_index + 1],
+            ).to(self.state.factors[self._sweep_index].device)
+            item: Bath = rb
+            if isinstance(self, MPSBackendImpl):
+                item = PackedHermitianTensor(rb)
+            self.right_baths.append(item)
+
             if not self.has_lindblad_noise:
+                # TODO this should be in Noise. Not in noiseless Base class
                 # Free memory because it won't be used anymore
-                deallocate_tensor(self.right_baths[-2])
+                to_deallocate: torch.Tensor = cast(torch.Tensor, self.right_baths[-2])
+                deallocate_tensor(to_deallocate)
+
             self._evolve(self._sweep_index, dt=-delta_time / 2)
             self.left_baths.pop()
             self._evolve(
@@ -537,33 +488,6 @@ class MPSBackendImpl:
                 orth_center_right=False,
             )
             self._sweep_index -= 1
-
-            # Operate with compressed bath
-            from emu_mps.utils import split_bath_node
-
-            l, r = split_bath_node(
-                self.right_baths[-1],
-                max_error=self.config.precision,
-                max_rank=self.config.max_bond_dim,
-                orth_center_right=False,
-                preserve_norm=False,  # only relevant for computing jump times
-            )
-            self.right_baths_compressed.append(l)
-            self.left_baths_compressed.pop()
-
-            assert len(self.left_baths_compressed) == len(self.left_baths)
-            assert len(self.right_baths_compressed) == len(self.right_baths)
-
-            noncompressed = tensor_memory_bytes(self.right_baths[-1])
-            compressed = tensor_memory_bytes(self.right_baths_compressed[-1])
-
-            hc = human_bytes(compressed)
-            hnc = human_bytes(noncompressed)
-            wf = human_bytes(tensor_memory_bytes(self.state.factors))
-            # if (compressed / noncompressed > 1):
-            print(
-                f"step : {self._sweep_index} MPS: {wf}, bath : {hnc}, compressed bath : {hc}"
-            )
 
         if self._sweep_index == 0:
             self.sweep_complete()
@@ -874,10 +798,12 @@ class DMRGBackendImpl(MPSBackendImpl):
         ), "Unknown Swipe direction"
 
         orth_center_right = self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+        lbath: torch.Tensor = cast(torch.Tensor, self.left_baths[-1])
+        rbath: torch.Tensor = cast(torch.Tensor, self.right_baths[-1])
         new_L, new_R, energy = minimize_energy_pair(
             state_factors=self.state.factors[idx : idx + 2],
             ham_factors=self.hamiltonian.factors[idx : idx + 2],
-            baths=(self.left_baths[-1], self.right_baths[-1]),
+            baths=(lbath, rbath),
             orth_center_right=orth_center_right,
             config=self.config,
             residual_tolerance=self.config.precision,
