@@ -32,16 +32,16 @@ class PackedHermitianTensor:
 
         self.n = h.shape[0]
         self._ii, self._kk = torch.tril_indices(self.n, self.n, device=h.device)
-        self.packed = h[self._ii, :, self._kk].transpose(0, 1).contiguous()
+        self._packed = h[self._ii, :, self._kk].transpose(0, 1).contiguous()
 
     def unpack(self) -> torch.Tensor:
-        b = self.packed.shape[0]
-        vals = self.packed.transpose(0, 1)
+        b = self._packed.shape[0]
+        vals = self._packed.transpose(0, 1)
 
         h = torch.zeros(
             (self.n, b, self.n),
-            dtype=self.packed.dtype,
-            device=self.packed.device,
+            dtype=self._packed.dtype,
+            device=self._packed.device,
         )
         h[self._ii, :, self._kk] = vals
 
