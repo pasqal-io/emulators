@@ -8,8 +8,8 @@ def test_roundtrip():
     x = torch.randn(n, b, n, dtype=torch.complex64)
     h = 0.5 * (x + x.transpose(0, 2).conj())
 
-    packed = PackedHermitianTensor(h)
-    h2 = packed.unpack()
+    packedht = PackedHermitianTensor(h)
+    h2 = packedht.unpack()
 
     assert h2.shape == h.shape
     assert torch.allclose(h2, h)
@@ -26,10 +26,10 @@ def test_roundtrip_minimal_shape():
         ]
     )  # shape (1, 1, 1)
 
-    packed = PackedHermitianTensor(h)
-    h2 = packed.unpack()
+    tensorpacked = PackedHermitianTensor(h)
+    h2 = tensorpacked.unpack()
 
-    assert packed.packed.shape == (1, 1)
+    assert tensorpacked._packed_data.shape == (1, 1)
     assert torch.allclose(h2, h)
 
 
@@ -52,9 +52,9 @@ def test_packed_shape():
     x = torch.randn(n, b, n, dtype=torch.complex64)
     h = 0.5 * (x + x.transpose(0, 2).conj())
 
-    packed = PackedHermitianTensor(h)
+    packedht = PackedHermitianTensor(h)
 
-    assert packed.packed.shape == (b, n * (n + 1) // 2)
+    assert packedht._packed_data.shape == (b, n * (n + 1) // 2)
 
 
 def test_roundtrip_real_symmetric():
@@ -62,8 +62,8 @@ def test_roundtrip_real_symmetric():
     x = torch.randn(n, b, n)
     h = 0.5 * (x + x.transpose(0, 2))
 
-    packed = PackedHermitianTensor(h)
-    h2 = packed.unpack()
+    packedht = PackedHermitianTensor(h)
+    h2 = packedht.unpack()
 
     assert h2.shape == h.shape
     assert torch.allclose(h2, h)
@@ -74,8 +74,8 @@ def test_unpack_preserves_dtype():
     x = torch.randn(n, b, n, dtype=torch.complex128)
     h = 0.5 * (x + x.transpose(0, 2).conj())
 
-    packed = PackedHermitianTensor(h)
-    h2 = packed.unpack()
+    packedht = PackedHermitianTensor(h)
+    h2 = packedht.unpack()
 
     assert h2.dtype == h.dtype
 
@@ -85,9 +85,9 @@ def test_skip_hermitian_check():
     # class accepts structurally valid input without paying for symmetry checks.
     h = torch.randn(3, 2, 3, dtype=torch.complex64)
 
-    packed = PackedHermitianTensor(h, check_hermitian=False)
+    packedht = PackedHermitianTensor(h, check_hermitian=False)
 
-    assert packed.packed.shape == (2, 6)
+    assert packedht._packed_data.shape == (2, 6)
 
 
 def test_packed_is_contiguous():
@@ -95,9 +95,9 @@ def test_packed_is_contiguous():
     x = torch.randn(n, b, n, dtype=torch.complex64)
     h = 0.5 * (x + x.transpose(0, 2).conj())
 
-    packed = PackedHermitianTensor(h)
+    packedht = PackedHermitianTensor(h)
 
-    assert packed.packed.is_contiguous()
+    assert packedht._packed_data.is_contiguous()
 
 
 def test_custom_tolerance_controls_hermitian_check():

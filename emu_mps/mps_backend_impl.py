@@ -315,7 +315,7 @@ class MPSBackendImpl:
             self.state, self.hamiltonian, final_qubit=2
         )
 
-        if isinstance(self, MPSBackendImpl):
+        if type(self) is MPSBackendImpl:
             self.left_baths = [PackedHermitianTensor(t) for t in _left_baths]
             self.right_baths = [PackedHermitianTensor(t) for t in _right_baths]
         else:
@@ -443,7 +443,7 @@ class MPSBackendImpl:
                 self.hamiltonian.factors[self._sweep_index],
             ).to(self.state.factors[self._sweep_index + 1].device)
             item: Bath = lb
-            if isinstance(self, MPSBackendImpl):
+            if type(self) is MPSBackendImpl:
                 item = PackedHermitianTensor(lb)
             self.left_baths.append(item)
 
@@ -469,15 +469,21 @@ class MPSBackendImpl:
                 self.hamiltonian.factors[self._sweep_index + 1],
             ).to(self.state.factors[self._sweep_index].device)
             item: Bath = rb
-            if isinstance(self, MPSBackendImpl):
+            if type(self) is MPSBackendImpl:
                 item = PackedHermitianTensor(rb)
             self.right_baths.append(item)
 
             if not self.has_lindblad_noise:
-                # TODO this should be in Noise. Not in noiseless Base class
+                # TODO this should be in Noise? Not in noiseless Base class
                 # Free memory because it won't be used anymore
-                to_deallocate: torch.Tensor = cast(torch.Tensor, self.right_baths[-2])
-                deallocate_tensor(to_deallocate)
+                if type(self) is MPSBackendImpl:
+                    todealloc_hermitean: PackedHermitianTensor = cast(
+                        PackedHermitianTensor, self.right_baths[-2]
+                    )
+                    deallocate_tensor(todealloc_hermitean._packed_data)
+                else:
+                    todealloc: torch.Tensor = cast(torch.Tensor, self.right_baths[-2])
+                    deallocate_tensor(todealloc)
 
             self._evolve(self._sweep_index, dt=-delta_time / 2)
             self.left_baths.pop()
