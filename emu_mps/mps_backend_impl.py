@@ -476,14 +476,11 @@ class MPSBackendImpl:
             if not self.has_lindblad_noise:
                 # TODO this should be in Noise? Not in noiseless Base class
                 # Free memory because it won't be used anymore
-                if type(self) is MPSBackendImpl:
-                    todealloc_hermitean: PackedHermitianTensor = cast(
-                        PackedHermitianTensor, self.right_baths[-2]
-                    )
-                    deallocate_tensor(todealloc_hermitean._packed_data)
-                else:
-                    todealloc: torch.Tensor = cast(torch.Tensor, self.right_baths[-2])
-                    deallocate_tensor(todealloc)
+                item = self.right_baths[-2]
+                to_dealloc = (
+                    item._packed_data if isinstance(item, PackedHermitianTensor) else item
+                )
+                deallocate_tensor(to_dealloc)
 
             self._evolve(self._sweep_index, dt=-delta_time / 2)
             self.left_baths.pop()
