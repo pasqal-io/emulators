@@ -12,7 +12,7 @@ from copy import deepcopy
 from collections import Counter
 from enum import Enum, auto
 from types import MethodType
-from typing import Any, cast, Optional
+from typing import Any, Optional
 
 import torch
 from pulser.backend import EmulationConfig, Observable, Results, State
@@ -308,16 +308,14 @@ class MPSBackendImpl:
         )
 
     def init_baths(self) -> None:
-        _left_baths: list[torch.Tensor] = [
+        _left_baths = [
             torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
         ]
-        _right_baths: list[torch.Tensor] = right_baths(
-            self.state, self.hamiltonian, final_qubit=2
-        )
+        _right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
 
-        if type(self) is MPSBackendImpl:
-            self.left_baths = [PackedHermitianTensor(t) for t in _left_baths]
-            self.right_baths = [PackedHermitianTensor(t) for t in _right_baths]
+        if not self.has_lindblad_noise:
+            self.left_baths = list([PackedHermitianTensor(t) for t in _left_baths])
+            self.right_baths = list([PackedHermitianTensor(t) for t in _right_baths])
         else:
             self.left_baths = list(_left_baths)
             self.right_baths = list(_right_baths)
@@ -443,7 +441,7 @@ class MPSBackendImpl:
                 self.hamiltonian.factors[self._sweep_index],
             ).to(self.state.factors[self._sweep_index + 1].device)
             item: Bath = lb
-            if type(self) is MPSBackendImpl:
+            if not self.has_lindblad_noise:
                 item = PackedHermitianTensor(lb)
             self.left_baths.append(item)
 
@@ -469,7 +467,7 @@ class MPSBackendImpl:
                 self.hamiltonian.factors[self._sweep_index + 1],
             ).to(self.state.factors[self._sweep_index].device)
             item: Bath = rb
-            if type(self) is MPSBackendImpl:
+            if not self.has_lindblad_noise:
                 item = PackedHermitianTensor(rb)
             self.right_baths.append(item)
 
@@ -801,8 +799,8 @@ class DMRGBackendImpl(MPSBackendImpl):
         ), "Unknown Swipe direction"
 
         orth_center_right = self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-        lbath: torch.Tensor = cast(torch.Tensor, self.left_baths[-1])
-        rbath: torch.Tensor = cast(torch.Tensor, self.right_baths[-1])
+        lbath = self.get_current_left_bath()
+        rbath = self.get_current_right_bath()
         new_L, new_R, energy = minimize_energy_pair(
             state_factors=self.state.factors[idx : idx + 2],
             ham_factors=self.hamiltonian.factors[idx : idx + 2],
