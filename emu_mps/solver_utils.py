@@ -53,9 +53,11 @@ def make_op(
     )
 
     def op(x: torch.Tensor) -> torch.Tensor:
-        return time_step * apply_effective_Hamiltonian(
+        state = apply_effective_Hamiltonian(
             x, combined_hamiltonian_factors, left_bath, right_bath
         )
+        state *= time_step
+        return state
 
     return combined_state_factors, right_device, op
 
@@ -69,19 +71,17 @@ def new_right_bath(
     return bath
 
 
-"""
-function to compute the right baths. The three indices in the bath are as follows:
-(bond of state conj, bond of operator, bond of state)
-The baths have shape
--xx
--xx
--xx
-with the index ordering (top, middle, bottom)
-bath tensors are put on the device of the factor to the left
-"""
-
-
 def right_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
+    """
+    function to compute the right baths. The three indices in the bath are as follows:
+    (bond of state conj, bond of operator, bond of state)
+    The baths have shape
+    -xx
+    -xx
+    -xx
+    with the index ordering (top, middle, bottom)
+    bath tensors are put on the device of the factor to the left
+    """
     state_factor = state.factors[-1]
     bath = torch.ones(1, 1, 1, device=state_factor.device, dtype=state_factor.dtype)
     baths = [bath]
@@ -89,27 +89,8 @@ def right_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
         bath = new_right_bath(bath, state.factors[i], op.factors[i])
         bath = bath.to(state.factors[i - 1].device)
         baths.append(bath)
+
     return baths
-
-
-"""
-Computes H(psi) where
-    x-    -x
-    x  ||  x             ||
-H = x- xx -x  and psi = -xx-
-    x  ||  x
-    x-    -x
-
-Expects the two qubit factors of the MPS precontracted,
-with one 'fat' physical index of dim 4 and index ordering
-(left bond, physical index, right bond):
-         ||
-      -xxxxxx-
-The Hamiltonian should have an index ordering of
-(left bond, out, in, right bond).
-The baths must have shape (top, middle, bottom).
-All tensors must be on the same device
-"""
 
 
 def apply_effective_Hamiltonian(
@@ -118,6 +99,25 @@ def apply_effective_Hamiltonian(
     left_bath: torch.Tensor,
     right_bath: torch.Tensor,
 ) -> torch.Tensor:
+    """
+    Computes H(psi) where
+        x-    -x
+        x  ||  x             ||
+    H = x- xx -x  and psi = -xx-
+        x  ||  x
+        x-    -x
+
+    Expects the two qubit factors of the MPS precontracted,
+    with one 'fat' physical index of dim 4 and index ordering
+    (left bond, physical index, right bond):
+             ||
+          -xxxxxx-
+    The Hamiltonian should have an index ordering of
+    (left bond, out, in, right bond).
+    The baths must have shape (top, middle, bottom).
+    All tensors must be on the same device
+    """
+
     assert left_bath.ndim == 3 and left_bath.shape[0] == left_bath.shape[2]
     assert right_bath.ndim == 3 and right_bath.shape[0] == right_bath.shape[2]
     assert left_bath.shape[2] == state.shape[0] and right_bath.shape[2] == state.shape[2]
@@ -137,6 +137,7 @@ def apply_effective_Hamiltonian(
     right_bath = right_bath.permute(2, 1, 0)
     right_bath = right_bath.contiguous().view(-1, right_bath.shape[2])
     state = torch.tensordot(state, right_bath, 1)
+    
     return state
 
 
@@ -213,17 +214,15 @@ def evolve_single(
     left_bath, right_bath = baths
 
     def op(x: torch.Tensor) -> torch.Tensor:
-        return (
-            -_TIME_CONVERSION_COEFF
-            * 1j
-            * dt
-            * apply_effective_Hamiltonian(
-                x,
-                ham_factor,
-                left_bath,
-                right_bath,
-            )
+        time_step = -_TIME_CONVERSION_COEFF * 1j * dt
+        state = apply_effective_Hamiltonian(
+            x,
+            ham_factor,
+            left_bath,
+            right_bath,
         )
+        state *= time_step
+        return state
 
     return krylov_exp(
         op,
