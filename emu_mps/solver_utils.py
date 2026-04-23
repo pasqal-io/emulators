@@ -52,14 +52,12 @@ def make_op(
         .view(left_ham_factor.shape[0], dim**2, dim**2, -1)
     )
 
-    h_, rbath_ = prepare_right_bath_and_hamiltonian(combined_hamiltonian_factors, right_bath)
-
+    combined_hamiltonian_factors, right_bath = preprare_tensors(combined_hamiltonian_factors, right_bath)
+    
     def op(x: torch.Tensor) -> torch.Tensor:
-        state = apply_effective_Hamiltonian(
-            x, h_, left_bath, rbath_
+        return time_step * apply_effective_Hamiltonian(
+            x, combined_hamiltonian_factors, left_bath, right_bath
         )
-        state *= time_step
-        return state
 
     return combined_state_factors, right_device, op
 
@@ -73,17 +71,19 @@ def new_right_bath(
     return bath
 
 
+"""
+function to compute the right baths. The three indices in the bath are as follows:
+(bond of state conj, bond of operator, bond of state)
+The baths have shape
+-xx
+-xx
+-xx
+with the index ordering (top, middle, bottom)
+bath tensors are put on the device of the factor to the left
+"""
+
+
 def right_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
-    """
-    function to compute the right baths. The three indices in the bath are as follows:
-    (bond of state conj, bond of operator, bond of state)
-    The baths have shape
-    -xx
-    -xx
-    -xx
-    with the index ordering (top, middle, bottom)
-    bath tensors are put on the device of the factor to the left
-    """
     state_factor = state.factors[-1]
     bath = torch.ones(1, 1, 1, device=state_factor.device, dtype=state_factor.dtype)
     baths = [bath]
@@ -91,102 +91,64 @@ def right_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
         bath = new_right_bath(bath, state.factors[i], op.factors[i])
         bath = bath.to(state.factors[i - 1].device)
         baths.append(bath)
-
     return baths
 
 
-def prepare_right_bath_and_hamiltonian(
+"""
+Computes H(psi) where
+    x-    -x
+    x  ||  x             ||
+H = x- xx -x  and psi = -xx-
+    x  ||  x
+    x-    -x
+
+Expects the two qubit factors of the MPS precontracted,
+with one 'fat' physical index of dim 4 and index ordering
+(left bond, physical index, right bond):
+         ||
+      -xxxxxx-
+The Hamiltonian should have an index ordering of
+(left bond, out, in, right bond).
+The baths must have shape (top, middle, bottom).
+All tensors must be on the same device
+"""
+
+
+def preprare_tensors(
     ham: torch.Tensor,
     right_bath: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """
-    Reshapes MPO node ham and right_bath tensors to improve performance.
-
-    reshapes the MPO node (a,b,c,d) to (ac,b,d)
-        (b)                   (b)
-         |                     |
-    (a) -xx- (d)  ->     (ac) -xx - (d)
-         |
-        (c)
-
-    and
-
-    reshapes the right bath with indices (a,b,c) to (bc,a)
-    (a) -xx
-    (b) -xx  -> (bc) -xx- (a)
-    (c) -xx
-
-    """
-    assert right_bath.ndim == 3 and right_bath.shape[0] == right_bath.shape[2]
-    assert ham.ndim == 4 and ham.shape[1] == ham.shape[2]
-    assert ham.shape[3] == right_bath.shape[1]
-
-    ham_ = ham.permute(0, 2, 1, 3)
-    ham_ = ham_.contiguous().view(-1, ham_.shape[2], ham_.shape[3])
-    right_bath_ = right_bath.permute(2, 1, 0)
-    right_bath_ = right_bath.contiguous().view(-1, right_bath_.shape[2])
-
-    return ham_, right_bath_
-
-
-def _validate_apply_effective_hamiltonian_inputs(
-    state: torch.Tensor,
-    ham_reshaped: torch.Tensor,
-    l_bath: torch.Tensor,
-    r_bath_reshaped: torch.Tensor,
-) -> None:
-    assert ham_reshaped.ndim == 3
-
-    assert r_bath_reshaped.ndim == 2
-    assert r_bath_reshaped.shape[1] == state.shape[2]
-    assert r_bath_reshaped.shape[0] == (state.shape[2] * ham_reshaped.shape[2])
-
-    assert l_bath.ndim == 3 and l_bath.shape[0] == l_bath.shape[2]
-    assert l_bath.shape[2] == state.shape[0]
-    assert l_bath.shape[1] * state.shape[1] == ham_reshaped.shape[0]
-
+    ham = ham.permute(0, 2, 1, 3)
+    ham = ham.contiguous().view(-1, ham.shape[2], ham.shape[3])
+    right_bath = right_bath.permute(2, 1, 0)
+    right_bath = right_bath.contiguous().view(-1, right_bath.shape[2])
+    return ham, right_bath
 
 def apply_effective_Hamiltonian(
     state: torch.Tensor,
-    ham_reshaped: torch.Tensor,
-    l_bath: torch.Tensor,
-    r_bath_reshaped: torch.Tensor,
+    ham: torch.Tensor,
+    left_bath: torch.Tensor,
+    right_bath: torch.Tensor,
 ) -> torch.Tensor:
-    """
-    Computes H_eff(psi) where
-            x-    -x
-            x  ||  x             ||
-    H_eff = x- xx -x  and psi = -xx-
-            x  ||  x
-            x-    -x
-
-    Expects the two qubit factors of the MPS precontracted,
-    with one 'fat' physical index of dim 4 and index ordering
-    (left bond, physical index, right bond):
-             ||
-          -xxxxxx-
-
-    Expected shapes:
-    - state shape: (chi_l, d, chi_r)
-    - ham_reshaped shape: (d * m_l, d, m_r)
-    - l_bath shape: (chi_l, m_l, chi_l)
-    - r_bath_reshaped shape: (chi_r * m_r, chi_r)
-    All tensors must be on the same device
-    """
-    _validate_apply_effective_hamiltonian_inputs(state, ham_reshaped, l_bath, r_bath_reshaped)
+    #assert left_bath.ndim == 3 and left_bath.shape[0] == left_bath.shape[2]
+    #assert right_bath.ndim == 3 and right_bath.shape[0] == right_bath.shape[2]
+    #assert left_bath.shape[2] == state.shape[0] and right_bath.shape[2] == state.shape[2]
+    #assert left_bath.shape[1] == ham.shape[0] and right_bath.shape[1] == ham.shape[3]
 
     # the optimal contraction order depends on the details
     # this order seems to be pretty balanced, but needs to be
     # revisited when use-cases are more well-known
-
-    state = torch.tensordot(l_bath, state, 1)
+    state = torch.tensordot(left_bath, state, 1)
     state = state.permute(0, 3, 1, 2)
+    #ham = ham.permute(0, 2, 1, 3)
     state = state.view(state.shape[0], state.shape[1], -1).contiguous()
-    state = torch.tensordot(state, ham_reshaped, 1)
+    #ham = ham.contiguous().view(-1, ham.shape[2], ham.shape[3])
+    state = torch.tensordot(state, ham, 1)
     state = state.permute(0, 2, 1, 3)
     state = state.contiguous().view(state.shape[0], state.shape[1], -1)
-    state = torch.tensordot(state, r_bath_reshaped, 1)
-
+    # right_bath = right_bath.permute(2, 1, 0)
+    # right_bath = right_bath.contiguous().view(-1, right_bath.shape[2])
+    state = torch.tensordot(state, right_bath, 1)
     return state
 
 
@@ -262,18 +224,20 @@ def evolve_single(
 
     left_bath, right_bath = baths
 
-    h_, rbath_ = prepare_right_bath_and_hamiltonian(ham_factor, right_bath)
+    ham_factor, right_bath = preprare_tensors(ham_factor, right_bath)
 
     def op(x: torch.Tensor) -> torch.Tensor:
-        time_step = -_TIME_CONVERSION_COEFF * 1j * dt
-        state = apply_effective_Hamiltonian(
-            x,
-            h_,
-            left_bath,
-            rbath_,
+        return (
+            -_TIME_CONVERSION_COEFF
+            * 1j
+            * dt
+            * apply_effective_Hamiltonian(
+                x,
+                ham_factor,
+                left_bath,
+                right_bath,
+            )
         )
-        state *= time_step
-        return state
 
     return krylov_exp(
         op,
