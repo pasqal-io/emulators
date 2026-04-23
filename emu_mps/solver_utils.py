@@ -52,9 +52,11 @@ def make_op(
         .view(left_ham_factor.shape[0], dim**2, dim**2, -1)
     )
 
+    h_, rbath_ = prepare_right_bath_and_hamiltonian(combined_hamiltonian_factors, right_bath)
+
     def op(x: torch.Tensor) -> torch.Tensor:
         state = apply_effective_Hamiltonian(
-            x, combined_hamiltonian_factors, left_bath, right_bath
+            x, h_, left_bath, rbath_
         )
         state *= time_step
         return state
@@ -93,6 +95,35 @@ def right_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
     return baths
 
 
+def prepare_right_bath_and_hamiltonian(
+    ham: torch.Tensor,
+    right_bath: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    reshapes the right bath with indices (a,b,c) into (bc, a)
+    (a) -xx
+    (b) -xx  -> (bc) -xx - (a)
+    (c) -xx
+
+    and
+
+    reshapes the MPO node (a,b,c,d) into (ab, c, d)
+        (b)                   (c)
+         |                     |
+    (a) -xx- (d)  ->     (ab) -xx - (d)
+         |
+        (c)
+    """
+    assert right_bath.ndim == 3 and right_bath.shape[0] == right_bath.shape[2]
+
+    ham = ham.permute(0, 2, 1, 3)
+    ham = ham.contiguous().view(-1, ham.shape[2], ham.shape[3])
+    right_bath = right_bath.permute(2, 1, 0)
+    right_bath = right_bath.contiguous().view(-1, right_bath.shape[2])
+
+    return ham, right_bath
+
+
 def apply_effective_Hamiltonian(
     state: torch.Tensor,
     ham: torch.Tensor,
@@ -119,25 +150,33 @@ def apply_effective_Hamiltonian(
     """
 
     assert left_bath.ndim == 3 and left_bath.shape[0] == left_bath.shape[2]
-    assert right_bath.ndim == 3 and right_bath.shape[0] == right_bath.shape[2]
-    assert left_bath.shape[2] == state.shape[0] and right_bath.shape[2] == state.shape[2]
-    assert left_bath.shape[1] == ham.shape[0] and right_bath.shape[1] == ham.shape[3]
+
+    # hamiltonian is reshaped to a 3d tensor (d*m_l, d, m_r)
+    assert ham.ndim == 3
+
+    # right bath is reshaped to a matrix to improve performance
+    # m_r right bond dim of original MPO node, χ is right bond dim of MPS node
+    assert right_bath.ndim == 2  # (m_r*χ, χ)
+    assert right_bath.shape[1] == state.shape[2]
+    assert right_bath.shape[1] == state.shape[2]
+
+
+
+    #assert left_bath.shape[2] == state.shape[0] and right_bath.shape[2] == state.shape[2]
+    #assert left_bath.shape[1] == ham.shape[0] and assert right_bath.shape[1] == ham.shape[3]
 
     # the optimal contraction order depends on the details
     # this order seems to be pretty balanced, but needs to be
     # revisited when use-cases are more well-known
+
     state = torch.tensordot(left_bath, state, 1)
     state = state.permute(0, 3, 1, 2)
-    ham = ham.permute(0, 2, 1, 3)
     state = state.view(state.shape[0], state.shape[1], -1).contiguous()
-    ham = ham.contiguous().view(-1, ham.shape[2], ham.shape[3])
     state = torch.tensordot(state, ham, 1)
     state = state.permute(0, 2, 1, 3)
     state = state.contiguous().view(state.shape[0], state.shape[1], -1)
-    right_bath = right_bath.permute(2, 1, 0)
-    right_bath = right_bath.contiguous().view(-1, right_bath.shape[2])
     state = torch.tensordot(state, right_bath, 1)
-    
+
     return state
 
 
@@ -213,13 +252,15 @@ def evolve_single(
 
     left_bath, right_bath = baths
 
+    h_, rbath_ = prepare_right_bath_and_hamiltonian(ham_factor, right_bath)
+
     def op(x: torch.Tensor) -> torch.Tensor:
         time_step = -_TIME_CONVERSION_COEFF * 1j * dt
         state = apply_effective_Hamiltonian(
             x,
-            ham_factor,
+            h_,
             left_bath,
-            right_bath,
+            rbath_,
         )
         state *= time_step
         return state
