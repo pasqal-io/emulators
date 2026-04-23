@@ -45,18 +45,18 @@ def make_op(
     right_ham_factor = right_ham_factor.to(left_device)
     right_bath = right_bath.to(left_device)
 
-    combined_hamiltonian_factors = (
+    combined_ham_factors = (
         torch.tensordot(left_ham_factor, right_ham_factor, dims=1)
         .transpose(2, 3)
         .contiguous()
         .view(left_ham_factor.shape[0], dim**2, dim**2, -1)
     )
 
-    combined_hamiltonian_factors, right_bath = preprare_tensors(combined_hamiltonian_factors, right_bath)
-    
+    combined_ham_factors, right_bath = preprare_tensors(combined_ham_factors, right_bath)
+
     def op(x: torch.Tensor) -> torch.Tensor:
         return time_step * apply_effective_Hamiltonian(
-            x, combined_hamiltonian_factors, left_bath, right_bath
+            x, combined_ham_factors, left_bath, right_bath
         )
 
     return combined_state_factors, right_device, op
@@ -118,38 +118,39 @@ def preprare_tensors(
     ham: torch.Tensor,
     right_bath: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    ham = ham.permute(0, 2, 1, 3)
-    ham = ham.contiguous().view(-1, ham.shape[2], ham.shape[3])
-    right_bath = right_bath.permute(2, 1, 0)
-    right_bath = right_bath.contiguous().view(-1, right_bath.shape[2])
+    ham = ham.permute(0, 2, 1, 3).reshape(-1, ham.shape[1], ham.shape[3])
+    right_bath = right_bath.permute(2, 1, 0).reshape(-1, right_bath.shape[0])
     return ham, right_bath
+
+
+def _validate_input(
+    state: torch.Tensor,
+    ham: torch.Tensor,
+    left_b: torch.Tensor,
+    right_b: torch.Tensor,
+) -> None:
+    assert left_b.ndim == 3 and left_b.shape[0] == left_b.shape[2]
+    assert right_b.ndim == 3 and right_b.shape[0] == right_b.shape[2]
+    assert left_b.shape[2] == state.shape[0] and right_b.shape[2] == state.shape[2]
+    assert left_b.shape[1] == ham.shape[0] and right_b.shape[1] == ham.shape[3]
+
 
 def apply_effective_Hamiltonian(
     state: torch.Tensor,
     ham: torch.Tensor,
-    left_bath: torch.Tensor,
-    right_bath: torch.Tensor,
+    left_b: torch.Tensor,
+    right_b: torch.Tensor,
 ) -> torch.Tensor:
-    #assert left_bath.ndim == 3 and left_bath.shape[0] == left_bath.shape[2]
-    #assert right_bath.ndim == 3 and right_bath.shape[0] == right_bath.shape[2]
-    #assert left_bath.shape[2] == state.shape[0] and right_bath.shape[2] == state.shape[2]
-    #assert left_bath.shape[1] == ham.shape[0] and right_bath.shape[1] == ham.shape[3]
-
     # the optimal contraction order depends on the details
     # this order seems to be pretty balanced, but needs to be
     # revisited when use-cases are more well-known
-    state = torch.tensordot(left_bath, state, 1)
-    state = state.permute(0, 3, 1, 2)
-    #ham = ham.permute(0, 2, 1, 3)
-    state = state.view(state.shape[0], state.shape[1], -1).contiguous()
-    #ham = ham.contiguous().view(-1, ham.shape[2], ham.shape[3])
-    state = torch.tensordot(state, ham, 1)
-    state = state.permute(0, 2, 1, 3)
-    state = state.contiguous().view(state.shape[0], state.shape[1], -1)
-    # right_bath = right_bath.permute(2, 1, 0)
-    # right_bath = right_bath.contiguous().view(-1, right_bath.shape[2])
-    state = torch.tensordot(state, right_bath, 1)
+    state = torch.tensordot(left_b, state, dims=1)
+    state = state.permute(0, 3, 1, 2).reshape(state.shape[0], state.shape[3], -1)
+    state = torch.tensordot(state, ham, dims=1)
+    state = state.permute(0, 2, 1, 3).reshape(state.shape[0], state.shape[2], -1)
+    state = torch.tensordot(state, right_b, dims=1)
     return state
+
 
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
@@ -226,17 +227,11 @@ def evolve_single(
 
     ham_factor, right_bath = preprare_tensors(ham_factor, right_bath)
 
+    time_step = -_TIME_CONVERSION_COEFF * 1j * dt
+
     def op(x: torch.Tensor) -> torch.Tensor:
-        return (
-            -_TIME_CONVERSION_COEFF
-            * 1j
-            * dt
-            * apply_effective_Hamiltonian(
-                x,
-                ham_factor,
-                left_bath,
-                right_bath,
-            )
+        return time_step * apply_effective_Hamiltonian(
+            x, ham_factor, left_bath, right_bath
         )
 
     return krylov_exp(
