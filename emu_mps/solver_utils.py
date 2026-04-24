@@ -32,13 +32,17 @@ class EffectiveHamiltonian:
     def __init__(
         self,
         ham: torch.Tensor,
-        left_b: torch.Tensor,
-        right_b: torch.Tensor,
+        left_bath: torch.Tensor,
+        right_bath: torch.Tensor,
     ):
-        self._validate_input(ham, left_b, right_b)
-        self.left_b = left_b
-        self.ham = ham.permute(0, 2, 1, 3).reshape(-1, ham.shape[1], ham.shape[3])
-        self.right_b = right_b.permute(2, 1, 0).reshape(-1, right_b.shape[0])
+        self._validate_input(ham, left_bath, right_bath)
+        self.left_b = left_bath
+
+        self.ham = ham.permute(0, 2, 1, 3)
+        self.ham = self.ham.contiguous().view(-1, self.ham.shape[2], self.ham.shape[3])
+
+        self.right_b = right_bath.permute(2, 1, 0)
+        self.right_b = self.right_b.contiguous().view(-1, self.right_b.shape[2])
 
     def _validate_input(
         self,
@@ -54,11 +58,13 @@ class EffectiveHamiltonian:
         # the optimal contraction order depends on the details
         # this order seems to be pretty balanced, but needs to be
         # revisited when use-cases are more well-known
-        state = torch.tensordot(self.left_b, state, dims=1)
-        state = state.permute(0, 3, 1, 2).reshape(state.shape[0], state.shape[3], -1)
-        state = torch.tensordot(state, self.ham, dims=1)
-        state = state.permute(0, 2, 1, 3).reshape(state.shape[0], state.shape[2], -1)
-        state = torch.tensordot(state, self.right_b, dims=1)
+        state = torch.tensordot(self.left_b, state, 1)
+        state = state.permute(0, 3, 1, 2)
+        state = state.view(state.shape[0], state.shape[1], -1).contiguous()
+        state = torch.tensordot(state, self.ham, 1)
+        state = state.permute(0, 2, 1, 3)
+        state = state.contiguous().view(state.shape[0], state.shape[1], -1)
+        state = torch.tensordot(state, self.right_b, 1)
         return state
 
 
