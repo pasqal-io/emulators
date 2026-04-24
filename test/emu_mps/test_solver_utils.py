@@ -3,11 +3,10 @@ from emu_base.math import krylov_exp
 from emu_mps.solver_utils import minimize_energy_pair
 from emu_mps import MPS, MPO, MPSConfig
 from emu_mps.solver_utils import (
-    apply_effective_Hamiltonian,
     right_baths,
     evolve_single,
     evolve_pair,
-    reshape_ham_rbath,
+    EffectiveHamiltonian,
 )
 
 dtype = torch.complex128
@@ -79,6 +78,9 @@ def test_apply_2_site_effective_Hamiltonian():
     left_ham = torch.randn(3, 2, 2, 8, dtype=dtype)
     right_ham = torch.randn(8, 2, 2, 6, dtype=dtype)
     ham = torch.einsum("ijkl,lmno->ijmkno", left_ham, right_ham).reshape(3, 4, 4, 6)
+    eff_h = EffectiveHamiltonian(ham, left_bath, right_bath)
+    actual = eff_h(state)
+    assert actual.shape == (4, 4, 7)
 
     # this is the expression apply_2_site_Hamiltonian implements,
     # but doing it manually is much faster
@@ -91,10 +93,6 @@ def test_apply_2_site_effective_Hamiltonian():
         right_bath,
     ).reshape(4, 4, 7)
 
-    ham, right_bath = reshape_ham_rbath(ham, right_bath)
-    actual = apply_effective_Hamiltonian(state, ham, left_bath, right_bath)
-    assert actual.shape == (4, 4, 7)
-
     assert torch.allclose(actual, expected)
 
 
@@ -103,6 +101,9 @@ def test_apply_1_site_effective_Hamiltonian():
     right_bath = torch.randn(7, 6, 7, dtype=dtype)
     state = torch.randn(4, 2, 7, dtype=dtype)
     ham = torch.randn(3, 2, 2, 6, dtype=dtype)
+    eff_h = EffectiveHamiltonian(ham, left_bath, right_bath)
+    actual = eff_h(state)
+    assert actual.shape == (4, 2, 7)
 
     # this is the expression apply_2_site_Hamiltonian implements,
     # but doing it manually is much faster
@@ -113,10 +114,6 @@ def test_apply_1_site_effective_Hamiltonian():
         left_bath,
         right_bath,
     ).reshape(4, 2, 7)
-
-    ham, right_bath = reshape_ham_rbath(ham, right_bath)
-    actual = apply_effective_Hamiltonian(state, ham, left_bath, right_bath)
-    assert actual.shape == (4, 2, 7)
 
     assert torch.allclose(actual, expected)
 
@@ -140,13 +137,11 @@ def test_krylov_exp_krylov_norm_tolerance():
     state = torch.zeros(1, 4, 1, dtype=dtype)
     state[0, 0, 0] = 1
 
-    ham, right_bath = reshape_ham_rbath(ham, right_bath)
+    eff_h = EffectiveHamiltonian(ham, left_bath, right_bath)
 
     # i.e. u = X1
     def op(x):
-        return (
-            torch.pi * 0.5j * apply_effective_Hamiltonian(x, ham, left_bath, right_bath)
-        )
+        return torch.pi * 0.5j * eff_h(x)
 
     result = krylov_exp(op, state, exp_tolerance=1e-7, norm_tolerance=1e-12)
 
@@ -183,10 +178,10 @@ def test_krylov_exp_krylov_exp_tolerance():
     # This way we can test that the krylov exp terminates with the correct tolerance
     # on the weights of psi. Since 1/14! < 1e-10, this means we expect the algorithm
     # to terminate after step 13
-    ham, right_bath = reshape_ham_rbath(ham, right_bath)
+    eff_h = EffectiveHamiltonian(ham, left_bath, right_bath)
 
     def op(x):
-        return 1.0j * apply_effective_Hamiltonian(x, ham, left_bath, right_bath)
+        return 1.0j * eff_h(x)
 
     result = krylov_exp(op, state, norm_tolerance=1e-7, exp_tolerance=1e-10)
 

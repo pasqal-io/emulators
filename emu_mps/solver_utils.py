@@ -9,6 +9,59 @@ from emu_mps.utils import split_matrix
 from emu_mps.mps_config import MPSConfig
 
 
+class EffectiveHamiltonian:
+    """
+    Helper class to compute Heff(psi) where
+        x-    -x
+        x  ||  x             ||
+    H = x- xx -x  and psi = -xx-
+        x  ||  x
+        x-    -x
+
+    Expects the two qubit factors of the MPS precontracted,
+    with one 'fat' physical index of dim 4 and index ordering
+    (left bond, physical index, right bond):
+             ||
+          -xxxxxx-
+    The Hamiltonian should have an index ordering of
+    (left bond, out, in, right bond).
+    The baths must have shape (top, middle, bottom).
+    All tensors must be on the same device
+    """
+
+    def __init__(
+        self,
+        ham: torch.Tensor,
+        left_b: torch.Tensor,
+        right_b: torch.Tensor,
+    ):
+        self._validate_input(ham, left_b, right_b)
+        self.left_b = left_b
+        self.ham = ham.permute(0, 2, 1, 3).reshape(-1, ham.shape[1], ham.shape[3])
+        self.right_b = right_b.permute(2, 1, 0).reshape(-1, right_b.shape[0])
+
+    def _validate_input(
+        self,
+        ham: torch.Tensor,
+        left_b: torch.Tensor,
+        right_b: torch.Tensor,
+    ) -> None:
+        assert left_b.ndim == 3 and left_b.shape[0] == left_b.shape[2]
+        assert right_b.ndim == 3 and right_b.shape[0] == right_b.shape[2]
+        assert left_b.shape[1] == ham.shape[0] and right_b.shape[1] == ham.shape[3]
+
+    def __call__(self, state: torch.Tensor) -> torch.Tensor:
+        # the optimal contraction order depends on the details
+        # this order seems to be pretty balanced, but needs to be
+        # revisited when use-cases are more well-known
+        state = torch.tensordot(self.left_b, state, dims=1)
+        state = state.permute(0, 3, 1, 2).reshape(state.shape[0], state.shape[3], -1)
+        state = torch.tensordot(state, self.ham, dims=1)
+        state = state.permute(0, 2, 1, 3).reshape(state.shape[0], state.shape[2], -1)
+        state = torch.tensordot(state, self.right_b, dims=1)
+        return state
+
+
 def make_op(
     time_step: float | complex,
     state_factors: Sequence[torch.Tensor],
@@ -52,12 +105,10 @@ def make_op(
         .view(left_ham_factor.shape[0], dim**2, dim**2, -1)
     )
 
-    combined_ham_factors, right_bath = reshape_ham_rbath(combined_ham_factors, right_bath)
+    eff_h = EffectiveHamiltonian(combined_ham_factors, left_bath, right_bath)
 
     def op(x: torch.Tensor) -> torch.Tensor:
-        return time_step * apply_effective_Hamiltonian(
-            x, combined_ham_factors, left_bath, right_bath
-        )
+        return time_step * eff_h(x)
 
     return combined_state_factors, right_device, op
 
@@ -92,64 +143,6 @@ def right_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
         bath = bath.to(state.factors[i - 1].device)
         baths.append(bath)
     return baths
-
-
-"""
-Computes H(psi) where
-    x-    -x
-    x  ||  x             ||
-H = x- xx -x  and psi = -xx-
-    x  ||  x
-    x-    -x
-
-Expects the two qubit factors of the MPS precontracted,
-with one 'fat' physical index of dim 4 and index ordering
-(left bond, physical index, right bond):
-         ||
-      -xxxxxx-
-The Hamiltonian should have an index ordering of
-(left bond, out, in, right bond).
-The baths must have shape (top, middle, bottom).
-All tensors must be on the same device
-"""
-
-
-def reshape_ham_rbath(
-    ham: torch.Tensor,
-    right_bath: torch.Tensor,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    ham = ham.permute(0, 2, 1, 3).reshape(-1, ham.shape[1], ham.shape[3])
-    right_bath = right_bath.permute(2, 1, 0).reshape(-1, right_bath.shape[0])
-    return ham, right_bath
-
-
-def _validate_input(
-    state: torch.Tensor,
-    ham: torch.Tensor,
-    left_b: torch.Tensor,
-    right_b: torch.Tensor,
-) -> None:
-    assert left_b.ndim == 3 and left_b.shape[0] == left_b.shape[2]
-    assert right_b.ndim == 3 and right_b.shape[0] == right_b.shape[2]
-    assert left_b.shape[2] == state.shape[0] and right_b.shape[2] == state.shape[2]
-    assert left_b.shape[1] == ham.shape[0] and right_b.shape[1] == ham.shape[3]
-
-
-def apply_effective_Hamiltonian(
-    state: torch.Tensor,
-    ham: torch.Tensor,
-    left_b: torch.Tensor,
-    right_b: torch.Tensor,
-) -> torch.Tensor:
-    # the optimal contraction order depends on the details
-    # this order seems to be pretty balanced, but needs to be
-    # revisited when use-cases are more well-known
-    state = torch.tensordot(left_b, state, dims=1)
-    state = state.permute(0, 3, 1, 2).reshape(state.shape[0], state.shape[3], -1)
-    state = torch.tensordot(state, ham, dims=1)
-    state = state.permute(0, 2, 1, 3).reshape(state.shape[0], state.shape[2], -1)
-    state = torch.tensordot(state, right_b, dims=1)
-    return state
 
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
@@ -224,14 +217,12 @@ def evolve_single(
 
     left_bath, right_bath = baths
 
-    ham_factor, right_bath = reshape_ham_rbath(ham_factor, right_bath)
-
     time_step = -_TIME_CONVERSION_COEFF * 1j * dt
 
+    eff_h = EffectiveHamiltonian(ham_factor, left_bath, right_bath)
+
     def op(x: torch.Tensor) -> torch.Tensor:
-        return time_step * apply_effective_Hamiltonian(
-            x, ham_factor, left_bath, right_bath
-        )
+        return time_step * eff_h(x)
 
     return krylov_exp(
         op,
