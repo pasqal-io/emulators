@@ -52,7 +52,7 @@ def make_op(
         .view(left_ham_factor.shape[0], dim**2, dim**2, -1)
     )
 
-    combined_ham_factors, right_bath = preprare_tensors(combined_ham_factors, right_bath)
+    combined_ham_factors, right_bath = reshape_ham_rbath(combined_ham_factors, right_bath)
 
     def op(x: torch.Tensor) -> torch.Tensor:
         return time_step * apply_effective_Hamiltonian(
@@ -114,7 +114,7 @@ All tensors must be on the same device
 """
 
 
-def preprare_tensors(
+def reshape_ham_rbath(
     ham: torch.Tensor,
     right_bath: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -224,7 +224,7 @@ def evolve_single(
 
     left_bath, right_bath = baths
 
-    ham_factor, right_bath = preprare_tensors(ham_factor, right_bath)
+    ham_factor, right_bath = reshape_ham_rbath(ham_factor, right_bath)
 
     time_step = -_TIME_CONVERSION_COEFF * 1j * dt
 
