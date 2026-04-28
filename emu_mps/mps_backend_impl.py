@@ -434,7 +434,7 @@ class MPSBackendImpl:
             )
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
-                deallocate_tensor(self.baths.right[-2])
+                deallocate_tensor(self.baths._right[-2])
             self._evolve(self._sweep_index, dt=-delta_time / 2)
             self.baths.pop_left()
             self._evolve(
