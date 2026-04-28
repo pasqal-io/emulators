@@ -32,15 +32,13 @@ from emu_mps.solver_utils import (
     evolve_pair,
     evolve_single,
     minimize_energy_pair,
-    new_right_bath,
-    right_baths,
 )
 from emu_mps.utils import (
     extended_mpo_factors,
     extended_mps_factors,
     get_extended_site_index,
-    new_left_bath,
 )
+from emu_mps.baths import Baths
 
 dtype = torch.complex128
 
@@ -101,8 +99,7 @@ class MPSBackendImpl:
     well_prepared_qubits_filter: Optional[torch.Tensor]
     hamiltonian: MPO
     state: MPS
-    left_baths: list[torch.Tensor]
-    right_baths: list[torch.Tensor]
+    baths: Baths
     target_time: float
     results: Results
     _swipe_direction: SwipeDirection = SwipeDirection.LEFT_TO_RIGHT
@@ -307,17 +304,7 @@ class MPSBackendImpl:
         )
 
     def init_baths(self) -> None:
-        self.left_baths = [
-            torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
-        ]
-        self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
-        assert len(self.right_baths) == self.qubit_count - 1
-
-    def get_current_right_bath(self) -> torch.Tensor:
-        return self.right_baths[-1]
-
-    def get_current_left_bath(self) -> torch.Tensor:
-        return self.left_baths[-1]
+        self.baths = Baths(self.state, self.hamiltonian)
 
     def init(self) -> None:
         self.init_dark_qubits()
@@ -335,13 +322,13 @@ class MPSBackendImpl:
     ) -> None:
         """
         Time-evolve the state's tensors located at the given 1 or 2 indices by dt,
-        using the baths stored in self.left_baths and self.right_baths.
+        using the baths stored in self.baths.
         When 2 indices are given, they need to be consecutive.
         Updates the state's orthogonality center according to orth_center_right.
         """
         assert 1 <= len(indices) <= 2
 
-        baths = (self.get_current_left_bath(), self.get_current_right_bath())
+        baths = self.baths.current()
 
         if len(indices) == 1:
             assert orth_center_right is None
@@ -420,15 +407,13 @@ class MPSBackendImpl:
                 dt=delta_time / 2,
                 orth_center_right=True,
             )
-            self.left_baths.append(
-                new_left_bath(
-                    self.get_current_left_bath(),
-                    self.state.factors[self._sweep_index],
-                    self.hamiltonian.factors[self._sweep_index],
-                ).to(self.state.factors[self._sweep_index + 1].device)
+            self.baths.append_left(
+                self.state,
+                self.hamiltonian,
+                self._sweep_index,
             )
             self._evolve(self._sweep_index + 1, dt=-delta_time / 2)
-            self.right_baths.pop()
+            self.baths.pop_right()
             self._sweep_index += 1
         else:
             # Time-evolution of the rightmost 2 tensors
@@ -442,18 +427,16 @@ class MPSBackendImpl:
 
     def _right_to_left_update_tdvp(self, delta_time: float) -> None:
         if self._sweep_index > 0:
-            self.right_baths.append(
-                new_right_bath(
-                    self.get_current_right_bath(),
-                    self.state.factors[self._sweep_index + 1],
-                    self.hamiltonian.factors[self._sweep_index + 1],
-                ).to(self.state.factors[self._sweep_index].device)
+            self.baths.append_right(
+                self.state,
+                self.hamiltonian,
+                self._sweep_index + 1,
             )
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
-                deallocate_tensor(self.right_baths[-2])
+                deallocate_tensor(self.baths._right[-2])
             self._evolve(self._sweep_index, dt=-delta_time / 2)
-            self.left_baths.pop()
+            self.baths.pop_left()
             self._evolve(
                 self._sweep_index - 1,
                 self._sweep_index,
@@ -774,7 +757,7 @@ class DMRGBackendImpl(MPSBackendImpl):
         new_L, new_R, energy = minimize_energy_pair(
             state_factors=self.state.factors[idx : idx + 2],
             ham_factors=self.hamiltonian.factors[idx : idx + 2],
-            baths=(self.left_baths[-1], self.right_baths[-1]),
+            baths=self.baths.current(),
             orth_center_right=orth_center_right,
             config=self.config,
             residual_tolerance=self.config.precision,
@@ -795,14 +778,12 @@ class DMRGBackendImpl(MPSBackendImpl):
 
     def _left_to_right_update(self, idx: int) -> None:
         if idx < self.qubit_count - 2:
-            self.left_baths.append(
-                new_left_bath(
-                    self.get_current_left_bath(),
-                    self.state.factors[idx],
-                    self.hamiltonian.factors[idx],
-                ).to(self.state.factors[idx + 1].device)
+            self.baths.append_left(
+                self.state,
+                self.hamiltonian,
+                idx,
             )
-            self.right_baths.pop()
+            self.baths.pop_right()
             self._sweep_index += 1
 
         if self._sweep_index == self.qubit_count - 2:
@@ -810,14 +791,12 @@ class DMRGBackendImpl(MPSBackendImpl):
 
     def _right_to_left_update(self, idx: int) -> None:
         if idx > 0:
-            self.right_baths.append(
-                new_right_bath(
-                    self.get_current_right_bath(),
-                    self.state.factors[idx + 1],
-                    self.hamiltonian.factors[idx + 1],
-                ).to(self.state.factors[idx].device)
+            self.baths.append_right(
+                self.state,
+                self.hamiltonian,
+                idx + 1,
             )
-            self.left_baths.pop()
+            self.baths.pop_left()
             self._sweep_index -= 1
 
         if self._sweep_index == 0:

@@ -676,7 +676,7 @@ def test_end_to_end_spontaneous_emission() -> None:
         # Mocking MPSBackendImpl.get_current_right_bath() to check that
         # the right baths administration happens properly when a quantum jump occurs.
 
-        assert len(impl.right_baths) in [
+        assert len(impl.baths._right) in [
             impl.state.num_sites - impl._sweep_index,
             impl.state.num_sites - impl._sweep_index - 1,
         ]
@@ -684,17 +684,17 @@ def test_end_to_end_spontaneous_emission() -> None:
         expected_right_baths = right_baths(
             impl.state,
             impl.hamiltonian,
-            final_qubit=impl.state.num_sites - len(impl.right_baths) + 1,
+            final_qubit=impl.state.num_sites - len(impl.baths.right) + 1,
         )
         assert all(
             torch.allclose(actual, expected)
-            for actual, expected in zip(impl.right_baths, expected_right_baths)
+            for actual, expected in zip(impl.baths.right, expected_right_baths)
         )
 
-        return impl.right_baths[-1]
+        return impl.baths.right[-1]
 
     with patch(
-        "emu_mps.mps_backend_impl.MPSBackendImpl.get_current_right_bath", autospec=True
+        "emu_mps.mps_backend_impl.MPSBackendImpl.Baths.current_right", autospec=True
     ) as get_current_right_bath_mock:
         get_current_right_bath_mock.side_effect = check_baths
 
