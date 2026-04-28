@@ -60,7 +60,8 @@ class EffectiveHamiltonian:
         # revisited when use-cases are more well-known
         state = torch.tensordot(self.left_b, state, 1)
         state = state.permute(0, 3, 1, 2)
-        # Use `contiguous` after `view` since `tensordot` requires
+        # Use `contiguous` after `view` since `tensordot` is more
+        # memory efficient when the input has
         # a contiguous memory layout. In other parts of the code we use
         # `view` after `contiguous` for handling tensors returned by `.permute`
         state = state.view(state.shape[0], state.shape[1], -1).contiguous()
