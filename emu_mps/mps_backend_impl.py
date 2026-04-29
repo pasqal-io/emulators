@@ -440,10 +440,9 @@ class MPSBackendImpl:
                 self.state.factors[self._sweep_index],
                 self.hamiltonian.factors[self._sweep_index],
             ).to(self.state.factors[self._sweep_index + 1].device)
-            item: Bath = lb
-            if not self.has_lindblad_noise:
-                item = PackedHermitianTensor(lb)
-            self.left_baths.append(item)
+            self.left_baths.append(
+                lb if self.has_lindblad_noise else PackedHermitianTensor(lb)
+            )
 
             self._evolve(self._sweep_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
@@ -466,10 +465,9 @@ class MPSBackendImpl:
                 self.state.factors[self._sweep_index + 1],
                 self.hamiltonian.factors[self._sweep_index + 1],
             ).to(self.state.factors[self._sweep_index].device)
-            item: Bath = rb
-            if not self.has_lindblad_noise:
-                item = PackedHermitianTensor(rb)
-            self.right_baths.append(item)
+            self.right_baths.append(
+                rb if self.has_lindblad_noise else PackedHermitianTensor(rb)
+            )
 
             if not self.has_lindblad_noise:
                 # TODO this should be in Noise? Not in noiseless Base class
