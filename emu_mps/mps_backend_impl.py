@@ -308,18 +308,14 @@ class MPSBackendImpl:
         )
 
     def init_baths(self) -> None:
-        _left_baths = [
-            torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
+        pack = (lambda x: x) if self.has_lindblad_noise else PackedHermitianTensor
+
+        self.left_baths = [
+            pack(torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device))
         ]
-        _right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
-
-        if not self.has_lindblad_noise:
-            self.left_baths = list([PackedHermitianTensor(t) for t in _left_baths])
-            self.right_baths = list([PackedHermitianTensor(t) for t in _right_baths])
-        else:
-            self.left_baths = list(_left_baths)
-            self.right_baths = list(_right_baths)
-
+        self.right_baths = [
+            pack(t) for t in right_baths(self.state, self.hamiltonian, final_qubit=2)
+        ]
         assert len(self.right_baths) == self.qubit_count - 1
 
     def get_current_right_bath(self) -> torch.Tensor:
