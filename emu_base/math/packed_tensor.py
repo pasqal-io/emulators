@@ -4,16 +4,10 @@ import torch
 class PackedHermitianTensor:
     """
     Pack a tensor of shape (χ, m, χ), Hermitian in axes 0 and 2,
-    into shape (χ(χ+1)//2, m) by storing the lower triangle
-    of each (χ, χ) slice at fixed middle index.
+    into shape (χ(χ+1)/2, m) by storing the lower triangle
+    of each (χ, χ) slice at fixed middle index m.
     The `PackedHermitianTensor` is used to represent left and right
-    baths in TDVP/DMRG algorithms.
-
-    Lower-triangular packed order:
-        (0,0),
-        (1,0), (1,1),
-        (2,0), (2,1), (2,2),
-        ...
+    baths nodes in TDVP/DMRG algorithms.
     """
 
     def __init__(
@@ -33,15 +27,15 @@ class PackedHermitianTensor:
             raise ValueError("Tensor is not Hermitian in axes 0 and 2")
 
         self.chi = h.shape[0]
-        self.m = h.shape[1]
         self._ii, self._kk = torch.tril_indices(self.chi, self.chi, device=h.device)
         self._packed_data = h[self._ii, :, self._kk]
 
     def unpack(self) -> torch.Tensor:
         vals = self._packed_data
+        m = vals.shape[1]
 
         h = torch.zeros(
-            (self.chi, self.m, self.chi),
+            (self.chi, m, self.chi),
             dtype=self._packed_data.dtype,
             device=self._packed_data.device,
         )

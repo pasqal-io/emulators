@@ -36,7 +36,7 @@ def test_packed_shape():
 
     packedht = PackedHermitianTensor(h)
 
-    assert packedht._packed_data.shape == (n * (n + 1) // 2, b)
+    assert packedht._packed_data.shape == (n * (n + 1) / 2, b)
 
 
 def test_unpack_preserves_dtype():
