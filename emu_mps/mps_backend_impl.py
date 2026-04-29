@@ -466,7 +466,6 @@ class MPSBackendImpl:
             )
 
             if not self.has_lindblad_noise:
-                # TODO this should be in Noise? Not in noiseless Base class
                 # Free memory because it won't be used anymore
                 item = self.right_baths[-2]
                 to_dealloc = (
