@@ -36,7 +36,7 @@ def test_packed_shape():
 
     packedht = PackedHermitianTensor(h)
 
-    assert packedht._packed_data.shape == (b, n * (n + 1) // 2)
+    assert packedht._packed_data.shape == (n * (n + 1) // 2, b)
 
 
 def test_unpack_preserves_dtype():
@@ -59,7 +59,7 @@ def test_skip_hermitian_check():
     packedht = PackedHermitianTensor(h, check_hermitian=False)
 
     # Data loss happened
-    assert packedht._packed_data.shape == (2, 6)
+    assert packedht._packed_data.shape == (6, 2)
 
 
 def test_packed_is_contiguous():
