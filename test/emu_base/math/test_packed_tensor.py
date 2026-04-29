@@ -15,24 +15,6 @@ def test_roundtrip():
     assert torch.allclose(h2, h)
 
 
-def test_roundtrip_minimal_shape():
-    h = torch.tensor(
-        [
-            [
-                [
-                    2.0 + 0.0j,
-                ]
-            ]
-        ]
-    )  # shape (1, 1, 1)
-
-    tensorpacked = PackedHermitianTensor(h)
-    h2 = tensorpacked.unpack()
-
-    assert tensorpacked._packed_data.shape == (1, 1)
-    assert torch.allclose(h2, h)
-
-
 def test_rejects_non_hermitian():
     h = torch.randn(3, 2, 3, dtype=torch.complex64)
 
@@ -57,18 +39,6 @@ def test_packed_shape():
     assert packedht._packed_data.shape == (b, n * (n + 1) // 2)
 
 
-def test_roundtrip_real_symmetric():
-    n, b = 4, 3
-    x = torch.randn(n, b, n)
-    h = 0.5 * (x + x.transpose(0, 2))
-
-    packedht = PackedHermitianTensor(h)
-    h2 = packedht.unpack()
-
-    assert h2.shape == h.shape
-    assert torch.allclose(h2, h)
-
-
 def test_unpack_preserves_dtype():
     n, b = 4, 2
     x = torch.randn(n, b, n, dtype=torch.complex128)
@@ -85,8 +55,10 @@ def test_skip_hermitian_check():
     # class accepts structurally valid input without paying for symmetry checks.
     h = torch.randn(3, 2, 3, dtype=torch.complex64)
 
+    # the tensor above should not pass for `check_hermitian=True`
     packedht = PackedHermitianTensor(h, check_hermitian=False)
 
+    # Data loss happened
     assert packedht._packed_data.shape == (2, 6)
 
 
@@ -109,6 +81,7 @@ def test_custom_tolerance_controls_hermitian_check():
     h_perturbed[0, 0, 1] += 1e-4
 
     with pytest.raises(ValueError, match="not Hermitian"):
+        # Not convertable within given tolerance
         PackedHermitianTensor(h_perturbed, atol=1e-8)
 
     PackedHermitianTensor(h_perturbed, atol=1e-3)

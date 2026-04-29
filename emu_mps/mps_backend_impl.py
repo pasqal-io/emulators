@@ -43,7 +43,7 @@ from emu_mps.utils import (
 )
 
 dtype = torch.complex128
-Bath = torch.Tensor | PackedHermitianTensor
+BathNode = torch.Tensor | PackedHermitianTensor
 
 
 class Statistics(Observable):
@@ -102,8 +102,8 @@ class MPSBackendImpl:
     well_prepared_qubits_filter: Optional[torch.Tensor]
     hamiltonian: MPO
     state: MPS
-    left_baths: list[Bath]
-    right_baths: list[Bath]
+    left_baths: list[BathNode]
+    right_baths: list[BathNode]
     target_time: float
     results: Results
     _swipe_direction: SwipeDirection = SwipeDirection.LEFT_TO_RIGHT
