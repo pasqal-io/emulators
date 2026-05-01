@@ -32,6 +32,7 @@ from emu_mps import (
 import pulser.noise_model
 from pulser.backend import Results
 
+from emu_base import SequenceData, HamiltonianType
 from emu_mps.mps_backend_impl import MPSBackendImpl
 from emu_mps.solver import Solver
 from emu_mps.solver_utils import right_baths
@@ -1209,3 +1210,55 @@ def test_observables_time_0():
     result = backend.run()
 
     assert torch.isreal(result.energy[0])
+
+
+def test_run_from_sequence_data():
+    duration = 100
+    dt = 10
+
+    occup = Occupation(
+        evaluation_times=[dt * x / duration for x in range(duration // dt + 1)]
+    )
+
+    config = MPSConfig(
+        observables=[occup],
+        log_level=logging.WARN,
+        interaction_cutoff=1e-10,
+        optimize_qubit_ordering=False,  # bad atoms are not reordered
+    )
+
+    omega = torch.tensor(
+        [
+            [0.7092 + 0.0j, 0.7092 + 0.0j, 0.7092 + 0.0j],
+            [7.8431 + 0.0j, 7.8431 + 0.0j, 7.8431 + 0.0j],
+            [26.2913 + 0.0j, 26.2913 + 0.0j, 26.2913 + 0.0j],
+            [53.0011 + 0.0j, 53.0011 + 0.0j, 53.0011 + 0.0j],
+            [73.0656 + 0.0j, 73.0656 + 0.0j, 73.0656 + 0.0j],
+            [71.8630 + 0.0j, 71.8630 + 0.0j, 71.8630 + 0.0j],
+            [50.3238 + 0.0j, 50.3238 + 0.0j, 50.3238 + 0.0j],
+            [23.9187 + 0.0j, 23.9187 + 0.0j, 23.9187 + 0.0j],
+            [6.6745 + 0.0j, 6.6745 + 0.0j, 6.6745 + 0.0j],
+            [0.4483 + 0.0j, 0.4483 + 0.0j, 0.4483 + 0.0j],
+        ],
+        dtype=torch.complex128,
+    )
+
+    seq_data = SequenceData(
+        omega=omega,
+        delta=torch.zeros_like(omega),
+        phi=torch.zeros_like(omega),
+        interaction_matrix=lambda x: torch.zeros((3, 3), dtype=torch.float64),
+        bad_atoms={"q0": False, "q1": False, "q2": False},
+        lindblad_ops=[],
+        state_prep_error=0.0,
+        target_times=[dt * x for x in range(duration // dt + 1)],
+        eigenstates=["r", "g"],
+        hamiltonian_type=HamiltonianType.Rydberg,
+    )
+
+    results = MPSBackend._run_from_sequence_data(seq_data, config)
+
+    assert set(results._tagmap.keys()) == {"occupation", "statistics"}
+    assert results.get_result_times("occupation") == occup.evaluation_times.tolist()
+    assert results.occupation[0] == pytest.approx(0.0)
+    assert results.occupation[-1] == pytest.approx(1.0)

@@ -120,16 +120,13 @@ class SVBackendImpl:
             )
         self.init_dark_qubits()
 
-        if (
-            self._config.initial_state is not None
-            and self._data.noise_model.state_prep_error > 0.0
-        ):
+        if self._config.initial_state is not None and self._data.state_prep_error > 0.0:
             raise NotImplementedError(
                 "Initial state and state preparation error can not be together."
             )
 
     def init_dark_qubits(self) -> None:
-        if self._data.noise_model.state_prep_error > 0.0:
+        if self._data.state_prep_error > 0.0:
             bad_atoms = self._data.bad_atoms
             self.well_prepared_qubits_filter = torch.tensor(
                 [bool(bad_atoms[x]) for x in self._data.qubit_ids]
