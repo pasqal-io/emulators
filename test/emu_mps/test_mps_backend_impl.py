@@ -37,7 +37,7 @@ def _create_victim(constructor, dt, noise_model):
     mock_pulser_data.interaction_matrix = lambda t: torch.eye(QUBIT_COUNT)
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.dim = 2
-    mock_pulser_data.noise_model = noise_model
+    mock_pulser_data.state_prep_error = noise_model.state_prep_error
     victim = constructor(config, mock_pulser_data)
 
     assert victim.qubit_count == QUBIT_COUNT
@@ -73,7 +73,7 @@ def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
     mock_pulser_data.has_lindblad_noise = False
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.eigenstates = ("g", "r")
-    mock_pulser_data.noise_model = NoiseModel()
+    mock_pulser_data.state_prep_error = 0.0
 
     dmrg_obj = constructor(config, mock_pulser_data)
 

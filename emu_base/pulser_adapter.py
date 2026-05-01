@@ -189,7 +189,7 @@ class SequenceData:
     interaction_matrix: Callable[[float], torch.Tensor]
     bad_atoms: dict[str, bool]
     lindblad_ops: list[torch.Tensor]
-    noise_model: NoiseModel
+    state_prep_error: float
     qubit_ids: tuple[QubitId, ...]
     target_times: list[float]
     eigenstates: list[States]
@@ -308,7 +308,7 @@ class PulserData:
                     interaction_matrix,
                     samples.trajectory.bad_atoms,
                     self.lindblad_ops,
-                    self.noise_model,
+                    self.noise_model.state_prep_error,
                     self.qubit_ids,
                     self.target_times,
                     self.eigenstates,
