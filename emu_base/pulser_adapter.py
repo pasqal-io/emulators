@@ -190,10 +190,13 @@ class SequenceData:
     bad_atoms: dict[str, bool]
     lindblad_ops: list[torch.Tensor]
     state_prep_error: float
-    qubit_ids: tuple[QubitId, ...]
     target_times: list[float]
     eigenstates: list[States]
     hamiltonian_type: HamiltonianType
+
+    @property
+    def qubit_ids(self) -> tuple[QubitId, ...]:
+        return tuple(self.bad_atoms.keys())
 
     @property
     def qubit_count(self) -> int:
@@ -309,7 +312,6 @@ class PulserData:
                     samples.trajectory.bad_atoms,
                     self.lindblad_ops,
                     self.noise_model.state_prep_error,
-                    self.qubit_ids,
                     self.target_times,
                     self.eigenstates,
                     self.hamiltonian_type,

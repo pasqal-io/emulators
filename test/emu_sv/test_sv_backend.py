@@ -65,7 +65,6 @@ def test_run_from_sequence_data():
         bad_atoms={"q0": False, "q1": False, "q2": False},
         lindblad_ops=[],
         state_prep_error=0.0,
-        qubit_ids=["q0", "q1", "q2"],
         target_times=[dt * x for x in range(duration // dt + 1)],
         eigenstates=["r", "g"],
         hamiltonian_type=HamiltonianType.Rydberg,
