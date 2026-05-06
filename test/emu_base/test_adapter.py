@@ -1009,6 +1009,8 @@ def test_non_lindbladian_noise(prefer_device_model):
         trap_waist=1.0,
         state_prep_error=0.5,
         runs=1,
+        dmm_sigma=0.01,
+        detuning_map_spot_waist=0.01,
     )
     config = EmulationConfig(
         interaction_cutoff=0.0,
