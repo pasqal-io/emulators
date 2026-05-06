@@ -33,7 +33,7 @@ repos:
     hooks:
       - id: mypy
         exclude: examples|test|ci
-        additional_dependencies: ["pulser-core[torch]>=1.7.0", "torch==2.9.0,<2.11.0"]  # The version in pyproject.toml must match
+        additional_dependencies: ["pulser-core[torch]>=1.8.0", "torch==2.9.0,<2.11.0"]  # The version in pyproject.toml must match
 
   - repo: https://github.com/pasqal-io/doc_checker
     rev: 53bb9d79b85d2bdc8ec7ffbc05b97749c3593583 # full SHA for the commit to use
