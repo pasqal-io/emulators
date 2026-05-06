@@ -19,7 +19,15 @@ class HamiltonianType(Enum):
     XY = 2
 
 
-_NON_LINDBLADIAN_NOISE = {"SPAM", "doppler", "amplitude", "detuning", "register"}
+_NON_LINDBLADIAN_NOISE = {
+    "SPAM",
+    "doppler",
+    "amplitude",
+    "detuning",
+    "register",
+    "dmm_sigma",
+    "dmm_crosstalk",
+}
 
 
 def _get_all_lindblad_noise_operators(
