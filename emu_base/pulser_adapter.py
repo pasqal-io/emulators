@@ -195,16 +195,13 @@ class SequenceData:
     delta: torch.Tensor
     phi: torch.Tensor
     interaction_matrix: Callable[[float], torch.Tensor]
-    bad_atoms: dict[str, bool]
+    qubit_ids: tuple[QubitId, ...]
+    bad_atoms: tuple[bool, ...]
     lindblad_ops: list[torch.Tensor]
     state_prep_error: float
     target_times: list[float]
     eigenstates: list[States]
     hamiltonian_type: HamiltonianType
-
-    @property
-    def qubit_ids(self) -> tuple[QubitId, ...]:
-        return tuple(self.bad_atoms.keys())
 
     @property
     def qubit_count(self) -> int:
@@ -317,7 +314,8 @@ class PulserData:
                     delta,
                     phi,
                     interaction_matrix,
-                    samples.trajectory.bad_atoms,
+                    tuple(samples.trajectory.bad_atoms.keys()),
+                    tuple(samples.trajectory.bad_atoms.values()),
                     self.lindblad_ops,
                     self.noise_model.state_prep_error,
                     self.target_times,

@@ -127,10 +127,7 @@ class SVBackendImpl:
 
     def init_dark_qubits(self) -> None:
         if self._data.state_prep_error > 0.0:
-            bad_atoms = self._data.bad_atoms
-            self.well_prepared_qubits_filter = torch.tensor(
-                [bool(bad_atoms[x]) for x in self._data.qubit_ids]
-            )
+            self.well_prepared_qubits_filter = torch.tensor(self._data.bad_atoms)
         else:
             self.well_prepared_qubits_filter = None
 

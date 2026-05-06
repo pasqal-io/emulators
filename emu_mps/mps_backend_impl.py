@@ -216,9 +216,7 @@ class MPSBackendImpl:
         # has_state_preparation_error
         if self.pulser_data.state_prep_error > 0.0:
             bad_atoms = self.pulser_data.bad_atoms
-            self.well_prepared_qubits_filter = torch.logical_not(
-                torch.tensor(list(bool(x) for x in bad_atoms.values()))
-            )
+            self.well_prepared_qubits_filter = torch.logical_not(torch.tensor(bad_atoms))
         else:
             self.well_prepared_qubits_filter = None
         logging.getLogger("emulators").debug(
