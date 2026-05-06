@@ -39,5 +39,5 @@ abstract: >-
 keywords:
   - analog quantum computing
   - emulation
-version: 2.7.2
+version: 2.7.3
 date-released: '2025-05-12'

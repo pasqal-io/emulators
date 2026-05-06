@@ -1,6 +1,6 @@
 from pulser.backend import EmulatorBackend, Results, BitStrings
 from emu_mps.mps_config import MPSConfig
-from emu_base import init_logging, PulserData
+from emu_base import init_logging, PulserData, SequenceData
 from emu_mps.mps_backend_impl import create_impl, MPSBackendImpl
 import pickle
 import os
@@ -63,13 +63,17 @@ class MPSBackend(EmulatorBackend):
         )
         results = []
         for sequence_data in pulser_data.get_sequences():
-            impl = create_impl(sequence_data, self._config)
-            impl.init()  # This is separate from the constructor for testing purposes.
-            result = self._run(impl)
-            results.append(
-                impl.permute_results(result, self._config.optimize_qubit_ordering)
-            )
+            results.append(self._run_from_sequence_data(sequence_data, self._config))
         return Results.aggregate(results)
+
+    @staticmethod
+    def _run_from_sequence_data(
+        sequence_data: SequenceData, config: MPSConfig
+    ) -> Results:
+        impl = create_impl(sequence_data, config)
+        impl.init()  # This is separate from the constructor for testing purposes.
+        result = MPSBackend._run(impl)
+        return impl.permute_results(result, config.optimize_qubit_ordering)
 
     @staticmethod
     def _run(impl: MPSBackendImpl) -> Results:
