@@ -132,19 +132,18 @@ def new_right_bath(
     return bath
 
 
-"""
-function to compute the right baths. The three indices in the bath are as follows:
-(bond of state conj, bond of operator, bond of state)
-The baths have shape
--xx
--xx
--xx
-with the index ordering (top, middle, bottom)
-bath tensors are put on the device of the factor to the left
-"""
-
-
 def right_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
+    """
+    function to compute the right baths. The three indices in the bath are as follows:
+    (bond of state conj, bond of operator, bond of state)
+    The baths have shape
+    -xx
+    -xx
+    -xx
+    with the index ordering (top, middle, bottom)
+    bath tensors are put on the device of the factor to the left
+    """
+
     state_factor = state.factors[-1]
     bath = torch.ones(1, 1, 1, device=state_factor.device, dtype=state_factor.dtype)
     baths = [bath]
