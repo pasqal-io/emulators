@@ -215,11 +215,9 @@ class MPSBackendImpl:
 
     def init_dark_qubits(self) -> None:
         # has_state_preparation_error
-        if self.pulser_data.noise_model.state_prep_error > 0.0:
+        if self.pulser_data.state_prep_error > 0.0:
             bad_atoms = self.pulser_data.bad_atoms
-            self.well_prepared_qubits_filter = torch.logical_not(
-                torch.tensor(list(bool(x) for x in bad_atoms.values()))
-            )
+            self.well_prepared_qubits_filter = torch.logical_not(torch.tensor(bad_atoms))
         else:
             self.well_prepared_qubits_filter = None
         logging.getLogger("emulators").debug(
@@ -763,10 +761,10 @@ class DMRGBackendImpl(MPSBackendImpl):
         max_sweeps: int = 2000,
     ):
 
-        if pulser_data.noise_model.noise_types != ():
+        if mps_config.noise_model.noise_types != ():
             raise NotImplementedError(
                 "DMRG solver does not currently support noise types"
-                f"you are using: {pulser_data.noise_model.noise_types}"
+                f"you are using: {mps_config.noise_model.noise_types}"
             )
         super().__init__(mps_config, pulser_data)
         self.previous_energy: Optional[float] = None

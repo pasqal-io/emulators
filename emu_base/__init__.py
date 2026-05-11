@@ -25,4 +25,4 @@ __all__ = [
     "unix_like",
 ]
 
-__version__ = "2.7.2"
+__version__ = "2.7.4"

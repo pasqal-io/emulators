@@ -39,4 +39,4 @@ __all__ = [
     "SparseOperator",
 ]
 
-__version__ = "2.7.2"
+__version__ = "2.7.4"

@@ -1,7 +1,7 @@
 from pulser.backend import EmulatorBackend, Results, BitStrings
 from emu_sv.sv_config import SVConfig
 from emu_sv.sv_backend_impl import SVBackendImpl
-from emu_base import PulserData
+from emu_base import PulserData, SequenceData
 
 
 class SVBackend(EmulatorBackend):
@@ -32,6 +32,10 @@ class SVBackend(EmulatorBackend):
         )
         results = []
         for sequence_data in pulser_data.get_sequences():
-            impl = SVBackendImpl(self._config, sequence_data)
-            results.append(impl._run())
+            results.append(self._run_from_sequence_data(sequence_data, self._config))
         return Results.aggregate(results)
+
+    @staticmethod
+    def _run_from_sequence_data(sequence_data: SequenceData, config: SVConfig) -> Results:
+        impl = SVBackendImpl(config, sequence_data)
+        return impl._run()

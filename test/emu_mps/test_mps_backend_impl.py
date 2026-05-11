@@ -37,7 +37,7 @@ def _create_victim(constructor, dt, noise_model):
     mock_pulser_data.interaction_matrix = lambda t: torch.eye(QUBIT_COUNT)
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.dim = 2
-    mock_pulser_data.noise_model = noise_model
+    mock_pulser_data.state_prep_error = noise_model.state_prep_error
     victim = constructor(config, mock_pulser_data)
 
     assert victim.qubit_count == QUBIT_COUNT
@@ -73,7 +73,7 @@ def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
     mock_pulser_data.has_lindblad_noise = False
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.eigenstates = ("g", "r")
-    mock_pulser_data.noise_model = NoiseModel()
+    mock_pulser_data.state_prep_error = 0.0
 
     dmrg_obj = constructor(config, mock_pulser_data)
 
@@ -146,13 +146,8 @@ def test_init_dark_qubits_with_state_prep_error():
     noise_model.state_prep_error = 0.123
     victim = create_victim(noise_model=noise_model)
 
-    victim.pulser_data.bad_atoms = {
-        "q0": False,
-        "q1": True,
-        "q2": False,
-        "q3": False,
-        "q4": True,
-    }
+    victim.pulser_data.qubit_ids = ("q0", "q1", "q2", "q3", "q4")
+    victim.pulser_data.bad_atoms = (False, True, False, False, True)
 
     victim.omega = torch.tensor(
         [
@@ -264,13 +259,8 @@ def test_init_initial_state_default():
     noise_model.state_prep_error = 0.1
 
     victim = create_victim(noise_model=noise_model)
-    victim.pulser_data.bad_atoms = {
-        "q0": False,
-        "q1": True,
-        "q2": True,
-        "q3": False,
-        "q4": False,
-    }
+    victim.pulser_data.qubit_ids = ("q0", "q1", "q2", "q3", "q4")
+    victim.pulser_data.bad_atoms = (False, True, True, False, False)
     victim.eigenstates = ("g", "r")
 
     victim.config = victim.config.with_changes(precision=0.001, max_bond_dim=100)
