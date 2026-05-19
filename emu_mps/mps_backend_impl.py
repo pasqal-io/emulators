@@ -308,6 +308,8 @@ class MPSBackendImpl:
         self.left_baths = [
             torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
         ]
+        # clean up the memory in right baths, since otherwise we temporarily have
+        # both the old and the new in memory, which can cause OOM errors
         self.right_baths: list[torch.Tensor] = []
         self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
         assert len(self.right_baths) == self.qubit_count - 1
