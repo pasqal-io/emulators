@@ -1057,11 +1057,16 @@ def test_extract_omega_delta_phi_missing_qubit():
         qubit_ids=qubit_ids,
         target_times=target_times,
     )
-    omega_expected = {
-        0: torch.tensor([1.5, 2.5, 3.5, 4.5, 5.5, 6.5], dtype=dtype),  # q0
-        1: torch.zeros(pulse_duration, dtype=dtype),
-        2: torch.tensor([5.5, 4.5, 3.5, 2.5, 1.5, 0.5], dtype=dtype),  # q2
-    }
+    omega_expected = torch.tensor(
+        [
+            [1.5, 0.0, 5.5],
+            [2.5, 0.0, 4.5],
+            [3.5, 0.0, 3.5],
+            [4.5, 0.0, 2.5],
+            [5.5, 0.0, 1.5],
+            [6.5, 0.0, 0.5],
+        ],
+        dtype=dtype,
+    )
 
-    for col, expected in omega_expected.items():
-        assert torch.allclose(omega[:, col], expected)
+    assert torch.allclose(omega, omega_expected)
