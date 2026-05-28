@@ -120,10 +120,6 @@ class MPSBackendImpl:
             "Consider using the emu_sv backend."
         )
 
-        self.omega = pulser_data.omega
-        self.delta = pulser_data.delta
-        self.phi = pulser_data.phi
-        self.timestep_count: int = self.omega.shape[0]
         self.has_lindblad_noise = len(pulser_data.lindblad_ops) > 0
         self.eigenstates = pulser_data.eigenstates
         self.dim = pulser_data.dim
@@ -136,6 +132,11 @@ class MPSBackendImpl:
             if self.config.optimize_qubit_ordering
             else optimat.eye_permutation(self.qubit_count)
         )
+
+        self.omega = pulser_data.omega[:, self.qubit_permutation]
+        self.delta = pulser_data.delta[:, self.qubit_permutation]
+        self.phi = pulser_data.phi[:, self.qubit_permutation]
+        self.timestep_count: int = self.omega.shape[0]
 
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.time = time.time()

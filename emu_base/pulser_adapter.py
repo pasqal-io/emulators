@@ -123,12 +123,14 @@ def _extract_omega_delta_phi(
         raise ValueError(
             "Only `ground-rydberg` and `mw_global`(XY) channels are supported."
         )
-    qubit_ids_filtered = [qid for qid in qubit_ids if qid in locals_a_d_p]
+    qubit_ids_filtered = [
+        (qpos, qid) for qpos, qid in enumerate(qubit_ids) if qid in locals_a_d_p
+    ]
 
     target_t = torch.as_tensor(target_times, dtype=torch.float64)
     t_mid = 0.5 * (target_t[:-1] + target_t[1:])
 
-    shape = (t_mid.numel(), len(qubit_ids_filtered))
+    shape = (t_mid.numel(), len(qubit_ids))
     omega_mid = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
     delta_mid = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
     phi_mid = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
@@ -142,7 +144,7 @@ def _extract_omega_delta_phi(
         "phase": phi_mid,
     }
     for name, data_mid in laser_by_data.items():
-        for q_pos, q_id in enumerate(qubit_ids_filtered):
+        for q_pos, q_id in qubit_ids_filtered:
             signal = torch.as_tensor(locals_a_d_p[q_id][name])
             if torch.is_complex(signal) and not torch.allclose(
                 signal.imag, torch.zeros_like(signal.imag)

@@ -1025,8 +1025,7 @@ def test_non_lindbladian_noise(prefer_device_model):
 
 def test_extract_omega_delta_phi_missing_qubit():
     """
-    Test that qubits not present in the pulse samples are filtered out
-    Only qubits included in the pulser sequence are used to fill omega, delta, and phi.
+    Test that qubits not present in the pulse samples have zero omega, delta, and phi.
     """
     pulse_duration = 6
     target_times = list(range(pulse_duration + 1))
@@ -1060,7 +1059,8 @@ def test_extract_omega_delta_phi_missing_qubit():
     )
     omega_expected = {
         0: torch.tensor([1.5, 2.5, 3.5, 4.5, 5.5, 6.5], dtype=dtype),  # q0
-        1: torch.tensor([5.5, 4.5, 3.5, 2.5, 1.5, 0.5], dtype=dtype),  # q2
+        1: torch.zeros(pulse_duration, dtype=dtype),
+        2: torch.tensor([5.5, 4.5, 3.5, 2.5, 1.5, 0.5], dtype=dtype),  # q2
     }
 
     for col, expected in omega_expected.items():
