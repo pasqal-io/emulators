@@ -1269,7 +1269,7 @@ def test_qubit_reordering_no_interaction():
     reg = pulser.Register.rectangle(4, 4, spacing=1e10, prefix="q")
     seq = pulser.Sequence(reg, pulser.MockDevice)
     seq.declare_channel("ising", "rydberg_local")
-    seq.target("q4", "ising")
+    seq.target(["q4", "q5"], "ising")
     duration = 1000
     seq.add(
         pulser.Pulse.ConstantAmplitude(
@@ -1284,10 +1284,11 @@ def test_qubit_reordering_no_interaction():
     backend = MPSBackend(seq, config=config)
     with patch("emu_mps.mps_backend_impl.optimat.minimize_bandwidth") as reordering_mock:
         reordering_mock.return_value = torch.tensor(
-            [0, 4, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+            [0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
         )
         results = backend.run()
     occ = np.array(results.occupation[-1])
     expected_occ = np.zeros_like(occ)
     expected_occ[4] = 1
+    expected_occ[5] = 1
     np.testing.assert_allclose(occ, expected_occ)
