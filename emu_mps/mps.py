@@ -507,7 +507,12 @@ class MPS(State[complex, torch.Tensor]):
             else self.orthogonalize(0)
         )
 
-        result = torch.zeros(self.num_sites, single_qubit_operators.shape[0], dtype=dtype)
+        result = torch.zeros(
+            self.num_sites,
+            single_qubit_operators.shape[0],
+            dtype=dtype,
+            device=self.factors[0].device,
+        )
 
         center_factor = self.factors[orthogonality_center]
         for qubit_index in range(orthogonality_center, self.num_sites):

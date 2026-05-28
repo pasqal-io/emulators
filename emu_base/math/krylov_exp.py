@@ -44,7 +44,9 @@ def krylov_exp_impl(
     v /= initial_norm
 
     lanczos_vectors = [v]
-    T = torch.zeros(max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype)
+    T = torch.zeros(
+        max_krylov_dim + 2, max_krylov_dim + 2, dtype=v.dtype, device=v.device
+    )
 
     for j in range(max_krylov_dim):
         w = op(lanczos_vectors[-1])
