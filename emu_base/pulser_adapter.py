@@ -317,7 +317,10 @@ class PulserData:
                     phi,
                     interaction_matrix,
                     tuple(samples.trajectory.bad_atoms.keys()),
-                    tuple(samples.trajectory.bad_atoms.values()),
+                    tuple(
+                        True if x else False
+                        for x in samples.trajectory.bad_atoms.values()
+                    ),
                     self.lindblad_ops,
                     self.noise_model.state_prep_error,
                     self.target_times,
