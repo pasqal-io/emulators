@@ -128,22 +128,23 @@ def create_omega_delta_phi(nqubits: int):
 def test_2_qubit(basis):
     n_atoms = 2
     dim = len(basis)
-    if basis == ("g", "r") or ("g", "r", "x"):
+    if basis == ("g", "r") or basis == ("g", "r", "x"):
         hamiltonian_type = HamiltonianType.Rydberg
-
     elif basis == ("0", "1"):
         hamiltonian_type = HamiltonianType.XY
 
     num_gpus = 0
     omega, delta, phi = create_omega_delta_phi(n_atoms)
     if hamiltonian_type == HamiltonianType.Rydberg:
-        interaction_matrix = torch.tensor([[0.0000, 5.4202], [5.4202, 0.0000]])
+        interaction_matrix = torch.tensor([[[0.0000, 5.4202], [5.4202, 0.0000]]], dtype=torch.float64)
+        ops = torch.tensor([[[[0.,0.],[0.,1.]], [[0.,0.],[0.,1.]]]], dtype=torch.float64)
     elif hamiltonian_type == HamiltonianType.XY:
-        interaction_matrix = torch.tensor([[0.0000, 3.7000], [3.7000, 0.0000]])
+        interaction_matrix = torch.tensor([[[0.0000, 3.7000], [3.7000, 0.0000]], [[0.0000, 3.7000], [3.7000, 0.0000]]], dtype=torch.float64)
+        ops = torch.tensor([[[[0.,0.5],[0.5,0.]], [[0.,0.5],[0.5,0.]]], [[[0.,-0.5j],[0.5j,0.]], [[0.,-0.5j],[0.5j,0.]]]], dtype=torch.complex128)
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
-        hamiltonian_type=hamiltonian_type,
+        interaction_ops=ops,
         dim=dim,
         num_gpus_to_use=num_gpus,
     )
@@ -168,7 +169,7 @@ def test_2_qubit(basis):
     )
     dev = sv.device  # could be cpu or gpu depending on Config
     expected = sv_hamiltonian(
-        interaction_matrix,
+        interaction_matrix[0],
         omega,
         delta,
         phi,

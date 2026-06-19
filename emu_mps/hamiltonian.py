@@ -21,14 +21,14 @@ class Operators:
     sy = torch.tensor([[0.0, -0.5j], [0.5j, 0.0]], dtype=dtype)
 
 
-class HamiltonianMPOFactors(ABC):
+class HamiltonianMPOFactors:
     """Abstract class for MPO factors of a two-body Hamiltonian.
 
     Subclasses implement the local MPO tensor at each position in the chain:
     first site, left half, middle, right half, and last site.
     """
 
-    def __init__(self, interaction_matrix: torch.Tensor, dim: int = 2):
+    def __init__(self, interaction_matrix: torch.Tensor, interaction_ops:torch.Tensor, dim: int = 2):
         self._validate_interaction_matrix(interaction_matrix)
 
         if dim not in (2, 3):
@@ -36,16 +36,16 @@ class HamiltonianMPOFactors(ABC):
         self.dim = dim
 
         self.interaction_matrix = interaction_matrix.clone()
-        self.interaction_matrix.fill_diagonal_(0.0)  # or assert
-        self.num_sites = self.interaction_matrix.shape[0]
+        self.interaction_ops = interaction_ops
+        self.num_sites = self.interaction_matrix.shape[1]
         self.middle_site = self.num_sites // 2
         self.identity = Operators.id if self.dim == 2 else Operators.id_3x3
 
     @staticmethod
     def _validate_interaction_matrix(matrix: torch.Tensor) -> None:
-        if matrix.ndim != 2:
+        if matrix.ndim != 3:
             raise ValueError("interaction_matrix must be 2-dimensional.")
-        if matrix.shape[0] != matrix.shape[1]:
+        if matrix.shape[1] != matrix.shape[2]:
             raise ValueError("interaction_matrix must be square.")
 
     def __iter__(self) -> Iterator[torch.Tensor]:
@@ -63,9 +63,20 @@ class HamiltonianMPOFactors(ABC):
 
         yield self.last_factor()
 
-    @abstractmethod
     def first_factor(self) -> torch.Tensor:
         """Return the MPO factor for the first site."""
+        has_right_interaction = self._has_right_interaction(site=0)
+
+        left_bond_dim = 1
+        right_bond_dim = 2 + sum(has_right_interaction)
+        factor = self._empty_factor(left_bond_dim, right_bond_dim)
+
+        factor[0, :, :, 1] = self.identity
+        for i,b in enumerate(has_right_interaction):
+            if b:
+                factor[0, :2, :2, 2+i] = self.interaction_ops[i, 0]
+
+        return factor
 
     @abstractmethod
     def left_factor(self, n: int) -> torch.Tensor:
@@ -84,12 +95,26 @@ class HamiltonianMPOFactors(ABC):
     @abstractmethod
     def last_factor(self) -> torch.Tensor:
         """Return the MPO factor for the last site."""
+        has_left_interaction = self._has_left_interaction(site=-1)
 
-    def _has_right_interaction(self, site: int) -> bool:
-        return bool(self.interaction_matrix[site, site + 1 :].any())
+        left_bond_dim = 2 + sum(has_left_interaction)
+        right_bond_dim = 1
+        factor = self._empty_factor(left_bond_dim, right_bond_dim)
+        factor[0, :, :, 0] = self.identity
 
-    def _has_left_interaction(self, site: int) -> bool:
-        return bool(self.interaction_matrix[site, :site].any())
+        for i,b in enumerate(has_left_interaction):
+            if b:
+                coeff = self.interaction_matrix[i,0,1] if self.num_sites == 2 else 1
+                factor[2+i, :2, :2, 0] = coeff * self.interaction_ops[i, 1]
+        return factor
+
+    def _has_right_interaction(self, site: int) -> list[bool]:
+        """Returns a Tensor filled with bool, one for each interaction term"""
+        return list(bool(mat[site, site + 1 :].any()) for mat in self.interaction_matrix)
+
+    def _has_left_interaction(self, site: int) -> list[bool]:
+        """Returns a Tensor filled with bool, one for each interaction term"""
+        return list(bool(mat[site, :site].any()) for mat in self.interaction_matrix)
 
     def _empty_factor(self, left_bond_dim: int, right_bond_dim: int) -> torch.Tensor:
         return torch.zeros(
@@ -149,17 +174,7 @@ class HamiltonianMPOFactors(ABC):
 
 class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
     def first_factor(self) -> torch.Tensor:
-        has_right_interaction = self._has_right_interaction(site=0)
-
-        left_bond_dim = 1
-        right_bond_dim = 3 if has_right_interaction else 2
-        factor = self._empty_factor(left_bond_dim, right_bond_dim)
-
-        factor[0, :, :, 1] = self.identity
-        if has_right_interaction:
-            factor[0, :2, :2, 2] = Operators.n
-
-        return factor
+        pass
 
     def left_factor(self, n: int) -> torch.Tensor:
         has_right_interaction = self._has_right_interaction(site=n)
@@ -399,7 +414,7 @@ class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
 def make_H(
     *,
     interaction_matrix: torch.Tensor,  # depends on Hamiltonian Type
-    hamiltonian_type: HamiltonianType,
+    interaction_ops: torch.Tensor,
     dim: int = 2,
     num_gpus_to_use: int | None,
 ) -> MPO:
@@ -445,19 +460,10 @@ def make_H(
 
     """
 
-    if hamiltonian_type == HamiltonianType.Rydberg:
-        return MPO(
-            list(RydbergHamiltonianMPOFactors(interaction_matrix, dim=dim)),
+    return MPO(
+            list(HamiltonianMPOFactors(interaction_matrix, interaction_ops, dim=dim)),
             num_gpus_to_use=num_gpus_to_use,
         )
-
-    if hamiltonian_type == HamiltonianType.XY:
-        return MPO(
-            list(XYHamiltonianMPOFactors(interaction_matrix, dim=dim)),
-            num_gpus_to_use=num_gpus_to_use,
-        )
-
-    raise ValueError(f"Unsupported hamiltonian_type: {hamiltonian_type}")
 
 
 def update_H(
