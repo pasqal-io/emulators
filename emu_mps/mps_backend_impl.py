@@ -140,7 +140,7 @@ class MPSBackendImpl:
         self.phi = pulser_data.phi[:, self.qubit_permutation]
         self.timestep_count: int = self.omega.shape[0]
 
-        # move to emu-sv when it supports non-rydberg?
+        # move to emu-base when emu-sv supports non-rydberg?
         interaction_ops: torch.Tensor
         if pulser_data.hamiltonian_type == HamiltonianType.Rydberg:
             interaction_ops = torch.tensor(
