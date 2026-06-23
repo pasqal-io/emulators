@@ -1247,7 +1247,7 @@ def test_run_from_sequence_data():
         omega=omega,
         delta=torch.zeros_like(omega),
         phi=torch.zeros_like(omega),
-        interaction_matrix=lambda x: torch.zeros((3, 3), dtype=torch.float64),
+        interaction_matrix=lambda x: torch.zeros((1, 3, 3), dtype=torch.float64),
         qubit_ids=("q0", "q1", "q2"),
         bad_atoms=(False, False, False),
         lindblad_ops=[],

@@ -139,8 +139,8 @@ class SVBackendImpl:
 
             def interaction_matrix(t: float) -> torch.Tensor:
                 mat = original(t).clone()
-                mat[indices, :] = 0.0
-                mat[:, indices] = 0.0
+                mat[:, indices, :] = 0.0
+                mat[:, :, indices] = 0.0
                 return mat
 
             self.interaction_matrix = interaction_matrix
@@ -168,7 +168,7 @@ class SVBackendImpl:
             self.omega[step_idx],
             self.delta[step_idx],
             self.phi[step_idx],
-            self.interaction_matrix(self.target_times[step_idx]),
+            self.interaction_matrix(self.target_times[step_idx])[0],
             self.state.data,
             self._config.krylov_tolerance,
             self.pulser_lindblads,
@@ -213,7 +213,7 @@ class SVBackendImpl:
                 pulser_lindblads=self.pulser_lindblads,
                 interaction_matrix=self.interaction_matrix(
                     0.5 * (self.target_times[step_idx] + self.target_times[step_idx + 1])
-                ),
+                )[0],
                 device=self.state.data.device,
             )
         for callback in callbacks_for_current_time_step:

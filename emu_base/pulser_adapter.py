@@ -287,6 +287,14 @@ class PulserData:
 
             full_interaction_matrix = full_interaction_matrix.clone()
 
+            # This will be handled in pulser from version 1.9
+            if self.hamiltonian_type == HamiltonianType.Rydberg:
+                full_interaction_matrix = full_interaction_matrix.unsqueeze(0)
+            elif self.hamiltonian_type == HamiltonianType.XY:
+                full_interaction_matrix = torch.stack([full_interaction_matrix] * 2)
+            else:
+                raise ValueError(f"Unsupported hamiltonian type: {self.hamiltonian_type}")
+
             full_interaction_matrix[
                 torch.abs(full_interaction_matrix) < self.interaction_cutoff
             ] = 0.0
@@ -297,8 +305,8 @@ class PulserData:
 
             slm_targets = list(self._sequence._slm_mask_targets)
             for target in self._sequence.register.find_indices(slm_targets):
-                masked_interaction_matrix[target] = 0.0
                 masked_interaction_matrix[:, target] = 0.0
+                masked_interaction_matrix[:, :, target] = 0.0
 
             omega, delta, phi = _extract_omega_delta_phi(
                 samples.samples, self.qubit_ids, self.target_times

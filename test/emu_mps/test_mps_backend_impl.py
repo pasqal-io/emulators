@@ -9,6 +9,8 @@ from emu_mps.mps_backend_impl import (
     permute_bitstrings,
     permute_occupations_and_correlations,
 )
+
+from emu_base import HamiltonianType
 from emu_mps.mps_config import MPSConfig
 from pulser import NoiseModel
 import math
@@ -34,7 +36,8 @@ def _create_victim(constructor, dt, noise_model):
     mock_pulser_data = MagicMock()
     mock_pulser_data.qubit_count = QUBIT_COUNT
     mock_pulser_data.qubit_ids = tuple([i for i in range(QUBIT_COUNT)])
-    mock_pulser_data.interaction_matrix = lambda t: torch.eye(QUBIT_COUNT)
+    mock_pulser_data.interaction_matrix = lambda t: torch.eye(QUBIT_COUNT).unsqueeze(0)
+    mock_pulser_data.hamiltonian_type = HamiltonianType.Rydberg
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.dim = 2
     mock_pulser_data.state_prep_error = noise_model.state_prep_error
@@ -69,7 +72,8 @@ def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
     mock_pulser_data = MagicMock()
     mock_pulser_data.qubit_count = QUBIT_COUNT
     mock_pulser_data.qubit_ids = tuple([i for i in range(QUBIT_COUNT)])
-    mock_pulser_data.interaction_matrix = lambda t: torch.eye(QUBIT_COUNT)
+    mock_pulser_data.interaction_matrix = lambda t: torch.eye(QUBIT_COUNT).unsqueeze(0)
+    mock_pulser_data.hamiltonian_type = HamiltonianType.Rydberg
     mock_pulser_data.has_lindblad_noise = False
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.eigenstates = ("g", "r")
@@ -386,11 +390,13 @@ def test_get_interaction_matrix_with_dark_qubits_no_permutation():
     # Create a known interaction matrix
     test_matrix = torch.tensor(
         [
-            [0, 1, 2, 3, 4],
-            [10, 11, 12, 13, 14],
-            [20, 21, 22, 23, 24],
-            [30, 31, 32, 33, 34],
-            [40, 41, 42, 43, 44],
+            [
+                [0, 1, 2, 3, 4],
+                [10, 11, 12, 13, 14],
+                [20, 21, 22, 23, 24],
+                [30, 31, 32, 33, 34],
+                [40, 41, 42, 43, 44],
+            ]
         ],
         dtype=torch.float64,
     )

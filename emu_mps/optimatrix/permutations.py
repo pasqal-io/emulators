@@ -100,6 +100,7 @@ def permute_tensor(tensor: torch.Tensor, perm: torch.Tensor) -> torch.Tensor:
     Permute a 1D or square 2D torch tensor using the given permutation indices.
     For 1D tensors, applies the permutation to the elements.
     For 2D square tensors, applies the same permutation to both rows and columns.
+    When the rank of `tensor` is > 2, it assumes a batch of square tensors.
 
     Parameters
     ----------
@@ -137,8 +138,8 @@ def permute_tensor(tensor: torch.Tensor, perm: torch.Tensor) -> torch.Tensor:
     """
     if tensor.ndim == 1:
         return tensor[perm]
-    elif tensor.ndim == 2 and tensor.shape[0] == tensor.shape[1]:
-        return tensor[perm][:, perm]
+    elif tensor.ndim > 1 and tensor.shape[-2] == tensor.shape[-1]:
+        return tensor.index_select(-2, perm).index_select(-1, perm)
     else:
         raise ValueError("Only 1D tensors or square 2D tensors are supported.")
 
