@@ -218,8 +218,6 @@ class HamiltonianMPOFactors:
                 if right_interactions_to_keep[ind][current_right_interaction]:
                     factor[i, :, :, j] = self.identity
                     i += 1
-                else:
-                    print("not")
                 j += 1
 
         return factor
