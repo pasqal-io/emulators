@@ -14,7 +14,6 @@ from enum import Enum, auto
 from types import MethodType
 from typing import Any, Optional
 
-import numpy as np
 import torch
 from pulser.backend import EmulationConfig, Observable, Results, State
 
@@ -144,10 +143,10 @@ class MPSBackendImpl:
         interaction_ops: torch.Tensor
         if pulser_data.hamiltonian_type == HamiltonianType.Rydberg:
             interaction_ops = torch.tensor(
-                [[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.float64
+                [[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.complex128
             )
         elif pulser_data.hamiltonian_type == HamiltonianType.XY:
-            interaction_ops = np.sqrt(2) * torch.tensor(
+            interaction_ops = 2**0.5 * torch.tensor(
                 [[[0.0, 0.5], [0.5, 0.0]], [[0.0, -0.5j], [0.5j, 0.0]]],
                 dtype=torch.complex128,
             )

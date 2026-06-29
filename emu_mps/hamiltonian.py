@@ -20,10 +20,9 @@ class Operators:
 
 
 class HamiltonianMPOFactors:
-    """Abstract class for MPO factors of a two-body Hamiltonian.
+    """Creates the MPO factors of a two-body Hamiltonian.
 
-    Subclasses implement the local MPO tensor at each position in the chain:
-    first site, left half, middle, right half, and last site.
+    Fills the single qubit terms with zeros for modifying in-place.
     """
 
     def __init__(
@@ -238,11 +237,11 @@ class HamiltonianMPOFactors:
         return factor
 
     def _has_right_interaction(self, site: int) -> list[bool]:
-        """Returns a Tensor filled with bool, one for each interaction term"""
+        """Returns a list of booleans, one for each interaction term"""
         return list(bool(mat[site, site + 1 :].any()) for mat in self.interaction_matrix)
 
     def _has_left_interaction(self, site: int) -> list[bool]:
-        """Returns a Tensor filled with bool, one for each interaction term"""
+        """Returns a list of booleans, one for each interaction term"""
         return list(bool(mat[site, :site].any()) for mat in self.interaction_matrix)
 
     def _empty_factor(self, left_bond_dim: int, right_bond_dim: int) -> torch.Tensor:
@@ -329,17 +328,13 @@ def make_H(
     The linear term of the Hamiltonian is
     H_0 = ∑ⱼΩⱼ[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] - ∑ⱼΔⱼnⱼ
 
-    The Rydberg Hamiltonian is given by:
-    H_Ryd = H_0 + ∑ᵢ﹥ⱼC⁶/rᵢⱼ⁶ nᵢnⱼ
-
-    The XY Hamiltonian is given by:
-    H_XY = H_0 + ∑ᵢ﹥ⱼC₃/rᵢⱼ³ 2(SˣᵢSˣⱼ + SʸᵢSʸⱼ)
+    The Interaction term is given by:
+    H_int = H_0
+      + ∑ₖ∑ᵢ﹥ⱼinteraction_matrix[k,i,j] interaction_ops[k]_i interaction_ops[k]_j
 
     If noise is considered, the Hamiltonian includes an additional term to
     support the Monte Carlo WaveFunction algorithm:
-    H = H_Ryd - 0.5i∑ₘ ∑ᵤ Lₘᵘ⁺ Lₘᵘ
-    or
-    H = H_XY - 0.5i∑ₘ ∑ᵤ Lₘᵘ⁺ Lₘᵘ
+    H = H_int - 0.5i∑ₘ ∑ᵤ Lₘᵘ⁺ Lₘᵘ
     where Lₘᵘ are the Lindblad operators representing the noise,
     m for noise channel and u for the number of atoms
 
@@ -350,7 +345,7 @@ def make_H(
     Args:
         interaction_matrix (torch.Tensor): The interaction matrix describing
         the interactions between qubits.
-        hamiltonian_type: whether to use XY or Rydberg interation
+        interaction_ops: the interaction operator to use, see above.
         dim: dimension of the basis (2 or 3)
         num_gpus_to_use (int): how many gpus to put the Hamiltonian on.
         See utils.assign_devices

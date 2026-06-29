@@ -139,7 +139,7 @@ class SVBackendImpl:
 
             def interaction_matrix(t: float) -> torch.Tensor:
                 mat = original(t).clone()
-                mat[:, indices, :] = 0.0
+                mat[:, indices] = 0.0
                 mat[:, :, indices] = 0.0
                 return mat
 
