@@ -37,7 +37,7 @@ class HamiltonianMPOFactors:
             raise ValueError(f"dim must be 2 or 3, got {dim}")
         self.dim = dim
 
-        self.interaction_matrix = interaction_matrix.clone()
+        self.interaction_matrix = interaction_matrix.clone().cpu()
         self.interaction_ops = interaction_ops
         self.num_sites = self.interaction_matrix.shape[1]
         self.middle_site = self.num_sites // 2
