@@ -1212,7 +1212,10 @@ def test_observables_time_0():
     assert torch.isreal(result.energy[0])
 
 
-def test_run_from_sequence_data():
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_run_from_sequence_data(device):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("This test needs a GPU with CUDA installed")
     duration = 100
     dt = 10
 
@@ -1247,7 +1250,9 @@ def test_run_from_sequence_data():
         omega=omega,
         delta=torch.zeros_like(omega),
         phi=torch.zeros_like(omega),
-        interaction_matrix=lambda x: torch.zeros((3, 3), dtype=torch.float64),
+        interaction_matrix=lambda x: torch.zeros(
+            (1, 3, 3), device=device, dtype=torch.float64
+        ),
         qubit_ids=("q0", "q1", "q2"),
         bad_atoms=(False, False, False),
         lindblad_ops=[],

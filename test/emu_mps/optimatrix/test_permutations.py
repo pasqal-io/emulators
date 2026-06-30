@@ -91,7 +91,7 @@ def test_implementation_permute_tensor_2D() -> None:
 
 
 def test_implementation_permute_tensor_ND() -> None:
-    tensor_3d = torch.tensor([[[42]]])
+    tensor_3d = torch.tensor([[[42], [43]]])
     err_msg = "Only 1D tensors or square 2D tensors are supported."
     with pytest.raises(ValueError, match=err_msg):
         permute_tensor(tensor_3d, torch.tensor([0]))
