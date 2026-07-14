@@ -165,6 +165,15 @@ def energy_second_moment_sv_impl(
     Custom implementation of the second moment of energy ❬ψ|H²|ψ❭
     for the state vector solver.
     """
+    if hamiltonian.noise is not None:
+        hamiltonian = RydbergHamiltonian(
+            omegas=hamiltonian.omegas * 2.0,
+            deltas=hamiltonian.deltas,
+            phis=hamiltonian.phis,
+            interaction_matrix=hamiltonian.interaction_matrix,
+            device=hamiltonian.device,
+            noise=None,
+        )
     hstate = hamiltonian * state.data
     en_2_mom: torch.Tensor = torch.vdot(hstate, hstate).real
     return en_2_mom.cpu()

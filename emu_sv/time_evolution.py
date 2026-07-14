@@ -2,6 +2,7 @@ import torch
 from typing import Any, no_type_check
 from emu_base.math.krylov_exp import krylov_exp
 from emu_base.math.double_krylov import double_krylov
+from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 
@@ -138,6 +139,7 @@ class EvolveStateVector(torch.autograd.Function):
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=device,
+            noise=None,
         )
 
     @staticmethod
@@ -389,6 +391,62 @@ class EvolveDensityMatrix:
             pulser_lindblads=pulser_lindblads,
             interaction_matrix=interaction_matrix,
             device=device,
+        )
+
+    @staticmethod
+    def apply(
+        dt: float,
+        omegas: torch.Tensor,
+        deltas: torch.Tensor,
+        phis: torch.Tensor,
+        full_interaction_matrix: torch.Tensor,
+        density_matrix: torch.Tensor,
+        krylov_tolerance: float,
+        pulser_lindblads: list[torch.Tensor],
+    ) -> tuple[torch.Tensor, RydbergLindbladian]:
+        ham = EvolveDensityMatrix.get_hamiltonian(
+            omegas=omegas,
+            deltas=deltas,
+            phis=phis,
+            pulser_lindblads=pulser_lindblads,
+            interaction_matrix=full_interaction_matrix,
+            device=density_matrix.device,
+        )
+
+        def op(x: torch.Tensor) -> torch.Tensor:
+            return -1j * dt * (ham @ x)
+
+        return (
+            krylov_exp(
+                op,
+                density_matrix,
+                norm_tolerance=krylov_tolerance,
+                exp_tolerance=krylov_tolerance,
+                is_hermitian=False,
+            ),
+            ham,
+        )
+
+
+class EvolveMonteCarlo:
+    """Evolution of a state vector under Monte Carlo quantum jumps."""
+
+    @staticmethod
+    def get_hamiltonian(
+        omegas: torch.Tensor,
+        deltas: torch.Tensor,
+        phis: torch.Tensor,
+        pulser_lindblads: list[torch.Tensor],
+        interaction_matrix: torch.Tensor,
+        device: torch.device,
+    ) -> RydbergHamiltonian:
+        return RydbergHamiltonian(
+            omegas=omegas,
+            deltas=deltas,
+            phis=phis,
+            interaction_matrix=interaction_matrix,
+            device=device,
+            noise=compute_noise_from_lindbladians(pulser_lindblads),
         )
 
     @staticmethod

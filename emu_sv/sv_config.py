@@ -27,6 +27,7 @@ from pulser.backend import (
     EnergyVariance,
     Occupation,
 )
+from .solver import Solver
 
 
 class SVConfig(EmulationConfig):
@@ -51,6 +52,9 @@ class SVConfig(EmulationConfig):
             Potentially improves runtime and memory consumption.
         log_level: How much to log. Set to `logging.WARN` to get rid of the timestep info.
         log_file: If specified, log to this file rather than stout.
+        solver: The solver to use in the presence of Lindblad noise.
+            By default it will use Monte Carlo quantum jumps if shot noise is present,
+            and the Lindblad equation with density matrices otherwise.
         kwargs: arguments that are passed to the base class
 
     Examples:
@@ -78,9 +82,11 @@ class SVConfig(EmulationConfig):
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
+        solver: Solver = Solver.DEFAULT,
         **kwargs: Any,
     ):
         super().__init__(
+            solver=solver,
             dt=dt,
             max_krylov_dim=max_krylov_dim,
             gpu=gpu,
@@ -112,6 +118,7 @@ class SVConfig(EmulationConfig):
             "interaction_cutoff",
             "log_level",
             "log_file",
+            "solver",
         }
 
     def monkeypatch_observables(self) -> None:

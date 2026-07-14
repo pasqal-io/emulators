@@ -46,6 +46,7 @@ def test_double_krylov(N, tolerance):
         phis=phis,
         interaction_matrix=interactions,
         device=device,
+        noise=None,
     )
 
     def op(x):

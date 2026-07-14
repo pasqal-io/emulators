@@ -188,7 +188,6 @@ def test_matmul_linblad_class():
 
 
 def test_expect():
-
     # testing tr(𝜌 H), where H= U₀₁ n₀⊗ n₁ + U₁₂ n₁⊗ n₂ and with U₀₁ = U₁₂ = 1
     # For 3 atoms, H gives diag(0,0,0,1,0,0,1,2), the rest elements are 0
     # expectation is always calculated without jumps opearators

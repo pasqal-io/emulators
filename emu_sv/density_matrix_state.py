@@ -64,14 +64,23 @@ class DensityMatrix(State[complex, torch.Tensor]):
         raise NotImplementedError("Not implemented")
 
     def __rmul__(self, scalar: complex) -> DensityMatrix:
-        raise NotImplementedError("Not implemented")
+        return DensityMatrix(self.data * scalar, gpu=self.data.device == "cuda")
 
     def _normalize(self) -> None:
         # NOTE: use this in the callbacks
         """Normalize the density matrix state"""
-        matrix_trace = torch.trace(self.data)
+        matrix_trace = torch.trace(self.data).real
         if not torch.allclose(matrix_trace, torch.tensor(1.0, dtype=torch.float64)):
             self.data = self.data / matrix_trace
+
+    def norm(self) -> torch.Tensor:
+        """Returns the norm of the state
+
+        Returns:
+            the norm of the state
+        """
+        nrm: torch.Tensor = torch.trace(self.data).real.cpu()
+        return nrm
 
     def overlap(self, other: State) -> torch.Tensor:
         """

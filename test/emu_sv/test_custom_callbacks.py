@@ -145,6 +145,7 @@ def test_custom_energy_and_variance_and_second(noise) -> None:
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=device,
+            noise=None,
         )
         energy_variance = energy_variance_sv_impl(
             energy_variance_mock, config=config, state=state, hamiltonian=hamiltonian
