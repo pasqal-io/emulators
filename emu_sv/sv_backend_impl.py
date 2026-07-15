@@ -15,7 +15,7 @@ from emu_sv.solver import Solver
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
 from emu_sv.sv_config import SVConfig
-from emu_sv.time_evolution import EvolveStateVector, EvolveDensityMatrix, EvolveMonteCarlo
+from emu_sv.time_evolution import EvolveStateVector, EvolveDensityMatrix, EvolveMonteCarlo, BaseStepper
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
 
@@ -75,7 +75,7 @@ class SVBackendImpl:
     def __init__(self, config: SVConfig, data: SequenceData):
         self.pulser_lindblads = data.lindblad_ops
         stepper: (
-            type[EvolveStateVector] | type[EvolveDensityMatrix] | type[EvolveMonteCarlo]
+            type[EvolveStateVector] | BaseStepper
         )
         state_type: type[StateVector] | type[DensityMatrix]
         if self.pulser_lindblads:
@@ -83,10 +83,10 @@ class SVBackendImpl:
                 config.solver == Solver.DEFAULT
                 and _has_stochastic_noise(config.noise_model)
             ) or config.solver == Solver.MONTECARLO:
-                stepper = EvolveMonteCarlo
+                stepper = EvolveMonteCarlo()
                 state_type = StateVector
             else:
-                stepper = EvolveDensityMatrix
+                stepper = EvolveDensityMatrix()
                 state_type = DensityMatrix
         else:
             stepper = EvolveStateVector
