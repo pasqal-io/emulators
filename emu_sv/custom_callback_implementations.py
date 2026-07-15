@@ -127,6 +127,15 @@ def energy_variance_sv_impl(
     """
     Custom implementation of the energy variance ❬ψ|H²|ψ❭-❬ψ|H|ψ❭² for the state vector solver.
     """
+    if hamiltonian.noise is not None:
+        hamiltonian = RydbergHamiltonian(
+            omegas=hamiltonian.omegas * 2.0,
+            deltas=hamiltonian.deltas,
+            phis=hamiltonian.phis,
+            interaction_matrix=hamiltonian.interaction_matrix,
+            device=hamiltonian.device,
+            noise=None,
+        )
     hstate = hamiltonian * state.data
     h_squared = torch.vdot(hstate, hstate).real
     energy = torch.vdot(state.data, hstate).real
