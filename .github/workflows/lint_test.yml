@@ -63,7 +63,7 @@ jobs:
     if: github.event.action != 'closed' # No need to build docs when PR is closed
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout QoolQit
+      - name: Checkout emulators
         uses: actions/checkout@v7
 
       - name: Set up Python
@@ -71,9 +71,10 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Install QoolQit & build documentation
+      - name: Install everything & build documentation
         run: |
-          pip install -e .[dev]
+          pip install -e .
+          pip install -r doc_requirements.txt
           mkdocs build --clean --strict
 
       - name: Upload site artifact
