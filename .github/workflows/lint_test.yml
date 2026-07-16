@@ -10,56 +10,56 @@ on:
     branches:
       - main
 jobs:
-#  lint:
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v4
-#      - uses: actions/setup-python@v5
-#        with:
-#          python-version: "3.10"
-#      - run: pip install pre-commit "doc-checker @ git+https://github.com/pasqal-io/doc_checker.git"
-#      - run: pip install -e .
-#      - run: pre-commit install
-#      - run: pre-commit run --all-files
-#  check_dependency_versions:
-#    needs: lint
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v4
-#      - run: python ./test_dependency_versions.py
-#  test:
-#    needs: check_dependency_versions
-#    runs-on: ${{ matrix.os }}
-#    strategy:
-#      matrix:
-#        os: [ubuntu-latest, macos-latest, windows-latest]
-#        python-version: ["3.10", "3.11", "3.12"]
-#    steps:
-#      - uses: actions/checkout@v4
-#      - uses: actions/setup-python@v5
-#        with:
-#          python-version: ${{ matrix.python-version }}
-#      - run: pip install -r test_requirements.txt
-#      - run: pip install -e .
-#      - run: pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv --cov=optimatrix
-#      - run: pytest --nbmake -k ipynb
-#      - run: readme-cov
-#  test_ci_pyproject_installs:
-#    needs: test
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v4
-#      - uses: actions/setup-python@v5
-#        with:
-#          python-version: '3.12'
-#      - run: |
-#          for pyproject in ci/*/pyproject.toml; do
-#            dir=$(dirname "$pyproject")
-#            pip install "$dir" || exit 1
-#            python -c "import `basename $dir`"
-#          done
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install pre-commit "doc-checker @ git+https://github.com/pasqal-io/doc_checker.git"
+      - run: pip install -e .
+      - run: pre-commit install
+      - run: pre-commit run --all-files
+  check_dependency_versions:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python ./test_dependency_versions.py
+  test:
+    needs: check_dependency_versions
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -r test_requirements.txt
+      - run: pip install -e .
+      - run: pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv --cov=optimatrix
+      - run: pytest --nbmake -k ipynb
+      - run: readme-cov
+  test_ci_pyproject_installs:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          for pyproject in ci/*/pyproject.toml; do
+            dir=$(dirname "$pyproject")
+            pip install "$dir" || exit 1
+            python -c "import `basename $dir`"
+          done
   preview_docs:
-    #needs: test
+    needs: test
     if: github.event.action != 'closed' # No need to build docs when PR is closed
     runs-on: ubuntu-latest
     steps:
