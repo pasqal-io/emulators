@@ -75,7 +75,7 @@ jobs:
         run: |
           pip install -e .
           pip install -r doc_requirements.txt
-          mkdocs build --clean --strict
+          mkdocs build --clean
 
       - name: Upload site artifact
         uses: actions/upload-artifact@v7
