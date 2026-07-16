@@ -1,7 +1,9 @@
 from unittest.mock import MagicMock
 import torch
-from emu_sv import SVConfig, SVBackend, Occupation
+from pulser import NoiseModel
+from emu_sv import SVConfig, SVBackend, Occupation, Solver
 from emu_sv.sv_backend_impl import SVBackendImpl
+from emu_sv.time_evolution import EvolveDensityMatrix, EvolveMonteCarlo, EvolveStateVector
 from emu_base import SequenceData, HamiltonianType
 import pytest
 import logging
@@ -77,3 +79,57 @@ def test_run_from_sequence_data():
     assert results.get_result_times("occupation") == occup.evaluation_times.tolist()
     assert results.occupation[0] == pytest.approx(0.0)
     assert results.occupation[-1] == pytest.approx(1.0)
+
+
+def test_backend_impl_stepper_logic():
+    mock_config = MagicMock()
+    mock_config.initial_state = None
+    mock_config.solver = Solver.DEFAULT
+
+    mock_sequence = MagicMock()
+    mock_sequence.state_prep_error = 0.0
+    mock_sequence.lindblad_ops = [1.0, 2.0]
+    backend_impl = SVBackendImpl(mock_config, mock_sequence)
+    assert type(backend_impl.stepper) is EvolveDensityMatrix
+
+    mock_sequence = MagicMock()
+    mock_sequence.state_prep_error = 0.0
+    mock_sequence.lindblad_ops = []
+    backend_impl = SVBackendImpl(mock_config, mock_sequence)
+    assert backend_impl.stepper == EvolveStateVector
+
+    mock_config.noise_model = NoiseModel(amp_sigma=0.1)
+    mock_sequence = MagicMock()
+    mock_sequence.state_prep_error = 0.0
+    mock_sequence.lindblad_ops = [1.0, 2.0]
+    backend_impl = SVBackendImpl(mock_config, mock_sequence)
+    assert type(backend_impl.stepper) is EvolveMonteCarlo
+
+    mock_config.noise_model = NoiseModel(amp_sigma=0.1)
+    mock_config.solver = Solver.LINDBLAD
+    mock_sequence = MagicMock()
+    mock_sequence.state_prep_error = 0.0
+    mock_sequence.lindblad_ops = [1.0, 2.0]
+    backend_impl = SVBackendImpl(mock_config, mock_sequence)
+    assert type(backend_impl.stepper) is EvolveDensityMatrix
+
+    mock_config.solver = Solver.MONTECARLO
+    mock_sequence = MagicMock()
+    mock_sequence.state_prep_error = 0.0
+    mock_sequence.lindblad_ops = [1.0, 2.0]
+    backend_impl = SVBackendImpl(mock_config, mock_sequence)
+    assert type(backend_impl.stepper) is EvolveMonteCarlo
+
+    mock_config.solver = Solver.MONTECARLO
+    mock_sequence = MagicMock()
+    mock_sequence.state_prep_error = 0.0
+    mock_sequence.lindblad_ops = []
+    backend_impl = SVBackendImpl(mock_config, mock_sequence)
+    assert backend_impl.stepper == EvolveStateVector
+
+    mock_config.solver = Solver.LINDBLAD
+    mock_sequence = MagicMock()
+    mock_sequence.state_prep_error = 0.0
+    mock_sequence.lindblad_ops = []
+    backend_impl = SVBackendImpl(mock_config, mock_sequence)
+    assert backend_impl.stepper == EvolveStateVector
