@@ -1,55 +1,124 @@
 name: Lint and test
 run-name: CI/CD for ${{ github.ref_name }}
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 on:
   pull_request:
     branches:
       - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   lint:
+    name: Lint
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
-      - run: pip install pre-commit "doc-checker @ git+https://github.com/pasqal-io/doc_checker.git"
-      - run: pip install -e .
-      - run: pre-commit install
-      - run: pre-commit run --all-files
+          python-version: "3.14"
+
+      - name: Install lint dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            pre-commit \
+            "doc-checker @ git+https://github.com/pasqal-io/doc_checker.git"
+          python -m pip install -e .
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files
+
   check_dependency_versions:
+    name: Check dependency versions
     needs: lint
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - run: python ./test_dependency_versions.py
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Check dependency versions
+        run: python test_dependency_versions.py
+
   test:
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
     needs: check_dependency_versions
     runs-on: ${{ matrix.os }}
+
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        python-version:
+          - "3.10"
+          - "3.14"
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -r test_requirements.txt
-      - run: pip install -e .
-      - run: pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv --cov=optimatrix
-      - run: pytest --nbmake -k ipynb
-      - run: readme-cov
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r test_requirements.txt
+          python -m pip install -e .
+
+      - name: Run unit tests
+        run: |
+          python -m pytest -vvv \
+            --cov-report=term-missing \
+            --cov-config=pyproject.toml \
+            --cov=emu_mps \
+            --cov=emu_base \
+            --cov=emu_sv \
+            --cov=optimatrix
+
+      - name: Run notebook tests
+        run: python -m pytest --nbmake -k ipynb
+
+      - name: Check README coverage
+        run: readme-cov
+
   test_ci_pyproject_installs:
+    name: Test CI package installations
     needs: test
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: |
@@ -58,34 +127,54 @@ jobs:
             pip install "$dir" || exit 1
             python -c "import `basename $dir`"
           done
+
   preview_docs:
+    name: Documentation preview
     needs: test
-    if: github.event.action != 'closed' # No need to build docs when PR is closed
+
+    # Run after successful tests when a PR is active. The always() call also
+    # allows preview cleanup when the PR closes and the test job is skipped.
+    # Fork previews are disabled because fork PRs receive a read-only token.
+    if: >-
+      always() &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (
+        github.event.action == 'closed' ||
+        (
+          github.event.action != 'closed' &&
+          needs.test.result == 'success'
+        )
+      )
+
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
     steps:
-      - name: Checkout emulators
-        uses: actions/checkout@v7
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        if: github.event.action != 'closed'
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.14'
+          python-version: "3.12"
 
-      - name: Install everything & build documentation
+      - name: Install documentation dependencies
+        if: github.event.action != 'closed'
         run: |
-          pip install -e .
-          pip install -r doc_requirements.txt
-          mkdocs build --clean
+          python -m pip install --upgrade pip
+          python -m pip install -e . -r doc_requirements.txt
 
-      - name: Upload site artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: site
-          path: ./site/
+      - name: Build documentation
+        if: github.event.action != 'closed'
+        run: mkdocs build --clean
 
-      - name: Deploy preview
+      - name: Deploy or remove documentation preview
         uses: rossjrw/pr-preview-action@v1
         with:
-          source-dir: ./site/
+          source-dir: site/
           preview-branch: gh-pages
           qr-code: false
