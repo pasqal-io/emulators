@@ -1,8 +1,8 @@
 import itertools
 
 import torch
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import reverse_cuthill_mckee
+from scipy.sparse import csr_matrix  # type: ignore [import-untyped]
+from scipy.sparse.csgraph import reverse_cuthill_mckee  # type: ignore [import-untyped]
 
 from emu_mps.optimatrix.permutations import permute_tensor
 
