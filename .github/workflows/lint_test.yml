@@ -94,13 +94,7 @@ jobs:
 
       - name: Run unit tests
         run: |
-          python -m pytest -vvv \
-            --cov-report=term-missing \
-            --cov-config=pyproject.toml \
-            --cov=emu_mps \
-            --cov=emu_base \
-            --cov=emu_sv \
-            --cov=optimatrix
+          python -m pytest -vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=emu_mps --cov=emu_base --cov=emu_sv --cov=optimatrix
 
       - name: Run notebook tests
         run: python -m pytest --nbmake -k ipynb
