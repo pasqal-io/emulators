@@ -26,13 +26,6 @@ class DensityMatrix(State[complex, torch.Tensor]):
             computational basis.
         gpu (bool, optional): If True, place the operator on a CUDA device when
             available. Default: True.
-
-    Raises:
-        ValueError: If matrix is not a square 2D tensor of shape (2ⁿ, 2ⁿ) or
-            fails validation (e.g., not Hermitian / trace != 1) if validation
-            is performed.
-        RuntimeError: If gpu=True but CUDA is not available (if the
-            implementation moves tensors to CUDA).
     """
 
     # for the moment no need to check positivity and trace 1

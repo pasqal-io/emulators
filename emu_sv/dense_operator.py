@@ -29,10 +29,6 @@ class DenseOperator(Operator[complex, torch.Tensor, StateVector]):
             representing the operator in the computational basis.
         gpu (bool, optional): If True, place the operator on a CUDA device when
             available. Default: True (and only 1 GPU).
-
-    Raises:
-        ValueError: If 'matrix' is not a 2-D square tensor.
-        RuntimeError: If gpu=True but CUDA is not available (if applicable).
     """
 
     def __init__(

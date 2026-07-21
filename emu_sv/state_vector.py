@@ -28,7 +28,7 @@ class StateVector(State[complex, torch.Tensor]):
 
     Args:
         vector: 1D tensor representation of a state vector.
-        gpu: store the vector on GPU if True, otherwise on CPU
+        gpu: store the vector on GPU if True and a GPU is present, otherwise on CPU
         eigenstates: sequence of eigenstates used as basis only qubit basis are
             supported (default: ('r','g'))
     """
@@ -40,12 +40,6 @@ class StateVector(State[complex, torch.Tensor]):
         gpu: bool = True,
         eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
-        # NOTE: this accepts also zero vectors.
-
-        assert math.log2(
-            len(vector)
-        ).is_integer(), "The number of elements in the vector should be power of 2"
-
         super().__init__(eigenstates=eigenstates)
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         self.data = vector.to(dtype=dtype, device=device)
@@ -308,15 +302,13 @@ def inner(left: StateVector, right: StateVector) -> torch.Tensor:
         ```python
         factor = math.sqrt(2.0)
         basis = ("r","g")
+        nqubits=2
         string_state1 = {"gg":1.0,"rr":1.0}
         state1 = StateVector.from_state_string(basis=basis,
         nqubits=nqubits,strings=string_state1)
         string_state2 = {"gr":1.0/factor,"rr":1.0/factor}
         state2 = StateVector.from_state_string(basis=basis,
         nqubits=nqubits,strings=string_state2)
-        ```
-
-        ```python
         state1 = StateVector.from_state_amplitudes(eigenstates=basis,
             amplitudes=string_state1)
         string_state2 = {"gr":1.0/factor,"rr":1.0/factor}

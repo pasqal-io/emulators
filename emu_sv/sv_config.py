@@ -43,7 +43,7 @@ class SVConfig(EmulationConfig):
             the size of the krylov subspace that the Lanczos algorithm maximally builds
         krylov_tolerance:
             the Lanczos algorithm uses this as the convergence tolerance
-        gpu: choosing the number of gpus to use during the simulation
+        gpu: whether to run the simulation on GPU
             - if `gpu = True`, use 1 GPU to store the state.
             (causes errors if True when GPU not available)
             - if `gpu = False`, use CPU to run the entire simulation.
