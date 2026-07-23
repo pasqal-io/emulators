@@ -96,7 +96,7 @@ def test_backend_impl_stepper_logic():
     mock_sequence.state_prep_error = 0.0
     mock_sequence.lindblad_ops = []
     backend_impl = SVBackendImpl(mock_config, mock_sequence)
-    assert backend_impl.stepper == EvolveStateVector
+    assert type(backend_impl.stepper) is EvolveStateVector
 
     mock_config.noise_model = NoiseModel(amp_sigma=0.1)
     mock_sequence = MagicMock()
@@ -125,11 +125,11 @@ def test_backend_impl_stepper_logic():
     mock_sequence.state_prep_error = 0.0
     mock_sequence.lindblad_ops = []
     backend_impl = SVBackendImpl(mock_config, mock_sequence)
-    assert backend_impl.stepper == EvolveStateVector
+    assert type(backend_impl.stepper) is EvolveStateVector
 
     mock_config.solver = Solver.LINDBLAD
     mock_sequence = MagicMock()
     mock_sequence.state_prep_error = 0.0
     mock_sequence.lindblad_ops = []
     backend_impl = SVBackendImpl(mock_config, mock_sequence)
-    assert backend_impl.stepper == EvolveStateVector
+    assert type(backend_impl.stepper) is EvolveStateVector

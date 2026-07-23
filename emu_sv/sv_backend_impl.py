@@ -79,7 +79,7 @@ class SVBackendImpl:
 
     def __init__(self, config: SVConfig, data: SequenceData):
         self.pulser_lindblads = data.lindblad_ops
-        stepper: type[EvolveStateVector] | BaseStepper
+        stepper: BaseStepper
         state_type: type[StateVector] | type[DensityMatrix]
         if self.pulser_lindblads:
             if (
@@ -92,7 +92,7 @@ class SVBackendImpl:
                 stepper = EvolveDensityMatrix()
                 state_type = DensityMatrix
         else:
-            stepper = EvolveStateVector
+            stepper = EvolveStateVector()
             state_type = StateVector
 
         self.stepper = stepper
