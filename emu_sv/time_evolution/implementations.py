@@ -5,7 +5,7 @@ from typing import cast
 from emu_base.math.krylov_exp import krylov_exp
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
-from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.rydberg_hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 from emu_sv.algebra import apply, expect_batch
 from emu_sv.time_evolution import BaseStepper

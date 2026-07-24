@@ -3,7 +3,7 @@ import typing
 import torch
 import logging
 
-from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.rydberg_hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 
 from pulser.backend import Results, Observable, State, EmulationConfig

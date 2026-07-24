@@ -7,7 +7,7 @@ from test.utils_testing import (
     randn_interaction_matrix,
 )
 from emu_sv.state_vector import StateVector
-from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.rydberg_hamiltonian import RydbergHamiltonian
 
 dtype = torch.complex128
 device = "cpu"

@@ -1,7 +1,7 @@
 import torch
 from emu_base.math.double_krylov import double_krylov
 from typing import Any, no_type_check
-from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.rydberg_hamiltonian import RydbergHamiltonian
 from emu_base.math.krylov_exp import krylov_exp
 
 

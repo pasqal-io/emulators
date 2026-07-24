@@ -10,7 +10,7 @@ from pulser.backend import (
 from emu_sv.density_matrix_state import DensityMatrix
 from emu_sv.state_vector import StateVector
 from emu_sv.dense_operator import DenseOperator
-from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.rydberg_hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 
 dtype = torch.float64

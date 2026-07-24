@@ -1,6 +1,6 @@
 import torch
 from emu_base.math.double_krylov import double_krylov
-from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.rydberg_hamiltonian import RydbergHamiltonian
 from test.utils_testing.utils_dense_hamiltonians import dense_rydberg_hamiltonian
 from test.utils_testing.utils_interaction_matrix import randn_interaction_matrix
 from pytest import mark
