@@ -59,7 +59,13 @@ class RydbergHamiltonian:
 
         self.diag: torch.Tensor = self._create_diagonal()
         self.inds = torch.tensor([1, 0], device=self.device)  # flips the state, for σˣ
-        self.complex = self.phis.any()
+        self.complex = self.phis.any() or noise is not None
+        if self.complex:
+            self.omegas_c = self.omegas * torch.exp(1.0j * self.phis)
+            self.omegas_c = torch.stack((self.omegas_c, self.omegas_c.conj()), dim=1)
+            if noise is not None:
+                self.omegas_c[:, 0] += noise[1, 0]
+                self.omegas_c[:, 1] += noise[0, 1]
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
@@ -79,7 +85,7 @@ class RydbergHamiltonian:
         # (-∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ)|ψ❭
         result = self.diag * vec
         # ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ]|ψ❭
-        if self.complex or self.noise is not None:
+        if self.complex:
             self._apply_sigma_operators_complex(result, vec)
         else:
             self._apply_sigma_operators_real(result, vec)
@@ -116,22 +122,21 @@ class RydbergHamiltonian:
         Returns:
             the resulting state vector.
         """
-        c_omegas = self.omegas * torch.exp(1.0j * self.phis)
-        if self.noise is not None:
-            c_omegas += self.noise[1, 0]
+        # if self.noise is not None:
+        #    c_omegas += self.noise[1, 0]
         dim_to_act = 1
-        for n, c_omega_n in enumerate(c_omegas):
+        for n, c_omega_n in enumerate(self.omegas_c):
             shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
             vec = vec.view(shape_n)
             result = result.view(shape_n)
             result.index_add_(
-                dim_to_act, self.inds[0], vec[:, 0, :].unsqueeze(1), alpha=c_omega_n
+                dim_to_act, self.inds[0], vec[:, 0, :].unsqueeze(1), alpha=c_omega_n[0]
             )
             result.index_add_(
                 dim_to_act,
                 self.inds[1],
                 vec[:, 1, :].unsqueeze(1),
-                alpha=c_omega_n.conj(),
+                alpha=c_omega_n[1],
             )
 
     def _create_diagonal(self) -> torch.Tensor:

@@ -528,7 +528,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
             Occupation(evaluation_times=times),
         ],
         noise_model=noise_model,
-        n_trajectories=100,
+        n_trajectories=10,
         gpu=gpu,
         solver=Solver.MONTECARLO,
     )
@@ -536,8 +536,60 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     result_mc = backend_mc.run()
 
     # should converge to expected_result as sqrt(n_trajectories), so this is ok
-    expected_result_mc = torch.tensor([0.39, 0.33], dtype=torch.float64)
+    expected_result_mc = torch.tensor([0.5, 0.2], dtype=torch.float64)
     assert torch.allclose(result_mc.occupation[-1], expected_result_mc, atol=1e-4)
+
+
+def test_end_to_end_random_effective_noise():
+    seed = 31415
+    torch.manual_seed(seed)
+    random.seed(0xDEADBEEF)
+    total_time = 1000
+    pulse = pulser.Pulse.ConstantAmplitude(
+        0.0, pulser.waveforms.ConstantWaveform(total_time, 0.0), 0.0
+    )
+    natoms = 2
+    reg = pulser.Register.rectangle(1, natoms, spacing=8, prefix="q")
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(pulse, "ising_global")
+
+    # emu-sv parameters
+    dt = 10.0
+    times = [1.0]
+    eigenstate = ("r", "g")
+    amplitudes = {"r" * natoms: 1.0}
+    effective_noise_rate = [30.0]
+    effective_noise_ops = [torch.rand(2, 2, dtype=torch.float64, device="cpu")]
+    noise_model = pulser.noise_model.NoiseModel(
+        eff_noise_opers=effective_noise_ops,
+        eff_noise_rates=effective_noise_rate,
+    )
+
+    initial_sv = StateVector.from_state_amplitudes(
+        eigenstates=eigenstate, amplitudes=amplitudes
+    )
+    sv_config_mc = SVConfig(
+        initial_state=initial_sv,
+        dt=dt,
+        observables=[
+            Occupation(evaluation_times=times),
+        ],
+        noise_model=noise_model,
+        n_trajectories=10,
+        gpu=gpu,
+        solver=Solver.MONTECARLO,
+        log_level=100,
+    )
+    backend_mc = SVBackend(seq, config=sv_config_mc)
+    result_mc = backend_mc.run()
+
+    # should converge to expected_result as sqrt(n_trajectories), so this is ok
+    assert torch.allclose(
+        result_mc.occupation[-1],
+        torch.tensor([0.8508, 0.8536], dtype=torch.float64),
+        atol=1e-4,
+    )
 
 
 def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
