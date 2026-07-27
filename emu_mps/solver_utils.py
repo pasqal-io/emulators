@@ -1,5 +1,5 @@
 import torch
-from typing import Callable, Sequence
+from typing import Callable, Sequence, Iterator
 
 from emu_base import krylov_exp
 from emu_base.math.krylov_energy_min import krylov_energy_minimization
@@ -144,15 +144,14 @@ bath tensors are put on the device of the factor to the left
 """
 
 
-def right_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
+def right_baths(state: MPS, op: MPO, final_qubit: int) -> Iterator[torch.Tensor]:
     state_factor = state.factors[-1]
     bath = torch.ones(1, 1, 1, device=state_factor.device, dtype=state_factor.dtype)
-    baths = [bath]
+    yield bath
     for i in range(len(state.factors) - 1, final_qubit - 1, -1):
         bath = new_right_bath(bath, state.factors[i], op.factors[i])
         bath = bath.to(state.factors[i - 1].device)
-        baths.append(bath)
-    return baths
+        yield bath
 
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns

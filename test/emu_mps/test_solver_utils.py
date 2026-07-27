@@ -55,7 +55,7 @@ def test_right_baths_total_magnetization():
 
     state = MPS([mps_factor] * 3, eigenstates=("0", "1"))
     obs = MPO([mpo_factor1, mpo_factor2, mpo_factor3])
-    baths = right_baths(state, obs, 1)
+    baths = list(right_baths(state, obs, 1))
     # The baths carry the information of the magnetization, so the baths have shape
     # (1,2,1), and L_i = [-i,1], which basically counts how magnetized the bath is.
     assert torch.allclose(
