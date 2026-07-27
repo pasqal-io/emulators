@@ -17,7 +17,13 @@ from typing import Any, Optional
 import torch
 from pulser.backend import EmulationConfig, Observable, Results, State
 
-from emu_base import DEVICE_COUNT, SequenceData, get_max_rss, PackedHermitianTensor
+from emu_base import (
+    DEVICE_COUNT,
+    SequenceData,
+    get_max_rss,
+    HamiltonianType,
+    PackedHermitianTensor,
+)
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.utils import deallocate_tensor
 
@@ -121,10 +127,6 @@ class MPSBackendImpl:
             "Consider using the emu_sv backend."
         )
 
-        self.omega = pulser_data.omega
-        self.delta = pulser_data.delta
-        self.phi = pulser_data.phi
-        self.timestep_count: int = self.omega.shape[0]
         self.has_lindblad_noise = len(pulser_data.lindblad_ops) > 0
         self.eigenstates = pulser_data.eigenstates
         self.dim = pulser_data.dim
@@ -132,12 +134,35 @@ class MPSBackendImpl:
 
         self.qubit_permutation = (
             optimat.minimize_bandwidth(
-                pulser_data.interaction_matrix(self.target_times[-1])
+                # The dominant interaction term should be first
+                pulser_data.interaction_matrix(self.target_times[-1])[0]
             )
             if self.config.optimize_qubit_ordering
             else optimat.eye_permutation(self.qubit_count)
         )
 
+        self.omega = pulser_data.omega[:, self.qubit_permutation]
+        self.delta = pulser_data.delta[:, self.qubit_permutation]
+        self.phi = pulser_data.phi[:, self.qubit_permutation]
+        self.timestep_count: int = self.omega.shape[0]
+
+        # move to emu-base when emu-sv supports non-rydberg?
+        interaction_ops: torch.Tensor
+        if pulser_data.hamiltonian_type == HamiltonianType.Rydberg:
+            interaction_ops = torch.tensor(
+                [[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.complex128
+            )
+        elif pulser_data.hamiltonian_type == HamiltonianType.XY:
+            interaction_ops = 2**0.5 * torch.tensor(
+                [[[0.0, 0.5], [0.5, 0.0]], [[0.0, -0.5j], [0.5j, 0.0]]],
+                dtype=torch.complex128,
+            )
+        else:
+            raise ValueError(
+                f"Hamiltonian type {pulser_data.hamiltonian_type} is unknown."
+            )
+
+        self.interaction_ops = interaction_ops
         self.hamiltonian_type = pulser_data.hamiltonian_type
         self.time = time.time()
 
@@ -184,8 +209,8 @@ class MPSBackendImpl:
             matrix = optimat.permute_tensor(matrix, self.qubit_permutation)
 
         if self.well_prepared_qubits_filter is not None:
-            matrix = matrix[self.well_prepared_qubits_filter, :][
-                :, self.well_prepared_qubits_filter
+            matrix = matrix[:, self.well_prepared_qubits_filter, :][
+                :, :, self.well_prepared_qubits_filter
             ]
 
         return matrix
@@ -281,7 +306,7 @@ class MPSBackendImpl:
         self.current_interaction_matrix = self._get_interaction_matrix()
         self.hamiltonian = make_H(
             interaction_matrix=self.current_interaction_matrix,
-            hamiltonian_type=self.hamiltonian_type,
+            interaction_ops=self.interaction_ops,
             num_gpus_to_use=self.resolved_num_gpus,
             dim=self.dim,
         )
@@ -311,6 +336,9 @@ class MPSBackendImpl:
         self.left_baths = [
             pack(torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device))
         ]
+        # clean up the memory in right baths, since otherwise we temporarily have
+        # both the old and the new in memory, which can cause OOM errors
+        self.right_baths: list[PackedHermitianTensor] = []
         self.right_baths = [
             pack(t) for t in right_baths(self.state, self.hamiltonian, final_qubit=2)
         ]
@@ -503,7 +531,7 @@ class MPSBackendImpl:
             self.current_interaction_matrix = interaction_matrix
             self.hamiltonian = make_H(
                 interaction_matrix=self.current_interaction_matrix,
-                hamiltonian_type=self.hamiltonian_type,
+                interaction_ops=self.interaction_ops,
                 dim=self.dim,
                 num_gpus_to_use=self.resolved_num_gpus,
             )

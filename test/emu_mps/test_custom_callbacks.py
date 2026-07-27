@@ -12,7 +12,7 @@ from emu_mps.custom_callback_implementations import (
     energy_second_moment_mps_impl,
     energy_mps_impl,
 )
-from emu_mps.hamiltonian import make_H, update_H, HamiltonianType
+from emu_mps.hamiltonian import make_H, update_H
 from emu_mps import MPSConfig
 from emu_mps import MPS, MPO
 
@@ -96,9 +96,9 @@ def test_custom_energy_and_variance_and_second() -> None:
     interaction_matrix = torch.randn((num_qubits, num_qubits))
     interaction_matrix = (interaction_matrix + interaction_matrix.T) * 0.5
     h_rydberg = make_H(
-        interaction_matrix=interaction_matrix,
+        interaction_matrix=interaction_matrix.unsqueeze(0),
         num_gpus_to_use=DEVICE_COUNT,
-        hamiltonian_type=HamiltonianType.Rydberg,
+        interaction_ops=torch.tensor([[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.float64),
         dim=len(basis),
     )
     update_H(

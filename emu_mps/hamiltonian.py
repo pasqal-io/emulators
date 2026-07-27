@@ -3,10 +3,8 @@ This file deals with creation of the MPO corresponding
 to the Hamiltonian of a neutral atoms quantum processor.
 """
 
-from abc import abstractmethod, ABC
-from typing import Iterator
+from typing import Iterator, cast
 
-from emu_base import HamiltonianType
 import torch
 from emu_mps.mpo import MPO
 
@@ -21,31 +19,37 @@ class Operators:
     sy = torch.tensor([[0.0, -0.5j], [0.5j, 0.0]], dtype=dtype)
 
 
-class HamiltonianMPOFactors(ABC):
-    """Abstract class for MPO factors of a two-body Hamiltonian.
+class HamiltonianMPOFactors:
+    """Creates the MPO factors of a two-body Hamiltonian.
 
-    Subclasses implement the local MPO tensor at each position in the chain:
-    first site, left half, middle, right half, and last site.
+    Fills the single qubit terms with zeros for modifying in-place.
     """
 
-    def __init__(self, interaction_matrix: torch.Tensor, dim: int = 2):
+    def __init__(
+        self,
+        interaction_matrix: torch.Tensor,
+        interaction_ops: torch.Tensor,
+        dim: int = 2,
+    ):
         self._validate_interaction_matrix(interaction_matrix)
 
         if dim not in (2, 3):
             raise ValueError(f"dim must be 2 or 3, got {dim}")
         self.dim = dim
 
-        self.interaction_matrix = interaction_matrix.clone()
-        self.interaction_matrix.fill_diagonal_(0.0)  # or assert
-        self.num_sites = self.interaction_matrix.shape[0]
+        self.interaction_matrix = interaction_matrix.clone().cpu()
+        self.interaction_ops = interaction_ops
+        self.num_sites = self.interaction_matrix.shape[1]
         self.middle_site = self.num_sites // 2
         self.identity = Operators.id if self.dim == 2 else Operators.id_3x3
 
     @staticmethod
     def _validate_interaction_matrix(matrix: torch.Tensor) -> None:
-        if matrix.ndim != 2:
-            raise ValueError("interaction_matrix must be 2-dimensional.")
-        if matrix.shape[0] != matrix.shape[1]:
+        if matrix.ndim != 3:
+            raise ValueError(
+                "interaction_matrix must be a stack of 2-dimensional matrices."
+            )
+        if matrix.shape[1] != matrix.shape[2]:
             raise ValueError("interaction_matrix must be square.")
 
     def __iter__(self) -> Iterator[torch.Tensor]:
@@ -63,33 +67,182 @@ class HamiltonianMPOFactors(ABC):
 
         yield self.last_factor()
 
-    @abstractmethod
     def first_factor(self) -> torch.Tensor:
         """Return the MPO factor for the first site."""
+        has_right_interaction = self._has_right_interaction(site=0)
 
-    @abstractmethod
+        left_bond_dim = 1
+        right_bond_dim = 2 + sum(has_right_interaction)
+        factor = self._empty_factor(left_bond_dim, right_bond_dim)
+
+        factor[0, :, :, 1] = self.identity
+        for i, b in enumerate(has_right_interaction):
+            if b:
+                factor[0, :2, :2, 2 + i] = self.interaction_ops[i]
+
+        return factor
+
     def left_factor(self, n: int) -> torch.Tensor:
         """Return the MPO factor for site ``n`` in the left half of the chain
         except the first factor."""
+        has_right_interaction = self._has_right_interaction(site=n)
+        current_left_interactions, left_interactions_to_keep = (
+            self._left_interaction_masks(n)
+        )
 
-    @abstractmethod
+        left_bonds_per_int = current_left_interactions.sum(dim=1)
+        left_bond_dim = int(left_bonds_per_int.sum().item() + 2)
+        right_bonds_per_int = left_interactions_to_keep.sum(dim=1) + torch.tensor(
+            has_right_interaction
+        )
+        right_bond_dim = int(right_bonds_per_int.sum().item() + 2)
+        factor = self._empty_factor(left_bond_dim, right_bond_dim)
+
+        factor[0, :, :, 0] = self.identity
+        factor[1, :, :, 1] = self.identity
+        ind = 1
+        for i, b in enumerate(has_right_interaction):
+            ind += int(right_bonds_per_int[i])
+            if b:
+                factor[1, :2, :2, ind] = self.interaction_ops[i]
+
+        coeffs = self._left_interaction_coefficients(n, current_left_interactions)
+        ind = 0
+        for i, bonds in enumerate(left_bonds_per_int):
+            factor[ind + 2 : ind + bonds + 2, :2, :2, 0] = (
+                coeffs[ind : ind + bonds] * self.interaction_ops[i]
+            )
+            ind += bonds
+
+        i = 2
+        j = 2
+        for ind, current_left_interactions_per_int in enumerate(
+            current_left_interactions
+        ):
+            for (
+                current_left_interaction
+            ) in current_left_interactions_per_int.nonzero().flatten():
+                if left_interactions_to_keep[ind][current_left_interaction]:
+                    factor[i, :, :, j] = self.identity
+                    j += 1
+                i += 1
+            if has_right_interaction[ind]:
+                j += 1
+        return factor
+
     def middle_factor(self) -> torch.Tensor:
         """Return the MPO factor at the central site bridging both halves."""
+        n = self.middle_site
+        current_left_interactions, _ = self._left_interaction_masks(n)
+        current_right_interactions, _ = self._right_interaction_masks(n)
 
-    @abstractmethod
+        left_bonds_per_int = current_left_interactions.sum(dim=1)
+        left_bond_dim = int(left_bonds_per_int.sum().item() + 2)
+
+        right_bonds_per_int = current_right_interactions.sum(dim=1)
+        right_bond_dim = int(right_bonds_per_int.sum().item() + 2)
+        factor = self._empty_factor(left_bond_dim, right_bond_dim)
+
+        factor[0, :, :, 0] = self.identity
+        factor[1, :, :, 1] = self.identity
+
+        coeffs = self._left_interaction_coefficients(n, current_left_interactions)
+        ind = 0
+        for i, bonds in enumerate(left_bonds_per_int):
+            factor[ind + 2 : ind + bonds + 2, :2, :2, 0] = (
+                coeffs[ind : ind + bonds] * self.interaction_ops[i]
+            )
+            ind += bonds
+
+        coeffs = self._right_interaction_coefficients(n, current_right_interactions)
+        ind = 0
+        for i, bonds in enumerate(right_bonds_per_int):
+            factor[1, :2, :2, ind + 2 : ind + bonds + 2] = coeffs[
+                :, :, ind : ind + bonds
+            ] * self.interaction_ops[i].unsqueeze(-1)
+            ind += bonds
+
+        coeffs = self._middle_interaction_coefficients(
+            n, current_left_interactions, current_right_interactions
+        )
+        factor[2:, :, :, 2:] = coeffs * self.identity[None, ..., None]
+
+        return factor
+
     def right_factor(self, n: int) -> torch.Tensor:
         """Return the MPO factor for site ``n`` in the right half of the chain
         except the last factor."""
+        has_left_interaction = self._has_left_interaction(site=n)
+        current_right_interactions, right_interactions_to_keep = (
+            self._right_interaction_masks(site=n)
+        )
 
-    @abstractmethod
+        left_bonds_per_int = right_interactions_to_keep.sum(dim=1) + torch.tensor(
+            has_left_interaction
+        )
+        left_bond_dim = int(left_bonds_per_int.sum().item() + 2)
+
+        right_bonds_per_int = current_right_interactions.sum(dim=1)
+        right_bond_dim = int(right_bonds_per_int.sum().item() + 2)
+
+        factor = self._empty_factor(left_bond_dim, right_bond_dim)
+
+        factor[0, :, :, 0] = self.identity
+        factor[1, :, :, 1] = self.identity
+
+        ind = 2
+        for i, b in enumerate(has_left_interaction):
+            if b:
+                factor[ind, :2, :2, 0] = self.interaction_ops[i]
+            ind += int(left_bonds_per_int[i])
+
+        coeffs = self._right_interaction_coefficients(n, current_right_interactions)
+        ind = 0
+        for i, bonds in enumerate(right_bonds_per_int):
+            factor[1, :2, :2, ind + 2 : ind + bonds + 2] = coeffs[
+                :, :, ind : ind + bonds
+            ] * self.interaction_ops[i].unsqueeze(-1)
+            ind += bonds
+
+        i = 2
+        j = 2
+        for ind, current_right_interactions_per_int in enumerate(
+            current_right_interactions
+        ):
+            if has_left_interaction[ind]:
+                i += 1
+            for (
+                current_right_interaction
+            ) in current_right_interactions_per_int.nonzero().flatten():
+                if right_interactions_to_keep[ind][current_right_interaction]:
+                    factor[i, :, :, j] = self.identity
+                    i += 1
+                j += 1
+
+        return factor
+
     def last_factor(self) -> torch.Tensor:
         """Return the MPO factor for the last site."""
+        has_left_interaction = self._has_left_interaction(site=-1)
 
-    def _has_right_interaction(self, site: int) -> bool:
-        return bool(self.interaction_matrix[site, site + 1 :].any())
+        left_bond_dim = 2 + sum(has_left_interaction)
+        right_bond_dim = 1
+        factor = self._empty_factor(left_bond_dim, right_bond_dim)
+        factor[0, :, :, 0] = self.identity
 
-    def _has_left_interaction(self, site: int) -> bool:
-        return bool(self.interaction_matrix[site, :site].any())
+        for i, b in enumerate(has_left_interaction):
+            if b:
+                coeff = self.interaction_matrix[i, 0, 1] if self.num_sites == 2 else 1
+                factor[2 + i, :2, :2, 0] = coeff * self.interaction_ops[i]
+        return factor
+
+    def _has_right_interaction(self, site: int) -> list[bool]:
+        """Returns a list of booleans, one for each interaction term"""
+        return list(bool(mat[site, site + 1 :].any()) for mat in self.interaction_matrix)
+
+    def _has_left_interaction(self, site: int) -> list[bool]:
+        """Returns a list of booleans, one for each interaction term"""
+        return list(bool(mat[site, :site].any()) for mat in self.interaction_matrix)
 
     def _empty_factor(self, left_bond_dim: int, right_bond_dim: int) -> torch.Tensor:
         return torch.zeros(
@@ -108,8 +261,10 @@ class HamiltonianMPOFactors(ABC):
         - left_interactions_to_keep[i] tells whether that interaction channel
           remains active after this site
         """
-        current_left_interactions = self.interaction_matrix[:site, site:].any(dim=1)
-        left_interactions_to_keep = self.interaction_matrix[:site, site + 1 :].any(dim=1)
+        current_left_interactions = self.interaction_matrix[:, :site, site:].any(dim=2)
+        left_interactions_to_keep = self.interaction_matrix[:, :site, site + 1 :].any(
+            dim=2
+        )
         return current_left_interactions, left_interactions_to_keep
 
     def _right_interaction_masks(self, site: int) -> tuple[torch.Tensor, torch.Tensor]:
@@ -120,21 +275,25 @@ class HamiltonianMPOFactors(ABC):
         - right_interactions_to_keep[j] tells whether that interaction channel
           remains active before this site
         """
-        current_right_interactions = self.interaction_matrix[site + 1 :, : site + 1].any(
-            dim=1
+        current_right_interactions = self.interaction_matrix[
+            :, site + 1 :, : site + 1
+        ].any(dim=2)
+        right_interactions_to_keep = self.interaction_matrix[:, site + 1 :, :site].any(
+            dim=2
         )
-        right_interactions_to_keep = self.interaction_matrix[site + 1 :, :site].any(dim=1)
         return current_right_interactions, right_interactions_to_keep
 
     def _left_interaction_coefficients(
         self, n: int, current_left_interactions: torch.Tensor
     ) -> torch.Tensor:
-        return self.interaction_matrix[:n][current_left_interactions, n, None, None]
+        return self.interaction_matrix[:, :n][current_left_interactions, n, None, None]
 
     def _right_interaction_coefficients(
         self, n: int, current_right_interactions: torch.Tensor
     ) -> torch.Tensor:
-        return self.interaction_matrix[n + 1 :][None, None, current_right_interactions, n]
+        return self.interaction_matrix[:, n + 1 :][
+            None, None, current_right_interactions, n
+        ]
 
     def _middle_interaction_coefficients(
         self,
@@ -142,264 +301,23 @@ class HamiltonianMPOFactors(ABC):
         current_left_interactions: torch.Tensor,
         current_right_interactions: torch.Tensor,
     ) -> torch.Tensor:
-        return self.interaction_matrix[:n, n + 1 :][current_left_interactions, :][
-            :, None, None, current_right_interactions
-        ]
-
-
-class RydbergHamiltonianMPOFactors(HamiltonianMPOFactors):
-    def first_factor(self) -> torch.Tensor:
-        has_right_interaction = self._has_right_interaction(site=0)
-
-        left_bond_dim = 1
-        right_bond_dim = 3 if has_right_interaction else 2
-        factor = self._empty_factor(left_bond_dim, right_bond_dim)
-
-        factor[0, :, :, 1] = self.identity
-        if has_right_interaction:
-            factor[0, :2, :2, 2] = Operators.n
-
-        return factor
-
-    def left_factor(self, n: int) -> torch.Tensor:
-        has_right_interaction = self._has_right_interaction(site=n)
-        current_left_interactions, left_interactions_to_keep = (
-            self._left_interaction_masks(n)
+        return cast(
+            torch.Tensor,
+            torch.block_diag(
+                *tuple(
+                    self.interaction_matrix[i, :n, n + 1 :][
+                        current_left_interactions[i], :
+                    ][:, current_right_interactions[i]]
+                    for i in range(self.interaction_matrix.shape[0])
+                )
+            )[:, None, None, :],
         )
-
-        left_bond_dim = int(current_left_interactions.sum().item() + 2)
-        right_bond_dim = int(
-            left_interactions_to_keep.sum().item() + int(has_right_interaction) + 2
-        )
-        factor = self._empty_factor(left_bond_dim, right_bond_dim)
-
-        factor[0, :, :, 0] = self.identity
-        factor[1, :, :, 1] = self.identity
-        if has_right_interaction:
-            factor[1, :2, :2, -1] = Operators.n
-
-        coeff = self._left_interaction_coefficients(n, current_left_interactions)
-        factor[2:, :2, :2, 0] = coeff * Operators.n
-
-        i = 2
-        j = 2
-        for current_left_interaction in current_left_interactions.nonzero().flatten():
-            if left_interactions_to_keep[current_left_interaction]:
-                factor[i, :, :, j] = self.identity
-                j += 1
-            i += 1
-        return factor
-
-    def middle_factor(self) -> torch.Tensor:
-        n = self.middle_site
-        current_left_interactions, _ = self._left_interaction_masks(n)
-        current_right_interactions, _ = self._right_interaction_masks(n)
-
-        left_bond_dim = int(current_left_interactions.sum().item() + 2)
-        right_bond_dim = int(current_right_interactions.sum().item() + 2)
-        factor = self._empty_factor(left_bond_dim, right_bond_dim)
-
-        factor[0, :, :, 0] = self.identity
-        factor[1, :, :, 1] = self.identity
-
-        coeff = self._left_interaction_coefficients(n, current_left_interactions)
-        factor[2:, :2, :2, 0] = coeff * Operators.n
-
-        coeff = self._right_interaction_coefficients(n, current_right_interactions)
-        factor[1, :2, :2, 2:] = coeff * Operators.n.unsqueeze(-1)
-
-        coeff = self._middle_interaction_coefficients(
-            n, current_left_interactions, current_right_interactions
-        )
-        factor[2:, :, :, 2:] = coeff * self.identity[None, ..., None]
-
-        return factor
-
-    def right_factor(self, n: int) -> torch.Tensor:
-        has_left_interaction = self._has_left_interaction(site=n)
-        current_right_interactions, right_interactions_to_keep = (
-            self._right_interaction_masks(site=n)
-        )
-
-        left_bond_dim = int(
-            right_interactions_to_keep.sum().item() + int(has_left_interaction) + 2
-        )
-        right_bond_dim = int(current_right_interactions.sum().item() + 2)
-        factor = self._empty_factor(left_bond_dim, right_bond_dim)
-
-        factor[0, :, :, 0] = self.identity
-        factor[1, :, :, 1] = self.identity
-        if has_left_interaction:
-            factor[2, :2, :2, 0] = Operators.n
-
-        coeff = self._right_interaction_coefficients(n, current_right_interactions)
-        factor[1, :2, :2, 2:] = coeff * Operators.n.unsqueeze(-1)
-
-        i = 3 if has_left_interaction else 2
-        j = 2
-        for current_right_interaction in current_right_interactions.nonzero().flatten():
-            if right_interactions_to_keep[current_right_interaction]:
-                factor[i, :, :, j] = self.identity
-                i += 1
-            j += 1
-        return factor
-
-    def last_factor(self) -> torch.Tensor:
-        has_left_interaction = self._has_left_interaction(site=-1)
-
-        left_bond_dim = 3 if has_left_interaction else 2
-        right_bond_dim = 1
-        factor = self._empty_factor(left_bond_dim, right_bond_dim)
-        factor[0, :, :, 0] = self.identity
-        if has_left_interaction:
-            coeff = self.interaction_matrix[0, 1] if self.num_sites == 2 else 1
-            factor[2, :2, :2, 0] = coeff * Operators.n
-
-        return factor
-
-
-class XYHamiltonianMPOFactors(HamiltonianMPOFactors):
-    """
-    Note:
-        The XY Hamiltonian is implemented using the Pauli matrices X and Y,
-        which ensures that the MPO nodes are Hermitian. This representation
-        is later used to compress energy baths in TDVP and DMRG.
-
-        An alternative approach is to use the sigma^+ and sigma^- operators.
-        In that case, restoring Hermiticity of the MPO nodes requires adding
-        the Hermitian conjugate via a direct sum.
-    """
-
-    def first_factor(self) -> torch.Tensor:
-        print("SxSy Hamiltonian")
-        has_right_interaction = self._has_right_interaction(site=0)
-
-        left_bond_dim = 1
-        right_bond_dim = 4 if has_right_interaction else 2
-        factor = self._empty_factor(left_bond_dim, right_bond_dim)
-        factor[0, :, :, 1] = self.identity
-        if has_right_interaction:
-            factor[0, :2, :2, 2] = Operators.sx
-            factor[0, :2, :2, 3] = Operators.sy
-
-        return factor
-
-    def left_factor(self, n: int) -> torch.Tensor:
-        has_right_interaction = self._has_right_interaction(site=n)
-        current_left_interactions, left_interactions_to_keep = (
-            self._left_interaction_masks(n)
-        )
-
-        left_bond_dim = int(2 * current_left_interactions.sum().item() + 2)
-        right_bond_dim = int(
-            2 * left_interactions_to_keep.sum().item()
-            + 2 * int(has_right_interaction)
-            + 2
-        )
-        factor = self._empty_factor(left_bond_dim, right_bond_dim)
-
-        factor[0, :, :, 0] = self.identity
-        factor[1, :, :, 1] = self.identity
-        if has_right_interaction:
-            factor[1, :2, :2, -2] = Operators.sx
-            factor[1, :2, :2, -1] = Operators.sy
-
-        coeff = self._left_interaction_coefficients(n, current_left_interactions)
-        factor[2::2, :2, :2, 0] = coeff * 2 * Operators.sx
-        factor[3::2, :2, :2, 0] = coeff * 2 * Operators.sy
-
-        i = 2
-        j = 2
-        for current_left_interaction in current_left_interactions.nonzero().flatten():
-            if left_interactions_to_keep[current_left_interaction]:
-                factor[i, :, :, j] = self.identity
-                factor[i + 1, :, :, j + 1] = self.identity
-                j += 2
-            i += 2
-        return factor
-
-    def middle_factor(self) -> torch.Tensor:
-        n = self.middle_site
-        current_left_interactions, _ = self._left_interaction_masks(n)
-        current_right_interactions, _ = self._right_interaction_masks(n)
-
-        left_bond_dim = int(2 * current_left_interactions.sum().item() + 2)
-        right_bond_dim = int(2 * current_right_interactions.sum().item() + 2)
-
-        factor = self._empty_factor(left_bond_dim, right_bond_dim)
-
-        factor[0, :, :, 0] = self.identity
-        factor[1, :, :, 1] = self.identity
-
-        coeff = self._left_interaction_coefficients(n, current_left_interactions)
-        factor[2::2, :2, :2, 0] = coeff * 2 * Operators.sx
-        factor[3::2, :2, :2, 0] = coeff * 2 * Operators.sy
-
-        coeff = self._right_interaction_coefficients(n, current_right_interactions)
-        factor[1, :2, :2, 2::2] = coeff * 2 * Operators.sx.unsqueeze(-1)
-        factor[1, :2, :2, 3::2] = coeff * 2 * Operators.sy.unsqueeze(-1)
-
-        coeff = self._middle_interaction_coefficients(
-            n, current_left_interactions, current_right_interactions
-        )
-        factor[2::2, :, :, 2::2] = coeff * 2 * self.identity[None, ..., None]
-        factor[3::2, :, :, 3::2] = coeff * 2 * self.identity[None, ..., None]
-
-        return factor
-
-    def right_factor(self, n: int) -> torch.Tensor:
-        has_left_interaction = self._has_left_interaction(site=n)
-        current_right_interactions, right_interactions_to_keep = (
-            self._right_interaction_masks(site=n)
-        )
-
-        left_bond_dim = int(
-            2 * right_interactions_to_keep.sum().item()
-            + 2 * int(has_left_interaction)
-            + 2
-        )
-        right_bond_dim = int(2 * current_right_interactions.sum().item() + 2)
-        factor = self._empty_factor(left_bond_dim, right_bond_dim)
-
-        factor[0, :, :, 0] = self.identity
-        factor[1, :, :, 1] = self.identity
-        if has_left_interaction:
-            factor[2, :2, :2, 0] = Operators.sx
-            factor[3, :2, :2, 0] = Operators.sy
-
-        coeff = self._right_interaction_coefficients(n, current_right_interactions)
-        factor[1, :2, :2, 2::2] = coeff * 2 * Operators.sx.unsqueeze(-1)
-        factor[1, :2, :2, 3::2] = coeff * 2 * Operators.sy.unsqueeze(-1)
-
-        i = 4 if has_left_interaction else 2
-        j = 2
-        for current_right_interaction in current_right_interactions.nonzero().flatten():
-            if right_interactions_to_keep[current_right_interaction]:
-                factor[i, :, :, j] = self.identity
-                factor[i + 1, :, :, j + 1] = self.identity
-                i += 2
-            j += 2
-        return factor
-
-    def last_factor(self) -> torch.Tensor:
-        has_left_interaction = self._has_left_interaction(site=-1)
-
-        left_bond_dim = 4 if has_left_interaction else 2
-        right_bond_dim = 1
-        factor = self._empty_factor(left_bond_dim, right_bond_dim)
-        factor[0, :, :, 0] = self.identity
-        if has_left_interaction:
-            coeff = 2 * self.interaction_matrix[0, 1] if self.num_sites == 2 else 1
-            factor[2, :2, :2, 0] = coeff * Operators.sx
-            factor[3, :2, :2, 0] = coeff * Operators.sy
-
-        return factor
 
 
 def make_H(
     *,
     interaction_matrix: torch.Tensor,  # depends on Hamiltonian Type
-    hamiltonian_type: HamiltonianType,
+    interaction_ops: torch.Tensor,
     dim: int = 2,
     num_gpus_to_use: int | None,
 ) -> MPO:
@@ -410,17 +328,13 @@ def make_H(
     The linear term of the Hamiltonian is
     H_0 = ∑ⱼΩⱼ[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] - ∑ⱼΔⱼnⱼ
 
-    The Rydberg Hamiltonian is given by:
-    H_Ryd = H_0 + ∑ᵢ﹥ⱼC⁶/rᵢⱼ⁶ nᵢnⱼ
-
-    The XY Hamiltonian is given by:
-    H_XY = H_0 + ∑ᵢ﹥ⱼC₃/rᵢⱼ³ 2(SˣᵢSˣⱼ + SʸᵢSʸⱼ)
+    The Interaction term is given by:
+    H_int = H_0
+      + ∑ₖ∑ᵢ﹥ⱼinteraction_matrix[k,i,j] interaction_ops[k]_i interaction_ops[k]_j
 
     If noise is considered, the Hamiltonian includes an additional term to
     support the Monte Carlo WaveFunction algorithm:
-    H = H_Ryd - 0.5i∑ₘ ∑ᵤ Lₘᵘ⁺ Lₘᵘ
-    or
-    H = H_XY - 0.5i∑ₘ ∑ᵤ Lₘᵘ⁺ Lₘᵘ
+    H = H_int - 0.5i∑ₘ ∑ᵤ Lₘᵘ⁺ Lₘᵘ
     where Lₘᵘ are the Lindblad operators representing the noise,
     m for noise channel and u for the number of atoms
 
@@ -431,7 +345,7 @@ def make_H(
     Args:
         interaction_matrix (torch.Tensor): The interaction matrix describing
         the interactions between qubits.
-        hamiltonian_type: whether to use XY or Rydberg interation
+        interaction_ops: the interaction operator to use, see above.
         dim: dimension of the basis (2 or 3)
         num_gpus_to_use (int): how many gpus to put the Hamiltonian on.
         See utils.assign_devices
@@ -445,19 +359,10 @@ def make_H(
 
     """
 
-    if hamiltonian_type == HamiltonianType.Rydberg:
-        return MPO(
-            list(RydbergHamiltonianMPOFactors(interaction_matrix, dim=dim)),
-            num_gpus_to_use=num_gpus_to_use,
-        )
-
-    if hamiltonian_type == HamiltonianType.XY:
-        return MPO(
-            list(XYHamiltonianMPOFactors(interaction_matrix, dim=dim)),
-            num_gpus_to_use=num_gpus_to_use,
-        )
-
-    raise ValueError(f"Unsupported hamiltonian_type: {hamiltonian_type}")
+    return MPO(
+        list(HamiltonianMPOFactors(interaction_matrix, interaction_ops, dim=dim)),
+        num_gpus_to_use=num_gpus_to_use,
+    )
 
 
 def update_H(

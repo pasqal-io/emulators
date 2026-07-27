@@ -24,7 +24,7 @@ def extract_version_from_oml_file(filepath: Path, pattern: str) -> Optional[str]
         for line in f:
             match = re.search(
                 pattern
-                + r'\s*>?=*\s*"?([0-9]+(?:\.[^\s"\.\,]+){2}(,<[0-9]+(?:\.[^\s"\.\,]+){2})?)"?',
+                + r'\s*[>~]?=*\s*"?([0-9]+(?:\.[^\s"\.\,]+){1,2}(,<[0-9]+(?:\.[^\s"\.\,]+){2})?)"?',
                 line,
             )
             if match:
@@ -139,9 +139,9 @@ torch_emu_base_version = extract_version_from_oml_file(
 )
 print(f" - emu-base uses torch version {torch_pyproject_version}")
 
-if torch_emu_base_version != torch_pyproject_version:
+if torch_emu_base_version not in torch_pyproject_version:
     fail(
-        f" - torch in emu-base version {torch_pre_commit_version}"
+        f" - torch in emu-base version {torch_emu_base_version}"
         f" != torch in pyproject.toml {torch_pyproject_version}"
     )
 

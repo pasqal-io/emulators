@@ -1212,7 +1212,10 @@ def test_observables_time_0():
     assert torch.isreal(result.energy[0])
 
 
-def test_run_from_sequence_data():
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_run_from_sequence_data(device):
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("This test needs a GPU with CUDA installed")
     duration = 100
     dt = 10
 
@@ -1247,7 +1250,9 @@ def test_run_from_sequence_data():
         omega=omega,
         delta=torch.zeros_like(omega),
         phi=torch.zeros_like(omega),
-        interaction_matrix=lambda x: torch.zeros((3, 3), dtype=torch.float64),
+        interaction_matrix=lambda x: torch.zeros(
+            (1, 3, 3), device=device, dtype=torch.float64
+        ),
         qubit_ids=("q0", "q1", "q2"),
         bad_atoms=(False, False, False),
         lindblad_ops=[],
@@ -1263,3 +1268,32 @@ def test_run_from_sequence_data():
     assert results.get_result_times("occupation") == occup.evaluation_times.tolist()
     assert results.occupation[0] == pytest.approx(0.0)
     assert results.occupation[-1] == pytest.approx(1.0)
+
+
+def test_qubit_reordering_no_interaction():
+    reg = pulser.Register.rectangle(4, 4, spacing=1e10, prefix="q")
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising", "rydberg_local")
+    seq.target(["q4", "q5"], "ising")
+    duration = 1000
+    seq.add(
+        pulser.Pulse.ConstantAmplitude(
+            amplitude=torch.pi,
+            detuning=pulser.waveforms.ConstantWaveform(duration=duration, value=0.0),
+            phase=0.0,
+        ),
+        "ising",
+    )
+
+    config = MPSConfig(observables=[Occupation()], dt=100)
+    backend = MPSBackend(seq, config=config)
+    with patch("emu_mps.mps_backend_impl.optimat.minimize_bandwidth") as reordering_mock:
+        reordering_mock.return_value = torch.tensor(
+            [0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        )
+        results = backend.run()
+    occ = np.array(results.occupation[-1])
+    expected_occ = np.zeros_like(occ)
+    expected_occ[4] = 1
+    expected_occ[5] = 1
+    np.testing.assert_allclose(occ, expected_occ)
