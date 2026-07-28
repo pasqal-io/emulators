@@ -13,7 +13,7 @@ def expect_batch(
     return torch.stack(
         [
             torch.vmap(torch.trace)(
-                single_qubit_operators
+                single_qubit_operators.to(state_vector.device)
                 @ torch.tensordot(
                     state_vector.view(2**i, 2, -1),
                     state_vector.view(2**i, 2, -1).conj(),
