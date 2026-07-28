@@ -55,7 +55,6 @@ class RydbergHamiltonian:
         self.interaction_matrix: torch.Tensor = interaction_matrix
         self.device: torch.device = device
         self.noise: torch.Tensor | None = noise
-        self.apply_noise = noise is not None
 
         self.diag: torch.Tensor = self._create_diagonal()
         self.inds = torch.tensor([1, 0], device=self.device)  # flips the state, for σˣ
@@ -122,8 +121,6 @@ class RydbergHamiltonian:
         Returns:
             the resulting state vector.
         """
-        # if self.noise is not None:
-        #    c_omegas += self.noise[1, 0]
         dim_to_act = 1
         for n, c_omega_n in enumerate(self.omegas_c):
             shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))

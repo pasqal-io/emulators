@@ -535,7 +535,9 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     backend_mc = SVBackend(seq, config=sv_config_mc)
     result_mc = backend_mc.run()
 
-    # should converge to expected_result as sqrt(n_trajectories), so this is ok
+    # should converge to expected_result as sqrt(n_trajectories)
+    # this convergence behaviour was tested manually by increasing n_trajectories
+    # n_trajectories is kept small here for performance reasons
     expected_result_mc = torch.tensor([0.5, 0.2], dtype=torch.float64)
     assert torch.allclose(result_mc.occupation[-1], expected_result_mc, atol=1e-4)
 
@@ -584,7 +586,9 @@ def test_end_to_end_random_effective_noise():
     backend_mc = SVBackend(seq, config=sv_config_mc)
     result_mc = backend_mc.run()
 
-    # should converge to expected_result as sqrt(n_trajectories), so this is ok
+    # should converge to the lindblad result as sqrt(n_trajectories)
+    # this convergence behaviour was tested manually by increasing n_trajectories
+    # n_trajectories is kept small here for performance reasons
     assert torch.allclose(
         result_mc.occupation[-1],
         torch.tensor([0.8508, 0.8536], dtype=torch.float64),

@@ -196,6 +196,7 @@ class EvolveMonteCarlo(BaseStepper):
         current_time = 0.0
         tol = dt / 10
         new_norm_gap = torch.linalg.vector_norm(state) ** 2 - self.jump_threshold
+        stacked = torch.stack(pulser_lindblads)
 
         while abs(dt - current_time) > 1e-5:
             old_norm_gap = new_norm_gap
@@ -224,7 +225,6 @@ class EvolveMonteCarlo(BaseStepper):
                     )
                     root_finder.provide_ordinate(current_time, new_norm_gap)
 
-                stacked = torch.stack(pulser_lindblads)
                 # The below is used for batch computation of noise collapse weights.
                 aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
                 state = self.do_quantum_jump(

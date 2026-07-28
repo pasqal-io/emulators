@@ -57,7 +57,7 @@ class DensityMatrix(State[complex, torch.Tensor]):
         raise NotImplementedError("Not implemented")
 
     def __rmul__(self, scalar: complex) -> DensityMatrix:
-        return DensityMatrix(self.data * scalar, gpu=self.data.device == "cuda")
+        return DensityMatrix(self.data * scalar, gpu=self.data.is_cuda)
 
     def _normalize(self) -> None:
         # NOTE: use this in the callbacks

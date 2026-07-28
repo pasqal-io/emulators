@@ -10,15 +10,18 @@ def expect_batch(
     Returns a tensor T such that T[q, i] is the expectation value for qubit #q
     and operator single_qubit_operators[i].
     """
-    return torch.tensor(
+    return torch.stack(
         [
-            [
-                torch.vdot(state_vector, apply(state_vector, i, op))
-                for op in single_qubit_operators
-            ]
+            torch.vmap(torch.trace)(
+                single_qubit_operators
+                @ torch.tensordot(
+                    state_vector.view(2**i, 2, -1),
+                    state_vector.view(2**i, 2, -1).conj(),
+                    dims=([0, 2], [0, 2]),
+                )
+            )
             for i in range(n_qubits)
-        ],
-        dtype=torch.complex128,
+        ]
     )
 
 
@@ -30,5 +33,5 @@ def apply(
     """
     return (
         single_qubit_operator.to(state_vector.device)
-        @ state_vector.view(2 ** (qubit_index), 2, -1)
+        @ state_vector.view(2**qubit_index, 2, -1)
     ).view(-1)
