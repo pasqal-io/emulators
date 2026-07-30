@@ -129,6 +129,7 @@ def test_matmul_linblad_class():
     interaction_matrix = torch.rand(nqubits, nqubits, dtype=dtype, device=device)
 
     rho = torch.rand(2**nqubits, 2**nqubits, dtype=dtype, device=device)
+    rho = 0.5 * (rho + rho.conj().T)  # RydbergLindbladian only works for Hermitian input
 
     ham_lind = RydbergLindbladian(
         omegas=omegas,
