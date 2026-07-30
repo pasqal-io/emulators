@@ -207,7 +207,8 @@ class RydbergLindbladian:
             for L in self.pulser_lindblads
         )
 
-        return H_den_matrix + 1.0j * L_den_matrix_Ldag
+        res = H_den_matrix + 1.0j * L_den_matrix_Ldag
+        return res - res.conj().T  # for numerical stability
 
     def expect(self, state: DensityMatrix) -> torch.Tensor:
         """Return the energy expectation value E=tr(H𝜌)"""
