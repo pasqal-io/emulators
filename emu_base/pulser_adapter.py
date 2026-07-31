@@ -266,11 +266,22 @@ class PulserData:
 
         self.full_interaction_matrix = None
         if config.interaction_matrix is not None:
-            assert len(config.interaction_matrix) == self.qubit_count, (
+            assert config.interaction_matrix.shape[1] == self.qubit_count, (
                 "The number of qubits in the register should be the same as the size of "
                 "the interaction matrix"
             )
             self.full_interaction_matrix = config.interaction_matrix.as_tensor()
+            if self.hamiltonian_type == HamiltonianType.Rydberg:
+                assert (
+                    self.full_interaction_matrix.shape[0] == 1
+                ), "There must be 1 interaction matrix in the stack for the Rydberg term."
+            elif self.hamiltonian_type == HamiltonianType.XY:
+                assert self.full_interaction_matrix.shape[0] == 2, (
+                    "There must be 2 interaction matrices in the stack "
+                    "for the XY and Rydberg term respectively."
+                )
+            else:
+                raise ValueError(f"Unsupported interaction type {self.hamiltonian_type}")
 
         self.interaction_cutoff = config.interaction_cutoff
         self.slm_end_time = (
@@ -286,14 +297,6 @@ class PulserData:
             )
 
             full_interaction_matrix = full_interaction_matrix.clone()
-
-            # This will be handled in pulser from version 1.9
-            if self.hamiltonian_type == HamiltonianType.Rydberg:
-                full_interaction_matrix = full_interaction_matrix.unsqueeze(0)
-            elif self.hamiltonian_type == HamiltonianType.XY:
-                full_interaction_matrix = torch.stack([full_interaction_matrix] * 2)
-            else:
-                raise ValueError(f"Unsupported hamiltonian type: {self.hamiltonian_type}")
 
             full_interaction_matrix[
                 torch.abs(full_interaction_matrix) < self.interaction_cutoff
