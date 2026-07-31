@@ -271,6 +271,17 @@ class PulserData:
                 "the interaction matrix"
             )
             self.full_interaction_matrix = config.interaction_matrix.as_tensor()
+            if self.hamiltonian_type == HamiltonianType.Rydberg:
+                assert (
+                    self.full_interaction_matrix.shape[0] == 1
+                ), "There must be 1 interaction matrix in the stack for the Rydberg term."
+            elif self.hamiltonian_type == HamiltonianType.XY:
+                assert self.full_interaction_matrix.shape[0] == 2, (
+                    "There must be 2 interaction matrices in the stack "
+                    "for the XY and Rydberg term respectively."
+                )
+            else:
+                raise ValueError(f"Unsupported interaction type {self.hamiltonian_type}")
 
         self.interaction_cutoff = config.interaction_cutoff
         self.slm_end_time = (
