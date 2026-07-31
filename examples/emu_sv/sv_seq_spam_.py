@@ -38,6 +38,7 @@ sv_config = emu_sv.SVConfig(
         emu_sv.Occupation(evaluation_times=times),
     ],
     noise_model=noise_model,
+    solver=emu_sv.Solver.LINDBLAD,
 )
 
 backend_sv = emu_sv.SVBackend(seq, config=sv_config)
@@ -74,6 +75,7 @@ sv_config = emu_sv.SVConfig(
         emu_sv.Occupation(evaluation_times=times),
     ],
     noise_model=noise_model,
+    solver=emu_sv.Solver.LINDBLAD,
 )
 
 backend_sv = emu_sv.SVBackend(seq, config=sv_config)

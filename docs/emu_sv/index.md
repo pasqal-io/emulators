@@ -10,7 +10,9 @@ The following features are currently supported:
 - All Pulser sequences that use only the rydberg channel
 - States and Operators can be constructed using the abstract Pulser format.
 - All noise from the pulser `NoiseModel` except leakage
-    - Effective noise is included using the density matrix formalism
+    - Effective noise is included using
+        - The Lindblad equation
+        - Monte Carlo quantum jumps
 - The following [basis states](https://pulser.readthedocs.io/en/stable/conventions.html) in a sequence:
     - [ground-rydberg](./notebooks/getting_started.ipynb)
 - The following properties from a Pulser Sequence are also correctly applied:

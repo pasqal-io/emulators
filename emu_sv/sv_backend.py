@@ -11,9 +11,9 @@ class SVBackend(EmulatorBackend):
     noise channel or jump operators
 
     Args:
-        sequence: The sequence to be executed.
-        config (SVConfig): Configuration for the SV backend.
-        mimic_qpu: Whether to enforce Register constrains imposed
+        sequence (pulser.Sequence): The sequence to be executed.
+        config (pulser.EmulationConfig | None): Configuration for the SV backend.
+        mimic_qpu (bool): Whether to enforce Register constrains imposed
             by the device in the Sequence.
     """
 

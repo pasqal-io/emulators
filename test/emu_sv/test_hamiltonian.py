@@ -34,6 +34,7 @@ def test_dense_vs_sparse_no_phase(N: int) -> None:
         phis=phis,
         interaction_matrix=interaction_matrix,
         device=device,
+        noise=None,
     )
 
     # test hamiltonian diagonal terms
@@ -66,6 +67,7 @@ def test_dense_vs_sparse_with_phase(N: int) -> None:
         phis=phis,
         interaction_matrix=interaction_matrix,
         device=device,
+        noise=None,
     )
 
     # test hamiltonian diagonal terms
@@ -100,6 +102,7 @@ def test_call_sigma_real_complex() -> None:
             phis=torch.randn(2),
             interaction_matrix=interaction_matrix,
             device=state.data.device,
+            noise=None,
         )
         ham_w_phase * state.data
         assert ham_w_phase.complex
@@ -116,7 +119,50 @@ def test_call_sigma_real_complex() -> None:
             phis=torch.zeros(2),
             interaction_matrix=interaction_matrix,
             device=state.data.device,
+            noise=None,
         )
         ham_zero_phase * state.data
         assert not ham_zero_phase.complex
         ham_zero_phase._apply_sigma_operators_real.assert_called_once()
+
+
+def test_expect():
+    torch.manual_seed(1337)
+    N = 3
+    omegas = torch.randn(N, dtype=torch.float64)
+    deltas = torch.randn(N, dtype=torch.float64)
+    interaction_matrix = torch.randn(N, N, dtype=torch.float64)
+    interaction_matrix = interaction_matrix + interaction_matrix.T
+    eigenstates = ("r", "g")
+    state = StateVector.from_state_amplitudes(
+        eigenstates=eigenstates, amplitudes={"rrr": 1, "rgg": 1}
+    )
+    h0 = RydbergHamiltonian(
+        omegas=omegas,
+        deltas=deltas,
+        phis=torch.zeros(N),
+        interaction_matrix=interaction_matrix,
+        device=state.data.device,
+        noise=None,
+    )
+    h = RydbergHamiltonian(
+        omegas=omegas,
+        deltas=deltas,
+        phis=torch.zeros(N),
+        interaction_matrix=interaction_matrix,
+        device=state.data.device,
+        noise=torch.tensor([[0.0, 0.0], [0.0, -0.5j]], dtype=torch.complex128),
+    )
+    assert torch.allclose(
+        h0.expect(state),
+        0.5
+        * (
+            -2 * deltas[0]
+            - deltas[1]
+            - deltas[2]
+            + interaction_matrix[0, 1]
+            + interaction_matrix[0, 2]
+            + interaction_matrix[1, 2]
+        ),
+    )
+    assert h0.expect(state) == h.expect(state)

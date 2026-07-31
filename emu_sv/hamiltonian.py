@@ -23,6 +23,10 @@ class RydbergHamiltonian:
         phis (torch.Tensor): vector of phases ϕⱼ for each qubit.
         interaction_matrix (torch.Tensor): matrix Uᵢⱼ for pairwise interactions.
         device (torch.device): device on which all tensors are allocated.
+        noise (torch.Tensor, optional): The single-qubit noise
+            term -0.5i∑ⱼLⱼ†Lⱼ applied to all qubits.
+            This can be computed using the `compute_noise_from_lindbladians`
+            function.
         diag (torch.Tensor): diagonal contribution to the Hamiltonian (detuning + interactions).
         inds (torch.Tensor): index mapping for σˣ operations.
         nqubits (int): number of qubits in the system.
@@ -42,6 +46,7 @@ class RydbergHamiltonian:
         phis: torch.Tensor,
         interaction_matrix: torch.Tensor,
         device: torch.device,
+        noise: torch.Tensor | None,
     ):
         self.nqubits: int = len(omegas)
         self.omegas: torch.Tensor = omegas / 2.0
@@ -49,10 +54,17 @@ class RydbergHamiltonian:
         self.phis: torch.Tensor = phis
         self.interaction_matrix: torch.Tensor = interaction_matrix
         self.device: torch.device = device
+        self.noise: torch.Tensor | None = noise
 
         self.diag: torch.Tensor = self._create_diagonal()
         self.inds = torch.tensor([1, 0], device=self.device)  # flips the state, for σˣ
-        self.complex = self.phis.any()
+        self.complex = self.phis.any() or noise is not None
+        if self.complex:
+            self.omegas_c = self.omegas * torch.exp(1.0j * self.phis)
+            self.omegas_c = torch.stack((self.omegas_c, self.omegas_c.conj()), dim=1)
+            if noise is not None:
+                self.omegas_c[:, 0] += noise[1, 0]
+                self.omegas_c[:, 1] += noise[0, 1]
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
@@ -109,21 +121,19 @@ class RydbergHamiltonian:
         Returns:
             the resulting state vector.
         """
-        c_omegas = self.omegas * torch.exp(1.0j * self.phis)
-
         dim_to_act = 1
-        for n, c_omega_n in enumerate(c_omegas):
+        for n, c_omega_n in enumerate(self.omegas_c):
             shape_n = (2**n, 2, 2 ** (self.nqubits - n - 1))
             vec = vec.view(shape_n)
             result = result.view(shape_n)
             result.index_add_(
-                dim_to_act, self.inds[0], vec[:, 0, :].unsqueeze(1), alpha=c_omega_n
+                dim_to_act, self.inds[0], vec[:, 0, :].unsqueeze(1), alpha=c_omega_n[0]
             )
             result.index_add_(
                 dim_to_act,
                 self.inds[1],
                 vec[:, 1, :].unsqueeze(1),
-                alpha=c_omega_n.conj(),
+                alpha=c_omega_n[1],
             )
 
     def _create_diagonal(self) -> torch.Tensor:
@@ -133,6 +143,12 @@ class RydbergHamiltonian:
             H.diag = -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
         """
         diag = torch.zeros(2**self.nqubits, dtype=torch.complex128, device=self.device)
+
+        if self.noise is not None:
+            for i in range(self.nqubits):
+                diag = diag.view(2**i, 2, -1)
+                diag[:, 0, :] += self.noise[0, 0]
+                diag[:, 1, :] += self.noise[1, 1]
 
         for i in range(self.nqubits):
             diag = diag.view(2**i, 2, -1)
@@ -151,5 +167,6 @@ class RydbergHamiltonian:
             state, StateVector
         ), "Currently, only expectation values of StateVectors are supported"
         en = torch.vdot(state.data, self * state.data)
-        assert torch.allclose(en.imag, torch.zeros_like(en.imag), atol=1e-8)
-        return en.real
+        if self.noise is None:
+            assert torch.allclose(en.imag, torch.zeros_like(en.imag), atol=1e-8)
+        return en.real  # if there is lindblad noise, there is non-zero imaginary part.

@@ -191,7 +191,7 @@ class RydbergLindbladian:
         # Heff = Hρ  -0.5i ∑ₖ Lₖ† Lₖ ρ
         H_den_matrix = self.h_eff(density_matrix, sum_lindblad_local)
 
-        # Heff - Heff^†=  [H, ρ] - 0.5i ∑ₖ Lₖ† Lₖρ - ρ 0.5i ∑ₖ Lₖ† Lₖρ
+        # Heff - Heff^†=  [H, ρ] - 0.5i ∑ₖ Lₖ† Lₖρ - ρ 0.5i ∑ₖ Lₖ† Lₖ
         H_den_matrix = H_den_matrix - H_den_matrix.conj().T
 
         # compute ∑ₖ Lₖ ρ Lₖ†, last part of the Lindblad operator
@@ -207,7 +207,8 @@ class RydbergLindbladian:
             for L in self.pulser_lindblads
         )
 
-        return H_den_matrix + 1.0j * L_den_matrix_Ldag
+        res = H_den_matrix + 1.0j * L_den_matrix_Ldag
+        return 0.5 * (res - res.conj().T)  # for numerical stability
 
     def expect(self, state: DensityMatrix) -> torch.Tensor:
         """Return the energy expectation value E=tr(H𝜌)"""

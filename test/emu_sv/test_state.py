@@ -9,8 +9,7 @@ factor = 1.0 / torch.sqrt(torch.tensor(2.0))
 
 seed = 1337
 dtype = torch.complex128
-device = "cpu"
-# device= "cuda"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 gpu = False if device == "cpu" else True
 
@@ -105,7 +104,7 @@ def test_sample() -> None:
     torch.manual_seed(seed)
 
     tensor = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
-    state = StateVector(tensor, gpu=gpu)
+    state = StateVector(tensor, gpu=False)  # rng is different on GPU
     sampling = state.sample(num_shots=1000)
 
     assert sampling["111"] == 485
