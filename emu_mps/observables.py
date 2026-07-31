@@ -1,5 +1,5 @@
 from pulser.backend.state import State
-from pulser.backend.observable import Observable
+from pulser.backend.observable import Observable, AggregationMethod
 from emu_mps.mps import MPS
 from typing import Sequence, Any
 import torch
@@ -26,7 +26,11 @@ class EntanglementEntropy(Observable):
         evaluation_times: Sequence[float] | None = None,
         tag_suffix: str | None = None,
     ):
-        super().__init__(evaluation_times=evaluation_times, tag_suffix=tag_suffix)
+        super().__init__(
+            evaluation_times=evaluation_times,
+            tag_suffix=tag_suffix,
+            default_aggregation_method=AggregationMethod.SKIP_WARN,
+        )
         self.mps_site = mps_site
 
     @property
