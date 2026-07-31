@@ -416,19 +416,23 @@ def test_interaction_matrix_callable_at_slm_end_time():
     equals slm_end_time"""
     full_matrix = torch.tensor(
         [
-            [1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0],
-            [9.0, 10.0, 11.0, 12.0],
-            [13.0, 14.0, 15.0, 16.0],
+            [
+                [1.0, 2.0, 3.0, 4.0],
+                [5.0, 6.0, 7.0, 8.0],
+                [9.0, 10.0, 11.0, 12.0],
+                [13.0, 14.0, 15.0, 16.0],
+            ]
         ],
         dtype=torch.float64,
     )
     masked_matrix = torch.tensor(
         [
-            [1.0, 0.0, 3.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0],
-            [9.0, 0.0, 11.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0],
+            [
+                [1.0, 0.0, 3.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [9.0, 0.0, 11.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
         ],
         dtype=torch.float64,
     )
@@ -447,19 +451,23 @@ def test_interaction_matrix_callable_returns_masked_at_zero():
     """Test that _InteractionMatrixCallable returns masked_matrix when time is zero"""
     full_matrix = torch.tensor(
         [
-            [1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0],
-            [9.0, 10.0, 11.0, 12.0],
-            [13.0, 14.0, 15.0, 16.0],
+            [
+                [1.0, 2.0, 3.0, 4.0],
+                [5.0, 6.0, 7.0, 8.0],
+                [9.0, 10.0, 11.0, 12.0],
+                [13.0, 14.0, 15.0, 16.0],
+            ]
         ],
         dtype=torch.float64,
     )
     masked_matrix = torch.tensor(
         [
-            [1.0, 0.0, 3.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0],
-            [9.0, 0.0, 11.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0],
+            [
+                [1.0, 0.0, 3.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [9.0, 0.0, 11.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
         ],
         dtype=torch.float64,
     )
@@ -757,9 +765,11 @@ def test_get_sequences_1_trajectory(mock_data):
         """Return a fixed interaction matrix for testing purposes."""
         return torch.tensor(
             [
-                [0.0, 0.0929, -0.4],
-                [0.0929, 0.0, 0.1067],
-                [-0.4, 0.1067, 0.0],
+                [
+                    [0.0, 0.0929, -0.4],
+                    [0.0929, 0.0, 0.1067],
+                    [-0.4, 0.1067, 0.0],
+                ]
             ],
             dtype=torch.float64,
         )
@@ -790,7 +800,7 @@ def test_get_sequences_1_trajectory(mock_data):
     )
 
     cutoff_interaction_matrix = torch.tensor(
-        [[0.0, 0.0, -0.4], [0.0, 0.0, 0.0], [-0.4, 0.0, 0.0]],
+        [[[0.0, 0.0, -0.4], [0.0, 0.0, 0.0], [-0.4, 0.0, 0.0]]],
         dtype=torch.float64,
     )
 
@@ -858,7 +868,7 @@ def test_get_sequences_2_trajectories(mock_data):
     mock_from_sequence.basis_data.interaction_type = "ising"
 
     mat = torch.randn(3, 3, dtype=float)
-    interaction_matrix = (mat + mat.T).fill_diagonal_(0).tolist()
+    interaction_matrix = (mat + mat.T).fill_diagonal_(0).reshape(1, 3, 3).tolist()
 
     sequence._slm_mask_time = []
 

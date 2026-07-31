@@ -266,7 +266,7 @@ class PulserData:
 
         self.full_interaction_matrix = None
         if config.interaction_matrix is not None:
-            assert len(config.interaction_matrix) == self.qubit_count, (
+            assert config.interaction_matrix.shape[1] == self.qubit_count, (
                 "The number of qubits in the register should be the same as the size of "
                 "the interaction matrix"
             )
@@ -286,14 +286,6 @@ class PulserData:
             )
 
             full_interaction_matrix = full_interaction_matrix.clone()
-
-            # This will be handled in pulser from version 1.9
-            if self.hamiltonian_type == HamiltonianType.Rydberg:
-                full_interaction_matrix = full_interaction_matrix.unsqueeze(0)
-            elif self.hamiltonian_type == HamiltonianType.XY:
-                full_interaction_matrix = torch.stack([full_interaction_matrix] * 2)
-            else:
-                raise ValueError(f"Unsupported hamiltonian type: {self.hamiltonian_type}")
 
             full_interaction_matrix[
                 torch.abs(full_interaction_matrix) < self.interaction_cutoff

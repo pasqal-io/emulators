@@ -6,7 +6,7 @@ import logging
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 
-from pulser.backend import Results, Observable, State, EmulationConfig
+from pulser.backend import Results, Observable, State, EmulationConfig, AggregationMethod
 from emu_base import SequenceData, get_max_rss
 
 from emu_sv.state_vector import StateVector
@@ -24,7 +24,10 @@ class Statistics(Observable):
         data: list[float],
         timestep_count: int,
     ):
-        super().__init__(evaluation_times=evaluation_times)
+        super().__init__(
+            evaluation_times=evaluation_times,
+            default_aggregation_method=AggregationMethod.SKIP,
+        )
         self.data = data
         self.timestep_count = timestep_count
 
