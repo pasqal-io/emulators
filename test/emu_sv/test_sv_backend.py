@@ -86,12 +86,14 @@ def test_backend_impl_stepper_logic():
     mock_config.initial_state = None
     mock_config.solver = Solver.DEFAULT
 
+    mock_config.noise_model = NoiseModel()
     mock_sequence = MagicMock()
     mock_sequence.state_prep_error = 0.0
     mock_sequence.lindblad_ops = [1.0, 2.0]
     backend_impl = SVBackendImpl(mock_config, mock_sequence)
     assert type(backend_impl.stepper) is EvolveDensityMatrix
 
+    mock_config.noise_model = NoiseModel()
     mock_sequence = MagicMock()
     mock_sequence.state_prep_error = 0.0
     mock_sequence.lindblad_ops = []
@@ -113,6 +115,7 @@ def test_backend_impl_stepper_logic():
     backend_impl = SVBackendImpl(mock_config, mock_sequence)
     assert type(backend_impl.stepper) is EvolveDensityMatrix
 
+    mock_config.noise_model = NoiseModel()
     mock_config.solver = Solver.MONTECARLO
     mock_sequence = MagicMock()
     mock_sequence.state_prep_error = 0.0
@@ -120,6 +123,7 @@ def test_backend_impl_stepper_logic():
     backend_impl = SVBackendImpl(mock_config, mock_sequence)
     assert type(backend_impl.stepper) is EvolveMonteCarlo
 
+    mock_config.noise_model = NoiseModel()
     mock_config.solver = Solver.MONTECARLO
     mock_sequence = MagicMock()
     mock_sequence.state_prep_error = 0.0
@@ -127,6 +131,7 @@ def test_backend_impl_stepper_logic():
     backend_impl = SVBackendImpl(mock_config, mock_sequence)
     assert type(backend_impl.stepper) is EvolveStateVector
 
+    mock_config.noise_model = NoiseModel()
     mock_config.solver = Solver.LINDBLAD
     mock_sequence = MagicMock()
     mock_sequence.state_prep_error = 0.0

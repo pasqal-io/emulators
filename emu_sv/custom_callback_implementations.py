@@ -16,6 +16,17 @@ from emu_sv.lindblad_operator import RydbergLindbladian
 dtype = torch.float64
 
 
+def _strip_noise(hamiltonian: RydbergHamiltonian) -> RydbergHamiltonian:
+    return RydbergHamiltonian(
+        omegas=hamiltonian.omegas * 2.0,
+        deltas=hamiltonian.deltas,
+        phis=hamiltonian.phis,
+        interaction_matrix=hamiltonian.interaction_matrix,
+        device=hamiltonian.device,
+        noise=None,
+    )
+
+
 def qubit_occupation_sv_impl(
     self: Occupation,
     *,
@@ -128,14 +139,7 @@ def energy_variance_sv_impl(
     Custom implementation of the energy variance ❬ψ|H²|ψ❭-❬ψ|H|ψ❭² for the state vector solver.
     """
     if hamiltonian.noise is not None:
-        hamiltonian = RydbergHamiltonian(
-            omegas=hamiltonian.omegas * 2.0,
-            deltas=hamiltonian.deltas,
-            phis=hamiltonian.phis,
-            interaction_matrix=hamiltonian.interaction_matrix,
-            device=hamiltonian.device,
-            noise=None,
-        )
+        hamiltonian = _strip_noise(hamiltonian)
     hstate = hamiltonian * state.data
     h_squared = torch.vdot(hstate, hstate).real
     energy = torch.vdot(state.data, hstate).real
@@ -175,14 +179,7 @@ def energy_second_moment_sv_impl(
     for the state vector solver.
     """
     if hamiltonian.noise is not None:
-        hamiltonian = RydbergHamiltonian(
-            omegas=hamiltonian.omegas * 2.0,
-            deltas=hamiltonian.deltas,
-            phis=hamiltonian.phis,
-            interaction_matrix=hamiltonian.interaction_matrix,
-            device=hamiltonian.device,
-            noise=None,
-        )
+        hamiltonian = _strip_noise(hamiltonian)
     hstate = hamiltonian * state.data
     en_2_mom: torch.Tensor = torch.vdot(hstate, hstate).real
     return en_2_mom.cpu()

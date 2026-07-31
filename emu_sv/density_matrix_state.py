@@ -18,7 +18,8 @@ class DensityMatrix(State[complex, torch.Tensor]):
     """Represents an n-qubit density matrix ρ in the computational (|g⟩, |r⟩)
     basis. The input should be a square complex tensor with shape (2ⁿ, 2ⁿ),
     where n is the number of atoms. ρ must be Hermitian, positive semidefinite,
-    and has trace 1.
+    and has trace 1. These checks are too expensive to actually perform, so
+    it's up to the user to ensure these constraints are met.
 
     Args:
         matrix (torch.Tensor): Square complex tensor of shape (2ⁿ, 2ⁿ),

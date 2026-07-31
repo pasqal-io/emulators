@@ -167,4 +167,6 @@ class RydbergHamiltonian:
             state, StateVector
         ), "Currently, only expectation values of StateVectors are supported"
         en = torch.vdot(state.data, self * state.data)
+        if self.noise is None:
+            assert torch.allclose(en.imag, torch.zeros_like(en.imag), atol=1e-8)
         return en.real  # if there is lindblad noise, there is non-zero imaginary part.

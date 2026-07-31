@@ -27,7 +27,7 @@ from pulser.backend import (
     EnergyVariance,
     Occupation,
 )
-from .solver import Solver
+from emu_sv.solver import Solver
 
 
 class SVConfig(EmulationConfig):

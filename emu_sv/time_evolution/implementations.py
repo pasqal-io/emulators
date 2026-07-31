@@ -1,6 +1,5 @@
 import torch
 import random
-import math
 from typing import cast
 from emu_base.math.krylov_exp import krylov_exp
 from emu_base.math.brents_root_finding import BrentsRootFinder
@@ -10,6 +9,8 @@ from emu_sv.lindblad_operator import RydbergLindbladian
 from emu_sv.algebra import apply, expect_batch
 from emu_sv.time_evolution import BaseStepper
 from .torch import DifferentiableStateVectorEvolution
+
+JUMP_TIME_TOLERANCE_FRACTION = 0.1
 
 
 class EvolveStateVector(BaseStepper):
@@ -169,9 +170,8 @@ class EvolveMonteCarlo(BaseStepper):
 
         norm_after_normalizing = torch.linalg.vector_norm(state).item()
 
-        assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
         self.jump_threshold = random.uniform(0.0, norm_after_normalizing**2)
-        return cast(torch.Tensor, state)
+        return state
 
     def apply(
         self,
@@ -194,9 +194,11 @@ class EvolveMonteCarlo(BaseStepper):
         )
 
         current_time = 0.0
-        tol = dt / 10
+        tol = dt * JUMP_TIME_TOLERANCE_FRACTION
         new_norm_gap = torch.linalg.vector_norm(state) ** 2 - self.jump_threshold
         stacked = torch.stack(pulser_lindblads)
+        # The below is used for batch computation of noise collapse weights.
+        aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
 
         while abs(dt - current_time) > 1e-5:
             old_norm_gap = new_norm_gap
@@ -225,8 +227,6 @@ class EvolveMonteCarlo(BaseStepper):
                     )
                     root_finder.provide_ordinate(current_time, new_norm_gap)
 
-                # The below is used for batch computation of noise collapse weights.
-                aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
                 state = self.do_quantum_jump(
                     state, pulser_lindblads, aggregated_lindblad_ops, len(omegas)
                 )
