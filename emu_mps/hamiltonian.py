@@ -394,7 +394,7 @@ def update_H(
         Defaults to a zero tensor.
     """
 
-    if noise.shape not in {(2, 2), (3, 3)}:
+    if not (noise.shape == (2, 2) or noise.shape == (3, 3)):
         raise ValueError(
             f"noise must have shape (2, 2) or (3, 3), got {tuple(noise.shape)}"
         )
