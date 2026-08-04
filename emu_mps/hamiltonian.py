@@ -286,13 +286,13 @@ class HamiltonianMPOFactors:
     def _left_interaction_coefficients(
         self, n: int, current_left_interactions: torch.Tensor
     ) -> torch.Tensor:
-        return self.interaction_matrix[:, :n][current_left_interactions, n, None, None]
+        return self.interaction_matrix[:, :n][current_left_interactions][:, n, None, None]
 
     def _right_interaction_coefficients(
         self, n: int, current_right_interactions: torch.Tensor
     ) -> torch.Tensor:
-        return self.interaction_matrix[:, n + 1 :][
-            None, None, current_right_interactions, n
+        return self.interaction_matrix[:, n + 1 :][current_right_interactions][
+            None, None, :, n
         ]
 
     def _middle_interaction_coefficients(
