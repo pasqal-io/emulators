@@ -852,6 +852,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pulser.backend.results.Results.from_final_bitstrings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        from_final_bitstrings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pulser.backend.results.Results.get_result" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1232,6 +1243,17 @@
   
     <nav class="md-nav" aria-label="Observable">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pulser.backend.observable.Observable.default_aggregation_method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        default_aggregation_method
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#pulser.backend.observable.Observable.tag" class="md-nav__link">
@@ -2867,6 +2889,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pulser.backend.results.Results.from_final_bitstrings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        from_final_bitstrings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pulser.backend.results.Results.get_result" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3247,6 +3280,17 @@
   
     <nav class="md-nav" aria-label="Observable">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pulser.backend.observable.Observable.default_aggregation_method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        default_aggregation_method
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#pulser.backend.observable.Observable.tag" class="md-nav__link">
@@ -3719,9 +3763,13 @@ input or the expected output.</p>
               <div class="doc-md-description">
                 <p>An optional interaction matrix to replace the
 interaction terms in the Hamiltonian. For an N-qudit system,
-must be an NxN symmetric matrix where entry (i, j) dictates
-the interaction coefficient between qudits i and j, ie it replaces
-the C_n/r_{ij}^n term.</p>
+an interaction matrix is an NxN symmetric matrix,
+where entry (i, j) dictates the interaction coefficient between
+qudits i and j, ie it replaces the C_n/r_{ij}^n term.
+In XY, there are the two interactions C3 and C6 so
+the input should be a tensor of shape (2,N,N), representing the
+interaction matrix for the XY and the Rydberg term in that order.
+Otherwise the input should be a tensor of shape (N, N) or (1,N,N).</p>
               </div>
               <p>
                   <span class="doc-param-annotation">
@@ -4488,16 +4536,21 @@ be accessed via the observable's tag.</p>
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code>observable_tag</code></td>
+            <td><code>aggregation_functions</code></td>
             <td class="doc-param-details">
               <div class="doc-md-description">
                 <p>Overrides the default aggregator.
 The argument name should be the tag of the Observable.
-The value is a Callable taking a list of the type to aggregate.
+The value is a Callable taking a list of the type to aggregate,
+or an AggregationMethod enum.
 Note that this does not override the default aggregation
 behaviour of the aggregated results.</p>
               </div>
               <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="typing.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="typing.Any">Any</span>] | <span title="pulser.backend.observable.AggregationMethod">AggregationMethod</span></code>
+                  </span>
               </p>
             </td>
           </tr>
@@ -4569,6 +4622,91 @@ behaviour of the aggregated results.</p>
               <div class="doc-md-description">
                 <p>The deserialized Results object.</p>
               </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pulser.backend.results.Results.from_final_bitstrings" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">from_final_bitstrings</span><span class="p">(</span><span class="n">atom_order</span><span class="p">,</span> <span class="n">total_duration</span><span class="p">,</span> <span class="n">final_bitstrings</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#pulser.backend.results.Results.from_final_bitstrings" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Creates a Results instance with bitstrings at evaluation time t=1.0.</p>
+<p>The bitstrings are stored under a fabricated BitStrings observable
+instance. Use <code>Results.final_bitstrings</code> or
+<code>Results.get_result("bitstrings", 1.0)</code> to retrieve them.</p>
+
+
+<table>
+      <thead>
+        <tr>
+          <th><span class="doc-section-title">PARAMETER</span></th>
+          <th><span>DESCRIPTION</span></th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>atom_order</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>The order of the atoms/qudits in the results.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span>]</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>total_duration</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>The total duration of the sequence, in ns.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="int">int</span></code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>final_bitstrings</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>The bitstring counter to store in the Results.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="int">int</span>]</code>
+                  </span>
+              </p>
             </td>
           </tr>
       </tbody>
@@ -6304,6 +6442,23 @@ same EmulationConfig.</p>
               </p>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>default_aggregation_method</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>How to combine the values of this
+observable from multiple results.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="pulser.backend.observable.AggregationMethod">AggregationMethod</span></code>
+                  </span>
+              </p>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -6326,6 +6481,28 @@ same EmulationConfig.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="pulser.backend.observable.Observable.default_aggregation_method" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">default_aggregation_method</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#pulser.backend.observable.Observable.default_aggregation_method" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>How the values from multiple results are combined.</p>
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-attribute">
 

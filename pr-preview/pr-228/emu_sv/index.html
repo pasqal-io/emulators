@@ -1793,7 +1793,11 @@
 <li>All Pulser sequences that use only the rydberg channel</li>
 <li>States and Operators can be constructed using the abstract Pulser format.</li>
 <li>All noise from the pulser <code>NoiseModel</code> except leakage<ul>
-<li>Effective noise is included using the density matrix formalism</li>
+<li>Effective noise is included using<ul>
+<li>The Lindblad equation</li>
+<li>Monte Carlo quantum jumps</li>
+</ul>
+</li>
 </ul>
 </li>
 <li>The following <a href="https://pulser.readthedocs.io/en/stable/conventions.html">basis states</a> in a sequence:<ul>
