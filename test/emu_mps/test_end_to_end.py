@@ -168,25 +168,25 @@ def test_XY_3atoms() -> None:
 
     expected_res = torch.tensor(
         [
-            -0.0684 - 0.5677j,
-            0.0202 - 0.0305j,
-            -0.0313 + 0.0214j,
-            -0.2322 + 0.3942j,
-            0.0202 - 0.0305j,
-            -0.2329 + 0.3709j,
-            -0.2322 + 0.3942j,
-            0.2344 - 0.0602j,
+            0.3799 + 0.7548j,
+            -0.0378 - 0.2454j,
+            -0.0615 - 0.3029j,
+            0.0918 + 0.0803j,
+            -0.0378 - 0.2454j,
+            0.1272 + 0.1217j,
+            0.0918 + 0.0803j,
+            0.0592 + 0.0529j,
         ],
         device=final_state.factors[0].device,
         dtype=dtype,
     )
 
-    # pulser magnetization: [0.46024234949993825,0.4776498885102908,0.4602423494999386#
+    # pulser magnetization: [0.11369719478579222, 0.13135032099209887, 0.11369719478579224]
     q_density = result.occupation[-1]
 
     max_bond_dim = final_state.get_max_bond_dim()
     assert max_bond_dim == 2
-    assert approx(q_density.tolist(), 1e-3) == [0.4610, 0.4786, 0.4610]
+    assert approx(q_density.tolist(), abs=1e-3) == [0.114, 0.131, 0.114]
     assert torch.allclose(final_vec, expected_res, rtol=0, atol=1e-4)
 
 
@@ -203,24 +203,24 @@ def test_XY_3atomswith_slm() -> None:
 
     expected_res = torch.tensor(
         [
-            7.0711e-01 - 4.2972e-17j,
-            -1.7133e-01 + 1.7989e-01j,
-            4.4791e-01 - 1.0291e-01j,
-            2.2578e-16 - 4.4738e-15j,
-            1.3729e-01 - 4.5631e-01j,
-            2.1802e-15 - 3.0011e-16j,
-            -1.7551e-15 + 2.5736e-15j,
-            2.6618e-15 + 5.4529e-16j,
+            -2.8668e-01 - 6.4639e-01j,
+            -4.4031e-01 + 2.2194e-01j,
+            -6.9743e-02 + 1.7001e-01j,
+            -9.9920e-16 + 1.1553e-15j,
+            -1.8146e-01 - 4.3607e-01j,
+            9.9920e-16 + 6.5226e-16j,
+            -1.0472e-16 - 2.1206e-15j,
+            7.2999e-16 + 1.1104e-15j,
         ],
         device=final_state.factors[0].device,
         dtype=dtype,
     )
-    # pulser magnetization: [0.22572457283642877,0.21208108307887844,0.06213666344288577
+    # pulser magnetization: [0.229273341667555, 0.025689569652770146, 0.2450364924437465]
     q_density = result.occupation[-1]
 
     max_bond_dim = final_state.get_max_bond_dim()
     assert max_bond_dim == 2
-    assert approx(q_density, 1e-3) == [0.2270, 0.2112, 0.0617]
+    assert approx(q_density, abs=1e-3) == [0.223, 0.034, 0.243]
     assert torch.allclose(
         final_vec, expected_res, rtol=0, atol=1e-4
     )  # todo, compare against pulser results

@@ -2,7 +2,7 @@ import pytest
 import re
 import json
 import logging
-from emu_sv import SVConfig, StateVector
+from emu_sv import SVConfig, StateVector, Solver
 import pulser
 import numpy as np
 from pulser.backend.config import EmulationConfig
@@ -19,6 +19,7 @@ sv_params = {
     "interaction_cutoff": 1.1,
     "log_level": logging.ERROR,
     "log_file": None,
+    "solver": Solver.LINDBLAD,
 }
 
 

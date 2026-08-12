@@ -18,7 +18,8 @@ class DensityMatrix(State[complex, torch.Tensor]):
     """Represents an n-qubit density matrix ρ in the computational (|g⟩, |r⟩)
     basis. The input should be a square complex tensor with shape (2ⁿ, 2ⁿ),
     where n is the number of atoms. ρ must be Hermitian, positive semidefinite,
-    and has trace 1.
+    and has trace 1. These checks are too expensive to actually perform, so
+    it's up to the user to ensure these constraints are met.
 
     Args:
         matrix (torch.Tensor): Square complex tensor of shape (2ⁿ, 2ⁿ),
@@ -26,13 +27,6 @@ class DensityMatrix(State[complex, torch.Tensor]):
             computational basis.
         gpu (bool, optional): If True, place the operator on a CUDA device when
             available. Default: True.
-
-    Raises:
-        ValueError: If matrix is not a square 2D tensor of shape (2ⁿ, 2ⁿ) or
-            fails validation (e.g., not Hermitian / trace != 1) if validation
-            is performed.
-        RuntimeError: If gpu=True but CUDA is not available (if the
-            implementation moves tensors to CUDA).
     """
 
     # for the moment no need to check positivity and trace 1
@@ -64,14 +58,23 @@ class DensityMatrix(State[complex, torch.Tensor]):
         raise NotImplementedError("Not implemented")
 
     def __rmul__(self, scalar: complex) -> DensityMatrix:
-        raise NotImplementedError("Not implemented")
+        return DensityMatrix(self.data * scalar, gpu=self.data.is_cuda)
 
     def _normalize(self) -> None:
         # NOTE: use this in the callbacks
         """Normalize the density matrix state"""
-        matrix_trace = torch.trace(self.data)
+        matrix_trace = torch.trace(self.data).real
         if not torch.allclose(matrix_trace, torch.tensor(1.0, dtype=torch.float64)):
             self.data = self.data / matrix_trace
+
+    def norm(self) -> torch.Tensor:
+        """Returns the norm of the state
+
+        Returns:
+            the norm of the state
+        """
+        nrm: torch.Tensor = torch.trace(self.data).real.cpu()
+        return nrm
 
     def overlap(self, other: State) -> torch.Tensor:
         """

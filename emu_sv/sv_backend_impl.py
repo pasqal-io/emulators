@@ -6,15 +6,29 @@ import logging
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 
-from pulser.backend import Results, Observable, State, EmulationConfig
+from pulser.backend import Results, Observable, State, EmulationConfig, AggregationMethod
+from pulser._hamiltonian_data import has_shot_to_shot_except_spam
+from pulser import NoiseModel
 from emu_base import SequenceData, get_max_rss
 
+from emu_sv.solver import Solver
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
 from emu_sv.sv_config import SVConfig
-from emu_sv.time_evolution import EvolveStateVector, EvolveDensityMatrix
+from emu_sv.time_evolution import (
+    EvolveStateVector,
+    EvolveDensityMatrix,
+    EvolveMonteCarlo,
+    BaseStepper,
+)
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
+
+
+def _has_stochastic_noise(noise_model: NoiseModel) -> bool:
+    return has_shot_to_shot_except_spam(noise_model) or (
+        "SPAM" in noise_model.noise_types and noise_model.state_prep_error != 0
+    )
 
 
 class Statistics(Observable):
@@ -24,7 +38,10 @@ class Statistics(Observable):
         data: list[float],
         timestep_count: int,
     ):
-        super().__init__(evaluation_times=evaluation_times)
+        super().__init__(
+            evaluation_times=evaluation_times,
+            default_aggregation_method=AggregationMethod.SKIP,
+        )
         self.data = data
         self.timestep_count = timestep_count
 
@@ -65,13 +82,20 @@ class SVBackendImpl:
 
     def __init__(self, config: SVConfig, data: SequenceData):
         self.pulser_lindblads = data.lindblad_ops
-        stepper: type[EvolveStateVector] | type[EvolveDensityMatrix]
+        stepper: BaseStepper
         state_type: type[StateVector] | type[DensityMatrix]
         if self.pulser_lindblads:
-            stepper = EvolveDensityMatrix
-            state_type = DensityMatrix
+            if (
+                config.solver == Solver.DEFAULT
+                and _has_stochastic_noise(config.noise_model)
+            ) or config.solver == Solver.MONTECARLO:
+                stepper = EvolveMonteCarlo()
+                state_type = StateVector
+            else:
+                stepper = EvolveDensityMatrix()
+                state_type = DensityMatrix
         else:
-            stepper = EvolveStateVector
+            stepper = EvolveStateVector()
             state_type = StateVector
 
         self.stepper = stepper
@@ -200,6 +224,12 @@ class SVBackendImpl:
 
     def _apply_observables(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
+        norm = self.state.norm()
+        state: DensityMatrix | StateVector
+        if not torch.allclose(norm, torch.tensor(1.0, dtype=torch.float64)):
+            state = (1 / norm.item()) * self.state
+        else:
+            state = self.state
         callbacks_for_current_time_step = [
             callback
             for callback in self._config.observables
@@ -214,13 +244,13 @@ class SVBackendImpl:
                 interaction_matrix=self.interaction_matrix(
                     0.5 * (self.target_times[step_idx] + self.target_times[step_idx + 1])
                 )[0],
-                device=self.state.data.device,
+                device=state.data.device,
             )
         for callback in callbacks_for_current_time_step:
             callback(
                 self._config,
                 norm_time,
-                self.state,
+                state,
                 self._current_H,  # type: ignore[arg-type]
                 self.results,
             )

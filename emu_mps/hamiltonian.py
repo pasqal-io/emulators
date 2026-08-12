@@ -286,13 +286,13 @@ class HamiltonianMPOFactors:
     def _left_interaction_coefficients(
         self, n: int, current_left_interactions: torch.Tensor
     ) -> torch.Tensor:
-        return self.interaction_matrix[:, :n][current_left_interactions, n, None, None]
+        return self.interaction_matrix[:, :n][current_left_interactions][:, n, None, None]
 
     def _right_interaction_coefficients(
         self, n: int, current_right_interactions: torch.Tensor
     ) -> torch.Tensor:
-        return self.interaction_matrix[:, n + 1 :][
-            None, None, current_right_interactions, n
+        return self.interaction_matrix[:, n + 1 :][current_right_interactions][
+            None, None, :, n
         ]
 
     def _middle_interaction_coefficients(
@@ -394,7 +394,7 @@ def update_H(
         Defaults to a zero tensor.
     """
 
-    if noise.shape not in {(2, 2), (3, 3)}:
+    if not (noise.shape == (2, 2) or noise.shape == (3, 3)):
         raise ValueError(
             f"noise must have shape (2, 2) or (3, 3), got {tuple(noise.shape)}"
         )

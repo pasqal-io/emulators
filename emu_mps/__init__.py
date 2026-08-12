@@ -35,4 +35,4 @@ __all__ = [
     "EntanglementEntropy",
 ]
 
-__version__ = "2.7.8"
+__version__ = "2.9.1"

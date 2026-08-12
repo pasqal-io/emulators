@@ -145,6 +145,7 @@ def test_custom_energy_and_variance_and_second(noise) -> None:
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=device,
+            noise=None,
         )
         energy_variance = energy_variance_sv_impl(
             energy_variance_mock, config=config, state=state, hamiltonian=hamiltonian
@@ -154,6 +155,28 @@ def test_custom_energy_and_variance_and_second(noise) -> None:
         )
         assert energy_variance.cpu() == approx(expected_variance, abs=4e-7)
         assert second_moment.cpu() == approx(expected_second, abs=2e-7)
+
+        hamiltonian_noise = RydbergHamiltonian(
+            omegas=omegas,
+            deltas=deltas,
+            phis=phis,
+            interaction_matrix=interaction_matrix,
+            device=device,
+            noise=torch.tensor([[0.0, 0.0], [0.0, -0.5j]], dtype=torch.complex128),
+        )
+        energy_variance_noise = energy_variance_sv_impl(
+            energy_variance_mock,
+            config=config,
+            state=state,
+            hamiltonian=hamiltonian_noise,
+        )
+        second_moment_noise = energy_second_moment_sv_impl(
+            second_moment_mock, config=config, state=state, hamiltonian=hamiltonian_noise
+        )
+        assert energy_variance_noise.cpu() == approx(
+            energy_variance.cpu(), abs=0, rel=1e-15
+        )
+        assert second_moment_noise.cpu() == approx(second_moment.cpu(), abs=0, rel=1e-15)
 
     if noise:
         state = DensityMatrix.from_state_vector(state)

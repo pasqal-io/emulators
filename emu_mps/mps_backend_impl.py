@@ -15,7 +15,7 @@ from types import MethodType
 from typing import Any, Optional
 
 import torch
-from pulser.backend import EmulationConfig, Observable, Results, State
+from pulser.backend import EmulationConfig, Observable, Results, State, AggregationMethod
 
 from emu_base import (
     DEVICE_COUNT,
@@ -59,7 +59,10 @@ class Statistics(Observable):
         data: list[float],
         timestep_count: int,
     ):
-        super().__init__(evaluation_times=evaluation_times)
+        super().__init__(
+            evaluation_times=evaluation_times,
+            default_aggregation_method=AggregationMethod.SKIP,
+        )
         self.data = data
         self.timestep_count = timestep_count
 
@@ -154,7 +157,11 @@ class MPSBackendImpl:
             )
         elif pulser_data.hamiltonian_type == HamiltonianType.XY:
             interaction_ops = 2**0.5 * torch.tensor(
-                [[[0.0, 0.5], [0.5, 0.0]], [[0.0, -0.5j], [0.5j, 0.0]]],
+                [
+                    [[0.0, 0.5], [0.5, 0.0]],
+                    [[0.0, -0.5j], [0.5j, 0.0]],
+                    [[2**-0.5, 0.0], [0.0, 0.0]],
+                ],
                 dtype=torch.complex128,
             )
         else:
@@ -213,6 +220,10 @@ class MPSBackendImpl:
                 :, :, self.well_prepared_qubits_filter
             ]
 
+        if self.pulser_data.hamiltonian_type == HamiltonianType.XY:
+            # duplicate the XY interaction, because the XX and YY term
+            # are treated separately in make_H
+            matrix = torch.stack((matrix[0], matrix[0], matrix[1]))
         return matrix
 
     def __getstate__(self) -> dict:
