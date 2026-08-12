@@ -17,7 +17,13 @@ from typing import Any, Optional
 import torch
 from pulser.backend import EmulationConfig, Observable, Results, State, AggregationMethod
 
-from emu_base import DEVICE_COUNT, SequenceData, get_max_rss, HamiltonianType
+from emu_base import (
+    DEVICE_COUNT,
+    SequenceData,
+    get_max_rss,
+    HamiltonianType,
+    PackedHermitianTensor,
+)
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.utils import deallocate_tensor
 
@@ -43,6 +49,7 @@ from emu_mps.utils import (
 )
 
 dtype = torch.complex128
+BathNode = torch.Tensor | PackedHermitianTensor
 
 
 class Statistics(Observable):
@@ -104,8 +111,8 @@ class MPSBackendImpl:
     well_prepared_qubits_filter: Optional[torch.Tensor]
     hamiltonian: MPO
     state: MPS
-    left_baths: list[torch.Tensor]
-    right_baths: list[torch.Tensor]
+    left_baths: list[BathNode]
+    right_baths: list[BathNode]
     target_time: float
     results: Results
     _swipe_direction: SwipeDirection = SwipeDirection.LEFT_TO_RIGHT
@@ -335,20 +342,47 @@ class MPSBackendImpl:
         )
 
     def init_baths(self) -> None:
-        self.left_baths = [
-            torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
-        ]
         # clean up the memory in right baths, since otherwise we temporarily have
         # both the old and the new in memory, which can cause OOM errors
-        self.right_baths: list[torch.Tensor] = []
-        self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
+        self.right_baths = []
+
+        if self.has_lindblad_noise:
+            self.left_baths = [
+                torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
+            ]
+            self.right_baths = [
+                t for t in right_baths(self.state, self.hamiltonian, final_qubit=2)
+            ]
+        else:
+            self.left_baths = [PackedHermitianTensor(1, 1)]
+            self.left_baths[0].pack(  # type: ignore[union-attr]
+                torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
+            )
+            self.right_baths = [PackedHermitianTensor(1, 1)]
+            self.right_baths += [
+                PackedHermitianTensor(
+                    self.state.factors[i].shape[0], self.hamiltonian.factors[i].shape[0]
+                )
+                for i in range(len(self.state.factors) - 1, 1, -1)
+            ]
+            for i, b in enumerate(
+                right_baths(self.state, self.hamiltonian, final_qubit=2)
+            ):
+                self.right_baths[i].pack(b)  # type: ignore[union-attr]
+
         assert len(self.right_baths) == self.qubit_count - 1
 
     def get_current_right_bath(self) -> torch.Tensor:
-        return self.right_baths[-1]
+        rbath = self.right_baths[-1]
+        if isinstance(rbath, PackedHermitianTensor):
+            return rbath.unpack()
+        return rbath
 
     def get_current_left_bath(self) -> torch.Tensor:
-        return self.left_baths[-1]
+        lbath = self.left_baths[-1]
+        if isinstance(lbath, PackedHermitianTensor):
+            return lbath.unpack()
+        return lbath
 
     def init(self) -> None:
         self.init_dark_qubits()
@@ -451,16 +485,30 @@ class MPSBackendImpl:
                 dt=delta_time / 2,
                 orth_center_right=True,
             )
-            self.left_baths.append(
-                new_left_bath(
+            if self.has_lindblad_noise:
+                lb = new_left_bath(
                     self.get_current_left_bath(),
                     self.state.factors[self._sweep_index],
                     self.hamiltonian.factors[self._sweep_index],
                 ).to(self.state.factors[self._sweep_index + 1].device)
-            )
+                self.left_baths.append(lb)
+            else:
+                packed = PackedHermitianTensor(
+                    self.state.factors[self._sweep_index].shape[-1],
+                    self.hamiltonian.factors[self._sweep_index].shape[-1],
+                )
+                lb = new_left_bath(
+                    self.get_current_left_bath(),
+                    self.state.factors[self._sweep_index],
+                    self.hamiltonian.factors[self._sweep_index],
+                ).to(self.state.factors[self._sweep_index + 1].device)
+                packed.pack(lb)
+                self.left_baths.append(packed)
+
             self._evolve(self._sweep_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
             self._sweep_index += 1
+
         else:
             # Time-evolution of the rightmost 2 tensors
             self._evolve(
@@ -473,16 +521,34 @@ class MPSBackendImpl:
 
     def _right_to_left_update_tdvp(self, delta_time: float) -> None:
         if self._sweep_index > 0:
-            self.right_baths.append(
-                new_right_bath(
+            if self.has_lindblad_noise:
+                rb = new_right_bath(
                     self.get_current_right_bath(),
                     self.state.factors[self._sweep_index + 1],
                     self.hamiltonian.factors[self._sweep_index + 1],
                 ).to(self.state.factors[self._sweep_index].device)
-            )
+                self.right_baths.append(rb)
+            else:
+                packed = PackedHermitianTensor(
+                    self.state.factors[self._sweep_index + 1].shape[0],
+                    self.hamiltonian.factors[self._sweep_index + 1].shape[0],
+                )
+                rb = new_right_bath(
+                    self.get_current_right_bath(),
+                    self.state.factors[self._sweep_index + 1],
+                    self.hamiltonian.factors[self._sweep_index + 1],
+                ).to(self.state.factors[self._sweep_index].device)
+                packed.pack(rb)
+                self.right_baths.append(packed)
+
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
-                deallocate_tensor(self.right_baths[-2])
+                item = self.right_baths[-2]
+                to_dealloc = (
+                    item._packed_data if isinstance(item, PackedHermitianTensor) else item
+                )
+                deallocate_tensor(to_dealloc)
+
             self._evolve(self._sweep_index, dt=-delta_time / 2)
             self.left_baths.pop()
             self._evolve(
@@ -802,10 +868,12 @@ class DMRGBackendImpl(MPSBackendImpl):
         ), "Unknown Swipe direction"
 
         orth_center_right = self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+        lbath = self.get_current_left_bath()
+        rbath = self.get_current_right_bath()
         new_L, new_R, energy = minimize_energy_pair(
             state_factors=self.state.factors[idx : idx + 2],
             ham_factors=self.hamiltonian.factors[idx : idx + 2],
-            baths=(self.left_baths[-1], self.right_baths[-1]),
+            baths=(lbath, rbath),
             orth_center_right=orth_center_right,
             config=self.config,
             residual_tolerance=self.config.precision,
