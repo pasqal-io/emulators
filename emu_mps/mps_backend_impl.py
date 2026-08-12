@@ -342,17 +342,34 @@ class MPSBackendImpl:
         )
 
     def init_baths(self) -> None:
-        pack = (lambda x: x) if self.has_lindblad_noise else PackedHermitianTensor
-
-        self.left_baths = [
-            pack(torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device))
-        ]
         # clean up the memory in right baths, since otherwise we temporarily have
         # both the old and the new in memory, which can cause OOM errors
-        self.right_baths: list[PackedHermitianTensor] = []
-        self.right_baths = [
-            pack(t) for t in right_baths(self.state, self.hamiltonian, final_qubit=2)
-        ]
+        self.right_baths = []
+
+        if self.has_lindblad_noise:
+            self.left_baths = [
+                torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
+            ]
+            self.right_baths = [
+                t for t in right_baths(self.state, self.hamiltonian, final_qubit=2)
+            ]
+        else:
+            self.left_baths = [PackedHermitianTensor(1, 1)]
+            self.left_baths[0].pack(  # type: ignore[union-attr]
+                torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
+            )
+            self.right_baths = [PackedHermitianTensor(1, 1)]
+            self.right_baths += [
+                PackedHermitianTensor(
+                    self.state.factors[i].shape[0], self.hamiltonian.factors[i].shape[0]
+                )
+                for i in range(len(self.state.factors) - 1, 1, -1)
+            ]
+            for i, b in enumerate(
+                right_baths(self.state, self.hamiltonian, final_qubit=2)
+            ):
+                self.right_baths[i].pack(b)  # type: ignore[union-attr]
+
         assert len(self.right_baths) == self.qubit_count - 1
 
     def get_current_right_bath(self) -> torch.Tensor:
@@ -468,14 +485,25 @@ class MPSBackendImpl:
                 dt=delta_time / 2,
                 orth_center_right=True,
             )
-            lb = new_left_bath(
-                self.get_current_left_bath(),
-                self.state.factors[self._sweep_index],
-                self.hamiltonian.factors[self._sweep_index],
-            ).to(self.state.factors[self._sweep_index + 1].device)
-            self.left_baths.append(
-                lb if self.has_lindblad_noise else PackedHermitianTensor(lb)
-            )
+            if self.has_lindblad_noise:
+                lb = new_left_bath(
+                    self.get_current_left_bath(),
+                    self.state.factors[self._sweep_index],
+                    self.hamiltonian.factors[self._sweep_index],
+                ).to(self.state.factors[self._sweep_index + 1].device)
+                self.left_baths.append(lb)
+            else:
+                packed = PackedHermitianTensor(
+                    self.state.factors[self._sweep_index].shape[-1],
+                    self.hamiltonian.factors[self._sweep_index].shape[-1],
+                )
+                lb = new_left_bath(
+                    self.get_current_left_bath(),
+                    self.state.factors[self._sweep_index],
+                    self.hamiltonian.factors[self._sweep_index],
+                ).to(self.state.factors[self._sweep_index + 1].device)
+                packed.pack(lb)
+                self.left_baths.append(packed)
 
             self._evolve(self._sweep_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
@@ -493,14 +521,25 @@ class MPSBackendImpl:
 
     def _right_to_left_update_tdvp(self, delta_time: float) -> None:
         if self._sweep_index > 0:
-            rb = new_right_bath(
-                self.get_current_right_bath(),
-                self.state.factors[self._sweep_index + 1],
-                self.hamiltonian.factors[self._sweep_index + 1],
-            ).to(self.state.factors[self._sweep_index].device)
-            self.right_baths.append(
-                rb if self.has_lindblad_noise else PackedHermitianTensor(rb)
-            )
+            if self.has_lindblad_noise:
+                rb = new_right_bath(
+                    self.get_current_right_bath(),
+                    self.state.factors[self._sweep_index + 1],
+                    self.hamiltonian.factors[self._sweep_index + 1],
+                ).to(self.state.factors[self._sweep_index].device)
+                self.right_baths.append(rb)
+            else:
+                packed = PackedHermitianTensor(
+                    self.state.factors[self._sweep_index + 1].shape[0],
+                    self.hamiltonian.factors[self._sweep_index + 1].shape[0],
+                )
+                rb = new_right_bath(
+                    self.get_current_right_bath(),
+                    self.state.factors[self._sweep_index + 1],
+                    self.hamiltonian.factors[self._sweep_index + 1],
+                ).to(self.state.factors[self._sweep_index].device)
+                packed.pack(rb)
+                self.right_baths.append(packed)
 
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore

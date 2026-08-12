@@ -11,7 +11,7 @@ from emu_mps.mps_backend_impl import (
 )
 
 from emu_base import HamiltonianType
-from emu_mps.mps_config import MPSConfig
+from emu_mps import MPSConfig, MPO
 from pulser import NoiseModel
 import math
 import cmath
@@ -581,7 +581,9 @@ def test_progress_at_right_mps_boundary(
 def test_left_to_right_update(
     mock_right_baths, mock_make_H, mock_update_H, mock_minimize, mock_new_left
 ):
-    mock_make_H.return_value = MagicMock(factors=[None] * QUBIT_COUNT)
+    mock_make_H.return_value = MPO(
+        [torch.eye(2, 2, dtype=dtype).reshape(1, 2, 2, 1)] * QUBIT_COUNT
+    )
     mock_update_H.return_value = None
     mock_right_baths.return_value = [torch.zeros(1, 1, 1)] * (QUBIT_COUNT - 1)
     mock_new_left.return_value = torch.zeros(1)
