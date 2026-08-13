@@ -3,6 +3,7 @@ import math
 import pytest
 import torch
 
+import emu_mps.utils
 from emu_base import DEVICE_COUNT
 from emu_mps.utils import (
     extended_mpo_factors,
@@ -96,13 +97,37 @@ def test_bath_transfers_gpu_roundtrip():
     offloaded = offload_bath_to_cpu(bath)
     assert not offloaded.is_cuda
     assert offload_bath_to_cpu(offloaded) is offloaded
+    # The GPU source is kept alive until the next wait_for_transfers().
+    assert any(t is bath for t in emu_mps.utils._pending_frees)
 
     fetched = fetch_bath_from_cpu(offloaded, bath.device)
     assert fetched.is_cuda
     assert fetch_bath_from_cpu(fetched, bath.device) is fetched
 
     wait_for_transfers()
+    assert emu_mps.utils._pending_frees == []
     assert torch.equal(fetched, bath)
+
+
+@pytest.mark.skipif(DEVICE_COUNT == 0, reason="Requires a GPU")
+def test_offloaded_bath_survives_memory_reuse():
+    # The GPU source of an in-flight offload must not have its memory reused
+    # by subsequent compute stream allocations before the copy is done.
+    reference = torch.rand(256, 20, 256, dtype=torch.complex128)
+    bath = reference.to("cuda")
+    torch.cuda.synchronize()
+
+    offloaded = offload_bath_to_cpu(bath)
+    del bath  # drop the caller reference; only _pending_frees keeps it alive
+
+    # Allocation-heavy work on the compute stream, trying to reuse the memory.
+    for _ in range(10):
+        junk = torch.zeros(256, 20, 256, dtype=torch.complex128, device="cuda")
+        del junk
+
+    wait_for_transfers()
+    torch.cuda.synchronize()
+    assert torch.equal(offloaded, reference)
 
 
 def test_extended_mps_factors():

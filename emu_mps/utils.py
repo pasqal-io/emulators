@@ -17,10 +17,23 @@ Bath tensors are only used two at a time (see MPSBackendImpl._evolve), but a who
 stack of them is kept alive during the TDVP/DMRG sweeps. The helpers below move
 inactive bath tensors to pinned CPU memory, and prefetch them back to the GPU
 ahead of use. All copies are asynchronous, on a dedicated CUDA stream, so that
-they can overlap with computations on the default stream.
+they can overlap with computations on the compute (default) stream.
+
+Every GPU tensor involved is allocated AND freed in compute stream order, and
+record_stream is deliberately not used: the cudaMallocAsync allocator backend
+(PYTORCH_ALLOC_CONF=backend:cudaMallocAsync) frees blocks used on multiple streams
+through a "dummy unifying free stream", after which their memory is only reusable
+opportunistically, and it does not synchronize-and-retry on allocation failure.
+With multi-stream blocks, its memory pool therefore grows every sweep until the
+device is exhausted. Keeping the blocks single-stream avoids that entirely.
 """
 
 _transfer_stream: Optional[torch.cuda.Stream] = None  # lazy: keep CUDA uninitialized
+
+# GPU sources of in-flight device-to-CPU copies. They are kept alive until the
+# compute stream is ordered after the transfer stream in wait_for_transfers(),
+# so that their memory cannot be reused before the copy is done.
+_pending_frees: list[torch.Tensor] = []
 
 
 def _get_transfer_stream() -> torch.cuda.Stream:
@@ -33,8 +46,9 @@ def _get_transfer_stream() -> torch.cuda.Stream:
 def offload_bath_to_cpu(bath: torch.Tensor) -> torch.Tensor:
     """
     Start an asynchronous copy of the given bath tensor to pinned CPU memory,
-    returning the CPU tensor. The copy is ordered after all GPU work queued so far,
-    and the GPU memory is released once the copy is done.
+    returning the CPU tensor. The copy is ordered after all GPU work queued so far.
+    The GPU memory is released by the next call to wait_for_transfers() or
+    synchronize_transfers(), provided the caller drops its own reference.
     """
     if not bath.is_cuda:
         return bath
@@ -43,8 +57,7 @@ def offload_bath_to_cpu(bath: torch.Tensor) -> torch.Tensor:
     stream.wait_stream(torch.cuda.current_stream())  # bath must be fully computed
     with torch.cuda.stream(stream):
         result.copy_(bath, non_blocking=True)
-    # Prevent reuse of the GPU memory before the copy is done.
-    bath.record_stream(stream)
+    _pending_frees.append(bath)
     return result
 
 
@@ -52,14 +65,19 @@ def fetch_bath_from_cpu(bath: torch.Tensor, device: torch.device) -> torch.Tenso
     """
     Start an asynchronous copy of the given bath tensor to the given device.
     The caller must call wait_for_transfers() between this call and the first
-    computation using the result.
+    use (or deallocation) of the result on the compute stream.
     """
     if bath.device.type == device.type:
         return bath
-    with torch.cuda.stream(_get_transfer_stream()):
-        result = bath.to(device, non_blocking=True)
-    # The result is only ever used on the compute stream.
-    result.record_stream(torch.cuda.current_stream())
+    # Allocated on the compute stream, so that its later use and deallocation
+    # there are stream-ordered.
+    result = torch.empty_like(bath, device=device)
+    stream = _get_transfer_stream()
+    # The destination memory may be recycled from earlier compute stream work;
+    # the copy must be ordered after that.
+    stream.wait_stream(torch.cuda.current_stream())
+    with torch.cuda.stream(stream):
+        result.copy_(bath, non_blocking=True)
     return result
 
 
@@ -70,6 +88,9 @@ def wait_for_transfers() -> None:
     """
     if _transfer_stream is not None:
         torch.cuda.current_stream().wait_stream(_transfer_stream)
+    # Any deallocation now happens after the compute stream was ordered
+    # after the copies reading these tensors.
+    _pending_frees.clear()
 
 
 def synchronize_transfers() -> None:
@@ -79,6 +100,7 @@ def synchronize_transfers() -> None:
     """
     if _transfer_stream is not None:
         _transfer_stream.synchronize()
+    _pending_frees.clear()
 
 
 def _determine_cutoff_index(d: torch.Tensor, max_error: float) -> int:
