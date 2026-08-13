@@ -76,10 +76,10 @@ def test_init():
         )
         assert abs(torch.tensordot(factor, factor, dims=3)) - 1 < 1e-8
 
-    # Check that no copy or move is performed when num_gpus_to_use=None
+    # Check that no copy or move is performed when gpu=None
     no_device_reassignment = MPS(
         [factor1, factor2, factor3],
-        num_gpus_to_use=None,
+        gpu=None,
         eigenstates=("0", "1"),
     )
     assert no_device_reassignment.factors[0] is factor1
@@ -310,7 +310,7 @@ def test_mps_algebra(basis):
     mps = MPS(
         [up for _ in range(num_sites)],
         orthogonality_center=0,
-        num_gpus_to_use=0,
+        gpu=False,
         eigenstates=basis,
     )
     mps_sum = mps + mps + 0.5 * mps + (1 / 3) * mps

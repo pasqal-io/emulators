@@ -319,7 +319,7 @@ def make_H(
     interaction_matrix: torch.Tensor,  # depends on Hamiltonian Type
     interaction_ops: torch.Tensor,
     dim: int = 2,
-    num_gpus_to_use: int | None,
+    gpu: bool,
 ) -> MPO:
     r"""
     Constructs and returns a Matrix Product Operator (MPO) representing the
@@ -347,8 +347,7 @@ def make_H(
         the interactions between qubits.
         interaction_ops: the interaction operator to use, see above.
         dim: dimension of the basis (2 or 3)
-        num_gpus_to_use (int): how many gpus to put the Hamiltonian on.
-        See utils.assign_devices
+        gpu (bool): whether to put the Hamiltonian on GPU (True) or CPU (False)
     Returns:
         MPO: A Matrix Product Operator (MPO) representing the specified
         Hamiltonian.
@@ -361,7 +360,7 @@ def make_H(
 
     return MPO(
         list(HamiltonianMPOFactors(interaction_matrix, interaction_ops, dim=dim)),
-        num_gpus_to_use=num_gpus_to_use,
+        gpu=gpu,
     )
 
 

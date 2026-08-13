@@ -46,16 +46,13 @@ class MPSConfig(EmulationConfig):
         extra_krylov_tolerance:
             The Lanczos algorithm uses this*precision as the convergence
             tolerance
-        num_gpus_to_use: number of GPUs to be used in a given simulation.
-            - if it is set to a number `n > 0`, the state will be distributed
-                across `n` GPUs.
-            - if it is set to `n = 0`, the entire simulation runs on the CPU.
-            - if it is `None` (the default value), the backend internally
-                chooses the number of GPUs
-                based on the hardware availability during runtime.
-            As shown in the benchmarks, using multiple GPUs might
-            alleviate memory pressure per GPU, but the runtime should
-            be similar.
+        gpu: whether to run the simulation on GPU
+            - if `gpu = True`, run the simulation on 1 GPU
+                (falls back to CPU with a warning if no GPU is available).
+            - if `gpu = False`, use CPU to run the entire simulation.
+            - if `gpu = None` (the default value), the backend internally
+                chooses 1 GPU based on the hardware availability
+                during runtime.
         optimize_qubit_ordering: Optimize the register ordering. Improves
             performance and accuracy, but disables certain features.
         interaction_cutoff: Set interaction coefficients Uᵢⱼ below this value
@@ -77,10 +74,10 @@ class MPSConfig(EmulationConfig):
 
     Examples:
         ```python
-        num_gpus_to_use = 2 #use 2 gpus if available, otherwise 1 or cpu
+        gpu = True #use a gpu if available
         dt = 1.0 #this will impact the runtime
         precision = 1e-6 #smaller dt requires better precision, generally
-        MPSConfig(num_gpus_to_use=num_gpus_to_use, dt=dt, precision=precision,
+        MPSConfig(gpu=gpu, dt=dt, precision=precision,
             with_modulation=True) #the last arg is taken from the base class
         ```
     """
@@ -98,7 +95,7 @@ class MPSConfig(EmulationConfig):
         max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
-        num_gpus_to_use: int | None = None,
+        gpu: bool | None = None,
         optimize_qubit_ordering: bool = True,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
@@ -114,7 +111,7 @@ class MPSConfig(EmulationConfig):
             max_bond_dim=max_bond_dim,
             max_krylov_dim=max_krylov_dim,
             extra_krylov_tolerance=extra_krylov_tolerance,
-            num_gpus_to_use=num_gpus_to_use,
+            gpu=gpu,
             optimize_qubit_ordering=optimize_qubit_ordering,
             interaction_cutoff=interaction_cutoff,
             log_level=log_level,
@@ -167,7 +164,7 @@ class MPSConfig(EmulationConfig):
             "max_bond_dim",
             "max_krylov_dim",
             "extra_krylov_tolerance",
-            "num_gpus_to_use",
+            "gpu",
             "optimize_qubit_ordering",
             "interaction_cutoff",
             "log_level",

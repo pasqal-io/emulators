@@ -1,16 +1,18 @@
 import math
 
-from typing import List
 import pytest
 import torch
 
+from emu_base import DEVICE_COUNT
 from emu_mps.utils import (
-    assign_devices,
     extended_mpo_factors,
     extended_mps_factors,
+    fetch_bath_from_cpu,
+    offload_bath_to_cpu,
     split_matrix,
     get_extended_site_index,
     tensor_trace,
+    wait_for_transfers,
 )
 
 
@@ -79,47 +81,28 @@ def test_split_matrix_norm():
     assert torch.allclose(l2 @ q2, (n2 / n1) * l1 @ q1)
 
 
-def test_assign_devices():
-    class MockTensor:
-        def __init__(self):
-            self.device = "unset"
+def test_bath_transfers_cpu_noop():
+    bath = torch.rand(3, 5, 3, dtype=torch.complex128)
 
-        def to(self, s: str):
-            copy = MockTensor()
-            copy.device = s
-            return copy
+    assert offload_bath_to_cpu(bath) is bath
+    assert fetch_bath_from_cpu(bath, torch.device("cpu")) is bath
+    wait_for_transfers()  # no-op without pending transfers
 
-    def gpus(mock_tensors: List[MockTensor]) -> List[int]:
-        result = []
-        for mock_tensor in mock_tensors:
-            assert mock_tensor.device[:4] == "cuda"
-            assert len(mock_tensor.device) == 6
-            result.append(int(mock_tensor.device[5]))
-        return result
 
-    ts = [MockTensor() for _ in range(13)]
+@pytest.mark.skipif(DEVICE_COUNT == 0, reason="Requires a GPU")
+def test_bath_transfers_gpu_roundtrip():
+    bath = torch.rand(3, 5, 3, dtype=torch.complex128, device="cuda")
 
-    assert ts[0].device == "unset"
+    offloaded = offload_bath_to_cpu(bath)
+    assert not offloaded.is_cuda
+    assert offload_bath_to_cpu(offloaded) is offloaded
 
-    assign_devices(ts, num_gpus_to_use=0)
+    fetched = fetch_bath_from_cpu(offloaded, bath.device)
+    assert fetched.is_cuda
+    assert fetch_bath_from_cpu(fetched, bath.device) is fetched
 
-    assert ts[0].device == "cpu"
-
-    assign_devices(ts, num_gpus_to_use=1)
-
-    assert gpus(ts) == [0] * 13
-
-    assign_devices(ts, num_gpus_to_use=3)
-
-    assert gpus(ts) == [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2]
-
-    assign_devices(ts, num_gpus_to_use=5)
-
-    assert gpus(ts) == [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4]
-
-    assign_devices(ts, num_gpus_to_use=2)
-
-    assert gpus(ts) == [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
+    wait_for_transfers()
+    assert torch.equal(fetched, bath)
 
 
 def test_extended_mps_factors():

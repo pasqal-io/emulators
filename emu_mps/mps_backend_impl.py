@@ -38,8 +38,12 @@ from emu_mps.solver_utils import (
 from emu_mps.utils import (
     extended_mpo_factors,
     extended_mps_factors,
+    fetch_bath_from_cpu,
     get_extended_site_index,
     new_left_bath,
+    offload_bath_to_cpu,
+    synchronize_transfers,
+    wait_for_transfers,
 )
 
 dtype = torch.complex128
@@ -184,16 +188,15 @@ class MPSBackendImpl:
             f"""To resume: `MPSBackend().resume("{self.autosave_file}")`"""
         )
         self.last_save_time = time.time()
-        requested_num_gpus = self.config.num_gpus_to_use
 
-        if requested_num_gpus is None:
-            requested_num_gpus = DEVICE_COUNT
-        elif requested_num_gpus > DEVICE_COUNT:
+        requested_gpu = (
+            self.config.gpu if self.config.gpu is not None else DEVICE_COUNT > 0
+        )
+        if requested_gpu and DEVICE_COUNT == 0:
             logging.getLogger("emulators").warning(
-                f"Requested to use {requested_num_gpus} GPU(s) "
-                f"but only {DEVICE_COUNT if DEVICE_COUNT > 0 else 'cpu'} available"
+                "Requested to run on GPU but none is available, running on CPU"
             )
-        self.resolved_num_gpus = requested_num_gpus
+        self.use_gpu: bool = requested_gpu and DEVICE_COUNT > 0
 
     def _get_interaction_matrix(self) -> torch.Tensor:
         """Get the interaction matrix for the current time step, applying qubit
@@ -220,6 +223,9 @@ class MPSBackendImpl:
         return matrix
 
     def __getstate__(self) -> dict:
+        # Offloaded bath tensors are read on the CPU when pickling;
+        # any pending transfers into them must be finished.
+        synchronize_transfers()
         d = self.__dict__.copy()
         options = deepcopy(self.config._backend_options)
         cp = type(self.config)(**options)  # BackendConfig does not deepcopy directly
@@ -265,7 +271,7 @@ class MPSBackendImpl:
                 self.qubit_count,
                 precision=self.config.precision,
                 max_bond_dim=self.config.max_bond_dim,
-                num_gpus_to_use=self.resolved_num_gpus,
+                gpu=self.use_gpu,
                 eigenstates=self.eigenstates,
             )
             return
@@ -294,7 +300,7 @@ class MPSBackendImpl:
             [f.detach().clone() for f in initial_state.factors],
             precision=self.config.precision,
             max_bond_dim=self.config.max_bond_dim,
-            num_gpus_to_use=self.resolved_num_gpus,
+            gpu=self.use_gpu,
             eigenstates=initial_state.eigenstates,
         )
         initial_state.truncate()
@@ -311,7 +317,7 @@ class MPSBackendImpl:
         self.hamiltonian = make_H(
             interaction_matrix=self.current_interaction_matrix,
             interaction_ops=self.interaction_ops,
-            num_gpus_to_use=self.resolved_num_gpus,
+            gpu=self.use_gpu,
             dim=self.dim,
         )
         self.update_H_no_noise()
@@ -341,7 +347,11 @@ class MPSBackendImpl:
         # clean up the memory in right baths, since otherwise we temporarily have
         # both the old and the new in memory, which can cause OOM errors
         self.right_baths: list[torch.Tensor] = []
-        self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
+        # Only the last bath of each stack is used at any given time (see _evolve);
+        # the other ones are kept in CPU memory to reduce GPU memory pressure.
+        self.right_baths = right_baths(
+            self.state, self.hamiltonian, final_qubit=2, keep_inactive_on_cpu=True
+        )
         assert len(self.right_baths) == self.qubit_count - 1
 
     def get_current_right_bath(self) -> torch.Tensor:
@@ -366,9 +376,14 @@ class MPSBackendImpl:
     ) -> None:
         """
         Time-evolve the state's tensors located at the given 1 or 2 indices by dt,
-        using the baths stored in self.left_baths and self.right_baths.
+        using the last baths stored in self.left_baths and self.right_baths.
         When 2 indices are given, they need to be consecutive.
         Updates the state's orthogonality center according to orth_center_right.
+
+        The last bath of each stack must reside on the compute device; if it was
+        prefetched with fetch_bath_from_cpu, the caller is responsible for calling
+        wait_for_transfers() beforehand. No wait is done here, since that would
+        also serialize against prefetches issued for later steps.
         """
         assert 1 <= len(indices) <= 2
 
@@ -444,6 +459,8 @@ class MPSBackendImpl:
 
     def _left_to_right_update_tdvp(self, delta_time: float) -> None:
         # Left-to-right swipe of TDVP
+        # The right bath used below was prefetched by the previous step.
+        wait_for_transfers()
         if self._sweep_index < self.qubit_count - 2:
             self._evolve(
                 self._sweep_index,
@@ -451,13 +468,21 @@ class MPSBackendImpl:
                 dt=delta_time / 2,
                 orth_center_right=True,
             )
+            # Prefetch the right bath for the next step; the transfer overlaps
+            # with the bath computation and the evolve_single below.
+            self.right_baths[-2] = fetch_bath_from_cpu(
+                self.right_baths[-2], self.right_baths[-1].device
+            )
             self.left_baths.append(
                 new_left_bath(
                     self.get_current_left_bath(),
                     self.state.factors[self._sweep_index],
                     self.hamiltonian.factors[self._sweep_index],
-                ).to(self.state.factors[self._sweep_index + 1].device)
+                )
             )
+            # The previous left bath is unused until the right-to-left sweep
+            # returns here; keep it in CPU memory in the meantime.
+            self.left_baths[-2] = offload_bath_to_cpu(self.left_baths[-2])
             self._evolve(self._sweep_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
             self._sweep_index += 1
@@ -473,18 +498,29 @@ class MPSBackendImpl:
 
     def _right_to_left_update_tdvp(self, delta_time: float) -> None:
         if self._sweep_index > 0:
+            # Prefetch the left bath used by the evolve_pair below; the transfer
+            # overlaps with the bath computation and the evolve_single.
+            self.left_baths[-2] = fetch_bath_from_cpu(
+                self.left_baths[-2], self.left_baths[-1].device
+            )
             self.right_baths.append(
                 new_right_bath(
                     self.get_current_right_bath(),
                     self.state.factors[self._sweep_index + 1],
                     self.hamiltonian.factors[self._sweep_index + 1],
-                ).to(self.state.factors[self._sweep_index].device)
+                )
             )
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
                 deallocate_tensor(self.right_baths[-2])
+            else:
+                # With noise, the accumulated right baths are reused by the next
+                # left-to-right sweep (quantum jump time finding); keep them in
+                # CPU memory until then.
+                self.right_baths[-2] = offload_bath_to_cpu(self.right_baths[-2])
             self._evolve(self._sweep_index, dt=-delta_time / 2)
             self.left_baths.pop()
+            wait_for_transfers()  # for the left bath prefetched above
             self._evolve(
                 self._sweep_index - 1,
                 self._sweep_index,
@@ -517,7 +553,7 @@ class MPSBackendImpl:
                 interaction_matrix=self.current_interaction_matrix,
                 interaction_ops=self.interaction_ops,
                 dim=self.dim,
-                num_gpus_to_use=self.resolved_num_gpus,
+                gpu=self.use_gpu,
             )
 
         if not self.is_finished():
@@ -609,7 +645,6 @@ class MPSBackendImpl:
                     normalized_state.factors,
                     self.well_prepared_qubits_filter,
                 ),
-                num_gpus_to_use=None,  # Keep the already assigned devices.
                 orthogonality_center=get_extended_site_index(
                     self.well_prepared_qubits_filter,
                     normalized_state.orthogonality_center,
@@ -802,6 +837,8 @@ class DMRGBackendImpl(MPSBackendImpl):
         ), "Unknown Swipe direction"
 
         orth_center_right = self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+        # The baths used below might have been prefetched by the previous step.
+        wait_for_transfers()
         new_L, new_R, energy = minimize_energy_pair(
             state_factors=self.state.factors[idx : idx + 2],
             ham_factors=self.hamiltonian.factors[idx : idx + 2],
@@ -826,13 +863,21 @@ class DMRGBackendImpl(MPSBackendImpl):
 
     def _left_to_right_update(self, idx: int) -> None:
         if idx < self.qubit_count - 2:
+            # Prefetch the right bath for the next minimization; the transfer
+            # overlaps with the bath computation below.
+            self.right_baths[-2] = fetch_bath_from_cpu(
+                self.right_baths[-2], self.right_baths[-1].device
+            )
             self.left_baths.append(
                 new_left_bath(
                     self.get_current_left_bath(),
                     self.state.factors[idx],
                     self.hamiltonian.factors[idx],
-                ).to(self.state.factors[idx + 1].device)
+                )
             )
+            # The previous left bath is unused until the right-to-left sweep
+            # returns here; keep it in CPU memory in the meantime.
+            self.left_baths[-2] = offload_bath_to_cpu(self.left_baths[-2])
             self.right_baths.pop()
             self._sweep_index += 1
 
@@ -841,13 +886,21 @@ class DMRGBackendImpl(MPSBackendImpl):
 
     def _right_to_left_update(self, idx: int) -> None:
         if idx > 0:
+            # Prefetch the left bath for the next minimization; the transfer
+            # overlaps with the bath computation below.
+            self.left_baths[-2] = fetch_bath_from_cpu(
+                self.left_baths[-2], self.left_baths[-1].device
+            )
             self.right_baths.append(
                 new_right_bath(
                     self.get_current_right_bath(),
                     self.state.factors[idx + 1],
                     self.hamiltonian.factors[idx + 1],
-                ).to(self.state.factors[idx].device)
+                )
             )
+            # The accumulated right baths are reused by the next left-to-right
+            # sweep; keep them in CPU memory until then.
+            self.right_baths[-2] = offload_bath_to_cpu(self.right_baths[-2])
             self.left_baths.pop()
             self._sweep_index -= 1
 

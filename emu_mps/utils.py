@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 import torch
 
 
@@ -7,9 +7,78 @@ def new_left_bath(
 ) -> torch.Tensor:
     # this order is more efficient than contracting the op first in general
     bath = torch.tensordot(bath, state.conj(), ([0], [0]))
-    bath = torch.tensordot(bath, op.to(bath.device), ([0, 2], [0, 1]))
+    bath = torch.tensordot(bath, op, ([0, 2], [0, 1]))
     bath = torch.tensordot(bath, state, ([0, 2], [0, 1]))
     return bath
+
+
+"""
+Bath tensors are only used two at a time (see MPSBackendImpl._evolve), but a whole
+stack of them is kept alive during the TDVP/DMRG sweeps. The helpers below move
+inactive bath tensors to pinned CPU memory, and prefetch them back to the GPU
+ahead of use. All copies are asynchronous, on a dedicated CUDA stream, so that
+they can overlap with computations on the default stream.
+"""
+
+_transfer_stream: Optional[torch.cuda.Stream] = None  # lazy: keep CUDA uninitialized
+
+
+def _get_transfer_stream() -> torch.cuda.Stream:
+    global _transfer_stream
+    if _transfer_stream is None:
+        _transfer_stream = torch.cuda.Stream()
+    return _transfer_stream
+
+
+def offload_bath_to_cpu(bath: torch.Tensor) -> torch.Tensor:
+    """
+    Start an asynchronous copy of the given bath tensor to pinned CPU memory,
+    returning the CPU tensor. The copy is ordered after all GPU work queued so far,
+    and the GPU memory is released once the copy is done.
+    """
+    if not bath.is_cuda:
+        return bath
+    result = torch.empty(bath.shape, dtype=bath.dtype, device="cpu", pin_memory=True)
+    stream = _get_transfer_stream()
+    stream.wait_stream(torch.cuda.current_stream())  # bath must be fully computed
+    with torch.cuda.stream(stream):
+        result.copy_(bath, non_blocking=True)
+    # Prevent reuse of the GPU memory before the copy is done.
+    bath.record_stream(stream)
+    return result
+
+
+def fetch_bath_from_cpu(bath: torch.Tensor, device: torch.device) -> torch.Tensor:
+    """
+    Start an asynchronous copy of the given bath tensor to the given device.
+    The caller must call wait_for_transfers() between this call and the first
+    computation using the result.
+    """
+    if bath.device.type == device.type:
+        return bath
+    with torch.cuda.stream(_get_transfer_stream()):
+        result = bath.to(device, non_blocking=True)
+    # The result is only ever used on the compute stream.
+    result.record_stream(torch.cuda.current_stream())
+    return result
+
+
+def wait_for_transfers() -> None:
+    """
+    Order all subsequent GPU computations after the pending bath transfers.
+    This does not block the host.
+    """
+    if _transfer_stream is not None:
+        torch.cuda.current_stream().wait_stream(_transfer_stream)
+
+
+def synchronize_transfers() -> None:
+    """
+    Make the host wait for all pending bath transfers, so that offloaded
+    tensors can safely be read on the CPU (e.g. for pickling).
+    """
+    if _transfer_stream is not None:
+        _transfer_stream.synchronize()
 
 
 def _determine_cutoff_index(d: torch.Tensor, max_error: float) -> int:
@@ -86,30 +155,7 @@ def truncate_impl(
         )
 
         factors[i] = r.view(-1, *factor_shape[1:])
-        factors[i - 1] = torch.tensordot(
-            factors[i - 1], l.to(factors[i - 1].device), dims=1
-        )
-
-
-def assign_devices(tensors: List[torch.Tensor], num_gpus_to_use: int) -> None:
-    """
-    Evenly distributes each tensor in the list to a device.
-    If num_gpus_to_use is 0, then all tensors go to CPU.
-    """
-    num_gpus_to_use = min(len(tensors), num_gpus_to_use)
-
-    if num_gpus_to_use <= 0:
-        for i in range(len(tensors)):
-            tensors[i] = tensors[i].to("cpu")
-        return
-
-    tensors_per_device = len(tensors) // num_gpus_to_use
-
-    if len(tensors) % num_gpus_to_use != 0:
-        tensors_per_device += 1
-
-    for i in range(len(tensors)):
-        tensors[i] = tensors[i].to(f"cuda:{i // tensors_per_device}")
+        factors[i - 1] = torch.tensordot(factors[i - 1], l, dims=1)
 
 
 def extended_mps_factors(
@@ -121,6 +167,7 @@ def extended_mps_factors(
     """
     assert len(mps_factors) == sum(1 for b in where if b)
 
+    device = mps_factors[0].device if mps_factors else "cpu"
     bond_dimension = 1
     factor_index = 0
     result = []
@@ -133,8 +180,8 @@ def extended_mps_factors(
             factor_index += 1
         elif factor_index == len(mps_factors):
             factor = torch.zeros(
-                bond_dimension, 2, 1, dtype=torch.complex128
-            )  # FIXME: assign device
+                bond_dimension, 2, 1, dtype=torch.complex128, device=device
+            )
             factor[:, 0, :] = torch.eye(bond_dimension, 1)
             bond_dimension = 1
             result.append(factor)
@@ -143,7 +190,8 @@ def extended_mps_factors(
                 bond_dimension,
                 2,
                 bond_dimension,
-                dtype=torch.complex128,  # FIXME: assign device
+                dtype=torch.complex128,
+                device=device,
             )
             factor[:, 0, :] = torch.eye(bond_dimension, bond_dimension)
             result.append(factor)
@@ -159,6 +207,7 @@ def extended_mpo_factors(
     """
     assert len(mpo_factors) == sum(1 for b in where if b)
 
+    device = mpo_factors[0].device if mpo_factors else "cpu"
     bond_dimension = 1
     factor_index = 0
     result = []
@@ -170,14 +219,21 @@ def extended_mpo_factors(
             bond_dimension = mpo_factors[factor_index].shape[3]
             factor_index += 1
         elif factor_index == len(mpo_factors):
-            factor = torch.zeros(bond_dimension, 2, 2, 1, dtype=torch.complex128)
+            factor = torch.zeros(
+                bond_dimension, 2, 2, 1, dtype=torch.complex128, device=device
+            )
             factor[:, 0, 0, :] = torch.eye(bond_dimension, 1)
             factor[:, 1, 1, :] = torch.eye(bond_dimension, 1)
             bond_dimension = 1
             result.append(factor)
         else:
             factor = torch.zeros(
-                bond_dimension, 2, 2, bond_dimension, dtype=torch.complex128
+                bond_dimension,
+                2,
+                2,
+                bond_dimension,
+                dtype=torch.complex128,
+                device=device,
             )
             factor[:, 0, 0, :] = torch.eye(bond_dimension, bond_dimension)
             factor[:, 1, 1, :] = torch.eye(bond_dimension, bond_dimension)

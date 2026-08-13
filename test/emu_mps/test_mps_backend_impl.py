@@ -32,6 +32,7 @@ def _create_victim(constructor, dt, noise_model):
         noise_model=noise_model,
         # no optimisation for Mock; full_interaction_matrix doesn't exist
         optimize_qubit_ordering=False,
+        gpu=False,  # unit tests use CPU tensors in their mocks
     )
     mock_pulser_data = MagicMock()
     mock_pulser_data.qubit_count = QUBIT_COUNT
@@ -68,7 +69,11 @@ def create_noisy_victim(dt=10, noise_model=None):
 
 
 def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
-    config = MPSConfig(dt=dt, optimize_qubit_ordering=False)
+    config = MPSConfig(
+        dt=dt,
+        optimize_qubit_ordering=False,
+        gpu=False,  # unit tests use CPU tensors in their mocks
+    )
     mock_pulser_data = MagicMock()
     mock_pulser_data.qubit_count = QUBIT_COUNT
     mock_pulser_data.qubit_ids = tuple([i for i in range(QUBIT_COUNT)])
@@ -268,11 +273,11 @@ def test_init_initial_state_default():
     victim.eigenstates = ("g", "r")
 
     victim.config = victim.config.with_changes(precision=0.001, max_bond_dim=100)
-    victim.resolved_num_gpus = 0
+    victim.use_gpu = False
     victim.init_dark_qubits()
     victim.init_initial_state()
 
-    expected = MPS.make(3, num_gpus_to_use=0)
+    expected = MPS.make(3, gpu=False)
 
     assert len(victim.state.factors) == 3
     assert all(
