@@ -30,10 +30,17 @@ device is exhausted. Keeping the blocks single-stream avoids that entirely.
 
 _transfer_stream: Optional[torch.cuda.Stream] = None  # lazy: keep CUDA uninitialized
 
-# GPU sources of in-flight device-to-CPU copies. They are kept alive until the
-# compute stream is ordered after the transfer stream in wait_for_transfers(),
-# so that their memory cannot be reused before the copy is done.
-_pending_frees: list[torch.Tensor] = []
+# GPU sources of in-flight device-to-CPU copies, together with an event marking
+# the completion of their copy. They are kept alive here so that their memory
+# cannot be reused before the copy is done, and released as soon as the copy is
+# observed complete (or the compute stream is ordered after it, see
+# wait_for_transfers).
+_pending_frees: list[tuple[torch.cuda.Event, torch.Tensor]] = []
+
+# Cap on the number of copies in flight: beyond this, offload_bath_to_cpu blocks
+# the host on the oldest copy, bounding the GPU memory retained by pending frees
+# when many baths are offloaded back-to-back (e.g. in init_baths).
+_MAX_PENDING_FREES = 2
 
 
 def _get_transfer_stream() -> torch.cuda.Stream:
@@ -47,8 +54,9 @@ def offload_bath_to_cpu(bath: torch.Tensor) -> torch.Tensor:
     """
     Start an asynchronous copy of the given bath tensor to pinned CPU memory,
     returning the CPU tensor. The copy is ordered after all GPU work queued so far.
-    The GPU memory is released by the next call to wait_for_transfers() or
-    synchronize_transfers(), provided the caller drops its own reference.
+    Provided the caller drops its own reference, the GPU memory is released as
+    soon as the copy is seen to be complete, checked on subsequent calls to this
+    function, wait_for_transfers() or synchronize_transfers().
     """
     if not bath.is_cuda:
         return bath
@@ -57,7 +65,16 @@ def offload_bath_to_cpu(bath: torch.Tensor) -> torch.Tensor:
     stream.wait_stream(torch.cuda.current_stream())  # bath must be fully computed
     with torch.cuda.stream(stream):
         result.copy_(bath, non_blocking=True)
-    _pending_frees.append(bath)
+    event = torch.cuda.Event()
+    event.record(stream)
+    # Copies complete in FIFO order on the transfer stream: release the tensors
+    # whose copy is done, and block on the oldest copy if too many are in flight.
+    while _pending_frees and (
+        _pending_frees[0][0].query() or len(_pending_frees) >= _MAX_PENDING_FREES
+    ):
+        _pending_frees[0][0].synchronize()  # no-op if the copy is already done
+        _pending_frees.pop(0)
+    _pending_frees.append((event, bath))
     return result
 
 
