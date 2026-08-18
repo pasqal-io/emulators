@@ -5,7 +5,8 @@ from emu_base import krylov_exp
 from emu_base.math.krylov_energy_min import krylov_energy_minimization
 from emu_base.utils import deallocate_tensor
 from emu_mps import MPS, MPO
-from emu_mps.utils import offload_bath_to_cpu, split_matrix
+from emu_mps.utils import split_matrix
+from emu_mps.cuda_semantics import offload_bath_to_cpu
 from emu_mps.mps_config import MPSConfig
 
 

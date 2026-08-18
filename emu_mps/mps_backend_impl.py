@@ -38,9 +38,11 @@ from emu_mps.solver_utils import (
 from emu_mps.utils import (
     extended_mpo_factors,
     extended_mps_factors,
-    fetch_bath_from_cpu,
     get_extended_site_index,
     new_left_bath,
+)
+from emu_mps.cuda_semantics import (
+    fetch_bath_from_cpu,
     offload_bath_to_cpu,
     synchronize_transfers,
     wait_for_transfers,
