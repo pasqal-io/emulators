@@ -243,6 +243,11 @@ class MPSBackendImpl:
         self.__dict__ = d
         self.results = Results._from_abstract_repr(d["results"])  # type: ignore [attr-defined]
         self.config.monkeypatch_observables()
+        if self.use_gpu:
+            self.left_baths = [x.pin_memory() if x.is_cpu else x for x in self.left_baths]
+            self.right_baths = [
+                x.pin_memory() if x.is_cpu else x for x in self.right_baths
+            ]
 
     @staticmethod
     def _get_autosave_filepath(autosave_prefix: str) -> pathlib.Path:

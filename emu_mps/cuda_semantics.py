@@ -1,6 +1,3 @@
-from typing import Optional
-import torch
-
 """
 Before reading this code, it is important to understand the two levels at which
 torch operations can be asynchronous, at the GPU level, and at the python level.
@@ -41,6 +38,9 @@ they can overlap with computations on the compute (default) stream.
 The user is responsible to call wait_for_transfers and synchronize_transfers
 to ensure synchronization between the transfer stream and the default stream.
 """
+
+from typing import Optional
+import torch
 
 _transfer_stream: Optional[torch.cuda.Stream] = None  # lazy: keep CUDA uninitialized
 # We need to keep track of active GPU->CPU transfers,

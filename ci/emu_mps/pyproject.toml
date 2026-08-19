@@ -1,3 +1,4 @@
+#This will only build on windows if symlinks are available for the readme and licence
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

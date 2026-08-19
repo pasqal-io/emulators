@@ -41,7 +41,7 @@ For the currently available solvers (TDVP and DMRG), for each qubit a left and a
 In summary, for the Rydberg Hamiltonian we expect that $h=3+n$, and for the XY Hamiltonian that $h=4+2n$, where in both cases $n=\text{min}(i,N-i-1)$ for the bath associated with the qubit $i$. Assuming a constant, maximal, bond dimension for the state, the sum over all baths is an algebraic sum. For the Rydberg interaction it evaluates to:
 
 $$
-|\mathrm{bath}| < 2s\chi^2\sum_{i=0}^{N/2}(3+i) = 4\chi^2N(N+10)
+|\mathrm{bath}| < 2s\chi^2\sum_{i=0}^{N/2-1}(3+i) = 4\chi^2N(N+10)
 $$
 
 Note that the baths take up more memory than the state, always, and potentially much more. Furthermore, just as for the state this is a strict over-estimation, because it assumes all the bonds in the state are of size $\chi$.
