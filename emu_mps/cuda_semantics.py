@@ -50,6 +50,12 @@ _MAX_PENDING_FREES = 1
 
 
 def _get_transfer_stream() -> torch.cuda.Stream:
+    """
+    Return the module-level CUDA stream dedicated to CPU<->GPU tensor transfers.
+
+    The stream is created lazily on first call to avoid initializing CUDA at import
+    time. See docstring at the top of this file for the use of this.
+    """
     global _transfer_stream
     if _transfer_stream is None:
         _transfer_stream = torch.cuda.Stream()
