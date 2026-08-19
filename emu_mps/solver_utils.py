@@ -151,7 +151,10 @@ def right_baths(
     for i in range(len(state.factors) - 1, final_qubit - 1, -1):
         bath = new_right_bath(bath, state.factors[i], op.factors[i])
         if keep_inactive_on_cpu:
-            baths[-1] = offload_bath_to_cpu(baths[-1])
+            # max_pending_frees=10 is big enough that the code doesn't
+            # stall on transfers, but small enough that the baths don't
+            # become the memory bottleneck for large qubit numbers
+            baths[-1] = offload_bath_to_cpu(baths[-1], max_pending_frees=10)
         baths.append(bath)
     return baths
 
