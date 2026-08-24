@@ -94,7 +94,7 @@ class Statistics(Observable):
                 + f"χ = {state.get_max_bond_dim()}, "
                 + f"|ψ| = {state.get_memory_footprint():.3f} MB, "
                 + f"RSS_CPU = {max_mem_cpu:.3f} MB, "
-                + f"RSS_GPU = {max_mem_gpu:.3f} MB, "
+                + f"RSS = {max_mem_gpu:.3f} MB, "
                 + f"Δt = {duration:.3f} s"
             )
 
@@ -102,7 +102,7 @@ class Statistics(Observable):
                 "max_bond_dimension": state.get_max_bond_dim(),
                 "memory_footprint": state.get_memory_footprint(),
                 "RSS_cpu": max_mem_cpu,
-                "RSS_gpu": max_mem_gpu,
+                "RSS": max_mem_gpu,
                 "duration": duration,
             }
         else:
