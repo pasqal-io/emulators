@@ -17,7 +17,13 @@ from typing import Any, Optional
 import torch
 from pulser.backend import EmulationConfig, Observable, Results, State, AggregationMethod
 
-from emu_base import DEVICE_COUNT, SequenceData, get_max_rss, HamiltonianType
+from emu_base import (
+    DEVICE_COUNT,
+    SequenceData,
+    get_max_rss_cpu,
+    get_max_rss_gpu,
+    HamiltonianType,
+)
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.utils import deallocate_tensor
 
@@ -79,22 +85,43 @@ class Statistics(Observable):
         """Calculates the observable to store in the Results."""
         assert isinstance(state, MPS)
         duration = self.data[-1]
-        max_mem = get_max_rss(state.factors[0].is_cuda)
+        if state.factors[0].is_cuda:
+            max_mem_cpu = get_max_rss_cpu()
+            max_mem_gpu = get_max_rss_gpu()
 
-        logging.getLogger("emulators").info(
-            f"step = {len(self.data)}/{self.timestep_count}, "
-            + f"χ = {state.get_max_bond_dim()}, "
-            + f"|ψ| = {state.get_memory_footprint():.3f} MB, "
-            + f"RSS = {max_mem:.3f} MB, "
-            + f"Δt = {duration:.3f} s"
-        )
+            logging.getLogger("emulators").info(
+                f"step = {len(self.data)}/{self.timestep_count}, "
+                + f"χ = {state.get_max_bond_dim()}, "
+                + f"|ψ| = {state.get_memory_footprint():.3f} MB, "
+                + f"RSS_CPU = {max_mem_cpu:.3f} MB, "
+                + f"RSS_GPU = {max_mem_gpu:.3f} MB, "
+                + f"Δt = {duration:.3f} s"
+            )
 
-        return {
-            "max_bond_dimension": state.get_max_bond_dim(),
-            "memory_footprint": state.get_memory_footprint(),
-            "RSS": max_mem,
-            "duration": duration,
-        }
+            return {
+                "max_bond_dimension": state.get_max_bond_dim(),
+                "memory_footprint": state.get_memory_footprint(),
+                "RSS_cpu": max_mem_cpu,
+                "RSS_gpu": max_mem_gpu,
+                "duration": duration,
+            }
+        else:
+            max_mem = get_max_rss_cpu()
+
+            logging.getLogger("emulators").info(
+                f"step = {len(self.data)}/{self.timestep_count}, "
+                + f"χ = {state.get_max_bond_dim()}, "
+                + f"|ψ| = {state.get_memory_footprint():.3f} MB, "
+                + f"RSS = {max_mem:.3f} MB, "
+                + f"Δt = {duration:.3f} s"
+            )
+
+            return {
+                "max_bond_dimension": state.get_max_bond_dim(),
+                "memory_footprint": state.get_memory_footprint(),
+                "RSS": max_mem,
+                "duration": duration,
+            }
 
 
 class SwipeDirection(Enum):
