@@ -9,7 +9,7 @@ from emu_sv.lindblad_operator import RydbergLindbladian
 from pulser.backend import Results, Observable, State, EmulationConfig, AggregationMethod
 from pulser._hamiltonian_data import has_shot_to_shot_except_spam
 from pulser import NoiseModel
-from emu_base import SequenceData, get_max_rss
+from emu_base import SequenceData, get_max_rss_cpu, get_max_rss_gpu
 
 from emu_sv.solver import Solver
 from emu_sv.state_vector import StateVector
@@ -60,7 +60,7 @@ class Statistics(Observable):
         assert isinstance(state, StateVector | DensityMatrix)
         assert isinstance(config, SVConfig)
         duration = self.data[-1]
-        max_mem = get_max_rss(state.data.is_cuda)
+        max_mem = get_max_rss_gpu() if state.data.is_cuda else get_max_rss_cpu()
         logging.getLogger("emulators").info(
             f"step = {len(self.data)}/{self.timestep_count}, "
             + f"RSS = {max_mem:.3f} MB, "

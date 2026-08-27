@@ -33,18 +33,22 @@ $$
 
 for the qudit (p-level system) case.
 
-Note that this is a strict over-estimation because the outer bonds in the MPS will be much smaller than $\chi$.
+Note that this is a strict over-estimation because the outer bonds in the MPS will be much smaller than $\chi$, but it is asymptotically correct as $N\rightarrow \infty$.
 
 ### Contribution from the baths
 
 For the currently available solvers (TDVP and DMRG), for each qubit a left and a right bath tensor is stored. The bath tensors are used to compute an effective interaction between the 2-qubit subsystem being evolved, and the rest of the system ([see here](algorithms.md)). Each of them has 3 indices. Two of them will have a size that depends on the state that is evolved, here upper bounded by the maximum allowed value $\chi$ for the bond dimension. For the third, the size $h$ will depend on the interaction type. In concrete, for each qubit, $h$ will be the bond dimension of the [MPO representation](../advanced/hamiltonian.md) of the Hamiltonian.
-In summary, for the Rydberg Hamiltonian we expect that $h=2+\text{floor}(n/2)$, and for the XY Hamiltonian that $h=2+2\text{floor}(n/2)$, where in both cases $n=\text{min}(i,N-i)$ for the bath associated with the qubit $i$. The computation is slightly involved, but summing all the contributions leads to a total memory occupation of the baths:
+In summary, for the Rydberg Hamiltonian we expect that $h=3+n$, and for the XY Hamiltonian that $h=4+2n$, where in both cases $n=\text{min}(i,N-i-1)$ for the bath associated with the qubit $i$. Assuming a constant, maximal, bond dimension for the state, the sum over all baths is an algebraic sum. For the Rydberg interaction it evaluates to:
 
 $$
-|\mathrm{bath}| < Ns\chi^2h = 4\chi^2N(N+10)
+|\mathrm{bath_{CPU}}| < 2s\chi^2\sum_{i=0}^{N/2-1}(3+i) = 4\chi^2N(N+10).
 $$
 
-Note that the baths take up more memory than the state, always, and potentially much more. Furthermore, just as for the state this is a strict over-estimation, because it assumes all the bonds in the state are of size $\chi$.
+Just as for the state this is a strict over-estimation that is asymptotically correct, because it assumes all the bonds in the state are of size $\chi$. Note that the baths take up more memory than the state by a factor $O(N)$, where the prefactor depends on the interaction type (for Rydberg it is $1/4$), making this term the most dominant for large qubit numbers. For this reason those baths which are not used in the Lanczos algorithm are always stored on CPU, even when the emulator is configured to use GPU. By overlapping the data tranfers with other computations, we can avoid runtime impact at the cost of occasionally having a third bath tensor present on the GPU during the Lanczos algorithm. In this case we get
+
+$$
+|\mathrm{bath_GPU}| \leq 2s\chi^2(3h_{max}-1) = 16\chi^2(\frac{3N}{2}+5).
+$$
 
 ### Contribution from the Krylov space
 
@@ -58,23 +62,29 @@ where $k$ is the value of `max_krylov_dim`. Recall that the default value of $k=
 
 ### Contribution from temporary tensors
 
-Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. The intermediate results take the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$, where
+Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. The intermediate results take the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$. At this point,
 
 $$
 |\mathrm{intermediate}| = 2*shp^2\chi^2 = 128h\chi^2
 $$
 
-It should be noted that the value of $h$ cited above assumes that all qubits in the system interact via a two-body term, which is technically true for the Rydberg interaction.
+It should be noted that the value of $h$ cited above assumes that all qubits in the system interact via a two-body term, which is technically true for the Rydberg interaction. However, small terms in the interaction matrix can be truncated away via a configuration option, and this will save memory.
 
 ### Benchmarking memory footprint
 
-Putting all of this together, for the total memory consumption $m$ of the program, we can write the following bound:
+Putting all of this together, for the total memory consumption $m$ of the program, we can write the following bound for the CPU:
 
 $$
- m(N,\chi,k) = |\psi| + |\mathrm{bath}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32N\chi^2 + 4\chi^2N(N+10) + 64*k*\chi^2 + 64(N+4)\chi^2 = 4\chi^2[N(N+34) + 16k + 64]
+ m_{CPU}(N,\chi,k) = |\psi| + |\mathrm{bath_{CPU}}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32N\chi^2 + 4\chi^2N(N+10) + 64*k*\chi^2 + 64(N+4)\chi^2 = 4\chi^2[N(N+34) + 16k + 64].
 $$
 
-Note that this estimate is __pessimistic__, since not all $k$ Krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $\chi$ is probably attained at the center qubit.
+The quadratic scaling in $N$ is due to the bath contribution. On the GPU, we get a linear scaling instead:
+
+$$
+ m_{GPU}(N,\chi,k) = |\psi| + |\mathrm{bath_{GPU}}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32N\chi^2 + 16\chi^2(\frac{3N}{2}+5) + 64*k*\chi^2 + 64(N+4)\chi^2 = 8\chi^2[15N + 8k+42]
+$$
+
+Note that this estimate is __pessimistic__, since not all $k$ Krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $\chi$ is probably attained at the center qubit if the sequence is long enough.
 
 Both TDVP and DMRG rely on the same bath construction and effective Hamiltonian machinery, so their memory requirements are expected to scale similarly with $N$ and $\chi$.
 
@@ -92,7 +102,7 @@ Although these results are shown for __TDVP__, a similar analysis could be perfo
 
 ### An example
 
-For example, the results from the [case study](convergence.md) were obtained using $N=49$ and $d=1600$ on 2 GPUs. Taking the above formula, and halving the contributions from $\psi$ and $|\mathrm{bath}|$ since they are split evenly on the GPUs, we reproduce the memory consumption of the program for $k=13$. Notice that the actual number of Krylov vectors required to reach convergence is likely closer to around $30$, but here we underestimate it, since the contributions of $\psi$ and $|\mathrm{bath}|$ are over-estimated.
+For example, the results from the [case study](convergence.md) were obtained using $N=49$ and $d=1600$ on 2 GPUs. Taking the above formula, and halving the contributions from $\psi$ and $|\mathrm{bath}|$ since they are split evenly on the GPUs, we reproduce the memory consumption of the program for $k=13$. Notice that the actual number of Krylov vectors required to reach convergence is likely larger than 13, but here we underestimate it since the contributions of $\psi$ and $|\mathrm{bath}|$ are over-estimated.
 
 ## Estimating the runtime of a simulation
 

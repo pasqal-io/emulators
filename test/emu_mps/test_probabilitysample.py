@@ -28,7 +28,7 @@ def test_sampling_ghz5_mps(basis):
     ghz_mps = MPS(
         ghz_state_factors(num_qubits, len(basis), device=device),
         eigenstates=basis,
-        num_gpus_to_use=0,
+        gpu=False,
     )
 
     with patch("emu_mps.mps.torch.multinomial", side_effect=cpu_multinomial_wrapper):

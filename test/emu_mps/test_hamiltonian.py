@@ -146,14 +146,13 @@ def test_2_qubit(basis):
             dtype=torch.complex128,
         )
 
-    num_gpus = 0
     omega, delta, phi = create_omega_delta_phi(n_atoms)
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
         interaction_ops=ops,
         dim=dim,
-        num_gpus_to_use=num_gpus,
+        gpu=False,
     )
 
     update_H(
@@ -210,7 +209,6 @@ def test_noise(basis):
             dtype=torch.complex128,
         )
 
-    num_gpus = 0
     omega = torch.tensor([0.0, 0.0], dtype=dtype)
     delta = torch.tensor([0.0, 0.0], dtype=dtype)
     phi = torch.tensor([0.0, 0.0], dtype=dtype)
@@ -228,7 +226,7 @@ def test_noise(basis):
         interaction_matrix=interaction_matrix,
         interaction_ops=ops,
         dim=dim,
-        num_gpus_to_use=num_gpus,
+        gpu=False,
     )
 
     update_H(hamiltonian=ham, omega=omega, delta=delta, phi=phi, noise=noise)
@@ -274,14 +272,13 @@ def test_4_qubit(basis):
             dtype=torch.complex128,
         )
 
-    num_gpus = 0
     omega, delta, phi = create_omega_delta_phi(n_atoms)
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
         interaction_ops=ops,
         dim=dim,
-        num_gpus_to_use=num_gpus,
+        gpu=False,
     )
 
     noise = torch.zeros(dim, dim, dtype=dtype)
@@ -344,14 +341,13 @@ def test_5_qubit(basis):
             dtype=torch.complex128,
         )
 
-    num_gpus = 0
     omega, delta, phi = create_omega_delta_phi(n_atoms)
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
         interaction_ops=ops,
         dim=dim,
-        num_gpus_to_use=num_gpus,
+        gpu=False,
     )
     update_H(
         hamiltonian=ham,
@@ -416,7 +412,6 @@ def test_9_qubit_noise(basis):
             dtype=torch.complex128,
         )
 
-    num_gpus = 0
     omega = torch.tensor([12.566370614359172] * n_atoms, dtype=dtype)
     delta = torch.tensor([10.771174812307862] * n_atoms, dtype=dtype)
     phi = torch.tensor([torch.pi] * n_atoms, dtype=dtype)
@@ -433,7 +428,7 @@ def test_9_qubit_noise(basis):
         interaction_matrix=interaction_matrix,
         interaction_ops=ops,
         dim=dim,
-        num_gpus_to_use=num_gpus,
+        gpu=False,
     )
     update_H(
         hamiltonian=ham,
@@ -486,7 +481,6 @@ def test_6_qubit_3_level_noise(basis):
             dtype=torch.complex128,
         )
 
-    num_gpus = 0
     omega = torch.tensor([12.566370614359172] * n_atoms, dtype=dtype)
     delta = torch.tensor([10.771174812307862] * n_atoms, dtype=dtype)
     phi = torch.tensor([torch.pi] * n_atoms, dtype=dtype)
@@ -505,7 +499,7 @@ def test_6_qubit_3_level_noise(basis):
         interaction_matrix=interaction_matrix,
         interaction_ops=ops,
         dim=dim,
-        num_gpus_to_use=num_gpus,
+        gpu=False,
     )
     update_H(
         hamiltonian=ham,
@@ -558,7 +552,6 @@ def test_differentiation():
     # The interaction term of the Hamiltonian will not affect the differentiation.
     # Thus, we are not testing with XY interaction
     n = 5
-    num_gpus = 0
 
     omega = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
     delta = torch.tensor([1.0] * n, dtype=dtype, requires_grad=True)
@@ -581,7 +574,7 @@ def test_differentiation():
     ham = make_H(
         interaction_matrix=interaction_matrix,
         interaction_ops=ops,
-        num_gpus_to_use=num_gpus,
+        gpu=False,
     )
     update_H(
         hamiltonian=ham,
@@ -656,7 +649,6 @@ def test_truncation_random(basis):
             dtype=torch.complex128,
         )
 
-    num_gpus = 0
     omega = torch.tensor([12.566370614359172] * n_atoms, dtype=dtype)
     delta = torch.zeros(n_atoms, dtype=dtype)
     phi = torch.zeros(n_atoms, dtype=dtype)
@@ -665,7 +657,7 @@ def test_truncation_random(basis):
         interaction_matrix=interaction_matrix,
         interaction_ops=ops,
         dim=dim,
-        num_gpus_to_use=num_gpus,
+        gpu=False,
     )
     update_H(
         hamiltonian=ham,
@@ -725,7 +717,7 @@ def test_truncation_nn(basis):
 
     ham = make_H(
         interaction_matrix=interaction_matrix,
-        num_gpus_to_use=0,
+        gpu=False,
         interaction_ops=ops,
         dim=dim,
     )
@@ -783,7 +775,7 @@ def test_MPO_factor_hermitean(h_type, nqubits, phys_dim):
 
     ham = make_H(
         interaction_matrix=J,
-        num_gpus_to_use=0,
+        gpu=False,
         interaction_ops=ops,
         dim=phys_dim,
     )

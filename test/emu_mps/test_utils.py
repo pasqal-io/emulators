@@ -1,11 +1,9 @@
 import math
 
-from typing import List
 import pytest
 import torch
 
 from emu_mps.utils import (
-    assign_devices,
     extended_mpo_factors,
     extended_mps_factors,
     split_matrix,
@@ -77,49 +75,6 @@ def test_split_matrix_norm():
     assert torch.allclose(n2, n)
     assert torch.allclose(l2, (n2 / n1) * l1)
     assert torch.allclose(l2 @ q2, (n2 / n1) * l1 @ q1)
-
-
-def test_assign_devices():
-    class MockTensor:
-        def __init__(self):
-            self.device = "unset"
-
-        def to(self, s: str):
-            copy = MockTensor()
-            copy.device = s
-            return copy
-
-    def gpus(mock_tensors: List[MockTensor]) -> List[int]:
-        result = []
-        for mock_tensor in mock_tensors:
-            assert mock_tensor.device[:4] == "cuda"
-            assert len(mock_tensor.device) == 6
-            result.append(int(mock_tensor.device[5]))
-        return result
-
-    ts = [MockTensor() for _ in range(13)]
-
-    assert ts[0].device == "unset"
-
-    assign_devices(ts, num_gpus_to_use=0)
-
-    assert ts[0].device == "cpu"
-
-    assign_devices(ts, num_gpus_to_use=1)
-
-    assert gpus(ts) == [0] * 13
-
-    assign_devices(ts, num_gpus_to_use=3)
-
-    assert gpus(ts) == [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2]
-
-    assign_devices(ts, num_gpus_to_use=5)
-
-    assert gpus(ts) == [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4]
-
-    assign_devices(ts, num_gpus_to_use=2)
-
-    assert gpus(ts) == [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
 
 
 def test_extended_mps_factors():

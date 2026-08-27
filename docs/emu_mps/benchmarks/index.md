@@ -114,4 +114,4 @@ Of course, performance will vary depending on the hardware.
 For this reason, if at any point of your work, performance becomes critical, we always recommend to use Pasqal's DGX cluster.
 If you intend to run emu-mps on your laptop, for example, please be aware that the suggestion to use a GPU for heavier workloads might not be valid.
 In such case it is always good to check performance on a couple of runs, changing the emu-mps config default values as documented in the [API](../api.md#mpsconfig).
-In particular `num_gpus_to_use = 0` will run the emulation on CPU, while `num_gpus_to_use ≥ 1` on GPU/s.
+In particular `gpu = False` will run the emulation on CPU, while `gpu = True` on a GPU.

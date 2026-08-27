@@ -1,5 +1,7 @@
-from typing import List, Optional
+from typing import Optional
 import torch
+
+dtype = torch.complex128
 
 
 def new_left_bath(
@@ -7,7 +9,7 @@ def new_left_bath(
 ) -> torch.Tensor:
     # this order is more efficient than contracting the op first in general
     bath = torch.tensordot(bath, state.conj(), ([0], [0]))
-    bath = torch.tensordot(bath, op.to(bath.device), ([0, 2], [0, 1]))
+    bath = torch.tensordot(bath, op, ([0, 2], [0, 1]))
     bath = torch.tensordot(bath, state, ([0, 2], [0, 1]))
     return bath
 
@@ -41,7 +43,7 @@ def split_matrix(
             _determine_cutoff_index(d, max_error),
             d.shape[0] - max_rank,
         )
-        left = q[:, max_bond:]
+        left = q[:, max_bond:].contiguous()
         right = left.T.conj() @ m
         if preserve_norm:
             old_norm2 = torch.sum(d)
@@ -86,30 +88,7 @@ def truncate_impl(
         )
 
         factors[i] = r.view(-1, *factor_shape[1:])
-        factors[i - 1] = torch.tensordot(
-            factors[i - 1], l.to(factors[i - 1].device), dims=1
-        )
-
-
-def assign_devices(tensors: List[torch.Tensor], num_gpus_to_use: int) -> None:
-    """
-    Evenly distributes each tensor in the list to a device.
-    If num_gpus_to_use is 0, then all tensors go to CPU.
-    """
-    num_gpus_to_use = min(len(tensors), num_gpus_to_use)
-
-    if num_gpus_to_use <= 0:
-        for i in range(len(tensors)):
-            tensors[i] = tensors[i].to("cpu")
-        return
-
-    tensors_per_device = len(tensors) // num_gpus_to_use
-
-    if len(tensors) % num_gpus_to_use != 0:
-        tensors_per_device += 1
-
-    for i in range(len(tensors)):
-        tensors[i] = tensors[i].to(f"cuda:{i // tensors_per_device}")
+        factors[i - 1] = torch.tensordot(factors[i - 1], l, dims=1)
 
 
 def extended_mps_factors(
@@ -121,6 +100,7 @@ def extended_mps_factors(
     """
     assert len(mps_factors) == sum(1 for b in where if b)
 
+    device = mps_factors[0].device if mps_factors else "cpu"
     bond_dimension = 1
     factor_index = 0
     result = []
@@ -132,9 +112,7 @@ def extended_mps_factors(
             bond_dimension = mps_factors[factor_index].shape[2]
             factor_index += 1
         elif factor_index == len(mps_factors):
-            factor = torch.zeros(
-                bond_dimension, 2, 1, dtype=torch.complex128
-            )  # FIXME: assign device
+            factor = torch.zeros(bond_dimension, 2, 1, dtype=dtype, device=device)
             factor[:, 0, :] = torch.eye(bond_dimension, 1)
             bond_dimension = 1
             result.append(factor)
@@ -143,7 +121,8 @@ def extended_mps_factors(
                 bond_dimension,
                 2,
                 bond_dimension,
-                dtype=torch.complex128,  # FIXME: assign device
+                dtype=dtype,
+                device=device,
             )
             factor[:, 0, :] = torch.eye(bond_dimension, bond_dimension)
             result.append(factor)
@@ -159,6 +138,7 @@ def extended_mpo_factors(
     """
     assert len(mpo_factors) == sum(1 for b in where if b)
 
+    device = mpo_factors[0].device if mpo_factors else "cpu"
     bond_dimension = 1
     factor_index = 0
     result = []
@@ -170,14 +150,19 @@ def extended_mpo_factors(
             bond_dimension = mpo_factors[factor_index].shape[3]
             factor_index += 1
         elif factor_index == len(mpo_factors):
-            factor = torch.zeros(bond_dimension, 2, 2, 1, dtype=torch.complex128)
+            factor = torch.zeros(bond_dimension, 2, 2, 1, dtype=dtype, device=device)
             factor[:, 0, 0, :] = torch.eye(bond_dimension, 1)
             factor[:, 1, 1, :] = torch.eye(bond_dimension, 1)
             bond_dimension = 1
             result.append(factor)
         else:
             factor = torch.zeros(
-                bond_dimension, 2, 2, bond_dimension, dtype=torch.complex128
+                bond_dimension,
+                2,
+                2,
+                bond_dimension,
+                dtype=dtype,
+                device=device,
             )
             factor[:, 0, 0, :] = torch.eye(bond_dimension, bond_dimension)
             factor[:, 1, 1, :] = torch.eye(bond_dimension, bond_dimension)

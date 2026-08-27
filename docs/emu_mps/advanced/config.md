@@ -7,7 +7,7 @@ This page documents all the options in `MPSConfig` that controls how emu-mps evo
 - max_bond_dim
 - max_krylov_dim
 - extra_krylov_tolerance
-- num_gpus_to_use
+- gpu
 - autosave_dt
 - optimize_qubit_ordering
 - interaction_cutoff
@@ -91,18 +91,17 @@ mpsconfig = MPSConfig(precision=1e-6, extra_krylov_tolerance=1e-3, ...)
 # heuristic product = 1e-9 (safe)
 ```
 
-## num_gpus_to_use
+## gpu
 
-The `num_gpus_to_use` parameter sets the number of GPUs over which the MPS tensors are distributed during the simulation.
-Setting `num_gpus_to_use = 0` runs the entire computation on the CPU.
-Using multiple GPUs can reduce memory usage per GPU, though the overall runtime remains similar. Also, the default value is `None` and emu-mps internally picks up the available GPUs in the machine, otherwise it uses the CPU.
+The `gpu` parameter sets whether the simulation runs on GPU or CPU.
+Setting `gpu = False` runs the entire computation on the CPU, while `gpu = True` runs it on a single GPU (with a fallback to CPU, and a warning, if no GPU is available).
+The default value is `None`, in which case emu-mps runs on a GPU if one is available in the machine, otherwise on the CPU.
+To reduce GPU memory pressure, emu-mps keeps inactive intermediate tensors in CPU memory, transferring them asynchronously so that transfers overlap with computations.
 
 **Example:**
 
-`num_gpus_to_use = 2`,  uses 2 GPUs if available, otherwise fallback to 1 or CPU
-
 ```python
-mpsconfig = MPSConfig(num_gpus_to_use=2, ...)
+mpsconfig = MPSConfig(gpu=True, ...)
 ```
 
 ## optimize_qubit_ordering

@@ -97,7 +97,7 @@ def test_custom_energy_and_variance_and_second() -> None:
     interaction_matrix = (interaction_matrix + interaction_matrix.T) * 0.5
     h_rydberg = make_H(
         interaction_matrix=interaction_matrix.unsqueeze(0),
-        num_gpus_to_use=DEVICE_COUNT,
+        gpu=DEVICE_COUNT > 0,
         interaction_ops=torch.tensor([[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.float64),
         dim=len(basis),
     )
