@@ -62,9 +62,7 @@ def _get_transfer_stream() -> torch.cuda.Stream:
     return _transfer_stream
 
 
-def offload_bath_to_cpu(
-    bath: torch.Tensor
-) -> torch.Tensor:
+def offload_bath_to_cpu(bath: torch.Tensor) -> torch.Tensor:
     """
     Start an asynchronous copy of the given bath tensor to pinned CPU memory,
     returning the CPU tensor. Store the GPU tensor, together with an event signifying
@@ -84,7 +82,7 @@ def offload_bath_to_cpu(
     # whose copy is done, and block on the oldest copy if too many are in flight.
     while _pending_frees and (
         _pending_frees[0][0].query() or len(_pending_frees) >= _MAX_PENDING_FREES
-    ): # use >= since there is also bath, which is appended after
+    ):  # use >= since there is also bath, which is appended after
         _pending_frees[0][0].synchronize()  # no-op if the copy is already done
         _pending_frees.pop(0)
     _pending_frees.append((event, bath))
