@@ -154,7 +154,7 @@ def right_baths(
             # max_pending_frees=10 is big enough that the code doesn't
             # stall on transfers, but small enough that the baths don't
             # become the memory bottleneck for large qubit numbers
-            baths[-1] = offload_bath_to_cpu(baths[-1], max_pending_frees=10)
+            baths[-1] = offload_bath_to_cpu(baths[-1])
         baths.append(bath)
     return baths
 

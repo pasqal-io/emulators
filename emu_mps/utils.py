@@ -41,7 +41,7 @@ def split_matrix(
             _determine_cutoff_index(d, max_error),
             d.shape[0] - max_rank,
         )
-        left = q[:, max_bond:]
+        left = q[:, max_bond:].contiguous()
         right = left.T.conj() @ m
         if preserve_norm:
             old_norm2 = torch.sum(d)

@@ -46,7 +46,7 @@ _transfer_stream: Optional[torch.cuda.Stream] = None  # lazy: keep CUDA uninitia
 # We need to keep track of active GPU->CPU transfers,
 # so we will know when the GPU data can be freed
 _pending_frees: list[tuple[torch.cuda.Event, torch.Tensor]] = []
-_MAX_PENDING_FREES = 1
+_MAX_PENDING_FREES = 2
 
 
 def _get_transfer_stream() -> torch.cuda.Stream:
@@ -63,7 +63,7 @@ def _get_transfer_stream() -> torch.cuda.Stream:
 
 
 def offload_bath_to_cpu(
-    bath: torch.Tensor, max_pending_frees: int | None = None
+    bath: torch.Tensor
 ) -> torch.Tensor:
     """
     Start an asynchronous copy of the given bath tensor to pinned CPU memory,
@@ -71,7 +71,6 @@ def offload_bath_to_cpu(
     the copy is done, so we know when the GPU tensor can be freed. Checking and cleanup
     happens in this function and in wait_for_transfers and synchronize_transfers.
     """
-    max_pending_frees = max_pending_frees or _MAX_PENDING_FREES
     if not bath.is_cuda:
         return bath
     result = torch.empty(bath.shape, dtype=bath.dtype, device="cpu", pin_memory=True)
@@ -84,8 +83,8 @@ def offload_bath_to_cpu(
     # Copies complete in FIFO order on the transfer stream: release the tensors
     # whose copy is done, and block on the oldest copy if too many are in flight.
     while _pending_frees and (
-        _pending_frees[0][0].query() or len(_pending_frees) > max_pending_frees
-    ):
+        _pending_frees[0][0].query() or len(_pending_frees) >= _MAX_PENDING_FREES
+    ): # use >= since there is also bath, which is appended after
         _pending_frees[0][0].synchronize()  # no-op if the copy is already done
         _pending_frees.pop(0)
     _pending_frees.append((event, bath))
