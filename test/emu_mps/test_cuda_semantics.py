@@ -10,9 +10,11 @@ from emu_mps.cuda_semantics import (
     wait_for_transfers,
 )
 
+dtype = torch.complex128
+
 
 def test_bath_transfers_cpu_noop():
-    bath = torch.rand(3, 5, 3, dtype=torch.complex128)
+    bath = torch.rand(3, 5, 3, dtype=dtype)
 
     assert offload_bath_to_cpu(bath) is bath
     assert fetch_bath_from_cpu(bath, torch.device("cpu")) is bath
@@ -21,7 +23,7 @@ def test_bath_transfers_cpu_noop():
 
 @pytest.mark.skipif(DEVICE_COUNT == 0, reason="Requires a GPU")
 def test_bath_transfers_gpu_roundtrip():
-    bath = torch.rand(3, 5, 3, dtype=torch.complex128, device="cuda")
+    bath = torch.rand(3, 5, 3, dtype=dtype, device="cuda")
 
     offloaded = offload_bath_to_cpu(bath)
     assert not offloaded.is_cuda
@@ -42,7 +44,7 @@ def test_bath_transfers_gpu_roundtrip():
 def test_offloaded_bath_survives_memory_reuse():
     # The GPU source of an in-flight offload must not have its memory reused
     # by subsequent compute stream allocations before the copy is done.
-    reference = torch.rand(256, 20, 256, dtype=torch.complex128)
+    reference = torch.rand(256, 20, 256, dtype=dtype)
     bath = reference.to("cuda")
     torch.cuda.synchronize()
 
@@ -51,7 +53,7 @@ def test_offloaded_bath_survives_memory_reuse():
 
     # Allocation-heavy work on the compute stream, trying to reuse the memory.
     for _ in range(10):
-        junk = torch.zeros(256, 20, 256, dtype=torch.complex128, device="cuda")
+        junk = torch.zeros(256, 20, 256, dtype=dtype, device="cuda")
         del junk
 
     wait_for_transfers()
@@ -64,9 +66,7 @@ def test_offload_pending_frees_bounded():
     # Offloading many baths back-to-back (as in init_baths) must not retain
     # more than _MAX_PENDING_FREES GPU tensors awaiting their copy.
     wait_for_transfers()
-    baths = [
-        torch.rand(64, 4, 64, dtype=torch.complex128, device="cuda") for _ in range(8)
-    ]
+    baths = [torch.rand(64, 4, 64, dtype=dtype, device="cuda") for _ in range(8)]
     offloaded = [offload_bath_to_cpu(bath) for bath in baths]
     assert (
         len(emu_mps.cuda_semantics._pending_frees)

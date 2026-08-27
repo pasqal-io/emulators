@@ -1,6 +1,8 @@
 from typing import Optional
 import torch
 
+dtype = torch.complex128
+
 
 def new_left_bath(
     bath: torch.Tensor, state: torch.Tensor, op: torch.Tensor
@@ -110,9 +112,7 @@ def extended_mps_factors(
             bond_dimension = mps_factors[factor_index].shape[2]
             factor_index += 1
         elif factor_index == len(mps_factors):
-            factor = torch.zeros(
-                bond_dimension, 2, 1, dtype=torch.complex128, device=device
-            )
+            factor = torch.zeros(bond_dimension, 2, 1, dtype=dtype, device=device)
             factor[:, 0, :] = torch.eye(bond_dimension, 1)
             bond_dimension = 1
             result.append(factor)
@@ -121,7 +121,7 @@ def extended_mps_factors(
                 bond_dimension,
                 2,
                 bond_dimension,
-                dtype=torch.complex128,
+                dtype=dtype,
                 device=device,
             )
             factor[:, 0, :] = torch.eye(bond_dimension, bond_dimension)
@@ -150,9 +150,7 @@ def extended_mpo_factors(
             bond_dimension = mpo_factors[factor_index].shape[3]
             factor_index += 1
         elif factor_index == len(mpo_factors):
-            factor = torch.zeros(
-                bond_dimension, 2, 2, 1, dtype=torch.complex128, device=device
-            )
+            factor = torch.zeros(bond_dimension, 2, 2, 1, dtype=dtype, device=device)
             factor[:, 0, 0, :] = torch.eye(bond_dimension, 1)
             factor[:, 1, 1, :] = torch.eye(bond_dimension, 1)
             bond_dimension = 1
@@ -163,7 +161,7 @@ def extended_mpo_factors(
                 2,
                 2,
                 bond_dimension,
-                dtype=torch.complex128,
+                dtype=dtype,
                 device=device,
             )
             factor[:, 0, 0, :] = torch.eye(bond_dimension, bond_dimension)
