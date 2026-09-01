@@ -19,9 +19,9 @@ These quantities are represented, in the following plots:
 <img src="./benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
 <img src="./benchmark_plots/emumps_runtime_map.png"  width="49.7%">
 
-The RSS plot (left) shows the peak memory cost of the emulation.
+The RSS plot (left) shows the peak device-dependent memory cost of the emulation.
 It is expected to stay constant at fixed bond dimension and thus represent the total memory occupation of the emulation of a sequence.
-As evident, the emulator is mostly limited by the available memory (40 GB on NVIDIA A100), as it restricts the maximum number of qubits/bond dimension pair allowed.
+As evident, the emulator is mostly limited by the available memory (40 GB on NVIDIA A100), as it restricts the maximum number of qubits/bond dimension pair allowed. Note that in adition to this device dependent contribution, there is always a contribution in RAM coming from the [bath tensors](../advanced/resource_estimation.md#contribution-from-the-baths). When the simulation is run on CPU, the two contributions add, when running on GPU, the graph can be used to determine what system size can fit on the GPU, and the formula for the bath contribution can be used to determine how much RAM to allocate for the work (assuming access to computing resources where RAM is abundant).
 To get the total estimated runtime instead, one should simply multiply the time estimate in the timing plot (right) by the number of steps in the emulated sequence.
 Finally, given the technical nature of these estimates, they rely on some previous knowledge about [matrix product states](../advanced/mps/index.md) and the [TDVP](../advanced/algorithms.md) algorithm. We encourage anyone who might be interested into the derivation, to have a look at the [resource estimation](../advanced/resource_estimation.md) page in advanced topic section of this documentation.
 

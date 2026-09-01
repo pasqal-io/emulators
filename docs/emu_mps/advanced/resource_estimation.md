@@ -44,10 +44,10 @@ $$
 |\mathrm{bath_{CPU}}| < 2s\chi^2\sum_{i=0}^{N/2-1}(3+i) = 4\chi^2N(N+10).
 $$
 
-Just as for the state this is a strict over-estimation that is asymptotically correct, because it assumes all the bonds in the state are of size $\chi$. Note that the baths take up more memory than the state by a factor $O(N)$, where the prefactor depends on the interaction type (for Rydberg it is $1/4$), making this term the most dominant for large qubit numbers. For this reason those baths which are not used in the Lanczos algorithm are always stored on CPU, even when the emulator is configured to use GPU. By overlapping the data tranfers with other computations, we can avoid runtime impact at the cost of occasionally having a third bath tensor present on the GPU during the Lanczos algorithm. In this case we get
+Just as for the state this is a strict over-estimation that is asymptotically correct, because it assumes all the bonds in the state are of size $\chi$. Note that the baths take up more memory than the state by a factor $O(N)$, where the prefactor depends on the interaction type (for Rydberg it is $1/8$), making this term the most dominant for large qubit numbers. For this reason those baths which are not used in the Lanczos algorithm are always stored on CPU, even when the emulator is configured to use GPU. By overlapping the data transfers with other computations, we can avoid runtime impact at the cost of occasionally having a third bath tensor present on the GPU during the Lanczos algorithm. In this case we get
 
 $$
-|\mathrm{bath_GPU}| \leq 2s\chi^2(3h_{max}-1) = 16\chi^2(\frac{3N}{2}+5).
+|\mathrm{bath_GPU}| \leq s\chi^2(3h_{max}-1) = 16\chi^2(\frac{3N}{2}+5).
 $$
 
 ### Contribution from the Krylov space
@@ -62,10 +62,10 @@ where $k$ is the value of `max_krylov_dim`. Recall that the default value of $k=
 
 ### Contribution from temporary tensors
 
-Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. The intermediate results take the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$. At this point,
+Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. Additionally, it has to store a reordered copy of one of the two bath tensors due to constraints on the matmul implementation in torch. The intermediate results take the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$. At this point,
 
 $$
-|\mathrm{intermediate}| = 2*shp^2\chi^2 = 128h\chi^2
+|\mathrm{intermediate}| = s\chi^2 (2hp^2+h) = h\chi^2(144)
 $$
 
 It should be noted that the value of $h$ cited above assumes that all qubits in the system interact via a two-body term, which is technically true for the Rydberg interaction. However, small terms in the interaction matrix can be truncated away via a configuration option, and this will save memory.
@@ -75,34 +75,37 @@ It should be noted that the value of $h$ cited above assumes that all qubits in 
 Putting all of this together, for the total memory consumption $m$ of the program, we can write the following bound for the CPU:
 
 $$
- m_{CPU}(N,\chi,k) = |\psi| + |\mathrm{bath_{CPU}}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32N\chi^2 + 4\chi^2N(N+10) + 64*k*\chi^2 + 64(N+4)\chi^2 = 4\chi^2[N(N+34) + 16k + 64].
+ m_{CPU}(N,\chi,k) = |\psi| + |\mathrm{bath_{CPU}}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32N\chi^2 + 4\chi^2N(N+10) + 64*k*\chi^2 + 72(N+4)\chi^2 = 4\chi^2[N(N+36) + 16k + 72].
 $$
 
 The quadratic scaling in $N$ is due to the bath contribution. On the GPU, we get a linear scaling instead:
 
 $$
- m_{GPU}(N,\chi,k) = |\psi| + |\mathrm{bath_{GPU}}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32N\chi^2 + 16\chi^2(\frac{3N}{2}+5) + 64*k*\chi^2 + 64(N+4)\chi^2 = 8\chi^2[15N + 8k+42]
+ m_{GPU}(N,\chi,k) = |\psi| + |\mathrm{bath_{GPU}}| + |\mathrm{krylov}| + |\mathrm{intermediate}| < 32N\chi^2 + 16\chi^2(\frac{3N}{2}+5) + 64*k*\chi^2 + 72(N+4)\chi^2 = 8\chi^2[16N + 8k+46]
 $$
 
-Note that this estimate is __pessimistic__, since not all $k$ Krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $\chi$ is probably attained at the center qubit if the sequence is long enough.
+In this case, there is of course a quadratic scaling in the consumption of CPU RAM. For large system sizes, this will outstrip the memory requirements on the GPU, and it becomes important to ensure enough RAM is available for the program to run.
+
+Note that these estimates are __pessimistic__, since not all $k$ Krylov vectors are likely to be needed, and not all tensors in $\psi$ and the baths have the maximum bond dimension $d$. On the other hand, the estimate for $|intermediate|$ is likely to be accurate, since the bond dimension of $\chi$ is probably attained at the center qubit if the sequence is long enough.
 
 Both TDVP and DMRG rely on the same bath construction and effective Hamiltonian machinery, so their memory requirements are expected to scale similarly with $N$ and $\chi$.
 
-To test the accuracy of the above memory estimations, we benchmarked the __TDVP__ algorithm by fixing the bond dimension to a particular desired value.
-For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $\chi$, we collect the maximum resident size, or RSS, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=30$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of system sizes and bond dimensions.
+To test the accuracy of the above memory estimations, we benchmarked the __TDVP__ algorithm by fixing the bond dimension to a particular desired value. We will run the benchmark on GPU, and consider the memory burden on the GPU.
+
+For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $\chi$, we collect the maximum resident set size, or RSS,  on the GPU, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=10$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of system sizes and bond dimensions.
 
 <img src="../../benchmarks/benchmark_plots/RSS_vs_N.png"  width="49.7%">
 <img src="../../benchmarks/benchmark_plots/emumps_maxRSS_map.png"  width="49.7%">
 
 Finally, having established an estimate for the memory consumption, it makes sense to explore what are the available regimes of qubits/bond dimension can be reached for a given hardware capability.
 Since all heavy simulations will be run on an NVIDIA A100 (on Pasqal's DGX cluster), we have $40$ GB of available memory.
-Therefore, above, we show (right image) the contour lines of the RSS estimate $m(N,\chi,k=30) < 40$ GB for particular useful values of the total memory, allowing to quickly estimate the memory footprint of an emu-mps emulation.
+Therefore, above, we show (right image) the contour lines of the RSS estimate $m(N,\chi,k=10) < 40$ GB for particular useful values of the total memory, allowing to quickly estimate the memory footprint of an emu-mps emulation.
 
 Although these results are shown for __TDVP__, a similar analysis could be performed for __DMRG__, and we expect the resulting memory scaling to be comparable.
 
 ### An example
 
-For example, the results from the [case study](convergence.md) were obtained using $N=49$ and $d=1600$ on 2 GPUs. Taking the above formula, and halving the contributions from $\psi$ and $|\mathrm{bath}|$ since they are split evenly on the GPUs, we reproduce the memory consumption of the program for $k=13$. Notice that the actual number of Krylov vectors required to reach convergence is likely larger than 13, but here we underestimate it since the contributions of $\psi$ and $|\mathrm{bath}|$ are over-estimated.
+For example, the results from the [case study](convergence.md) were obtained using $N=49$ and $d=1600$. Taking the above formula for GPU, we find a memory consumption of $16.998$ GB even for $k=0$, while the actual cited memory consumption on GPU is $14.659$ GB. The actual number of Krylov vectors required to reach convergence is likely around 10, but this contribution is not visible since $\psi$ and $|\mathrm{bath}|$ are over-estimated.
 
 ## Estimating the runtime of a simulation
 
