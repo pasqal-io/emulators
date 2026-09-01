@@ -2,6 +2,7 @@ from typing import Any, ClassVar
 from types import MethodType
 
 import copy
+import warnings
 
 from emu_base import init_logging
 from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
@@ -53,6 +54,7 @@ class MPSConfig(EmulationConfig):
             - if `gpu = None` (the default value), the backend internally
                 chooses 1 GPU based on the hardware availability
                 during runtime.
+        num_gpus_to_use: Deprecated. Passed to gpu as bool(num_gpus_to_use)
         optimize_qubit_ordering: Optimize the register ordering. Improves
             performance and accuracy, but disables certain features.
         interaction_cutoff: Set interaction coefficients Uᵢⱼ below this value
@@ -96,6 +98,7 @@ class MPSConfig(EmulationConfig):
         max_krylov_dim: int = 100,
         extra_krylov_tolerance: float = 1e-3,
         gpu: bool | None = None,
+        num_gpus_to_use: int | None = None,
         optimize_qubit_ordering: bool = True,
         interaction_cutoff: float = 0.0,
         log_level: int = logging.INFO,
@@ -121,6 +124,16 @@ class MPSConfig(EmulationConfig):
             solver=solver,
             **kwargs,
         )
+        if num_gpus_to_use is not None:
+            warnings.warn(
+                "num_gpus_to_use is deprecated, please use the gpu flag instead.",
+                DeprecationWarning,
+            )
+            if gpu is not None:
+                raise ValueError("Cannot specify both num_gpus_to_use and gpu")
+            else:
+                gpu = bool(num_gpus_to_use)
+
         logger = init_logging(log_level, log_file)
 
         MIN_AUTOSAVE_DT = 10
@@ -164,6 +177,7 @@ class MPSConfig(EmulationConfig):
             "max_bond_dim",
             "max_krylov_dim",
             "extra_krylov_tolerance",
+            "num_gpus_to_use",
             "gpu",
             "optimize_qubit_ordering",
             "interaction_cutoff",

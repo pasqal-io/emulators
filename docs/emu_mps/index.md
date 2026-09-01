@@ -29,12 +29,12 @@ The following features are currently supported:
     - computational statistics: each time step during the simulation will generate the following information:
         - $\chi$ : is the maximum bond dimension of the MPS
         - $|\Psi|$: MPS (the state) memory footprint
-        - RSS: max memory allocation
+        - RSS: max memory allocation. If run on GPU this is cited both for RAM and GPU.
         - $\triangle t$: time that the step took to run (given in seconds)
 - Specification of:
     - Initial state ( as `MPS` or `MPS._from_state_amplitudes`)
     - Various precision parameters
-    - Whether to run on CPU or GPU(s)
+    - Whether to run on CPU or GPU
     - The interaction coefficients $U_{ij}$ from [here](./advanced/hamiltonian.md#qpu-hamiltonian)
     - A cutoff below which $U_{ij}$ are set to 0 (this makes the computation more memory efficient)
 

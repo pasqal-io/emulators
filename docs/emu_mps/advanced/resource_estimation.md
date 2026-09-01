@@ -47,7 +47,7 @@ $$
 Just as for the state this is a strict over-estimation that is asymptotically correct, because it assumes all the bonds in the state are of size $\chi$. Note that the baths take up more memory than the state by a factor $O(N)$, where the prefactor depends on the interaction type (for Rydberg it is $1/8$), making this term the most dominant for large qubit numbers. For this reason those baths which are not used in the Lanczos algorithm are always stored on CPU, even when the emulator is configured to use GPU. By overlapping the data transfers with other computations, we can avoid runtime impact at the cost of occasionally having a third bath tensor present on the GPU during the Lanczos algorithm. In this case we get
 
 $$
-|\mathrm{bath_GPU}| \leq 2s\chi^2(3h_{max}-1) = 16\chi^2(\frac{3N}{2}+5).
+|\mathrm{bath_GPU}| \leq s\chi^2(3h_{max}-1) = 16\chi^2(\frac{3N}{2}+5).
 $$
 
 ### Contribution from the Krylov space
@@ -62,7 +62,7 @@ where $k$ is the value of `max_krylov_dim`. Recall that the default value of $k=
 
 ### Contribution from temporary tensors
 
-Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. Additionally, it has to store a reordered copy of one of the two bath tensors due to constraints on the matmul implementation in. The intermediate results take the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$. At this point,
+Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. Additionally, it has to store a reordered copy of one of the two bath tensors due to constraints on the matmul implementation in torch. The intermediate results take the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$. At this point,
 
 $$
 |\mathrm{intermediate}| = s\chi^2 (2hp^2+h) = h\chi^2(144)
@@ -99,7 +99,7 @@ For different combinations of the number of atoms in a register $N$ and the fixe
 
 Finally, having established an estimate for the memory consumption, it makes sense to explore what are the available regimes of qubits/bond dimension can be reached for a given hardware capability.
 Since all heavy simulations will be run on an NVIDIA A100 (on Pasqal's DGX cluster), we have $40$ GB of available memory.
-Therefore, above, we show (right image) the contour lines of the RSS estimate $m(N,\chi,k=30) < 40$ GB for particular useful values of the total memory, allowing to quickly estimate the memory footprint of an emu-mps emulation.
+Therefore, above, we show (right image) the contour lines of the RSS estimate $m(N,\chi,k=10) < 40$ GB for particular useful values of the total memory, allowing to quickly estimate the memory footprint of an emu-mps emulation.
 
 Although these results are shown for __TDVP__, a similar analysis could be performed for __DMRG__, and we expect the resulting memory scaling to be comparable.
 
