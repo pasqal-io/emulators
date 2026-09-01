@@ -1832,7 +1832,7 @@
 <li>computational statistics: each time step during the simulation will generate the following information:<ul>
 <li><span class="arithmatex">\(\chi\)</span> : is the maximum bond dimension of the MPS</li>
 <li><span class="arithmatex">\(|\Psi|\)</span>: MPS (the state) memory footprint</li>
-<li>RSS: max memory allocation</li>
+<li>RSS: max memory allocation. If run on GPU this is cited both for RAM and GPU.</li>
 <li><span class="arithmatex">\(\triangle t\)</span>: time that the step took to run (given in seconds)</li>
 </ul>
 </li>
@@ -1841,7 +1841,7 @@
 <li>Specification of:<ul>
 <li>Initial state ( as <code>MPS</code> or <code>MPS._from_state_amplitudes</code>)</li>
 <li>Various precision parameters</li>
-<li>Whether to run on CPU or GPU(s)</li>
+<li>Whether to run on CPU or GPU</li>
 <li>The interaction coefficients <span class="arithmatex">\(U_{ij}\)</span> from <a href="advanced/hamiltonian/#qpu-hamiltonian">here</a></li>
 <li>A cutoff below which <span class="arithmatex">\(U_{ij}\)</span> are set to 0 (this makes the computation more memory efficient)</li>
 </ul>
