@@ -9,7 +9,12 @@ from emu_sv.lindblad_operator import RydbergLindbladian
 from pulser.backend import Results, Observable, State, EmulationConfig, AggregationMethod
 from pulser._hamiltonian_data import has_shot_to_shot_except_spam
 from pulser import NoiseModel
-from emu_base import SequenceData, get_max_rss_cpu, get_max_rss_gpu
+from emu_base import (
+    SequenceData,
+    get_max_rss_cpu,
+    get_max_rss_gpu,
+    is_evaluation_time,
+)
 
 from emu_sv.solver import Solver
 from emu_sv.state_vector import StateVector
@@ -198,30 +203,6 @@ class SVBackendImpl:
             self.pulser_lindblads,
         )
 
-    def _is_evaluation_time(
-        self,
-        observable: Observable,
-        t: float,
-        tolerance: float = 1e-10,
-    ) -> bool:
-        """Return True if ``t`` is a genuine sampling time for this observable.
-
-        Filters out nearby points that are close to, but not in, the
-        observable's evaluation times (within ``tolerance``).
-        Prevent false matches by using Pulser's tolerance
-        tol = 0.5 / total_duration. (deep inside pulser Observable class)
-        """
-        times = observable.evaluation_times
-
-        is_observable_eval_time = (
-            times is not None
-            and self._config.is_time_in_evaluation_times(t, times, tol=tolerance)
-        )
-
-        is_default_eval_time = self._config.is_evaluation_time(t, tol=tolerance)
-
-        return is_observable_eval_time or is_default_eval_time
-
     def _apply_observables(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
         norm = self.state.norm()
@@ -233,7 +214,7 @@ class SVBackendImpl:
         callbacks_for_current_time_step = [
             callback
             for callback in self._config.observables
-            if self._is_evaluation_time(callback, norm_time)
+            if is_evaluation_time(self._config, callback, norm_time)
         ]
         if not self._current_H and callbacks_for_current_time_step:
             self._current_H = self.stepper.get_hamiltonian(

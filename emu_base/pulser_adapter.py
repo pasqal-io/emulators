@@ -1,6 +1,7 @@
-from typing import Callable, Sequence, Iterator
+from typing import Callable, Iterable, Sequence, Iterator
 from dataclasses import dataclass
 from enum import Enum
+import bisect
 import math
 import torch
 import pulser
@@ -8,6 +9,7 @@ from pulser.sampler import SequenceSamples
 from pulser.noise_model import NoiseModel
 from pulser.register.base_register import QubitId
 from pulser.backend.config import EmulationConfig
+from pulser.backend.observable import Observable, TIME_TOLERANCE
 from pulser._hamiltonian_data import HamiltonianData
 from pulser.channels.base_channel import States
 from emu_base.jump_lindblad_operators import get_lindblad_operators
@@ -68,6 +70,56 @@ def _unique_observable_times(
     return observable_times
 
 
+def _fuzzy_union(
+    base: Sequence[float], extra: Iterable[float], tol: float
+) -> list[float]:
+    """Merge the sorted ``extra`` into the sorted ``base``, dropping near-duplicates.
+
+    Times in ``base`` take precedence: an element of ``extra`` closer than
+    ``tol`` to an already accepted time is discarded rather than replacing it.
+    """
+    merged = list(base)
+    for t in extra:
+        i = bisect.bisect_left(merged, t)
+        near_left = i > 0 and t - merged[i - 1] <= tol
+        near_right = i < len(merged) and merged[i] - t <= tol
+        if not (near_left or near_right):
+            merged.insert(i, t)
+    return merged
+
+
+def is_evaluation_time(
+    config: EmulationConfig,
+    observable: Observable,
+    t: float,
+    tolerance: float = TIME_TOLERANCE,
+) -> bool:
+    """Return True if ``t`` is a genuine sampling time for ``observable``.
+
+    Filters out time grid points that are close to, but not in, the
+    observable's evaluation times. ``tolerance`` matches Pulser's own notion of
+    distinct evaluation times, and the same value collapses near-duplicates in
+    `_get_target_times` - the two must agree, or an observable time could land
+    on a grid point that no longer matches it.
+
+    Args:
+        config: the config the observable belongs to
+        observable: the observable to check
+        t: the relative time, between 0 and 1
+        tolerance: how close ``t`` must be to count as a match
+
+    Returns:
+        whether the observable should be evaluated at ``t``
+    """
+    times = observable.evaluation_times
+
+    is_observable_eval_time = times is not None and config.is_time_in_evaluation_times(
+        t, times, tol=tolerance
+    )
+
+    return is_observable_eval_time or config.is_evaluation_time(t, tol=tolerance)
+
+
 def _get_target_times(
     sequence: pulser.Sequence,
     config: EmulationConfig,
@@ -77,16 +129,20 @@ def _get_target_times(
 
     Combines a uniform grid with step ``dt`` and any extra observable times,
     then converts everything to absolute times over the sequence duration.
+    Times closer together than `TIME_TOLERANCE` are considered the same time,
+    consistently with `is_evaluation_time`.
     """
     duration = float(sequence.get_duration(include_fall_time=config.with_modulation))
     n_steps = math.floor(duration / dt)
-    evolution_times_rel: set[float] = {
-        i * float(dt) / duration for i in range(n_steps + 1)
-    }
-    evolution_times_rel.add(1.0)
-    target_times_rel = evolution_times_rel | _unique_observable_times(config)
-    target_times: list[float] = sorted({t * duration for t in target_times_rel})
-    return target_times
+    evolution_times_rel = [i * float(dt) / duration for i in range(n_steps + 1)]
+    if evolution_times_rel[-1] < 1.0 - TIME_TOLERANCE:
+        evolution_times_rel.append(1.0)
+    target_times_rel = _fuzzy_union(
+        evolution_times_rel,
+        sorted(_unique_observable_times(config)),
+        TIME_TOLERANCE,
+    )
+    return [t * duration for t in target_times_rel]
 
 
 def _extract_omega_delta_phi(

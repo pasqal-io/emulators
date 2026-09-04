@@ -15,6 +15,7 @@ from emu_base.pulser_adapter import (
     _get_all_lindblad_noise_operators,
     _get_target_times,
     _unique_observable_times,
+    is_evaluation_time,
     PulserData,
     HamiltonianType,
 )
@@ -963,6 +964,68 @@ def test_get_target_times_includes_default_eval_times(with_modulation):
 
         # get_duration called with the correct 'include_fall_time'
         mock_get_duration.assert_called_once_with(include_fall_time=with_modulation)
+
+
+@pytest.mark.parametrize("offset, is_distinct", [(1e-14, False), (1e-9, True)])
+def test_get_target_times_collapses_near_duplicates(offset, is_distinct):
+    duration = 20
+    dt = 5.5
+    time_grid = [0, 5.5, 11, 16.5, 20]
+
+    # 0.55 lies exactly on the dt grid, at absolute time 11.0
+    obs = MagicMock(spec=Observable, evaluation_times=[0.55 + offset])
+    config = EmulationConfig(observables=[obs], interaction_cutoff=0.0)
+
+    with patch.object(sequence, "get_duration") as mock_get_duration:
+        mock_get_duration.return_value = duration
+
+        target_times = _get_target_times(sequence, config, dt)
+
+    # the grid time is kept as is, the observable time only if far enough from it
+    assert 11.0 in target_times
+    if is_distinct:
+        assert target_times == [
+            *time_grid[:3],
+            (0.55 + offset) * duration,
+            *time_grid[3:],
+        ]
+    else:
+        assert target_times == time_grid
+
+
+def test_get_target_times_endpoint_is_exact():
+    duration = 20
+    dt = 5.0  # divides the duration, so the last grid time is exactly 1.0
+
+    obs = MagicMock(spec=Observable, evaluation_times=[1.0 - 1e-14])
+    config = EmulationConfig(observables=[obs], interaction_cutoff=0.0)
+
+    with patch.object(sequence, "get_duration") as mock_get_duration:
+        mock_get_duration.return_value = duration
+
+        target_times = _get_target_times(sequence, config, dt)
+
+    # _extract_omega_delta_phi asserts that the last time is the sequence duration
+    assert target_times == [0.0, 5.0, 10.0, 15.0, 20.0]
+
+
+def test_is_evaluation_time():
+    obs_time = 0.3
+    default_time = 0.7
+
+    obs = MagicMock(spec=Observable, evaluation_times=[obs_time])
+    obs_with_default = MagicMock(spec=Observable, evaluation_times=None)
+    config = EmulationConfig(
+        observables=[obs, obs_with_default],
+        default_evaluation_times=[default_time],
+    )
+
+    for observable, t in [(obs, obs_time), (obs_with_default, default_time)]:
+        assert is_evaluation_time(config, observable, t)
+        assert is_evaluation_time(config, observable, t + 1e-13)
+        assert is_evaluation_time(config, observable, t - 1e-13)
+        assert not is_evaluation_time(config, observable, t + 1e-9)
+        assert not is_evaluation_time(config, observable, t - 1e-9)
 
 
 def test_unique_observable_times():

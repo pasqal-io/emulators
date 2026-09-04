@@ -23,6 +23,7 @@ from emu_base import (
     get_max_rss_cpu,
     get_max_rss_gpu,
     HamiltonianType,
+    is_evaluation_time,
 )
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.utils import deallocate_tensor
@@ -627,30 +628,6 @@ class MPSBackendImpl:
             f"Saved simulation state in file {self.autosave_file} ({autosave_filesize}MB)"
         )
 
-    def _is_evaluation_time(
-        self,
-        observable: Observable,
-        t: float,
-        tolerance: float = 1e-10,
-    ) -> bool:
-        """Return True if ``t`` is a genuine sampling time for this observable.
-
-        Filters out nearby points that are close to, but not in, the
-        observable's evaluation times (within ``tolerance``).
-        Prevent false matches by using Pulser's tolerance
-        tol = 0.5 / total_duration. (deep inside pulser Observable class)
-        """
-        times = observable.evaluation_times
-
-        is_observable_eval_time = (
-            times is not None
-            and self.config.is_time_in_evaluation_times(t, times, tol=tolerance)
-        )
-
-        is_default_eval_time = self.config.is_evaluation_time(t, tol=tolerance)
-
-        return is_observable_eval_time or is_default_eval_time
-
     def fill_results(self) -> None:
         normalized_state = 1 / self.state.norm() * self.state
 
@@ -659,7 +636,7 @@ class MPSBackendImpl:
         callbacks_for_current_time_step = [
             callback
             for callback in self.config.observables
-            if self._is_evaluation_time(callback, fractional_time)
+            if is_evaluation_time(self.config, callback, fractional_time)
         ]
         if not callbacks_for_current_time_step:
             return
