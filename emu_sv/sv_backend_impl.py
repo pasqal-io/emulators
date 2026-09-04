@@ -203,9 +203,6 @@ class SVBackendImpl:
             self.pulser_lindblads,
         )
 
-    def _is_evaluation_time(self, observable: Observable, t: float) -> bool:
-        return is_evaluation_time(self._config, observable, t)
-
     def _apply_observables(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
         norm = self.state.norm()
@@ -217,7 +214,7 @@ class SVBackendImpl:
         callbacks_for_current_time_step = [
             callback
             for callback in self._config.observables
-            if self._is_evaluation_time(callback, norm_time)
+            if is_evaluation_time(self._config, callback, norm_time)
         ]
         if not self._current_H and callbacks_for_current_time_step:
             self._current_H = self.stepper.get_hamiltonian(

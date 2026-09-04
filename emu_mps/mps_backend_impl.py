@@ -628,9 +628,6 @@ class MPSBackendImpl:
             f"Saved simulation state in file {self.autosave_file} ({autosave_filesize}MB)"
         )
 
-    def _is_evaluation_time(self, observable: Observable, t: float) -> bool:
-        return is_evaluation_time(self.config, observable, t)
-
     def fill_results(self) -> None:
         normalized_state = 1 / self.state.norm() * self.state
 
@@ -639,7 +636,7 @@ class MPSBackendImpl:
         callbacks_for_current_time_step = [
             callback
             for callback in self.config.observables
-            if self._is_evaluation_time(callback, fractional_time)
+            if is_evaluation_time(self.config, callback, fractional_time)
         ]
         if not callbacks_for_current_time_step:
             return
