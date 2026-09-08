@@ -974,7 +974,7 @@ def test_get_target_times_collapses_near_duplicates(offset, is_distinct):
 
     # 0.55 lies exactly on the dt grid, at absolute time 11.0
     obs = MagicMock(spec=Observable, evaluation_times=[0.55 + offset])
-    config = EmulationConfig(observables=[obs], interaction_cutoff=0.0)
+    config = EmulationConfig(observables=[obs])
 
     with patch.object(sequence, "get_duration") as mock_get_duration:
         mock_get_duration.return_value = duration
@@ -998,7 +998,7 @@ def test_get_target_times_endpoint_is_exact():
     dt = 5.0  # divides the duration, so the last grid time is exactly 1.0
 
     obs = MagicMock(spec=Observable, evaluation_times=[1.0 - 1e-14])
-    config = EmulationConfig(observables=[obs], interaction_cutoff=0.0)
+    config = EmulationConfig(observables=[obs])
 
     with patch.object(sequence, "get_duration") as mock_get_duration:
         mock_get_duration.return_value = duration
