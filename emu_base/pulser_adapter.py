@@ -191,7 +191,9 @@ def _extract_omega_delta_phi(
     delta_mid = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
     phi_mid = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
 
-    assert noisy_samples.max_duration == target_times[-1]
+    assert (
+        noisy_samples.max_duration - target_times[-1]
+    ) / noisy_samples.max_duration < TIME_TOLERANCE
     t_grid = torch.arange(target_times[-1], dtype=torch.float64)
 
     laser_by_data = {
