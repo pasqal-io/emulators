@@ -1,5 +1,10 @@
 from .constants import DEVICE_COUNT
-from .pulser_adapter import PulserData, HamiltonianType, SequenceData
+from .pulser_adapter import (
+    PulserData,
+    HamiltonianType,
+    SequenceData,
+    is_evaluation_time,
+)
 from .math.brents_root_finding import find_root_brents
 from .math.krylov_exp import krylov_exp, DEFAULT_MAX_KRYLOV_DIM
 from .jump_lindblad_operators import compute_noise_from_lindbladians
@@ -20,6 +25,7 @@ __all__ = [
     "matmul_2x2_with_batched",
     "PulserData",
     "SequenceData",
+    "is_evaluation_time",
     "find_root_brents",
     "krylov_exp",
     "HamiltonianType",
