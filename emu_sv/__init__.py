@@ -41,4 +41,4 @@ __all__ = [
     "Solver",
 ]
 
-__version__ = "2.10.0"
+__version__ = "2.10.0rc1"
