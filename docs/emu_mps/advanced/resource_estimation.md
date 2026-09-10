@@ -62,7 +62,7 @@ where $k$ is the value of `max_krylov_dim`. Recall that the default value of $k=
 
 ### Contribution from temporary tensors
 
-Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. Additionally, it has to store a reordered copy of one of the two bath tensors due to constraints on the matmul implementation in torch. The intermediate results take the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$. At this point,
+Finally, to compute the above Krylov vectors, the effective two-site Hamiltonian has to be applied to the previous Krylov vector to obtain the next one. The resulting tensor network contraction cannot be done in-place, so it has to store two intermediate results that get very large. Additionally, the contraction requires storage of a permuted copy of one the two bath tensors. The intermediate results take the most memory at the center qubit, where the bond dimension of the Hamiltonian becomes $h$. At this point,
 
 $$
 |\mathrm{intermediate}| = s\chi^2 (2hp^2+h) = h\chi^2(144)
@@ -90,7 +90,7 @@ Note that these estimates are __pessimistic__, since not all $k$ Krylov vectors 
 
 Both TDVP and DMRG rely on the same bath construction and effective Hamiltonian machinery, so their memory requirements are expected to scale similarly with $N$ and $\chi$.
 
-To test the accuracy of the above memory estimations, we benchmarked the __TDVP__ algorithm by fixing the bond dimension to a particular desired value. We will run the benchmark on GPU, and consider the memory burden on the GPU.
+To test the accuracy of the above memory estimations, we benchmarked the __TDVP__ algorithm by fixing the bond dimension to a particular desired value. We ran the benchmark on GPU, and consider the memory burden on the GPU.
 
 For different combinations of the number of atoms in a register $N$ and the fixed bond dimension $\chi$, we collect the maximum resident set size, or RSS,  on the GPU, which is expected to capture the maximum memory needed to run the emulation. We plot the RSS in the following picture (left), as a function of the number of qubits and for different bond dimensions. Notice that, once the RSS is normalized by $\chi^2$, as suggested by our estimate above, all the points fall into the same functional dependency on the number of atoms. Moreover, as we plot the normalized function $m(N,\chi,k)/\chi^2$, for a reasonable estimate of the size of the Krylov subspace ($k=10$), it is clear that our upper bound on memory occupation can be reasonably trusted on a wide range of system sizes and bond dimensions.
 

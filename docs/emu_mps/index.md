@@ -47,8 +47,7 @@ The following features are currently supported:
 The workflow in emu-mps is not typical of machine learning workloads, and as a consequence certain default behaviours of torch are not optimal. Specifically
 
 - In emu-mps tensor sizes tend to be very unpredictable, in contrast to typical machine learning models. The default torch behaviour of caching GPU memory allocations in deterministic block sizes must be overridden to avoid memory fragmentation that reduces the effectively available memory on the GPU.
-- In emu-mps, we use page-locked RAM for asynchronously tranferring tensors from RAM to GPU. Since the tensor sizes are unpredictable, the default torch caching behaviour of allocating memory in powers of 2 works poorly. It is not needed for performance, and it causes the application to use
-on average 1.5 times more RAM than needed. The host allocator cache should be disabled. This is only possible in torch 2.13 and newer.
+- In emu-mps, we use page-locked RAM for asynchronously transferring tensors from RAM to GPU. Since the tensor sizes are unpredictable, the default torch caching behaviour of allocating memory in powers of 2 works poorly. It is not needed for performance, and it causes the application to use on average 1.5 times more RAM than needed. The host allocator cache should be disabled. This is only possible in torch 2.13 and newer.
 
 Both these things can be configured via an environment variable that should be set before running your python script. Concretely, define the following for optimal memory usage:
 
