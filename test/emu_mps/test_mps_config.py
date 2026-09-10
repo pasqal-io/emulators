@@ -31,7 +31,6 @@ mps_params = {
 def test_unsupported_noise() -> None:
     MPSConfig(
         noise_model=pulser.noise_model.NoiseModel(
-            runs=1,  # TODO: connect this with MCArlo
             samples_per_run=1,  # TODO: connect this with MCarlo or ignored
             state_prep_error=0.1,
             p_false_pos=0.1,
@@ -185,3 +184,14 @@ def test_default_MPSConfig_ctr() -> None:
     mps_config = MPSConfig()
     assert len(mps_config.observables) == 0
     assert len(mps_config.callbacks) == 0
+
+
+def test_num_gpus_deprecated() -> None:
+    with pytest.raises(ValueError) as e:
+        MPSConfig(num_gpus_to_use=2, gpu=True)
+    assert e.match("Cannot specify both num_gpus_to_use and gpu")
+    with pytest.warns(
+        DeprecationWarning,
+        match="num_gpus_to_use is deprecated, please use the gpu flag instead.",
+    ):
+        MPSConfig(num_gpus_to_use=1)
