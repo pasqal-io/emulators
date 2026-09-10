@@ -3,10 +3,12 @@ run-name: Publish emulators
 
 on:
   push:
-    branches:
-      - main
+    # These are GitHub glob filter patterns, not regexes: `+` means "one or more
+    # of the preceding character" and there is no optional group, so the stable
+    # and release-candidate forms have to be listed separately.
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+(rc\d)?'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+rc[0-9]+'
   workflow_dispatch: {}
 
 concurrency:
@@ -119,8 +121,16 @@ jobs:
           pip install -r doc_requirements.txt
           pip install -e .
       - name: Deploy docs
+        env:
+          VERSION: ${{ github.ref_name }}
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git fetch origin gh-pages
-          mike deploy --push --update-aliases ${{ github.ref_name }} latest
+          if [[ "$VERSION" == *rc* ]]; then
+            # A release candidate gets its own docs version, but must not become
+            # the `latest` that users land on.
+            mike deploy --push "$VERSION"
+          else
+            mike deploy --push --update-aliases "$VERSION" latest
+          fi
