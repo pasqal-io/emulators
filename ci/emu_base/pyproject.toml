@@ -36,7 +36,7 @@ allow-direct-references = true
 allow-ambiguous-features = true
 
 [tool.hatch.version]
-path = "./../../emu_base/__init__.py"
+path = "emu_base/__init__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -75,18 +75,6 @@ dependencies = [
 
 [tool.hatch.envs.docs.scripts]
 build = "mkdocs build --clean --strict {args}"
-
-[tool.hatch.build.targets.sdist]
-packages = ["emu_base"]
-
-[tool.hatch.build.targets.sdist.force-include]
-"../../emu_base" = "emu_base"
-
-[tool.hatch.build.targets.wheel]
-packages = ["emu_base"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"../../emu_base" = "emu_base"
 
 [tool.coverage.run]
 branch = true

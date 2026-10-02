@@ -39,6 +39,7 @@ jobs:
       - name: Build and publish package
         run: |
           cd ci/emu_base
+          cp --remove-destination ../../README.md ../../LICENSE .
           hatch build
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -68,6 +69,7 @@ jobs:
       - name: Build and publish package
         run: |
           cd ci/emu_mps
+          cp --remove-destination ../../README.md ../../LICENSE .
           hatch build
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -97,6 +99,7 @@ jobs:
       - name: Build and publish package
         run: |
           cd ci/emu_sv
+          cp --remove-destination ../../README.md ../../LICENSE .
           hatch build
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
