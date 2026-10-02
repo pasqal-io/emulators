@@ -184,6 +184,7 @@ def simulate_with_den_matrix(
     return result
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_afm_ring() -> None:
     torch.manual_seed(seed)
 
@@ -240,6 +241,7 @@ def test_end_to_end_afm_ring() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_afm_ring_with_effective_noise() -> None:
     torch.manual_seed(seed)
 
@@ -453,6 +455,7 @@ def test_initial_state_den_mat_wrong_atoms():
     ) in str(excinfo.value)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_spontaneous_emission_rate() -> None:
     # sequence with spontaneous emission
     seed = 31415
@@ -542,6 +545,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     assert torch.allclose(result_mc.occupation[-1], expected_result_mc, atol=1e-4)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_random_effective_noise():
     seed = 31415
     torch.manual_seed(seed)
@@ -596,6 +600,7 @@ def test_end_to_end_random_effective_noise():
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
@@ -700,6 +705,7 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
     assert probabilities["0111"] == 1000
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_1D_sv_measure_errors() -> None:
     torch.manual_seed(seed)
     random.seed(seed)
@@ -760,6 +766,7 @@ def test_end_to_end_1D_sv_measure_errors() -> None:
     assert bitstrings["0111"] == 725
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_1D_dense_mat_measure_errors() -> None:
     torch.manual_seed(seed)
     random.seed(seed)
@@ -826,6 +833,7 @@ def test_end_to_end_1D_dense_mat_measure_errors() -> None:
     assert bitstrings["0111"] == 725
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_spam_bitstring_class() -> None:
     torch.manual_seed(seed)
     random.seed(seed)

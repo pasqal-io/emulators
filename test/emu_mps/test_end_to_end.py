@@ -157,6 +157,7 @@ t_rise = 500
 t_fall = 1000
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_XY_3atoms() -> None:
     torch.manual_seed(seed)
     seq = pulser_XY_sequence_slm_mask(amplitude=25.0)
@@ -190,6 +191,7 @@ def test_XY_3atoms() -> None:
     assert torch.allclose(final_vec, expected_res, rtol=0, atol=1e-4)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_XY_3atomswith_slm() -> None:
     torch.manual_seed(seed)
     seq = pulser_XY_sequence_slm_mask(amplitude=0.0, slm_masked_atoms=(1, 2))
@@ -226,6 +228,7 @@ def test_XY_3atomswith_slm() -> None:
     )  # todo, compare against pulser results
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize(
     "optimize_order",
     [
@@ -301,6 +304,7 @@ def test_end_to_end_domain_wall_ring(
         assert torch.allclose(expect_occup, occupation, atol=1e-3)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_afm_ring() -> None:
     torch.manual_seed(seed)
 
@@ -347,6 +351,7 @@ def test_end_to_end_afm_ring() -> None:
     assert approx(second_moment_energy, rel=1e-4) == 13350.5
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_dmrg_afm_ring() -> None:
     torch.manual_seed(seed)
 
@@ -402,6 +407,7 @@ def test_dmrg_afm_ring() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_dmrg_afm_square_grid() -> None:
     torch.manual_seed(seed)
 
@@ -454,6 +460,7 @@ def test_dmrg_afm_square_grid() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_dmrg_large_detuning() -> None:
     # at very large detuning, the state should be stuck in the initial state
     # DMRG should exactly capture the product state of 9 qubits
@@ -494,6 +501,7 @@ def test_dmrg_large_detuning() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     torch.manual_seed(seed)
     with patch(
@@ -614,6 +622,7 @@ def test_initial_state_copy() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_afm_ring_with_noise() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
@@ -644,6 +653,7 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     assert max_bond_dim == 8
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_spontaneous_emission() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
@@ -709,6 +719,7 @@ def test_end_to_end_spontaneous_emission() -> None:
     # would be too much for this unit test.
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_spontaneous_emission_rate() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
@@ -955,6 +966,7 @@ def test_run_after_deserialize():
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_leakage_rates():
     """Verigy the leakage rates"""
     torch.manual_seed(seed)
@@ -1045,6 +1057,7 @@ def test_leakage_rates():
     assert aggregated_results.expectation_nn[0] == approx(none_leaked, abs=1e-1)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_leakage_3x3_matrices():
     """Verifying that 3x3 operators work as intended when leakage is 0.0."""
     torch.manual_seed(seed)
@@ -1297,6 +1310,7 @@ def test_qubit_reordering_no_interaction():
     np.testing.assert_allclose(occ, expected_occ)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.skipif(DEVICE_COUNT == 0, reason="Requires a GPU")
 @pytest.mark.parametrize("relaxation_rate", (0.0, 0.05))
 def test_inactive_baths_are_kept_on_cpu(relaxation_rate):

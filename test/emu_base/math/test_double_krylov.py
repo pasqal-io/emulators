@@ -1,3 +1,4 @@
+import pytest
 import torch
 from emu_base.math.double_krylov import double_krylov
 from emu_sv.hamiltonian import RydbergHamiltonian
@@ -24,6 +25,7 @@ def frechet_exp(A: torch.Tensor, E: torch.Tensor):
     return big_exp[:sizeA, sizeA:]
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @mark.parametrize(
     "N, tolerance",
     [(n, tol) for n in [3, 4, 5, 7] for tol in [1e-8, 1e-10, 1e-12]],

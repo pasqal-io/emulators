@@ -13,6 +13,7 @@ device = "cpu"  # 'cuda'
 dtype = torch.complex128
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize(
     "basis",
     (
@@ -42,6 +43,7 @@ def test_sampling_ghz5_mps(basis):
         assert bitstrings.get("00000") == 497
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_not_orthogonalized_state():
     torch.manual_seed(seed)
     shots = 1000
@@ -68,6 +70,7 @@ def test_not_orthogonalized_state():
     assert bitstrings.get("000") == 501
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_sampling_wall():
     torch.manual_seed(seed)
     shots = 1000
@@ -84,6 +87,7 @@ def test_sampling_wall():
     assert bitstrings.get(state_bit) == 1000
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_with_leakage():
     torch.manual_seed(seed)
     shots = 1000
@@ -102,6 +106,7 @@ def test_with_leakage():
     assert bitstrings.get(state_bit) == shots
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_with_leakage_ghz_3level(mocked_results=None):
     torch.manual_seed(seed)
 
@@ -128,6 +133,7 @@ def test_with_leakage_ghz_3level(mocked_results=None):
     assert bitstrings.get(state_bit1) == 347
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_with_leakage_edge_case_3level():
     "The output of state xr + xg + gg - gr"
     torch.manual_seed(seed)
