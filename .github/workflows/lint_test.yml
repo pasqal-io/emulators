@@ -96,7 +96,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r test_requirements.txt
-          ./dev_install.sh
+          python -m pip install ci/emu_base
+          python -m pip install ci/emu_mps
+          python -m pip install ci/emu_sv
 
       - name: Run unit tests
         run: |
