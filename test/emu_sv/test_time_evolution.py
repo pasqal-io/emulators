@@ -55,6 +55,7 @@ def test_forward_with_requires_grad(requires_grad):
     assert state_out.requires_grad
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize(
     "N, tolerance, with_phase",
     [
@@ -75,6 +76,7 @@ def test_forward_accuracy(N: int, tolerance: float, with_phase: bool) -> None:
     assert torch.allclose(expected, state_out, atol=tolerance)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize(
     "N, tolerance",
     [(n, tol) for n in [3, 5, 8] for tol in [1e-8, 1e-10, 1e-12]],

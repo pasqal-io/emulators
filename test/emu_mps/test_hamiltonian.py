@@ -756,6 +756,7 @@ def test_truncation_nn(basis):
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize("h_type", (HamiltonianType.Rydberg, HamiltonianType.XY))
 @pytest.mark.parametrize("nqubits", range(2, 12))
 @pytest.mark.parametrize("phys_dim", (2, 3))

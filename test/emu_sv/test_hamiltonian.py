@@ -17,6 +17,7 @@ def mock_apply_sigma_operators(result, vec):
     pass
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize("N", [3, 5, 7, 8])
 def test_dense_vs_sparse_no_phase(N: int) -> None:
     torch.manual_seed(1337)
@@ -50,6 +51,7 @@ def test_dense_vs_sparse_no_phase(N: int) -> None:
     assert torch.allclose(res_sparse, res_dense, atol=1e-12)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize("N", [2, 4, 7, 9])
 def test_dense_vs_sparse_with_phase(N: int) -> None:
     torch.manual_seed(1337)
@@ -83,6 +85,7 @@ def test_dense_vs_sparse_with_phase(N: int) -> None:
     assert torch.allclose(res_sparse, res_dense, atol=1e-12)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_call_sigma_real_complex() -> None:
     torch.manual_seed(1337)
     N = 2
@@ -126,6 +129,7 @@ def test_call_sigma_real_complex() -> None:
         ham_zero_phase._apply_sigma_operators_real.assert_called_once()
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_expect():
     torch.manual_seed(1337)
     N = 3

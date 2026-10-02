@@ -131,6 +131,7 @@ def test_happy_breakdown() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_converged():
     torch.random.manual_seed(1234)
 
@@ -150,6 +151,7 @@ def test_converged():
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_converged_non_hermitian() -> None:
     torch.random.manual_seed(1234)
 
@@ -169,6 +171,7 @@ def test_converged_non_hermitian() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_converged_non_hermitian_non_normalized():
     torch.random.manual_seed(1234)
 
@@ -188,6 +191,7 @@ def test_converged_non_hermitian_non_normalized():
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_krylov_with_matrix():
 
     torch.random.manual_seed(1211)

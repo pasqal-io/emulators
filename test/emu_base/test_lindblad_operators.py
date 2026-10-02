@@ -39,6 +39,7 @@ def test_get_lindblad_op_with_rydberg_basis(interaction):
     assert torch.allclose(emu_mps_lindblad[0], expected_emu_mps_operator)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_flipping_right_elements():
     """Flipping the right elements in a 3x3 lindblad operators when using
     Rydberg basis"""
