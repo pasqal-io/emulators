@@ -37,7 +37,7 @@ repos:
         args: ["--python-version=3.14"]
 
   - repo: https://github.com/pasqal-io/doc_checker
-    rev: 89f018cce42c3c7330c54331fd5f875602380315 # full SHA for the commit to use
+    rev: 236a1674c5e5af57439891b0a9ffcd9fda1156bc # full SHA for the commit to use
     hooks:
      - id: doc-checker-basic
        args: ["--ignore-submodules", "emu_mps.optimatrix", "emu_sv.time_evolution"]
