@@ -99,6 +99,7 @@ def test_index_to_bitstring() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_sample() -> None:
 
     torch.manual_seed(seed)

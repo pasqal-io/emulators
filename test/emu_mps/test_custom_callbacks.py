@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from pytest import approx
@@ -80,6 +81,7 @@ def test_custom_correlation() -> None:
             assert col.cpu() == approx(expected[i][j], abs=1e-8)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_custom_energy_and_variance_and_second() -> None:
 
     torch.manual_seed(1337)
