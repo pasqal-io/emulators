@@ -68,9 +68,9 @@ def create_noisy_victim(dt=10, noise_model=None):
     return victim
 
 
-def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
+def create_dmrg_mock():
     config = MPSConfig(
-        dt=dt,
+        dt=10,
         optimize_qubit_ordering=False,
         gpu=False,  # unit tests use CPU tensors in their mocks
     )
@@ -79,12 +79,13 @@ def create_dmrg_mock(constructor=DMRGBackendImpl, dt=10):
     mock_pulser_data.qubit_ids = tuple([i for i in range(QUBIT_COUNT)])
     mock_pulser_data.interaction_matrix = lambda t: torch.eye(QUBIT_COUNT).unsqueeze(0)
     mock_pulser_data.hamiltonian_type = HamiltonianType.Rydberg
-    mock_pulser_data.has_lindblad_noise = False
+    mock_pulser_data.has_stochastic_noise = False
+    mock_pulser_data.lindblad_ops = []
     mock_pulser_data.slm_end_time = 10.0
     mock_pulser_data.eigenstates = ("g", "r")
     mock_pulser_data.state_prep_error = 0.0
 
-    dmrg_obj = constructor(config, mock_pulser_data)
+    dmrg_obj = DMRGBackendImpl(config, mock_pulser_data)
 
     assert dmrg_obj.qubit_count == QUBIT_COUNT
     assert dmrg_obj.current_time == 0.0

@@ -7,8 +7,6 @@ from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 
 from pulser.backend import Results, Observable, State, EmulationConfig, AggregationMethod
-from pulser._hamiltonian_data import has_shot_to_shot_except_spam
-from pulser import NoiseModel
 from emu_base import (
     SequenceData,
     get_max_rss_cpu,
@@ -28,12 +26,6 @@ from emu_sv.time_evolution import (
 )
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
-
-
-def _has_stochastic_noise(noise_model: NoiseModel) -> bool:
-    return has_shot_to_shot_except_spam(noise_model) or (
-        "SPAM" in noise_model.noise_types and noise_model.state_prep_error != 0
-    )
 
 
 class Statistics(Observable):
@@ -91,8 +83,7 @@ class SVBackendImpl:
         state_type: type[StateVector] | type[DensityMatrix]
         if self.pulser_lindblads:
             if (
-                config.solver == Solver.DEFAULT
-                and _has_stochastic_noise(config.noise_model)
+                config.solver == Solver.DEFAULT and data.has_stochastic_noise
             ) or config.solver == Solver.MONTECARLO:
                 stepper = EvolveMonteCarlo()
                 state_type = StateVector
