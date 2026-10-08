@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 import torch
-from emu_sv import SVConfig, SVBackend, Occupation, Solver
+from emu_sv import SVConfig, SVBackend, Occupation, Solver, StateVector, DensityMatrix
+from emu_sv.dense_state import DenseState
 from emu_sv.sv_backend_impl import SVBackendImpl
 from emu_sv.time_evolution import EvolveDensityMatrix, EvolveMonteCarlo, EvolveStateVector
 from emu_base import SequenceData, HamiltonianType
@@ -26,6 +27,69 @@ def test_sv_impl():
     )
     bknd_impl = SVBackendImpl(config, pulser_data)
     bknd_impl._evolve_step(1.0, 0)
+
+
+@pytest.mark.parametrize(
+    "state, stochastic_noise, lindblad_noise",
+    [
+        (
+            DenseState.from_state_amplitudes(
+                eigenstates=("r", "g"), amplitudes={"r": 1.0}
+            ),
+            False,
+            False,
+        ),
+        (
+            StateVector.from_state_amplitudes(
+                eigenstates=("r", "g"), amplitudes={"r": 1.0}
+            ),
+            False,
+            False,
+        ),
+        (
+            DenseState.from_state_amplitudes(
+                eigenstates=("r", "g"), amplitudes={"r": 1.0}
+            ),
+            True,
+            False,
+        ),
+        (
+            StateVector.from_state_amplitudes(
+                eigenstates=("r", "g"), amplitudes={"r": 1.0}
+            ),
+            True,
+            False,
+        ),
+        (
+            DensityMatrix.from_state_amplitudes(
+                eigenstates=("r", "g"), amplitudes={"r": 1.0}
+            ),
+            False,
+            True,
+        ),
+    ],
+)
+def test_init_initial_state(state, stochastic_noise, lindblad_noise):
+    """test the SVBackendImpl correctly handles the fed initial state"""
+    config = SVConfig(gpu=False if device == "cpu" else True, initial_state=state)
+    pulser_data = MagicMock(
+        spec=SequenceData,
+        omega=torch.tensor([[1.0]], requires_grad=True),
+        delta=torch.tensor([[1.0]]),
+        phi=torch.tensor([[1.0]]),
+        interaction_matrix=lambda t: torch.zeros((1, 1, 1), dtype=torch.float64),
+        state_prep_error=0.0,
+        target_times=[1.0],
+        qubit_ids=(),
+        lindblad_ops=[torch.eye(2, dtype=torch.complex128)] if lindblad_noise else [],
+        has_stochastic_noise=stochastic_noise,
+    )
+    bknd_impl = SVBackendImpl(config, pulser_data)
+    if lindblad_noise and not stochastic_noise:
+        state_type = DensityMatrix
+    else:
+        state_type = StateVector
+    assert type(bknd_impl.state) is state_type
 
 
 def test_run_from_sequence_data():

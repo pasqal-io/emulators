@@ -37,7 +37,13 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
             do not match.
     """
 
-    def __init__(self, factors: List[torch.Tensor], /, gpu: Optional[bool] = None):
+    def __init__(
+        self,
+        factors: List[torch.Tensor],
+        /,
+        gpu: Optional[bool] = None,
+    ):
+        super().__init__()
         if gpu is not None:
             device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
             factors = [f.to(device) for f in factors]
