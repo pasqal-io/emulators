@@ -7,8 +7,6 @@ from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 
 from pulser.backend import Results, Observable, State, EmulationConfig, AggregationMethod
-from pulser._hamiltonian_data import has_shot_to_shot_except_spam
-from pulser import NoiseModel
 from emu_base import (
     SequenceData,
     get_max_rss_cpu,
@@ -19,6 +17,7 @@ from emu_base import (
 from emu_sv.solver import Solver
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
+from emu_sv.dense_state import DenseState
 from emu_sv.sv_config import SVConfig
 from emu_sv.time_evolution import (
     EvolveStateVector,
@@ -28,12 +27,6 @@ from emu_sv.time_evolution import (
 )
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
-
-
-def _has_stochastic_noise(noise_model: NoiseModel) -> bool:
-    return has_shot_to_shot_except_spam(noise_model) or (
-        "SPAM" in noise_model.noise_types and noise_model.state_prep_error != 0
-    )
 
 
 class Statistics(Observable):
@@ -91,8 +84,7 @@ class SVBackendImpl:
         state_type: type[StateVector] | type[DensityMatrix]
         if self.pulser_lindblads:
             if (
-                config.solver == Solver.DEFAULT
-                and _has_stochastic_noise(config.noise_model)
+                config.solver == Solver.DEFAULT and data.has_stochastic_noise
             ) or config.solver == Solver.MONTECARLO:
                 stepper = EvolveMonteCarlo()
                 state_type = StateVector
@@ -120,14 +112,7 @@ class SVBackendImpl:
 
         self.resolved_gpu = requested_gpu
 
-        self.state: DensityMatrix | StateVector
-        if config.initial_state is not None:
-            assert isinstance(config.initial_state, state_type)
-            self.state = state_type(
-                config.initial_state.data.clone(), gpu=self.resolved_gpu
-            )
-        else:
-            self.state = state_type.make(self.nqubits, gpu=self.resolved_gpu)
+        self.init_initial_state(config, state_type)
 
         self.time = time.time()
         self.results = Results(
@@ -153,6 +138,26 @@ class SVBackendImpl:
             raise NotImplementedError(
                 "Initial state and state preparation error can not be together."
             )
+
+    def init_initial_state(self, config: SVConfig, state_type: typing.Type) -> None:
+        self.state: DensityMatrix | StateVector
+        config_state = config.initial_state
+        if config_state is not None:
+            if type(config_state) is DenseState:
+                if config_state.data.dim() == 1:
+                    config_state = StateVector(
+                        config_state.data, gpu=config_state.data.is_cuda
+                    )
+                else:
+                    config_state = DensityMatrix(
+                        config_state.data, gpu=config_state.data.is_cuda
+                    )
+            if state_type == DensityMatrix and type(config_state) is StateVector:
+                config_state = DensityMatrix.from_state_vector(config_state)
+            assert isinstance(config_state, state_type)
+            self.state = state_type(config_state.data.clone(), gpu=self.resolved_gpu)
+        else:
+            self.state = state_type.make(self.nqubits, gpu=self.resolved_gpu)
 
     def init_dark_qubits(self) -> None:
         if self._data.state_prep_error > 0.0:

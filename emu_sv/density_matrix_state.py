@@ -1,12 +1,9 @@
 from __future__ import annotations
-from collections import Counter
-import math
 from typing import Mapping, TypeVar, Type, Sequence
 import torch
 from pulser.backend import State
-from emu_base import DEVICE_COUNT, apply_measurement_errors
+from emu_sv.dense_state import DenseState
 from emu_sv.state_vector import StateVector
-from emu_sv.utils import index_to_bitstring
 from pulser.backend.state import Eigenstate
 
 DensityMatrixType = TypeVar("DensityMatrixType", bound="DensityMatrix")
@@ -14,7 +11,7 @@ DensityMatrixType = TypeVar("DensityMatrixType", bound="DensityMatrix")
 dtype = torch.complex128
 
 
-class DensityMatrix(State[complex, torch.Tensor]):
+class DensityMatrix(DenseState):
     """Represents an n-qubit density matrix ρ in the computational (|g⟩, |r⟩)
     basis. The input should be a square complex tensor with shape (2ⁿ, 2ⁿ),
     where n is the number of atoms. ρ must be Hermitian, positive semidefinite,
@@ -27,6 +24,8 @@ class DensityMatrix(State[complex, torch.Tensor]):
             computational basis.
         gpu (bool, optional): If True, place the operator on a CUDA device when
             available. Default: True.
+        eigenstates: sequence of eigenstates used as basis only qubit basis are
+            supported (default: ('r','g'))
     """
 
     # for the moment no need to check positivity and trace 1
@@ -35,17 +34,10 @@ class DensityMatrix(State[complex, torch.Tensor]):
         matrix: torch.Tensor,
         *,
         gpu: bool = True,
+        eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
         # NOTE: this accepts also zero matrices.
-
-        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
-        self.data = matrix.to(dtype=dtype, device=device)
-
-    @property
-    def n_qudits(self) -> int:
-        """The number of qudits in the state."""
-        nqudits = math.log2(self.data.shape[0])
-        return int(nqudits)
+        super().__init__(matrix, gpu=gpu, eigenstates=eigenstates)
 
     @classmethod
     def make(cls, n_atoms: int, gpu: bool = True) -> DensityMatrix:
@@ -75,39 +67,6 @@ class DensityMatrix(State[complex, torch.Tensor]):
         """
         nrm: torch.Tensor = torch.trace(self.data).real.cpu()
         return nrm
-
-    def overlap(self, other: State) -> torch.Tensor:
-        """
-        Compute Tr(self^† @ other). The type of other must be DensityMatrix.
-
-        Args:
-            other: the other state
-
-        Returns:
-            the inner product
-
-        Examples:
-            ```python
-            density_bell_state = 0.5 * torch.tensor([[1, 0, 0, 1], [0, 0, 0, 0],
-            [0, 0, 0, 0], [1, 0, 0, 1]],dtype=torch.complex128)
-            density_c = DensityMatrix(density_bell_state, gpu=False)
-            density_c.overlap(density_c)
-            ```
-
-            Output:
-            ```
-            tensor(1.+0.j, dtype=torch.complex128)
-            ```
-        """
-
-        assert isinstance(
-            other, DensityMatrix
-        ), "Other state also needs to be a DensityMatrix"
-        assert (
-            self.data.shape == other.data.shape
-        ), "States do not have the same number of sites"
-
-        return torch.vdot(self.data.flatten(), other.data.to(self.data.device).flatten())
 
     @classmethod
     def from_state_vector(cls, state: StateVector) -> DensityMatrix:
@@ -184,55 +143,3 @@ class DensityMatrix(State[complex, torch.Tensor]):
         )
 
         return DensityMatrix.from_state_vector(state_vector), amplitudes
-
-    def sample(
-        self,
-        num_shots: int = 1000,
-        one_state: Eigenstate | None = None,
-        p_false_pos: float = 0.0,
-        p_false_neg: float = 0.0,
-    ) -> Counter[str]:
-        """
-        Samples bitstrings, taking into account the specified error rates.
-
-        Args:
-            num_shots: how many bitstrings to sample
-            p_false_pos: the rate at which a 0 is read as a 1
-            p_false_neg: teh rate at which a 1 is read as a 0
-
-        Returns:
-            the measured bitstrings, by count
-
-        Examples:
-            ```python
-            torch.manual_seed(1234)
-            from emu_sv import StateVector
-            bell_vec = 0.7071 * torch.tensor([1.0, 0.0, 0.0, 1.0j],
-               dtype=torch.complex128)
-            bell_state_vec = StateVector(bell_vec)
-            bell_density = DensityMatrix.from_state_vector(bell_state_vec)
-            bell_density.sample(1000)
-            ```
-
-            Output:
-            ```
-            Counter({'00': 517, '11': 483})
-            ```
-        """
-
-        probabilities = torch.abs(self.data.diagonal())
-
-        outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
-
-        # Convert outcomes to bitstrings and count occurrences
-        counts = Counter(
-            [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes]
-        )
-
-        if p_false_neg > 0 or p_false_pos > 0:
-            counts = apply_measurement_errors(
-                counts,
-                p_false_pos=p_false_pos,
-                p_false_neg=p_false_neg,
-            )
-        return counts
