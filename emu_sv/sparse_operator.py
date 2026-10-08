@@ -56,6 +56,7 @@ class SparseOperator(Operator[complex, torch.Tensor, StateVector]):
         *,
         gpu: bool = True,
     ):
+        super().__init__()
         device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
         self.data = matrix.to(dtype=dtype, device=device)
 

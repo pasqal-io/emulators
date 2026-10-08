@@ -773,10 +773,9 @@ class DMRGBackendImpl(MPSBackendImpl):
         max_sweeps: int = 2000,
     ):
 
-        if mps_config.noise_model.noise_types != ():
+        if pulser_data.has_stochastic_noise or pulser_data.lindblad_ops:
             raise NotImplementedError(
                 "DMRG solver does not currently support noise types"
-                f"you are using: {mps_config.noise_model.noise_types}"
             )
         super().__init__(mps_config, pulser_data)
         self.previous_energy: Optional[float] = None

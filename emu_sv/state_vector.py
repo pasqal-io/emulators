@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import math
-from collections import Counter
 from typing import Sequence, Type, TypeVar, Mapping
 
 import torch
 
-from emu_sv.utils import index_to_bitstring
+from emu_sv.dense_state import DenseState
 
-from emu_base import DEVICE_COUNT, apply_measurement_errors
 from pulser.backend import State
 from pulser.backend.state import Eigenstate
 
@@ -17,7 +14,7 @@ StateVectorType = TypeVar("StateVectorType", bound="StateVector")
 dtype = torch.complex128
 
 
-class StateVector(State[complex, torch.Tensor]):
+class StateVector(DenseState):
     """
     Represents a quantum state vector in a computational basis.
 
@@ -40,15 +37,7 @@ class StateVector(State[complex, torch.Tensor]):
         gpu: bool = True,
         eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
-        super().__init__(eigenstates=eigenstates)
-        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
-        self.data = vector.to(dtype=dtype, device=device)
-
-    @property
-    def n_qudits(self) -> int:
-        """The number of qudits in the state."""
-        nqudits = math.log2(self.data.view(-1).shape[0])
-        return int(nqudits)
+        super().__init__(vector, gpu=gpu, eigenstates=eigenstates)
 
     def _normalize(self) -> None:
         """Normalizes the state vector to ensure it has unit norm.
@@ -94,8 +83,7 @@ class StateVector(State[complex, torch.Tensor]):
             ```
         """
 
-        device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
-        vector = torch.zeros(2**num_sites, dtype=dtype, device=device)
+        vector = torch.zeros(2**num_sites, dtype=dtype)
         return cls(vector, gpu=gpu, eigenstates=eigenstates)
 
     @classmethod
@@ -140,43 +128,6 @@ class StateVector(State[complex, torch.Tensor]):
 
         # by our internal convention inner and norm return to cpu
         return torch.vdot(self.data, other.data.to(self.data.device)).cpu()
-
-    def sample(
-        self,
-        *,
-        num_shots: int = 1000,
-        one_state: Eigenstate | None = None,
-        p_false_pos: float = 0.0,
-        p_false_neg: float = 0.0,
-    ) -> Counter[str]:
-        """
-        Samples bitstrings, taking into account the specified error rates.
-
-        Args:
-            num_shots: how many bitstrings to sample
-            p_false_pos: the rate at which a 0 is read as a 1
-            p_false_neg: teh rate at which a 1 is read as a 0
-
-        Returns:
-            the measured bitstrings, by count
-        """
-
-        probabilities = torch.abs(self.data) ** 2
-
-        outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
-
-        # Convert outcomes to bitstrings and count occurrences
-        counts = Counter(
-            [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes]
-        )
-
-        if p_false_neg > 0 or p_false_pos > 0:
-            counts = apply_measurement_errors(
-                counts,
-                p_false_pos=p_false_pos,
-                p_false_neg=p_false_neg,
-            )
-        return counts
 
     def __add__(self, other: State) -> StateVector:
         """Sum of two state vectors
@@ -282,9 +233,6 @@ class StateVector(State[complex, torch.Tensor]):
         accum_state._normalize()
 
         return accum_state, amplitudes
-
-    def overlap(self, other: StateVector, /) -> torch.Tensor:
-        return torch.abs(self.inner(other)) ** 2
 
 
 def inner(left: StateVector, right: StateVector) -> torch.Tensor:
