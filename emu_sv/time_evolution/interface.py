@@ -1,10 +1,14 @@
 from abc import ABC, abstractmethod
 import torch
+from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 
 
 class BaseStepper(ABC):
+    def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
+        self.max_krylov_dim = max_krylov_dim
+
     @staticmethod
     @abstractmethod
     def get_hamiltonian(
