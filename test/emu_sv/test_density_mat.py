@@ -158,3 +158,14 @@ def test_probabilities():
     assert sampling3["1" * n_atoms] == 13
     assert sampling3["01010101"] == 14
     assert sampling3["10101001"] == 11
+
+
+def test_norm_normalize() -> None:
+    nqubits = 5
+    rnd_tensor = torch.rand((2**nqubits, 2**nqubits), dtype=dtype)
+    rnd_tensor = rnd_tensor.conj().T @ rnd_tensor
+    state = DensityMatrix(rnd_tensor)
+
+    state._normalize()
+    assert math.isclose(torch.trace(state.data).item().real, 1.0)
+    assert math.isclose(torch.trace(state.data).item().imag, 0.0)

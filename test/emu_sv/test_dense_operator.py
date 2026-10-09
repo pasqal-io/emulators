@@ -40,6 +40,42 @@ def test_from_operator_repr_and_rmul_DenseOperator() -> None:
     assert torch.allclose(operator.data.cpu(), expected)
 
 
+def test_from_operator_repr_errors() -> None:
+    N = 2
+    operations = [
+        (
+            1.0,
+            [
+                ({"01": 1.0, "10": -1.0}, {0}),  # iY
+                ({"00": 1.0, "11": -1.0}, {1}),  # Z
+            ],
+        )
+    ]
+    with pytest.raises(NotImplementedError):
+        DenseOperator.from_operator_repr(
+            eigenstates=("0", "1"),
+            n_qudits=N,
+            operations=operations,
+        )
+
+    operations = [
+        (
+            1.0,
+            [
+                ({"ab": 1.0, "ba": -1.0}, {0}),  # iY
+                ({"aa": 1.0, "bb": -1.0}, {1}),  # Z
+            ],
+        )
+    ]
+
+    with pytest.raises(ValueError):
+        DenseOperator.from_operator_repr(
+            eigenstates=("a", "b"),
+            n_qudits=N,
+            operations=operations,
+        )
+
+
 def test_matmul_and_add_DenseOperator() -> None:
     N = 2
 
