@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 from emu_base import init_logging
 from emu_sv.utils import choose
 from emu_sv.dense_state import DenseState
-from emu_sv.dense_operator import DenseOperator
+from emu_sv.matrix_operator import MatrixOperator
 
 from emu_sv.custom_callback_implementations import (
     qubit_occupation_sv_impl,
@@ -70,7 +70,7 @@ class SVConfig(EmulationConfig):
     # Whether to warn if unexpected kwargs are received
     _enforce_expected_kwargs: ClassVar[bool] = True
     _state_type = DenseState
-    _operator_type = DenseOperator
+    _operator_type = MatrixOperator
 
     def __init__(
         self,

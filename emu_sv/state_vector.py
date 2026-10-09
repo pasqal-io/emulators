@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence, Type, TypeVar, Mapping
+from typing import Sequence, TypeVar
 
 import torch
 
@@ -24,20 +24,11 @@ class StateVector(DenseState):
     that is a power of 2, representing 2ⁿ basis states for n qubits.
 
     Args:
-        vector: 1D tensor representation of a state vector.
+        data: 1D tensor representation of a state vector.
         gpu: store the vector on GPU if True and a GPU is present, otherwise on CPU
         eigenstates: sequence of eigenstates used as basis only qubit basis are
             supported (default: ('r','g'))
     """
-
-    def __init__(
-        self,
-        vector: torch.Tensor,
-        *,
-        gpu: bool = True,
-        eigenstates: Sequence[Eigenstate] = ("r", "g"),
-    ):
-        super().__init__(vector, gpu=gpu, eigenstates=eigenstates)
 
     def _normalize(self) -> None:
         """Normalizes the state vector to ensure it has unit norm.
@@ -174,65 +165,6 @@ class StateVector(DenseState):
 
     def __repr__(self) -> str:
         return repr(self.data)
-
-    @classmethod
-    def _from_state_amplitudes(
-        cls: Type[StateVectorType],
-        *,
-        eigenstates: Sequence[Eigenstate],
-        n_qudits: int,
-        amplitudes: Mapping[str, complex],
-    ) -> tuple[StateVector, Mapping[str, complex]]:
-        """Transforms a state given by a string into a state vector.
-
-        Construct a state from the pulser abstract representation
-        https://pulser.readthedocs.io/en/stable/conventions.html
-
-        Args:
-            eigenstates: A tuple containing the basis states (e.g., ('r', 'g')).
-            amplitudes: A dictionary mapping state strings to complex or floats
-            amplitudes.
-
-        Returns:
-            The normalised resulting state.
-
-        Examples:
-            ```python
-            basis = ("r","g")
-            st = StateVector.from_state_amplitudes(
-                eigenstates=basis,
-                amplitudes={"rr": 1.0, "gg": 1.0}
-            )
-            print(st)
-            ```
-
-            Output:
-            ```
-            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
-                   dtype=torch.complex128)
-            ```
-        """
-        basis = set(eigenstates)
-        if basis == {"r", "g"}:
-            one = "r"
-        elif basis == {"0", "1"}:
-            raise NotImplementedError(
-                "{'0','1'} basis is related to XY Hamiltonian, which is not implemented"
-            )
-        else:
-            raise ValueError("Unsupported basis provided")
-
-        accum_state = StateVector.zero(num_sites=n_qudits, eigenstates=eigenstates)
-
-        for state, amplitude in amplitudes.items():
-            bin_to_int = int(
-                state.replace(one, "1").replace("g", "0"), 2
-            )  # "0" basis is already in "0"
-            accum_state.data[bin_to_int] = amplitude  # type: ignore [assignment]
-
-        accum_state._normalize()
-
-        return accum_state, amplitudes
 
 
 def inner(left: StateVector, right: StateVector) -> torch.Tensor:

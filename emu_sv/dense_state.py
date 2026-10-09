@@ -16,7 +16,11 @@ DenseStateType = TypeVar("DenseStateType", bound="DenseState")
 
 class DenseState(State[complex, torch.Tensor]):
     def __init__(
-        self, data: torch.Tensor, *, gpu: bool, eigenstates: Sequence[Eigenstate]
+        self,
+        data: torch.Tensor,
+        *,
+        gpu: bool = True,
+        eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
         assert data.dim() == 1 or data.dim() == 2
         super().__init__(eigenstates=eigenstates)
@@ -134,6 +138,55 @@ class DenseState(State[complex, torch.Tensor]):
 
         return overlap
 
+    @staticmethod
+    def _build_state_vector(
+        n_qudits: int,
+        amplitudes: Mapping[str, complex],
+    ) -> torch.Tensor:
+        """Transforms a state given by a string into a state vector.
+
+        Construct a state from the pulser abstract representation
+        https://pulser.readthedocs.io/en/stable/conventions.html
+
+        Args:
+            eigenstates: A tuple containing the basis states (e.g., ('r', 'g')).
+            amplitudes: A dictionary mapping state strings to complex or floats
+            amplitudes.
+
+        Returns:
+            The normalised resulting state.
+
+        Examples:
+            ```python
+            basis = ("r","g")
+            st = StateVector.from_state_amplitudes(
+                eigenstates=basis,
+                amplitudes={"rr": 1.0, "gg": 1.0}
+            )
+            print(st)
+            ```
+
+            Output:
+            ```
+            tensor([0.7071+0.j, 0.0000+0.j, 0.0000+0.j, 0.7071+0.j],
+                   dtype=torch.complex128)
+            ```
+        """
+
+        accum_state = torch.zeros(
+            2**n_qudits,
+            dtype=torch.complex128,
+            device="cuda" if torch.cuda.is_available() else "cpu",
+        )
+
+        for state, amplitude in amplitudes.items():
+            bin_to_int = int(state.replace("r", "1").replace("g", "0"), 2)
+            accum_state[bin_to_int] = amplitude  # type: ignore [assignment]
+
+        accum_state /= accum_state.norm()
+
+        return accum_state
+
     @classmethod
     def _from_state_amplitudes(
         cls: Type[DenseStateType],
@@ -141,7 +194,7 @@ class DenseState(State[complex, torch.Tensor]):
         eigenstates: Sequence[Eigenstate],
         n_qudits: int,
         amplitudes: Mapping[str, complex],
-    ) -> tuple[DenseState, Mapping[str, complex]]:
+    ) -> tuple[DenseStateType, Mapping[str, complex]]:
         """Transforms a state given by a string into a state vector.
 
         Construct a state from the pulser abstract representation
@@ -171,10 +224,16 @@ class DenseState(State[complex, torch.Tensor]):
                    dtype=torch.complex128)
             ```
         """
-        from emu_sv.state_vector import StateVector
+        basis = set(eigenstates)
+        if basis == {"r", "g"}:
+            pass
+        elif basis == {"0", "1"}:
+            raise NotImplementedError(
+                "{'0','1'} basis is related to XY Hamiltonian, which is not implemented"
+            )
+        else:
+            raise ValueError("Unsupported basis provided")
 
-        sv, amps = StateVector._from_state_amplitudes(
-            eigenstates=eigenstates, n_qudits=n_qudits, amplitudes=amplitudes
-        )
+        sv = cls._build_state_vector(n_qudits=n_qudits, amplitudes=amplitudes)
 
-        return DenseState(sv.data, gpu=sv.data.is_cuda, eigenstates=sv.eigenstates), amps
+        return cls(sv.data, gpu=sv.data.is_cuda, eigenstates=eigenstates), amplitudes

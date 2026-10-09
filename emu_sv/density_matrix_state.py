@@ -19,25 +19,16 @@ class DensityMatrix(DenseState):
     it's up to the user to ensure these constraints are met.
 
     Args:
-        matrix (torch.Tensor): Square complex tensor of shape (2ⁿ, 2ⁿ),
+        data: Square complex tensor of shape (2ⁿ, 2ⁿ),
             Hermitian with trace 1, that represents the state in the
             computational basis.
-        gpu (bool, optional): If True, place the operator on a CUDA device when
+        gpu: If True, place the operator on a CUDA device when
             available. Default: True.
         eigenstates: sequence of eigenstates used as basis only qubit basis are
             supported (default: ('r','g'))
     """
 
     # for the moment no need to check positivity and trace 1
-    def __init__(
-        self,
-        matrix: torch.Tensor,
-        *,
-        gpu: bool = True,
-        eigenstates: Sequence[Eigenstate] = ("r", "g"),
-    ):
-        # NOTE: this accepts also zero matrices.
-        super().__init__(matrix, gpu=gpu, eigenstates=eigenstates)
 
     @classmethod
     def make(cls, n_atoms: int, gpu: bool = True) -> DensityMatrix:
@@ -138,7 +129,7 @@ class DensityMatrix(DenseState):
             ```
         """
 
-        state_vector, amplitudes = StateVector._from_state_amplitudes(
+        state_vector, _ = StateVector._from_state_amplitudes(
             eigenstates=eigenstates, n_qudits=n_qudits, amplitudes=amplitudes
         )
 
