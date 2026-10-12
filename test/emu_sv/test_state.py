@@ -59,14 +59,16 @@ def test_inner_and_overlap() -> None:
     assert torch.allclose(ovrlp, torch.abs(expected) ** 2)
 
 
-def test_norm() -> None:
+def test_norm_normalize() -> None:
     nqubits = 5
     rnd_tensor = torch.rand((2**nqubits), dtype=dtype)
     state = StateVector(rnd_tensor)
 
     nrm_expected = torch.linalg.norm(rnd_tensor).item()
-    nrm_state = state.norm()
-    assert math.isclose(nrm_state, nrm_expected, rel_tol=1e-5)
+    assert math.isclose(state.norm(), nrm_expected, rel_tol=1e-5)
+
+    state._normalize()
+    assert math.isclose(state.norm(), 1.0, rel_tol=1e-5)
 
 
 def test_rmul_add() -> None:

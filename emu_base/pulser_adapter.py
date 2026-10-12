@@ -12,6 +12,13 @@ from pulser._hamiltonian_data import HamiltonianData
 from pulser.channels.base_channel import States
 from emu_base.jump_lindblad_operators import get_lindblad_operators
 from emu_base.math.pchip_torch import PCHIP1D
+from pulser._hamiltonian_data import has_shot_to_shot_except_spam
+
+
+def _has_stochastic_noise(noise_model: NoiseModel) -> bool:
+    return has_shot_to_shot_except_spam(noise_model) or (
+        "SPAM" in noise_model.noise_types and noise_model.state_prep_error != 0
+    )
 
 
 class HamiltonianType(Enum):
@@ -204,6 +211,7 @@ class SequenceData:
     target_times: list[float]
     eigenstates: list[States]
     hamiltonian_type: HamiltonianType
+    has_stochastic_noise: bool
 
     @property
     def qubit_count(self) -> int:
@@ -226,6 +234,7 @@ class PulserData:
     eigenstates: list[States]
     qubit_count: int
     dim: int
+    has_stochastic_noise: bool
 
     def __init__(self, *, sequence: pulser.Sequence, config: EmulationConfig, dt: float):
         self._sequence = sequence
@@ -241,6 +250,7 @@ class PulserData:
         if not self.noise_model:
             self.noise_model = NoiseModel()
 
+        self.has_stochastic_noise = _has_stochastic_noise(self.noise_model)
         self.hamiltonian = HamiltonianData.from_sequence(
             sequence,
             with_modulation=config.with_modulation,
@@ -262,7 +272,6 @@ class PulserData:
         self.lindblad_ops = _get_all_lindblad_noise_operators(
             self.noise_model, dim=self.dim, interact_type=int_type
         )
-        self.has_lindblad_noise: bool = self.lindblad_ops != []
 
         self.full_interaction_matrix = None
         if config.interaction_matrix is not None:
@@ -334,4 +343,5 @@ class PulserData:
                     self.target_times,
                     self.eigenstates,
                     self.hamiltonian_type,
+                    self.has_stochastic_noise,
                 )

@@ -1260,6 +1260,7 @@ def test_run_from_sequence_data(device):
         target_times=[dt * x for x in range(duration // dt + 1)],
         eigenstates=["r", "g"],
         hamiltonian_type=HamiltonianType.Rydberg,
+        has_stochastic_noise=False,
     )
 
     results = MPSBackend._run_from_sequence_data(seq_data, config)
