@@ -168,4 +168,4 @@ def test_norm_normalize() -> None:
 
     state._normalize()
     assert math.isclose(torch.trace(state.data).item().real, 1.0)
-    assert math.isclose(torch.trace(state.data).item().imag, 0.0)
+    assert math.isclose(torch.trace(state.data).item().imag, 0.0, abs_tol=1e-16)
