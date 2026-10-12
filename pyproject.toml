@@ -14,10 +14,13 @@ authors = [
     { name = "Elie Merhej", email="elie.merhej@pasqal.com" },
     { name = "Anton Quelle", email = "anton.quelle@pasqal.com"},
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.15"
 license = {file = "LICENSE"}
 classifiers=[
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
