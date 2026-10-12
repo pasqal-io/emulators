@@ -31,7 +31,7 @@ Repository = "https://github.com/pasqal-io/emulators"
 Issues = "https://github.com/pasqal-io/emulators/issues"
 
 [tool.hatch.version]
-path = "../../emu_sv/__init__.py"
+path = "emu_sv/__init__.py"
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -44,14 +44,8 @@ dependencies = [
 [tool.hatch.build.targets.sdist]
 packages = ["emu_sv"]
 
-[tool.hatch.build.targets.sdist.force-include]
-"../../emu_sv" = "emu_sv"
-
 [tool.hatch.build.targets.wheel]
 packages = ["emu_sv"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"../../emu_sv" = "emu_sv"
 
 [tool.coverage.run]
 branch = true
