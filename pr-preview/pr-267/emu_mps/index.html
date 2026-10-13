@@ -1744,6 +1744,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#more-info" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1821,7 +1832,7 @@
 <li>computational statistics: each time step during the simulation will generate the following information:<ul>
 <li><span class="arithmatex">\(\chi\)</span> : is the maximum bond dimension of the MPS</li>
 <li><span class="arithmatex">\(|\Psi|\)</span>: MPS (the state) memory footprint</li>
-<li>RSS: max memory allocation</li>
+<li>RSS: max memory allocation. If run on GPU this is cited both for RAM and GPU.</li>
 <li><span class="arithmatex">\(\triangle t\)</span>: time that the step took to run (given in seconds)</li>
 </ul>
 </li>
@@ -1830,7 +1841,7 @@
 <li>Specification of:<ul>
 <li>Initial state ( as <code>MPS</code> or <code>MPS._from_state_amplitudes</code>)</li>
 <li>Various precision parameters</li>
-<li>Whether to run on CPU or GPU(s)</li>
+<li>Whether to run on CPU or GPU</li>
 <li>The interaction coefficients <span class="arithmatex">\(U_{ij}\)</span> from <a href="advanced/hamiltonian/#qpu-hamiltonian">here</a></li>
 <li>A cutoff below which <span class="arithmatex">\(U_{ij}\)</span> are set to 0 (this makes the computation more memory efficient)</li>
 </ul>
@@ -1838,9 +1849,17 @@
 </ul>
 <h2 id="planned-features">Planned features<a class="headerlink" href="#planned-features" title="Permanent link">&para;</a></h2>
 <ul>
-<li>More efficient use of GPU by storing tensors on CPU where possible.</li>
 <li>Differentiability.</li>
 </ul>
+<h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
+<p>The workflow in emu-mps is not typical of machine learning workloads, and as a consequence certain default behaviours of torch are not optimal. Specifically</p>
+<ul>
+<li>In emu-mps tensor sizes tend to be very unpredictable, in contrast to typical machine learning models. The default torch behaviour of caching GPU memory allocations in deterministic block sizes must be overridden to avoid memory fragmentation that reduces the effectively available memory on the GPU.</li>
+<li>In emu-mps, we use page-locked RAM for asynchronously transferring tensors from RAM to GPU. Since the tensor sizes are unpredictable, the default torch caching behaviour of allocating memory in powers of 2 works poorly. It is not needed for performance, and it causes the application to use on average 1.5 times more RAM than needed. The host allocator cache should be disabled. This is only possible in torch 2.13 and newer.</li>
+</ul>
+<p>Both these things can be configured via an environment variable that should be set before running your python script. Concretely, define the following for optimal memory usage:</p>
+<p><code>PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,pinned_max_cached_size_mb:0</code></p>
+<p>On torch versions lower than 2.13 only use everything before the comma.</p>
 <h2 id="more-info">More Info<a class="headerlink" href="#more-info" title="Permanent link">&para;</a></h2>
 <p>Please see the API specification for a list of available config options (<a href="api/">see here</a>).
 Those configuration options relating to the mathematical functioning of the backend are explained in more detail in the config page (<a href="advanced/config/">see here</a>).

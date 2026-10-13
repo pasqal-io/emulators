@@ -2786,7 +2786,7 @@ initial_state = emu_mps.MPS.from_state_amplitudes(amplitudes={"rr":1.},eigenstat
 <span class="n">config</span> <span class="o">=</span> <span class="n">emu_mps</span><span class="o">.</span><span class="n">MPSConfig</span><span class="p">(</span>
     <span class="n">noise_model</span><span class="o">=</span><span class="n">noise</span><span class="p">,</span>
     <span class="n">optimize_qubit_ordering</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="c1">#qubit ordering will be slower for 2 qubits</span>
-    <span class="n">num_gpus_to_use</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="c1">#small systems are faster on cpu</span>
+    <span class="n">gpu</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="c1">#small systems are faster on cpu</span>
     <span class="n">interaction_cutoff</span><span class="o">=</span><span class="mf">1e10</span><span class="p">,</span> <span class="c1">#this will put all interactions to 0, regardless of spacing</span>
     <span class="n">initial_state</span><span class="o">=</span><span class="n">initial_state</span><span class="p">,</span>
     <span class="n">observables</span><span class="o">=</span><span class="p">[</span><span class="n">magnetization</span><span class="p">],</span>
@@ -2798,7 +2798,7 @@ initial_state = emu_mps.MPS.from_state_amplitudes(amplitudes={"rr":1.},eigenstat
 config = emu_mps.MPSConfig(
     noise_model=noise,
     optimize_qubit_ordering=False, #qubit ordering will be slower for 2 qubits
-    num_gpus_to_use=0, #small systems are faster on cpu
+    gpu=False, #small systems are faster on cpu
     interaction_cutoff=1e10, #this will put all interactions to 0, regardless of spacing
     initial_state=initial_state,
     observables=[magnetization],

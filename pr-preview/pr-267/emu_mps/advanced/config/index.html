@@ -1552,10 +1552,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#num_gpus_to_use" class="md-nav__link">
+  <a href="#gpu" class="md-nav__link">
     <span class="md-ellipsis">
       
-        num_gpus_to_use
+        gpu
       
     </span>
   </a>
@@ -1980,10 +1980,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#num_gpus_to_use" class="md-nav__link">
+  <a href="#gpu" class="md-nav__link">
     <span class="md-ellipsis">
       
-        num_gpus_to_use
+        gpu
       
     </span>
   </a>
@@ -2119,7 +2119,7 @@
 <li>max_bond_dim</li>
 <li>max_krylov_dim</li>
 <li>extra_krylov_tolerance</li>
-<li>num_gpus_to_use</li>
+<li>gpu</li>
 <li>autosave_dt</li>
 <li>optimize_qubit_ordering</li>
 <li>interaction_cutoff</li>
@@ -2196,13 +2196,13 @@ As described in <a href="../errors/#truncation-of-the-state">the page of errors 
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">mpsconfig</span> <span class="o">=</span> <span class="n">MPSConfig</span><span class="p">(</span><span class="n">precision</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">,</span> <span class="n">extra_krylov_tolerance</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># heuristic product = 1e-9 (safe)</span>
 </code></pre></div>
-<h2 id="num_gpus_to_use">num_gpus_to_use<a class="headerlink" href="#num_gpus_to_use" title="Permanent link">&para;</a></h2>
-<p>The <code>num_gpus_to_use</code> parameter sets the number of GPUs over which the MPS tensors are distributed during the simulation.
-Setting <code>num_gpus_to_use = 0</code> runs the entire computation on the CPU.
-Using multiple GPUs can reduce memory usage per GPU, though the overall runtime remains similar. Also, the default value is <code>None</code> and emu-mps internally picks up the available GPUs in the machine, otherwise it uses the CPU.</p>
+<h2 id="gpu">gpu<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h2>
+<p>The <code>gpu</code> parameter sets whether the simulation runs on GPU or CPU.
+Setting <code>gpu = False</code> runs the entire computation on the CPU, while <code>gpu = True</code> runs it on a single GPU (with a fallback to CPU, and a warning, if no GPU is available).
+The default value is <code>None</code>, in which case emu-mps runs on a GPU if one is available in the machine, otherwise on the CPU.
+To reduce GPU memory pressure, emu-mps keeps inactive intermediate tensors in CPU memory, transferring them asynchronously so that transfers overlap with computations.</p>
 <p><strong>Example:</strong></p>
-<p><code>num_gpus_to_use = 2</code>,  uses 2 GPUs if available, otherwise fallback to 1 or CPU</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">mpsconfig</span> <span class="o">=</span> <span class="n">MPSConfig</span><span class="p">(</span><span class="n">num_gpus_to_use</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">mpsconfig</span> <span class="o">=</span> <span class="n">MPSConfig</span><span class="p">(</span><span class="n">gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="optimize_qubit_ordering">optimize_qubit_ordering<a class="headerlink" href="#optimize_qubit_ordering" title="Permanent link">&para;</a></h2>
 <p>The <code>optimize_qubit_ordering</code> parameter enables the reordering of qubits in the register. This can be useful in cases where the initial qubit ordering (chosen by the user or by Pulser) is not optimal. In such cases, setting <code>optimize_qubit_ordering = True</code> re-orders the qubits more efficiently, which has been shown to improve performance and accuracy. The default value is <code>True</code>.</p>

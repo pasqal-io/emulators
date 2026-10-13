@@ -4021,7 +4021,7 @@ assert_mpo_equal(X0_Z1, X0_Z1_direct)
 <span class="n">eval_times</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]</span>  <span class="c1"># Evaluate at 50% and 100% of the simulation</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">MPSConfig</span><span class="p">(</span>
-    <span class="n">num_gpus_to_use</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">gpu</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
     <span class="n">dt</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span>
     <span class="n">observables</span><span class="o">=</span><span class="p">[</span>
         <span class="n">Expectation</span><span class="p">(</span><span class="n">operator</span><span class="o">=</span><span class="n">XX_symbolic</span><span class="p">,</span> <span class="n">evaluation_times</span><span class="o">=</span><span class="n">eval_times</span><span class="p">,</span> <span class="n">tag_suffix</span><span class="o">=</span><span class="s2">"XX"</span><span class="p">),</span>
@@ -4063,7 +4063,7 @@ total_n = MPO.from_operator_repr(
     ],
 )
 
-# 3. |rr&gt;<rr| #="" (prob.="" )="" ),="" ,="" 1.0]="" 100%="" 50%="" <x0="" ],="" and="" at="" atoms="" both="" config="config)" configure="" construction="" custom="" direct="" dt="dt," eval_times="[0.5," evaluate="" evaluation_times="eval_times," expectation="" expectation(="" expectation(operator="total_n," for="" in="" num_gpus_to_use="0," observables="" of="" operator="proj_rr_direct," optimize_qubit_ordering="False," print="" print("\nresults:")="" print(f"="" proj_r_tensor.clone()])="" proj_rr_direct="MPO([proj_r_tensor," required="" results="" run="" rydberg)="" simul="MPSBackend(seq," simulation="" tag_suffix="rr_population" the="" using="" with="" x1=""> at eval times: {results.expectation_XX}")
+# 3. |rr&gt;<rr| #="" (prob.="" )="" ),="" ,="" 1.0]="" 100%="" 50%="" <x0="" ],="" and="" at="" atoms="" both="" config="config)" configure="" construction="" custom="" direct="" dt="dt," eval_times="[0.5," evaluate="" evaluation_times="eval_times," expectation="" expectation(="" expectation(operator="total_n," for="" gpu="False," in="" observables="" of="" operator="proj_rr_direct," optimize_qubit_ordering="False," print="" print("\nresults:")="" print(f"="" proj_r_tensor.clone()])="" proj_rr_direct="MPO([proj_r_tensor," required="" results="" run="" rydberg)="" simul="MPSBackend(seq," simulation="" tag_suffix="rr_population" the="" using="" with="" x1=""> at eval times: {results.expectation_XX}")
 print(f"  <n0 +="" n1=""> (total excitations): {results.expectation_total_n}")
 print(f"  |<rr|psi>|^2 (both Rydberg): {results.expectation_rr_population}")</rr|psi></n0></rr|></div>
 </div>
