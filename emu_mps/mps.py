@@ -8,7 +8,6 @@ from pulser.backend.state import State, Eigenstate
 from emu_base import DEVICE_COUNT, apply_measurement_errors
 from emu_mps.algebra import add_factors, scale_factors
 from emu_mps.utils import (
-    assign_devices,
     truncate_impl,
     tensor_trace,
 )
@@ -43,11 +42,12 @@ class MPS(State[complex, torch.Tensor]):
             computational efficiency.
             Check [precision in config](advanced/config.md#precision)
         max_bond_dim: the maximum bond dimension to allow for this MPS
-        num_gpus_to_use: number of GPUs to use for placing MPS factors.
-            - If set to 0, all factors are placed on CPU.
-            - If set to None, factors retain their current device assignment.
-            - Otherwise, factors are distributed across the specified number of
-            GPUs.
+        gpu: the device on which to place the MPS factors.
+            - If True, all factors are placed on the GPU (falls back to CPU
+            if no GPU is available).
+            - If False, all factors are placed on CPU.
+            - If None (the default), factors retain their current device
+            assignment. All factors must be on the same device.
         eigenstates: the basis states for each qudit (['0','1'] or ['r','g'])
             or qutrit ['g','r','x'], where 'x' is the leakage state
             (default: ['0','1'])
@@ -61,7 +61,7 @@ class MPS(State[complex, torch.Tensor]):
         orthogonality_center: Optional[int] = None,
         precision: float = DEFAULT_PRECISION,
         max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
-        num_gpus_to_use: Optional[int] = DEVICE_COUNT,
+        gpu: Optional[bool] = None,
         eigenstates: Sequence[Eigenstate] = ("r", "g"),
     ):
         super().__init__(eigenstates=eigenstates)
@@ -73,6 +73,13 @@ class MPS(State[complex, torch.Tensor]):
         assert (
             factors[0].shape[0] == 1 and factors[-1].shape[2] == 1
         ), "The dimension of the left (right) link of the first (last) tensor should be 1"
+
+        if gpu is not None:
+            device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
+            factors = [f.to(device) for f in factors]
+        assert all(
+            f.device == factors[0].device for f in factors
+        ), "All factors must be on the same device"
 
         self.factors = factors
         self.num_sites = len(factors)
@@ -94,9 +101,6 @@ class MPS(State[complex, torch.Tensor]):
         ), "Invalid orthogonality center provided"
         self.orthogonality_center = orthogonality_center
 
-        if num_gpus_to_use is not None:
-            assign_devices(self.factors, min(DEVICE_COUNT, num_gpus_to_use))
-
     @property
     def n_qudits(self) -> int:
         """The number of qudits in the state."""
@@ -108,7 +112,7 @@ class MPS(State[complex, torch.Tensor]):
         num_sites: int,
         precision: float = DEFAULT_PRECISION,
         max_bond_dim: int = DEFAULT_MAX_BOND_DIM,
-        num_gpus_to_use: int = DEVICE_COUNT,
+        gpu: bool = DEVICE_COUNT > 0,
         eigenstates: Sequence[Eigenstate] = ["0", "1"],
     ) -> MPS:
         """
@@ -118,8 +122,7 @@ class MPS(State[complex, torch.Tensor]):
             num_sites: the number of qubits
             precision: the precision with which to keep this MPS
             max_bond_dim: the maximum bond dimension to allow for this MPS
-            num_gpus_to_use: distribute the factors over this many GPUs
-                0=all factors to cpu
+            gpu: whether to store the factors on GPU (True) or CPU (False)
         """
         if num_sites <= 1:
             raise ValueError("For 1 qubit states, do state vector")
@@ -145,7 +148,7 @@ class MPS(State[complex, torch.Tensor]):
             ground_state,
             precision=precision,
             max_bond_dim=max_bond_dim,
-            num_gpus_to_use=num_gpus_to_use,
+            gpu=gpu,
             orthogonality_center=0,  # Arbitrary: every qubit is an orthogonality center.
             eigenstates=eigenstates,
         )
@@ -177,9 +180,7 @@ class MPS(State[complex, torch.Tensor]):
             q, r = torch.linalg.qr(self.factors[i].view(-1, self.factors[i].shape[2]))
 
             self.factors[i] = q.view(self.factors[i].shape[0], self.dim, -1)
-            self.factors[i + 1] = torch.tensordot(
-                r.to(self.factors[i + 1].device), self.factors[i + 1], dims=1
-            )
+            self.factors[i + 1] = torch.tensordot(r, self.factors[i + 1], dims=1)
 
         rl_swipe_start = (
             self.orthogonality_center
@@ -193,9 +194,7 @@ class MPS(State[complex, torch.Tensor]):
             )
 
             self.factors[i] = q.mT.view(-1, self.dim, self.factors[i].shape[2])
-            self.factors[i - 1] = torch.tensordot(
-                self.factors[i - 1], r.to(self.factors[i - 1].device), ([2], [1])
-            )
+            self.factors[i - 1] = torch.tensordot(self.factors[i - 1], r, ([2], [1]))
 
         self.orthogonality_center = desired_orthogonality_center
 
@@ -262,9 +261,7 @@ class MPS(State[complex, torch.Tensor]):
             batch_outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.int)
             rangebatch = torch.arange(batch_size)
             for qubit, factor in enumerate(self.factors):
-                batched_accumulator = torch.tensordot(
-                    batched_accumulator.to(factor.device), factor, dims=1
-                )
+                batched_accumulator = torch.tensordot(batched_accumulator, factor, dims=1)
 
                 # Probabilities for each state in the basis
                 probn = torch.linalg.vector_norm(batched_accumulator, dim=2) ** 2
@@ -323,7 +320,6 @@ class MPS(State[complex, torch.Tensor]):
         acc = torch.ones(1, 1, dtype=self.factors[0].dtype, device=self.factors[0].device)
 
         for i in range(self.num_sites):
-            acc = acc.to(self.factors[i].device)
             acc = torch.tensordot(acc, other.factors[i].to(acc.device), dims=1)
             acc = torch.tensordot(self.factors[i].conj(), acc, dims=([0, 1], [0, 1]))
 
@@ -390,7 +386,6 @@ class MPS(State[complex, torch.Tensor]):
             new_tt,
             precision=self.precision,
             max_bond_dim=self.max_bond_dim,
-            num_gpus_to_use=None,
             orthogonality_center=None,  # Orthogonality is lost.
             eigenstates=self.eigenstates,
         )
@@ -417,7 +412,6 @@ class MPS(State[complex, torch.Tensor]):
             factors,
             precision=self.precision,
             max_bond_dim=self.max_bond_dim,
-            num_gpus_to_use=None,
             orthogonality_center=self.orthogonality_center,
             eigenstates=self.eigenstates,
         )
@@ -519,9 +513,7 @@ class MPS(State[complex, torch.Tensor]):
 
             if qubit_index < self.num_sites - 1:
                 _, r = torch.linalg.qr(center_factor.view(-1, center_factor.shape[2]))
-                center_factor = torch.tensordot(
-                    r, self.factors[qubit_index + 1].to(r.device), dims=1
-                )
+                center_factor = torch.tensordot(r, self.factors[qubit_index + 1], dims=1)
 
         center_factor = self.factors[orthogonality_center]
         for qubit_index in range(orthogonality_center - 1, -1, -1):
@@ -530,7 +522,7 @@ class MPS(State[complex, torch.Tensor]):
             )
             center_factor = torch.tensordot(
                 self.factors[qubit_index],
-                r.to(self.factors[qubit_index].device),
+                r,
                 ([2], [1]),
             )
 
@@ -589,7 +581,7 @@ class MPS(State[complex, torch.Tensor]):
             result[left, left] = accumulator.trace().item().real
             for right in range(left + 1, self.num_sites):
                 partial = torch.tensordot(
-                    accumulator.to(self.factors[right].device),
+                    accumulator,
                     self.factors[right],
                     dims=([0], [0]),
                 )

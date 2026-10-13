@@ -8,7 +8,7 @@ from emu_base import DEVICE_COUNT
 from emu_mps.algebra import add_factors, scale_factors, zip_right
 from pulser.backend.operator import FullOp, QuditOp
 from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
-from emu_mps.utils import new_left_bath, assign_devices
+from emu_mps.utils import new_left_bath
 
 dtype = torch.complex128
 
@@ -25,19 +25,26 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
     Args:
         factors: List of 4D tensors with shape (Dl, d_out, d_in, Dr).
             Neighboring tensors must satisfy Dr[i] == Dl[i+1].
-        num_gpus_to_use: Number of GPUs to use for placing MPO factors
-            (implementation-dependent placement). If None, uses all available
-            GPUs.
+        gpu: the device on which to place the MPO factors.
+            - If True, all factors are placed on the GPU (falls back to CPU
+            if no GPU is available).
+            - If False, all factors are placed on CPU.
+            - If None (the default), factors retain their current device
+            assignment. All factors must be on the same device.
 
     Raises:
         ValueError: If any factor is not 4D or if neighboring bond dimensions
             do not match.
-        RuntimeError: If requested GPUs are not available.
     """
 
-    def __init__(
-        self, factors: List[torch.Tensor], /, num_gpus_to_use: Optional[int] = None
-    ):
+    def __init__(self, factors: List[torch.Tensor], /, gpu: Optional[bool] = None):
+        if gpu is not None:
+            device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
+            factors = [f.to(device) for f in factors]
+        assert all(
+            f.device == factors[0].device for f in factors
+        ), "All factors must be on the same device"
+
         self.factors = factors
         self.num_sites = len(factors)
         if not self.num_sites > 1:
@@ -51,9 +58,6 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
             factors[i - 1].shape[-1] == factors[i].shape[0]
             for i in range(1, self.num_sites)
         )
-
-        if num_gpus_to_use is not None:
-            assign_devices(self.factors, min(DEVICE_COUNT, num_gpus_to_use))
 
     def __repr__(self) -> str:
         return "[" + ", ".join(map(repr, self.factors)) + "]"
@@ -148,10 +152,9 @@ class MPO(Operator[complex, torch.Tensor, MPS]):
         )
         n = len(self.factors) - 1
         for i in range(n):
-            acc = new_left_bath(acc, state.factors[i], self.factors[i]).to(
-                state.factors[i + 1].device
-            )
-        acc = new_left_bath(acc, state.factors[n], self.factors[n])
+            # .to handles operators on a different device than the state
+            acc = new_left_bath(acc, state.factors[i], self.factors[i].to(acc.device))
+        acc = new_left_bath(acc, state.factors[n], self.factors[n].to(acc.device))
         return acc.view(1)[0].cpu()
 
     @classmethod

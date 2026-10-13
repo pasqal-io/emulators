@@ -210,6 +210,7 @@ def test_add_measurement_errors():
         )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_add_measurement_errors_large():
     random.seed(0xDEADBEEF)
 

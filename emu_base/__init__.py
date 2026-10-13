@@ -1,18 +1,31 @@
 from .constants import DEVICE_COUNT
-from .pulser_adapter import PulserData, HamiltonianType, SequenceData
+from .pulser_adapter import (
+    PulserData,
+    HamiltonianType,
+    SequenceData,
+    is_evaluation_time,
+)
 from .math.brents_root_finding import find_root_brents
 from .math.krylov_exp import krylov_exp, DEFAULT_MAX_KRYLOV_DIM
 from .jump_lindblad_operators import compute_noise_from_lindbladians
 from .math.matmul import matmul_2x2_with_batched
-from .utils import get_max_rss, apply_measurement_errors, unix_like, init_logging
+from .utils import (
+    get_max_rss_cpu,
+    get_max_rss_gpu,
+    apply_measurement_errors,
+    unix_like,
+    init_logging,
+)
 
 __all__ = [
     "__version__",
-    "get_max_rss",
+    "get_max_rss_cpu",
+    "get_max_rss_gpu",
     "compute_noise_from_lindbladians",
     "matmul_2x2_with_batched",
     "PulserData",
     "SequenceData",
+    "is_evaluation_time",
     "find_root_brents",
     "krylov_exp",
     "HamiltonianType",
@@ -23,4 +36,4 @@ __all__ = [
     "init_logging",
 ]
 
-__version__ = "2.9.2"
+__version__ = "2.10.0"

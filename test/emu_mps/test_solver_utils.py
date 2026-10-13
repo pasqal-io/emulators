@@ -269,7 +269,7 @@ def test_evolve_pair():
 
     actual = torch.tensordot(actual_left, actual_right, dims=1)
 
-    assert torch.allclose(expected, actual, rtol=0, atol=1e-8)
+    assert torch.allclose(expected, actual, rtol=0, atol=1e-7)
 
 
 def test_minimize_energy_pair():

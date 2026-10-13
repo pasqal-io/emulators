@@ -84,18 +84,19 @@ def deallocate_tensor(t: torch.Tensor) -> None:
         t._base.set_(source=replacement_storage)
 
 
-def get_max_rss(gpu: bool) -> float:
-    if gpu:
-        max_mem_per_device = (
-            torch.cuda.max_memory_allocated(device) * 1e-6
-            for device in range(torch.cuda.device_count())
-        )
-        max_mem = max(max_mem_per_device)
-    elif unix_like:
-        max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+def get_max_rss_cpu() -> float:
+    if unix_like:
+        return getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
     else:
         return 0.0
-    return max_mem
+
+
+def get_max_rss_gpu() -> float:
+    max_mem_per_device = (
+        torch.cuda.max_memory_allocated(device) * 1e-6
+        for device in range(torch.cuda.device_count())
+    )
+    return max(max_mem_per_device)
 
 
 def readout_with_error(c: str, *, p_false_pos: float, p_false_neg: float) -> str:

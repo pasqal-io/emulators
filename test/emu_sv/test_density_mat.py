@@ -1,3 +1,4 @@
+import pytest
 import math
 import torch
 from emu_sv.density_matrix_state import DensityMatrix
@@ -31,6 +32,7 @@ density_bell_state_complex = (
 )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_overlap():
     torch.manual_seed(seed)
 
@@ -127,6 +129,7 @@ def test_from_state_string():
     assert torch.allclose(density.data, dummu_mat)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_probabilities():
     torch.manual_seed(seed)
     density = DensityMatrix(density_bell_state, gpu=False)

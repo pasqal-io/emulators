@@ -24,7 +24,7 @@ Now let us consider why we used the config values quoted above.
 
 ## exploring the parameter space
 
-Since the starting point of a parameter search is always a bit arbitrary, we started by seeing with what `max_bond_dim` we could still simulate the pulse, for the default precision, on 2 gpus. This turns out to have been 1800. Then the first point of investigation was how much this result depends on bond dimension. Only in the below equations, let $\psi_d$ denote the state obtained for `max_bond_dim=d`, then we found
+Since the starting point of a parameter search is always a bit arbitrary, we started by seeing with what `max_bond_dim` we could still simulate the pulse on the version of emu-mps available when this page was first written, which turns out to have been 1800. Currently, that number is larger. Then the first point of investigation was how much this result depends on bond dimension. Only in the below equations, let $\psi_d$ denote the state obtained for `max_bond_dim=d`, then we found
 
 $$
 \langle\psi_{1800}, \psi_{1700}\rangle = 0.999

@@ -15,6 +15,7 @@ device = "cpu"
 gpu = False if device == "cpu" else True
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_ham_matmul_density():
     """H @ 𝜌, with out lindblad operators"""
     torch.manual_seed(234)
@@ -46,6 +47,7 @@ def test_ham_matmul_density():
 test_atoms = 10
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize("target_qubit", range(test_atoms))
 def test_apply_local_operator_on_target_qubit(target_qubit):
     """Testing the application of a local operator on a target qubit"""
@@ -115,6 +117,7 @@ def test_apply_local_operator_on_target_qubit(target_qubit):
     assert torch.allclose(updated_lk_rho_lkdag, res @ rho @ resdag)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_matmul_linblad_class():
     """Testing 0.5*i*(∑ₖ Lₖ^† Lₖ)@𝜌 + 0.5*i* 𝜌@(∑ₖ Lₖ^† Lₖ) part"""
     torch.manual_seed(234)
@@ -188,6 +191,7 @@ def test_matmul_linblad_class():
     assert torch.allclose(result_ham, h_rho + result_kron_sum_LdagLrho + pre_result)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_expect():
     # testing tr(𝜌 H), where H= U₀₁ n₀⊗ n₁ + U₁₂ n₁⊗ n₂ and with U₀₁ = U₁₂ = 1
     # For 3 atoms, H gives diag(0,0,0,1,0,0,1,2), the rest elements are 0

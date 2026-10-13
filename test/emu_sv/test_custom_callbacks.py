@@ -109,6 +109,7 @@ def test_custom_correlation(noise: bool) -> None:
     assert torch.allclose(expected, correlation)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize(
     "noise",
     [

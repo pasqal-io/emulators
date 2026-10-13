@@ -6,6 +6,7 @@ from emu_base.math.krylov_energy_min import krylov_energy_minimization
 from emu_base.utils import deallocate_tensor
 from emu_mps import MPS, MPO
 from emu_mps.utils import split_matrix
+from emu_mps.cuda_semantics import offload_bath_to_cpu
 from emu_mps.mps_config import MPSConfig
 
 
@@ -78,7 +79,7 @@ def make_op(
     baths: tuple[torch.Tensor, torch.Tensor],
     ham_factors: Sequence[torch.Tensor],
     dim: int = 2,
-) -> tuple[torch.Tensor, torch.device, Callable[[torch.Tensor], torch.Tensor]]:
+) -> tuple[torch.Tensor, Callable[[torch.Tensor], torch.Tensor]]:
     assert len(state_factors) == 2
     assert len(baths) == 2
     assert len(ham_factors) == 2
@@ -87,15 +88,8 @@ def make_op(
     left_bath, right_bath = baths
     left_ham_factor, right_ham_factor = ham_factors
 
-    left_device = left_state_factor.device
-    right_device = right_state_factor.device
-
     left_bond_dim = left_state_factor.shape[0]
     right_bond_dim = right_state_factor.shape[-1]
-
-    # Computation is done on left_device (arbitrary)
-
-    right_state_factor = right_state_factor.to(left_device)
 
     combined_state_factors = torch.tensordot(
         left_state_factor, right_state_factor, dims=1
@@ -103,10 +97,6 @@ def make_op(
 
     deallocate_tensor(left_state_factor)
     deallocate_tensor(right_state_factor)
-
-    left_ham_factor = left_ham_factor.to(left_device)
-    right_ham_factor = right_ham_factor.to(left_device)
-    right_bath = right_bath.to(left_device)
 
     combined_ham_factors = (
         torch.tensordot(left_ham_factor, right_ham_factor, dims=1)
@@ -120,14 +110,14 @@ def make_op(
     def op(x: torch.Tensor) -> torch.Tensor:
         return time_step * eff_h(x)
 
-    return combined_state_factors, right_device, op
+    return combined_state_factors, op
 
 
 def new_right_bath(
     bath: torch.Tensor, state: torch.Tensor, op: torch.Tensor
 ) -> torch.Tensor:
     bath = torch.tensordot(state, bath, ([2], [2]))
-    bath = torch.tensordot(op.to(bath.device), bath, ([2, 3], [1, 3]))
+    bath = torch.tensordot(op, bath, ([2, 3], [1, 3]))
     bath = torch.tensordot(state.conj(), bath, ([1, 2], [1, 3]))
     return bath
 
@@ -140,17 +130,31 @@ The baths have shape
 -xx
 -xx
 with the index ordering (top, middle, bottom)
-bath tensors are put on the device of the factor to the left
 """
 
 
-def right_baths(state: MPS, op: MPO, final_qubit: int) -> list[torch.Tensor]:
+def right_baths(
+    state: MPS,
+    op: MPO,
+    final_qubit: int,
+    keep_inactive_on_cpu: bool = False,
+) -> list[torch.Tensor]:
+    """
+    Compute the right baths of `state` and `op`, from the last qubit down to
+    `final_qubit`. When `keep_inactive_on_cpu` is set, all baths except the last
+    one computed are asynchronously moved to CPU memory, to reduce GPU memory
+    pressure; the transfers overlap with the computation of the remaining baths.
+    """
     state_factor = state.factors[-1]
     bath = torch.ones(1, 1, 1, device=state_factor.device, dtype=state_factor.dtype)
     baths = [bath]
     for i in range(len(state.factors) - 1, final_qubit - 1, -1):
         bath = new_right_bath(bath, state.factors[i], op.factors[i])
-        bath = bath.to(state.factors[i - 1].device)
+        if keep_inactive_on_cpu:
+            # max_pending_frees=10 is big enough that the code doesn't
+            # stall on transfers, but small enough that the baths don't
+            # become the memory bottleneck for large qubit numbers
+            baths[-1] = offload_bath_to_cpu(baths[-1])
         baths.append(bath)
     return baths
 
@@ -177,7 +181,7 @@ def evolve_pair(
     """
 
     time_step = -1j * _TIME_CONVERSION_COEFF * dt
-    combined_state_factors, right_device, op = make_op(
+    combined_state_factors, op = make_op(
         time_step=time_step,
         state_factors=state_factors,
         baths=baths,
@@ -204,9 +208,7 @@ def evolve_pair(
         preserve_norm=not is_hermitian,  # only relevant for computing jump times
     )
 
-    return l.view(left_bond_dim, dim, -1), r.view(-1, dim, right_bond_dim).to(
-        right_device
-    )
+    return l.view(left_bond_dim, dim, -1), r.view(-1, dim, right_bond_dim)
 
 
 def evolve_single(
@@ -258,7 +260,7 @@ def minimize_energy_pair(
     """
 
     time_step = 1.0
-    combined_state_factors, right_device, op = make_op(
+    combined_state_factors, op = make_op(
         time_step=time_step,
         state_factors=state_factors,
         baths=baths,
@@ -286,6 +288,6 @@ def minimize_energy_pair(
 
     return (
         l.view(left_bond_dim, 2, -1),
-        r.view(-1, 2, right_bond_dim).to(right_device),
+        r.view(-1, 2, right_bond_dim),
         updated_energy,
     )

@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from pytest import approx
@@ -80,6 +81,7 @@ def test_custom_correlation() -> None:
             assert col.cpu() == approx(expected[i][j], abs=1e-8)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_custom_energy_and_variance_and_second() -> None:
 
     torch.manual_seed(1337)
@@ -97,7 +99,7 @@ def test_custom_energy_and_variance_and_second() -> None:
     interaction_matrix = (interaction_matrix + interaction_matrix.T) * 0.5
     h_rydberg = make_H(
         interaction_matrix=interaction_matrix.unsqueeze(0),
-        num_gpus_to_use=DEVICE_COUNT,
+        gpu=DEVICE_COUNT > 0,
         interaction_ops=torch.tensor([[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.float64),
         dim=len(basis),
     )

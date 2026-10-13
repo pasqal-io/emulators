@@ -1,6 +1,7 @@
 import random
 from unittest.mock import MagicMock
 
+import pytest
 import torch
 
 from emu_base.math.brents_root_finding import find_root_brents
@@ -66,6 +67,7 @@ def test_find_root_segments():
     assert call_count == 13
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_find_root_integral():
     # Create a random continuous monotonously increasing function
     # by integrating a random >= 0 stairs function.
@@ -111,6 +113,7 @@ def test_find_root_integral():
     assert call_count == 18
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_find_root_store_intermediate_result():
     # For noisy mcwf time steps, we need the scalar function
     # to store intermediate results: the evolved state.

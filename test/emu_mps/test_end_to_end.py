@@ -32,7 +32,7 @@ from emu_mps import (
 import pulser.noise_model
 from pulser.backend import Results
 
-from emu_base import SequenceData, HamiltonianType
+from emu_base import DEVICE_COUNT, SequenceData, HamiltonianType
 from emu_mps.mps_backend_impl import MPSBackendImpl
 from emu_mps.solver import Solver
 from emu_mps.solver_utils import right_baths
@@ -115,7 +115,7 @@ def simulate(
         interaction_cutoff=interaction_cutoff,
         optimize_qubit_ordering=optimize_qubit_ordering,
         solver=solver,
-        num_gpus_to_use=0,
+        gpu=False,
     )
 
     backend = MPSBackend(seq, config=mps_config)
@@ -157,6 +157,7 @@ t_rise = 500
 t_fall = 1000
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_XY_3atoms() -> None:
     torch.manual_seed(seed)
     seq = pulser_XY_sequence_slm_mask(amplitude=25.0)
@@ -190,6 +191,7 @@ def test_XY_3atoms() -> None:
     assert torch.allclose(final_vec, expected_res, rtol=0, atol=1e-4)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_XY_3atomswith_slm() -> None:
     torch.manual_seed(seed)
     seq = pulser_XY_sequence_slm_mask(amplitude=0.0, slm_masked_atoms=(1, 2))
@@ -226,6 +228,7 @@ def test_XY_3atomswith_slm() -> None:
     )  # todo, compare against pulser results
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize(
     "optimize_order",
     [
@@ -301,6 +304,7 @@ def test_end_to_end_domain_wall_ring(
         assert torch.allclose(expect_occup, occupation, atol=1e-3)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_afm_ring() -> None:
     torch.manual_seed(seed)
 
@@ -347,6 +351,7 @@ def test_end_to_end_afm_ring() -> None:
     assert approx(second_moment_energy, rel=1e-4) == 13350.5
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_dmrg_afm_ring() -> None:
     torch.manual_seed(seed)
 
@@ -402,6 +407,7 @@ def test_dmrg_afm_ring() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_dmrg_afm_square_grid() -> None:
     torch.manual_seed(seed)
 
@@ -454,6 +460,7 @@ def test_dmrg_afm_square_grid() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_dmrg_large_detuning() -> None:
     # at very large detuning, the state should be stuck in the initial state
     # DMRG should exactly capture the product state of 9 qubits
@@ -494,6 +501,7 @@ def test_dmrg_large_detuning() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_afm_line_with_state_preparation_errors() -> None:
     torch.manual_seed(seed)
     with patch(
@@ -614,6 +622,7 @@ def test_initial_state_copy() -> None:
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_afm_ring_with_noise() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
@@ -644,6 +653,7 @@ def test_end_to_end_afm_ring_with_noise() -> None:
     assert max_bond_dim == 8
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_spontaneous_emission() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
@@ -709,6 +719,7 @@ def test_end_to_end_spontaneous_emission() -> None:
     # would be too much for this unit test.
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_end_to_end_spontaneous_emission_rate() -> None:
     torch.manual_seed(seed)
     random.seed(0xDEADBEEF)
@@ -955,6 +966,7 @@ def test_run_after_deserialize():
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_leakage_rates():
     """Verigy the leakage rates"""
     torch.manual_seed(seed)
@@ -1004,7 +1016,7 @@ def test_leakage_rates():
     no_leaked = MPO([mpo_iden20, mpo_iden20])
 
     config = MPSConfig(
-        num_gpus_to_use=0,
+        gpu=False,
         dt=dt,
         observables=[
             Expectation(
@@ -1045,6 +1057,7 @@ def test_leakage_rates():
     assert aggregated_results.expectation_nn[0] == approx(none_leaked, abs=1e-1)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_leakage_3x3_matrices():
     """Verifying that 3x3 operators work as intended when leakage is 0.0."""
     torch.manual_seed(seed)
@@ -1078,7 +1091,7 @@ def test_leakage_3x3_matrices():
     )
 
     config = MPSConfig(
-        num_gpus_to_use=0,
+        gpu=False,
         dt=dt,
         observables=[
             BitStrings(evaluation_times=eval_times, num_shots=1000),
@@ -1119,9 +1132,7 @@ def test_leakage_3x3_matrices():
     assert fidelity_state_result == approx(1.0, abs=1e-2)
 
     final_mps_1 = torch.tensor([0.0, 1.0, 0.0], dtype=dtype).reshape(1, 3, 1)
-    final_state = MPS(
-        [final_mps_1, final_mps_1], eigenstates=("r", "g", "x"), num_gpus_to_use=0
-    )
+    final_state = MPS([final_mps_1, final_mps_1], eigenstates=("r", "g", "x"), gpu=False)
     for result in results:
         assert result.state[-1].overlap(final_state) == approx(1.0, abs=1e-2)
 
@@ -1298,3 +1309,55 @@ def test_qubit_reordering_no_interaction():
     expected_occ[4] = 1
     expected_occ[5] = 1
     np.testing.assert_allclose(occ, expected_occ)
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+@pytest.mark.skipif(DEVICE_COUNT == 0, reason="Requires a GPU")
+@pytest.mark.parametrize("relaxation_rate", (0.0, 0.05))
+def test_inactive_baths_are_kept_on_cpu(relaxation_rate):
+    # Check that during time evolution on GPU, only the baths in use
+    # (including at most one prefetched bath per stack) reside on the GPU.
+    torch.manual_seed(seed)
+    random.seed(seed)
+
+    seq = pulser_afm_sequence_ring(
+        num_qubits=6,
+        Omega_max=Omega_max,
+        U=U,
+        delta_0=delta_0,
+        delta_f=delta_f,
+        t_rise=t_rise,
+        t_fall=t_fall,
+    )
+
+    original_evolve = MPSBackendImpl._evolve
+    saw_offloaded_bath = False
+
+    def checked_evolve(self, *indices, **kwargs):
+        nonlocal saw_offloaded_bath
+        assert self.left_baths[-1].is_cuda
+        assert self.right_baths[-1].is_cuda
+        for bath in self.left_baths[:-2] + self.right_baths[:-2]:
+            # deallocated baths (numel == 0) still record their original device
+            assert not bath.is_cuda or bath.numel() == 0
+            saw_offloaded_bath |= not bath.is_cuda
+        return original_evolve(self, *indices, **kwargs)
+
+    noise_model = (
+        pulser.noise_model.NoiseModel(relaxation_rate=relaxation_rate)
+        if relaxation_rate > 0
+        else pulser.noise_model.NoiseModel()
+    )
+    config = MPSConfig(
+        dt=10,
+        gpu=True,
+        observables=[Occupation(evaluation_times=[1.0])],
+        noise_model=noise_model,
+        log_level=logging.WARN,
+        optimize_qubit_ordering=False,
+    )
+
+    with patch.object(MPSBackendImpl, "_evolve", checked_evolve):
+        MPSBackend(seq, config=config).run()
+
+    assert saw_offloaded_bath
