@@ -3,8 +3,6 @@ run-name: CI/CD for ${{ github.ref_name }}
 
 on:
   pull_request:
-    branches:
-      - main
     types:
       - opened
       - synchronize
