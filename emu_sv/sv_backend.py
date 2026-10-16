@@ -27,6 +27,7 @@ class SVBackend(EmulatorBackend):
             the simulation results
         """
         assert isinstance(self._config, SVConfig)
+        assert self._sequence._in_ising, "Only Rydberg interaction is currently supported"
         pulser_data = PulserData(
             sequence=self._sequence, config=self._config, dt=self._config.dt
         )
