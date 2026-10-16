@@ -846,7 +846,7 @@ def test_spam_bitstring_class() -> None:
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(pulse, "ising_global")
     with patch(
-        "emu_sv.state_vector.apply_measurement_errors"
+        "emu_sv.dense_state.apply_measurement_errors"
     ) as apply_measurement_errors_mock:
         bitstrings = MagicMock()
         apply_measurement_errors_mock.return_value = bitstrings
@@ -857,7 +857,7 @@ def test_spam_bitstring_class() -> None:
         )
         assert results.bitstrings[-1] is bitstrings
     with patch(
-        "emu_sv.density_matrix_state.apply_measurement_errors"
+        "emu_sv.dense_state.apply_measurement_errors"
     ) as apply_measurement_errors_mock:
         bitstrings = MagicMock()
         apply_measurement_errors_mock.return_value = bitstrings
