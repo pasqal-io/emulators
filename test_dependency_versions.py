@@ -32,6 +32,13 @@ def extract_version_from_oml_file(filepath: Path, pattern: str) -> Optional[str]
     raise Exception("pattern not found")
 
 
+def extract_sha(filepath: Path, pattern: str) -> str:
+    match = re.search(pattern + r"([0-9a-f]{40})", filepath.read_text())
+    if match:
+        return match.group(1)
+    raise Exception("pattern not found")
+
+
 def fail(msg: str) -> None:
     print(msg)
     sys.exit(1)
@@ -143,6 +150,24 @@ if torch_emu_base_version not in torch_pyproject_version:
     fail(
         f" - torch in emu-base version {torch_emu_base_version}"
         f" != torch in pyproject.toml {torch_pyproject_version}"
+    )
+
+print("Checking doc-checker:")
+
+doc_checker_pre_commit_sha = extract_sha(
+    file_dir / ".pre-commit-config.yaml", r"doc_checker\s+rev:\s*"
+)
+print(f" - pre-commit uses doc-checker commit {doc_checker_pre_commit_sha}")
+
+doc_checker_ci_sha = extract_sha(
+    file_dir / ".github/workflows/lint_test.yml", r"doc_checker\.git@"
+)
+print(f" - lint_test.yml uses doc-checker commit {doc_checker_ci_sha}")
+
+if doc_checker_pre_commit_sha != doc_checker_ci_sha:
+    fail(
+        f" - doc-checker in .pre-commit {doc_checker_pre_commit_sha}"
+        f" != doc-checker in lint_test.yml {doc_checker_ci_sha}"
     )
 
 print("All checks passed.")
