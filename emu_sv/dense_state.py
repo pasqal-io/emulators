@@ -50,7 +50,7 @@ class DenseState(State[complex, torch.Tensor]):
         Args:
             num_shots: how many bitstrings to sample
             p_false_pos: the rate at which a 0 is read as a 1
-            p_false_neg: teh rate at which a 1 is read as a 0
+            p_false_neg: the rate at which a 1 is read as a 0
 
         Returns:
             the measured bitstrings, by count
@@ -95,7 +95,11 @@ class DenseState(State[complex, torch.Tensor]):
 
     def overlap(self, other: State) -> torch.Tensor:
         """
-        Compute Tr(self^† @ other). The type of other must be DensityMatrix.
+        Compute Tr(self^† @ other), where self and other are the density matrices
+        associated with the correpsonding state objects. For efficiency reasons,
+        the computation is done using only the state vectors if both objects
+        are a state vector. If one of the objects is a state vector and the other
+        a density matrix, the state vector is converted to a density matrix.
 
         Args:
             other: the other state
@@ -122,17 +126,13 @@ class DenseState(State[complex, torch.Tensor]):
         l_data = self.data
         r_data = other.data
         if l_data.dim() < r_data.dim():
-            l_data = torch.outer(l_data, l_data)
+            l_data = torch.outer(l_data, l_data.conj())
         if r_data.dim() < l_data.dim():
-            r_data = torch.outer(r_data, r_data)
+            r_data = torch.outer(r_data, r_data.conj())
 
-        assert (
-            self.data.shape == other.data.shape
-        ), "States do not have the same number of sites"
+        assert l_data.shape == r_data.shape, "States do not have the same shape."
 
-        overlap = torch.vdot(
-            self.data.flatten(), other.data.to(self.data.device).flatten()
-        )
+        overlap = torch.vdot(l_data.flatten(), r_data.to(self.data.device).flatten())
         if l_data.dim() == 1:
             overlap = torch.abs(overlap) ** 2
 

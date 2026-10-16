@@ -89,13 +89,14 @@ class MatrixOperator(Operator[complex, torch.Tensor, StateVector]):
 
     def __matmul__(self, other: Operator) -> MatrixOperator:
         """
-        Compose two SparseOperators via matrix multiplication.
+        Compose two Operators via matrix multiplication.
+        Only implemented for two DenseOperators
 
         Args:
-            other: a SparseOperator instance.
+            other: an Operator instance.
 
         Returns:
-            A new SparseOperator representing the product `self @ other`.
+            A new Operator representing the product `self @ other`.
         """
         raise NotImplementedError()
 
@@ -144,8 +145,8 @@ class MatrixOperator(Operator[complex, torch.Tensor, StateVector]):
         Build the matrix of an operator representation.
 
         Args:
-            eigenstates: the eigenstates of the basis to use, e.g. ("r", "g")
-                or ("0", "1").
+            eigenstates: the eigenstates of the basis to use,
+                currently only ("r", "g").
             n_qudits: number of qudits in the system.
             operations: which bitstrings make up the state with what weight.
             sparse: whether to accumulate in sparse COO format rather than dense.
@@ -153,7 +154,6 @@ class MatrixOperator(Operator[complex, torch.Tensor, StateVector]):
         Returns:
             The matrix, as a dense tensor or as a sparse COO tensor.
         """
-        from emu_sv.sparse_operator import sparse_add, sparse_kron
 
         assert len(set(eigenstates)) == 2, "Only qubits are supported in EMU-SV."
 
@@ -184,13 +184,12 @@ class MatrixOperator(Operator[complex, torch.Tensor, StateVector]):
         accum_res: torch.Tensor
 
         if sparse:
+            from emu_sv.sparse_operator import sparse_kron
+
             zero_qubit_op = zero_qubit_op.to_sparse_coo()
             identity = identity.to_sparse_coo()
-            accum_res = torch.sparse_coo_tensor(
-                torch.zeros(2, 0, dtype=torch.int32),
-                torch.zeros(0, dtype=dtype),
-                (2**n_qudits, 2**n_qudits),
-            )
+            indices: list[torch.Tensor] = []
+            values: list[torch.Tensor] = []
         else:
             accum_res = torch.zeros(2**n_qudits, 2**n_qudits, dtype=dtype)
 
@@ -219,11 +218,16 @@ class MatrixOperator(Operator[complex, torch.Tensor, StateVector]):
                     single_qubit_gates[target_qubit] = factor
 
             if sparse:
-                accum_res = sparse_add(
-                    accum_res, coeff * reduce(sparse_kron, single_qubit_gates)
-                )
+                kron_result = reduce(sparse_kron, single_qubit_gates)
+
+                indices.append(kron_result.indices())
+                values.append(coeff * kron_result.values())
             else:
                 accum_res += coeff * reduce(torch.kron, single_qubit_gates)
+        if sparse:
+            accum_res = torch.sparse_coo_tensor(
+                torch.cat(indices, dim=1), torch.cat(values), (2**n_qudits, 2**n_qudits)
+            )
 
         return accum_res
 
@@ -246,14 +250,15 @@ class MatrixOperator(Operator[complex, torch.Tensor, StateVector]):
             operations: which bitstrings make up the state with what weight.
 
         Returns:
-            A DenseOperator for at most 14 qudits, a SparseOperator otherwise.
+            A MatrixOperator containing dense data for at most 14 qudits,
+            and sparse data otherwise.
         """
 
         matrix = cls._build(
             eigenstates=eigenstates,
             n_qudits=n_qudits,
             operations=operations,
-            sparse=n_qudits > 14,
+            sparse=n_qudits > MAX_DENSE_QUBITS,
         )
         return MatrixOperator(matrix=matrix), operations
 

@@ -52,6 +52,7 @@ def test_from_operator_repr_errors() -> None:
         )
     ]
     with pytest.raises(NotImplementedError):
+        # XY basis is not supported
         DenseOperator.from_operator_repr(
             eigenstates=("0", "1"),
             n_qudits=N,

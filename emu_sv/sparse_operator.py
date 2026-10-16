@@ -25,7 +25,7 @@ def sparse_kron(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     sa, sb = a.shape, b.shape
     shape = (sa[0] * sb[0], sa[1] * sb[1])
     i = (
-        torch.tensor(sb).reshape(2, 1, 1) * a.indices().reshape(2, -1, 1)
+        torch.tensor(sb, device=a.device).reshape(2, 1, 1) * a.indices().reshape(2, -1, 1)
         + b.indices().reshape(2, 1, -1)
     ).reshape(2, -1)
     v = torch.outer(a.values(), b.values()).flatten()
