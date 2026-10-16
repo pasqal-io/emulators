@@ -68,4 +68,4 @@ class SparseOperator(MatrixOperator):
             operations=operations,
             sparse=True,
         )
-        return SparseOperator(matrix.to_sparse_csr()), operations
+        return SparseOperator(matrix), operations

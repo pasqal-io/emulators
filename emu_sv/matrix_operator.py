@@ -225,8 +225,14 @@ class MatrixOperator(Operator[complex, torch.Tensor, StateVector]):
             else:
                 accum_res += coeff * reduce(torch.kron, single_qubit_gates)
         if sparse:
-            accum_res = torch.sparse_coo_tensor(
-                torch.cat(indices, dim=1), torch.cat(values), (2**n_qudits, 2**n_qudits)
+            accum_res = (
+                torch.sparse_coo_tensor(
+                    torch.cat(indices, dim=1),
+                    torch.cat(values),
+                    (2**n_qudits, 2**n_qudits),
+                )
+                .coalesce()
+                .to_sparse_csr()
             )
 
         return accum_res
