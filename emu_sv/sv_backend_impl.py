@@ -86,13 +86,13 @@ class SVBackendImpl:
             if (
                 config.solver == Solver.DEFAULT and data.has_stochastic_noise
             ) or config.solver == Solver.MONTECARLO:
-                stepper = EvolveMonteCarlo()
+                stepper = EvolveMonteCarlo(config.max_krylov_dim)
                 state_type = StateVector
             else:
-                stepper = EvolveDensityMatrix()
+                stepper = EvolveDensityMatrix(config.max_krylov_dim)
                 state_type = DensityMatrix
         else:
-            stepper = EvolveStateVector()
+            stepper = EvolveStateVector(config.max_krylov_dim)
             state_type = StateVector
 
         self.stepper = stepper

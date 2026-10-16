@@ -1,9 +1,10 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import torch
 from emu_sv import SVConfig, SVBackend, Occupation, Solver, StateVector, DensityMatrix
 from emu_sv.dense_state import DenseState
 from emu_sv.sv_backend_impl import SVBackendImpl
 from emu_sv.time_evolution import EvolveDensityMatrix, EvolveMonteCarlo, EvolveStateVector
+import emu_sv.time_evolution.torch as time_evolution_torch
 from emu_base import SequenceData, HamiltonianType
 import pytest
 import logging
@@ -202,3 +203,35 @@ def test_backend_impl_stepper_logic():
     mock_sequence.has_stochastic_noise = False
     backend_impl = SVBackendImpl(mock_config, mock_sequence)
     assert type(backend_impl.stepper) is EvolveStateVector
+
+
+def test_max_krylov_dim_is_forwarded():
+    """SVConfig.max_krylov_dim must reach krylov_exp (it used to be ignored)."""
+    config = SVConfig(gpu=False if device == "cpu" else True, max_krylov_dim=7)
+    pulser_data = MagicMock(
+        spec=SequenceData,
+        omega=torch.tensor([[1.0, 1.0]]),
+        delta=torch.tensor([[1.0, 1.0]]),
+        phi=torch.tensor([[0.0, 0.0]]),
+        interaction_matrix=lambda t: torch.zeros((1, 2, 2), dtype=torch.float64),
+        state_prep_error=0.0,
+        target_times=[0.0, 1.0],
+        qubit_ids=(),
+        lindblad_ops=[],
+    )
+    bknd_impl = SVBackendImpl(config, pulser_data)
+    assert bknd_impl.stepper.max_krylov_dim == 7
+    with patch(
+        "emu_sv.time_evolution.torch.krylov_exp", wraps=time_evolution_torch.krylov_exp
+    ) as spy:
+        bknd_impl._evolve_step(1.0, 0)
+    assert spy.call_args.kwargs["max_krylov_dim"] == 7
+
+    for lindblad_ops, solver, stepper_type in [
+        ([torch.eye(2, dtype=torch.complex128)], Solver.MONTECARLO, EvolveMonteCarlo),
+        ([torch.eye(2, dtype=torch.complex128)], Solver.LINDBLAD, EvolveDensityMatrix),
+    ]:
+        config = SVConfig(gpu=False, max_krylov_dim=9, solver=solver)
+        pulser_data.lindblad_ops = lindblad_ops
+        assert type(SVBackendImpl(config, pulser_data).stepper) is stepper_type
+        assert SVBackendImpl(config, pulser_data).stepper.max_krylov_dim == 9
