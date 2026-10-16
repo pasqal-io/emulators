@@ -30,6 +30,7 @@ The following features are currently supported:
     - Initial state
     - Various precision parameters
     - Whether to run on CPU or GPU
+        - On a CUDA GPU, if [Triton](https://triton-lang.org) can be imported (it ships with the Linux CUDA builds of torch), the Hamiltonian is applied to the state by a fused kernel. Otherwise, and on CPU, a torch implementation is used. Triton is not a dependency of emu-sv.
     - The $U_{ij}$ coefficients from [here](../emu_mps//advanced/hamiltonian.md)
 - In the noiseless case, the emulator is differentiable
 

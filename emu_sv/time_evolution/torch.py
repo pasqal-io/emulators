@@ -129,6 +129,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         phis: torch.Tensor,
         interaction_matrix: torch.Tensor,
         device: torch.device,
+        interaction_diag: torch.Tensor | None = None,
     ) -> RydbergHamiltonian:
         return RydbergHamiltonian(
             omegas=omegas,
@@ -137,6 +138,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             interaction_matrix=interaction_matrix,
             device=device,
             noise=None,
+            interaction_diag=interaction_diag,
         )
 
     @staticmethod
@@ -148,6 +150,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         interaction_matrix: torch.Tensor,
         state: torch.Tensor,
         krylov_tolerance: float,
+        interaction_diag: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         ham = DifferentiableStateVectorEvolution.get_hamiltonian(
             omegas=omegas,
@@ -155,13 +158,10 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=state.device,
+            interaction_diag=interaction_diag,
         )
-
-        def op(x: torch.Tensor) -> torch.Tensor:
-            return -1j * dt * (ham * x)
-
         res = krylov_exp(
-            op,
+            ham.make_op(-1j * dt),
             state,
             norm_tolerance=krylov_tolerance,
             exp_tolerance=krylov_tolerance,
@@ -180,6 +180,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         interaction_matrix: torch.Tensor,
         state: torch.Tensor,
         krylov_tolerance: float,
+        interaction_diag: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         """
         Returns the time evolved state
@@ -197,6 +198,8 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
                 strengths between each pair of qubits.
             state (Tensor): input state to be evolved
             krylov_tolerance (float): tolerance for krylov_exp
+            interaction_diag (torch.Tensor, optional): the interaction part of the
+                Hamiltonian diagonal, if already computed (see `RydbergHamiltonian`).
         """
         res, ham = DifferentiableStateVectorEvolution.evolve(
             dt,
@@ -206,8 +209,11 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             interaction_matrix,
             state,
             krylov_tolerance,
+            interaction_diag,
         )
-        ctx.save_for_backward(omegas, deltas, phis, interaction_matrix, state)
+        ctx.save_for_backward(
+            omegas, deltas, phis, interaction_matrix, state, interaction_diag
+        )
         ctx.dt = dt
         ctx.tolerance = krylov_tolerance
         return res, ham
@@ -223,6 +229,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         torch.Tensor | None,
         torch.Tensor | None,
         torch.Tensor | None,
+        None,
         None,
         None,
     ]:
@@ -282,7 +289,9 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         Then, the resulting gradient respect to a generic parameter reads:
             gΩ = Tr( -i dt ∂H/∂Ω @ Vs @ dS @ Vg* )
         """
-        omegas, deltas, phis, interaction_matrix, state = ctx.saved_tensors
+        omegas, deltas, phis, interaction_matrix, state, interaction_diag = (
+            ctx.saved_tensors
+        )
         dt = ctx.dt
         tolerance = ctx.tolerance
         nqubits = len(omegas)
@@ -297,15 +306,12 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=state.device,
+            interaction_diag=interaction_diag,
         )
 
         if any(ctx.needs_input_grad[1:5]):
-
-            def op(x: torch.Tensor):
-                return -1j * dt * (ham * x)
-
             lanczos_vectors_state, dS, lanczos_vectors_grad = double_krylov(
-                op, state, grad_state_out, tolerance
+                ham.make_op(-1j * dt), state, grad_state_out, tolerance
             )
             # TODO: explore returning directly the basis in matrix form
             Vs = torch.stack(lanczos_vectors_state)
@@ -346,11 +352,9 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
                     grad_int_mat[i, j] = (-1j * dt * torch.tensordot(Vg.conj(), v)).real
 
         if ctx.needs_input_grad[5]:
-
-            def op(x: torch.Tensor):
-                return (1j * dt) * (ham * x)
-
-            grad_state_in = krylov_exp(op, grad_state_out.detach(), tolerance, tolerance)
+            grad_state_in = krylov_exp(
+                ham.make_op(1j * dt), grad_state_out.detach(), tolerance, tolerance
+            )
 
         return (
             None,
@@ -359,6 +363,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             grad_phis,
             grad_int_mat,
             grad_state_in,
+            None,
             None,
             None,
         )
