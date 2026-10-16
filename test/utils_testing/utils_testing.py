@@ -1,3 +1,4 @@
+import functools
 import torch
 
 from typing import List, Optional, Union
@@ -5,44 +6,85 @@ import numpy as np
 import pulser
 import math
 
+# for testing purposes, reference to the real multinomial
+_real_multinomial = torch.multinomial
+
+
+def cpu_multinomial_wrapper(probs: torch.Tensor, num_samples: int, replacement=False):
+    """
+    For independent device (cpu or gpu) tests. This is a function that
+    intercepts calls to torch.multinomial, moves `probs` to CPU, applies the real
+    torch.multinomial there, and moves the result back
+    to the original device.
+    """
+    # Move to CPU (detach: no gradient tracking issues)
+    probs_cpu = probs.detach().cpu()
+    # real multinomial on CPU
+    out_cpu = _real_multinomial(probs_cpu, num_samples, replacement)
+    # Move back to the device of original `probs`
+    out = out_cpu.to(probs.device)
+    return out
+
 
 def ghz_state_factors(
     nqubits: int,
+    dim=2,
     dtype: torch.dtype = torch.complex128,
     device: Optional[Union[str, torch.device]] = None,
 ) -> List[torch.Tensor]:
     assert nqubits >= 2
-    core_1 = (
-        1
-        / torch.sqrt(torch.tensor([2.0], device=device, dtype=dtype))
-        * torch.tensor(
+    if dim == 2:
+        core_1 = (
+            1
+            / torch.sqrt(torch.tensor([2.0], device=device, dtype=dtype))
+            * torch.tensor(
+                [[[1, 0], [0, 1]]],
+                dtype=dtype,
+                device=device,
+            )
+        )
+        core_mid = torch.tensor(
             [
-                [
-                    [1.0 + 0.0j, 0.00 + 0.0j],
-                    [
-                        0.00 + 0.0j,
-                        1.0 + 0.0j,
-                    ],
-                ]
+                [[1, 0], [0, 0]],
+                [[0, 0], [0, 1]],
             ],
             dtype=dtype,
             device=device,
         )
-    )
-    core_mid = torch.tensor(
-        [
-            [[1.0 + 0.0j, 0.0 + 0.0j], [0.0 + 0.0j, 0.0 + 0.0j]],
-            [[0.0 + 0.0j, 0.0 + 0.0j], [0.0 + 0.0j, 1.0 + 0.0j]],
-        ],
-        dtype=dtype,
-        device=device,
-    )
-    # similar to core_mid, except no bond to the right
-    core3 = torch.tensor(
-        [[[1.0 + 0.0j], [0.0 + 0.0j]], [[0.0 + 0.0j], [1.0 + 0.0j]]],
-        dtype=dtype,
-        device=device,
-    )
+        # similar to core_mid, except no bond to the right
+        core3 = torch.tensor(
+            [[[1], [0]], [[0], [1]]],
+            dtype=dtype,
+            device=device,
+        )
+
+    if dim == 3:
+        core_1 = (
+            1
+            / torch.sqrt(torch.tensor([2.0], device=device, dtype=dtype))
+            * torch.tensor(
+                [[[1, 0], [0, 1], [0, 0]]],
+                dtype=dtype,
+                device=device,
+            )
+        )
+
+        core_mid = torch.tensor(
+            [
+                [[1, 0], [0, 0], [0, 0]],
+                [[0, 0], [0, 1], [0, 0]],
+            ],
+            dtype=dtype,
+            device=device,
+        )
+        core3 = torch.tensor(
+            [
+                [[1], [0], [0]],
+                [[0], [1], [0]],
+            ],
+            dtype=dtype,
+            device=device,
+        )
 
     cores = [core_1]
     for _ in range(nqubits - 2):
@@ -205,4 +247,59 @@ def pulser_XY_sequence_slm_mask(amplitude: float = 0.0, slm_masked_atoms: tuple 
     simple_pulse = pulser.Pulse.ConstantPulse(500, amplitude, 0.0, 0)
     seq.add(simple_pulse, "ch0")
 
+    return seq
+
+
+def pulser_blackman(duration: float, area: float, phase: float = 0.0):
+    """Sequence with just a single Blackman pulse"""
+    reg = pulser.Register({"q0": (0, 0)})
+    device = pulser.MockDevice
+    seq = pulser.Sequence(reg, device)
+    seq.declare_channel("ch0", "rydberg_global")
+
+    pi2_wf = pulser.BlackmanWaveform(duration, area)
+    pi_2 = pulser.Pulse.ConstantDetuning(pi2_wf, detuning=0, phase=phase)
+    seq.add(pi_2, "ch0")
+
+    return seq
+
+
+def random_density_matrix(num_qubits: int):
+    """Generates a random density matrix for a given number of qubits."""
+    dim = 2**num_qubits
+
+    # Generate a random complex matrix
+    real_part = torch.randn(dim, dim)
+    imag_part = torch.randn(dim, dim)
+    A = real_part + 1j * imag_part
+
+    # Create a Hermitian matrix
+    state = A @ A.conj().T
+
+    # Normalize the matrix
+    return state / torch.trace(state)
+
+
+def list_to_kron(list_tensors: list[torch.Tensor]):
+    """Given a list of local torch tensor operators (nxn): [A1,A2,A3,...,An]
+
+    convert to a matrix using the Kroneker product ⊗.
+
+    Result: A1 ⊗ A2 ⊗ A3 ⊗ ... ⊗ An
+    """
+    return functools.reduce(torch.kron, list_tensors)
+
+
+def pulser_constant_2pi_pulse_sequence(
+    n_atoms: int = 2, duration: float = 500.0, spacing=7.0
+):
+    """Sequence with just a single constant pulse of area 2pi"""
+    reg = pulser.Register.rectangle(1, n_atoms, spacing=spacing, prefix="q")
+    device = pulser.MockDevice
+    seq = pulser.Sequence(reg, device)
+    seq.declare_channel("ch0", "rydberg_global")
+
+    duration = 500.0
+    const_wf = pulser.Pulse.ConstantPulse(duration, 2 * math.pi, 0.0, 0.0)
+    seq.add(const_wf, "ch0")
     return seq

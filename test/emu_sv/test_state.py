@@ -1,85 +1,151 @@
+import pytest
 import torch
 import math
-from emu_sv.state_vector import StateVector, inner
+from emu_sv import StateVector, inner
+from emu_sv.utils import index_to_bitstring
 
 pi = torch.tensor(math.pi)
+factor = 1.0 / torch.sqrt(torch.tensor(2.0))
 
 seed = 1337
 dtype = torch.complex128
-device = "cpu"
-# device= "cuda"
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+gpu = False if device == "cpu" else True
 
 
-def test_inner_algebra_sample():
+def test_creating_state() -> None:
+    # test constructor
+    single_qubit_state = StateVector(torch.tensor([factor] * 2, dtype=dtype), gpu=gpu)
+    assert single_qubit_state.n_qudits == 1
+    assert math.isclose(1.0, single_qubit_state.norm(), rel_tol=1e-5)
 
-    factor = torch.sqrt(torch.tensor(2.0))
-    state1 = StateVector(
-        torch.tensor(
-            [1.0 / factor, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0 / factor], dtype=dtype
-        )
-    )
+    # test _normalize()
+    state_5qubits_rnd = 2 * StateVector(torch.rand(2**5))  # factor 2 to have norm > 1
+    assert state_5qubits_rnd.n_qudits == 5
+    assert state_5qubits_rnd.norm() > 1.0
+    state_5qubits_rnd._normalize()
+    assert math.isclose(1.0, state_5qubits_rnd.norm(), rel_tol=1e-5)
 
-    state2 = StateVector(
-        torch.tensor(
-            [0, 1.0 / factor, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0 / factor], dtype=dtype
-        )
-    )
+    # test make()
+    nqubits = 3
+    state = StateVector.make(num_sites=nqubits)  # create |00..0>
+    zero_state_tensor = torch.tensor([0] * 2**nqubits, dtype=dtype, device=device)
+    zero_state_tensor[0] = 1
+    zero_state = StateVector(zero_state_tensor)
+    assert state.overlap(zero_state) == 1.0
 
-    inner_prod = inner(state1, state2)
+    # test zero()
+    nqubits = 3
+    state = StateVector.zero(num_sites=nqubits, gpu=gpu)  # create |00..0>
+    tensor = state.data
+    expected = torch.tensor([0] * 2**nqubits, dtype=dtype, device=device)
+    assert torch.allclose(expected, tensor)
 
-    expected = torch.tensor(0.5, dtype=dtype)
+
+def test_inner_and_overlap() -> None:
+    tensor1 = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
+    tensor2 = torch.tensor([0, factor, 0, 0, 0, 0, 0, factor], dtype=dtype)
+
+    state1 = StateVector(tensor1)
+    state2 = StateVector(tensor2)
+
+    inner_prod = inner(state1, state2)  # testing inner
+    ovrlp = state1.overlap(state2)  # testing overlap
+
+    expected = torch.dot(tensor1, tensor2)
+
     assert torch.allclose(inner_prod, expected)
+    assert torch.allclose(ovrlp, torch.abs(expected) ** 2)
 
-    add_result = state1 + 2 * torch.exp(pi * 1.0j) * state2
 
-    add_expected = torch.tensor(
-        [1.0 / factor, -factor, 0.0, 0.0, 0.0, 0.0, 0.0, -1 / factor], dtype=dtype
+def test_norm() -> None:
+    nqubits = 5
+    rnd_tensor = torch.rand((2**nqubits), dtype=dtype)
+    state = StateVector(rnd_tensor)
+
+    nrm_expected = torch.linalg.norm(rnd_tensor).item()
+    nrm_state = state.norm()
+    assert math.isclose(nrm_state, nrm_expected, rel_tol=1e-5)
+
+
+def test_rmul_add() -> None:
+    tensor = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
+    coeff = 5
+    state1 = StateVector(coeff * tensor)
+    state2 = coeff * StateVector(tensor)  # test __rmul__
+    assert math.isclose(state1.norm(), state2.norm(), rel_tol=1e-5)
+
+    state2 = state1 + state1  # test __rmul__
+    assert math.isclose((2 * state1).norm(), state2.norm(), rel_tol=1e-5)
+
+
+def test_index_to_bitstring() -> None:
+    nqubits = 3
+    tensor = torch.tensor([1] * 2**nqubits, dtype=dtype)
+    state = StateVector(tensor)
+    state._normalize()
+
+    assert "000" == index_to_bitstring(state.n_qudits, 0)
+    assert "001" == index_to_bitstring(state.n_qudits, 1)
+    assert "010" == index_to_bitstring(state.n_qudits, 2)
+    assert "111" == index_to_bitstring(state.n_qudits, 7)
+
+    indx = 8  # 8 is above Hilbert space of 3 qubits
+    with pytest.raises(AssertionError) as msg:
+        index_to_bitstring(state.n_qudits, indx)
+    assert (
+        str(msg.value) == f"index {indx} can not exceed Hilbert space size d**{nqubits}"
     )
 
-    assert torch.allclose(add_result.vector, add_expected, rtol=0, atol=1e-6)
+
+@pytest.mark.usefixtures("restore_rng_state")
+def test_sample() -> None:
 
     torch.manual_seed(seed)
-    sampling1 = state1.sample(1000)
-    sampling2 = state2.sample(1000)
 
-    assert sampling1["111"] == 485
-    assert sampling1["001"] == 0
-    assert sampling1["000"] == 515
+    tensor = torch.tensor([factor, 0, 0, 0, 0, 0, 0, factor], dtype=dtype)
+    state = StateVector(tensor, gpu=False)  # rng is different on GPU
+    sampling = state.sample(num_shots=1000)
 
-    assert sampling2["111"] == 499
-    assert sampling2["001"] == 501
-    assert sampling2["000"] == 0
-
-    sampling_sum = add_result.sample(1000)
-
-    results = [0] * 8
-    results[0] = 157
-    results[1] = 654
-    results[-1] = 189
-
-    for i in range(8):
-        assert sampling_sum["{0:03b}".format(i)] == results[i]
+    assert sampling["111"] == 485
+    assert sampling["001"] == 0
+    assert sampling["000"] == 515
 
 
-def test_from_string():
-    torch.manual_seed(seed)
-
-    basis = ("r", "g")
-    state = {"rr": 1.0, "gg": 1.0}
-    nqubits = 2
-
-    from_string = StateVector.from_state_string(
-        basis=basis, nqubits=nqubits, strings=state
+def test_from_amplitudes() -> None:
+    state = StateVector.from_state_amplitudes(
+        eigenstates=("r", "g"),
+        amplitudes={"rr": 1.0, "gg": 1.0},
     )
+    expected_state = StateVector(torch.tensor([factor, 0, 0, factor], dtype=dtype))
 
-    sampling = from_string.sample(1000)
+    result = state.overlap(expected_state)
+    assert math.isclose(result, 1.0, rel_tol=1e-5)
 
-    values = from_string.vector
 
-    assert torch.allclose(values[0], torch.tensor(0.7071 + 0.0j, dtype=dtype))
-    assert torch.allclose(values[1], torch.tensor(0.0 + 0.0j, dtype=dtype))
-    assert torch.allclose(values[2], torch.tensor(0.0 + 0.0j, dtype=dtype))
-    assert torch.allclose(values[3], torch.tensor(0.7071 + 0.0j, dtype=dtype))
+@pytest.mark.parametrize(
+    "eig, ampl",
+    [
+        (("r", "g"), {4 * "r": 1.0}),
+        (("r", "g"), {4 * "g": 1.0}),
+    ],
+)
+def test_to_abstr_repr(eig, ampl) -> None:
+    initial_state = StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
+    abstr = initial_state._to_abstract_repr()
 
-    assert sampling["00"] == 515
-    assert sampling["11"] == 485
+    assert ampl == abstr["amplitudes"]
+    assert eig == abstr["eigenstates"]
+
+
+def test_constructor() -> None:
+    with pytest.raises(ValueError):
+        eig = ("r", "g")
+        ampl = {4 * "1": 1.0}
+        StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)
+
+    with pytest.raises(NotImplementedError):
+        eig = ("0", "1")
+        ampl = {4 * "1": 1.0}
+        StateVector.from_state_amplitudes(eigenstates=eig, amplitudes=ampl)

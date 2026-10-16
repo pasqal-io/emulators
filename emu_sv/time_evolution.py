@@ -10,7 +10,9 @@ def evolve_sv_rydberg(
     state_vector: torch.Tensor,
     krylov_tolerance: float,
 ) -> torch.Tensor:
-    op = lambda x: -1j * dt * (ham * x)
+    def op(x) -> torch.Tensor:
+        return -1j * dt * (ham * x)
+
     return krylov_exp(
         op,
         state_vector,

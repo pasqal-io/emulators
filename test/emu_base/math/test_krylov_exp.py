@@ -3,6 +3,8 @@ import pytest
 
 from emu_base.math.krylov_exp import krylov_exp, krylov_exp_impl
 
+dtype = torch.complex128
+
 
 def make_hermitian(m: torch.Tensor) -> torch.Tensor:
     m = torch.tensordot(m, m.conj().transpose(0, 1), dims=1)
@@ -10,8 +12,8 @@ def make_hermitian(m: torch.Tensor) -> torch.Tensor:
 
 def uniform_random_tensor(*dims):
     return (
-        torch.rand(*dims, dtype=torch.complex128)
-        + 1j * torch.rand(*dims, dtype=torch.complex128)
+        torch.rand(*dims, dtype=dtype)
+        + 1j * torch.rand(*dims, dtype=dtype)
         - (0.5 + 0.5j) * torch.ones(*dims)
     )
 
@@ -37,7 +39,7 @@ def check(
 
     result = krylov_exp_impl(
         op,
-        v,
+        v.clone(),
         is_hermitian=is_hermitian,
         exp_tolerance=exp_tolerance,
         norm_tolerance=norm_tolerance,
@@ -69,8 +71,8 @@ def check(
 
 
 def test_id():
-    m = torch.eye(3, dtype=torch.complex128)
-    v = torch.arange(3).to(torch.complex128)
+    m = torch.eye(3, dtype=dtype)
+    v = torch.arange(3).to(dtype)
 
     check(
         m,
@@ -85,8 +87,9 @@ def test_id():
 
 
 def test_id_large():
-    m = torch.eye(300, dtype=torch.complex128)
-    v = torch.arange(300).to(torch.complex128)
+    dim = 300
+    m = torch.eye(dim, dtype=dtype)
+    v = torch.arange(dim).to(dtype)
 
     check(
         m,
@@ -100,9 +103,9 @@ def test_id_large():
     )
 
 
-def test_happy_breakdown():
-    m = torch.diag(torch.tensor([1.0, 2.0, 3.0, 3.0, 3.0], dtype=torch.complex128))
-    v = torch.ones(5, 1).to(torch.complex128)
+def test_happy_breakdown() -> None:
+    m = torch.diag(torch.tensor([1.0, 2.0, 3.0, 3.0, 3.0], dtype=dtype))
+    v = torch.ones(5, 1).to(dtype)
 
     ###
     # Minimal polynomial of m is P = (X-1).(X-2).(X-3) = X^3 - 6X^2 + 11X - 6
@@ -128,6 +131,7 @@ def test_happy_breakdown():
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_converged():
     torch.random.manual_seed(1234)
 
@@ -147,7 +151,8 @@ def test_converged():
     )
 
 
-def test_converged_non_hermitian():
+@pytest.mark.usefixtures("restore_rng_state")
+def test_converged_non_hermitian() -> None:
     torch.random.manual_seed(1234)
 
     dim = 1000
@@ -166,6 +171,7 @@ def test_converged_non_hermitian():
     )
 
 
+@pytest.mark.usefixtures("restore_rng_state")
 def test_converged_non_hermitian_non_normalized():
     torch.random.manual_seed(1234)
 
@@ -185,81 +191,28 @@ def test_converged_non_hermitian_non_normalized():
     )
 
 
-def make_random_hermitian_mat_from_params(
-    dim: int, params: tuple[torch.Tensor] = ()
-) -> torch.Tensor:
-    """Returns a random Hermitian matrix with non-trivial dependency on input parameters"""
-    A = torch.randn(dim, dim, dtype=torch.complex128)
-    for p in params:
-        A = A + p * torch.randn(dim, dim, dtype=torch.complex128)
-    return A @ A.mH
+@pytest.mark.usefixtures("restore_rng_state")
+def test_krylov_with_matrix():
 
+    torch.random.manual_seed(1211)
 
-def make_random_sv_from_params(
-    dim: int, params: tuple[torch.Tensor] = ()
-) -> torch.Tensor:
-    x = torch.randn(dim, dtype=torch.complex128)
-    """Returns a random normalized state vector with non-trivial dependency on input parameters"""
-    for p in params:
-        x = x + p * torch.randn(dim, dtype=torch.complex128)
-    return x / x.norm()
+    n_atoms = 8  # do not change this value and let is_hermitian be False
+    random_matrix = torch.rand(2**n_atoms, 2**n_atoms, dtype=dtype)  # random operator
+    random_matrix = random_matrix / random_matrix.norm()
 
+    def op(x):
+        return random_matrix @ x
 
-def test_grad_accuracy_vs_matrix_exp():
-    torch.manual_seed(2024)
+    MxM = torch.rand(2**n_atoms, 2**n_atoms, dtype=dtype)  # matrix to be evolved
 
-    omega = torch.tensor(1.0, requires_grad=True)
-    delta = torch.tensor(2.0, requires_grad=True)
-    params = (omega, delta)
-    dim = 21
-    x = make_random_sv_from_params(dim, params=params)
-    H = make_random_hermitian_mat_from_params(dim, params=params)
-    dt = 7
+    result = krylov_exp(
+        op,
+        MxM.clone(),
+        exp_tolerance=1e-6,
+        norm_tolerance=1e-6,
+        is_hermitian=False,
+        max_krylov_dim=100,
+    )
+    expected = torch.linalg.matrix_exp(random_matrix) @ MxM
 
-    # krylov_exp setup
-    def Hcall(x: torch.Tensor) -> torch.Tensor:
-        return -dt * 1j * H @ x
-
-    y = krylov_exp(Hcall, x, exp_tolerance=1e-12, norm_tolerance=1e-12)
-    loss = torch.vdot(x, y).real
-    grads = torch.autograd.grad(loss, inputs=params, retain_graph=True)
-
-    # matrix_exp setup
-    y_expected = torch.matrix_exp(-dt * 1j * H) @ x
-    loss_expected = torch.vdot(x, y_expected).real
-    grads_expected = torch.autograd.grad(loss_expected, inputs=params)
-
-    assert torch.allclose(y, y_expected)
-    assert torch.allclose(loss, loss_expected)
-    for ge, g in zip(grads_expected, grads):
-        assert torch.allclose(ge, g)
-
-
-def test_grad_accuracy_vs_analytical():
-    torch.manual_seed(2024)
-
-    alpha = torch.tensor(1.0, dtype=torch.float64, requires_grad=True)
-    dim = 18
-    psi_0 = make_random_sv_from_params(dim)
-    # H is linear in parameter α
-    H = alpha * make_random_hermitian_mat_from_params(dim)
-    t = 9.5
-
-    def Hcall(x: torch.Tensor) -> torch.Tensor:
-        return -t * 1j * H @ x
-
-    # random observable
-    M = make_random_hermitian_mat_from_params(dim)
-
-    # |Ψt〉= U|Ψ0〉, loss = 〈Ψt|M|Ψt〉
-    psi_t = krylov_exp(Hcall, psi_0, exp_tolerance=1e-12, norm_tolerance=1e-12)
-    loss = torch.vdot(psi_t, M @ psi_t).real
-
-    # ∂loss/∂α with automatic differentiation
-    (grad,) = torch.autograd.grad(loss, inputs=alpha)
-
-    # expected ∂U/∂α = -itH/α * U
-    # expected ∂loss/∂α = 2Re〈Ψ0|U† M ∂U/∂α|Ψ0〉 = 2Re〈Ψt|M @ (-itH/α)|Ψt〉
-    grad_expected = 2 * torch.vdot(psi_t, M @ (-1j * t * H / alpha) @ psi_t).real
-
-    assert torch.allclose(grad_expected, grad)
+    assert torch.allclose(result, expected)

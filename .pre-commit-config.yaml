@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.3.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -11,7 +11,7 @@ repos:
       - id: check-added-large-files
 
   - repo: https://github.com/ambv/black
-    rev: 22.10.0
+    rev: 26.1.0
     hooks:
       - id: black
 
@@ -22,9 +22,25 @@ repos:
         entry: pflake8
         additional_dependencies: [pyproject-flake8]
 
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.4
+    hooks:
+      - id: ruff
+        args: [--fix, --ignore,  E741]
+
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.1.1
+    rev: v1.19.1
     hooks:
       - id: mypy
         exclude: examples|test|ci
-        additional_dependencies: [torch==2.5.0]  # The version in pyproject.toml must match
+        additional_dependencies: ["pulser-core[torch]>=1.9.0rc1", "torch~=2.7,<2.11.0"]  # The version in pyproject.toml must match
+        args: ["--python-version=3.14"]
+
+  - repo: https://github.com/pasqal-io/doc_checker
+    rev: 2b7f94f6ace2e8553ab6ffc7953c5c8e405b04aa # full SHA for the commit to use; keep in sync with lint_test.yml
+    hooks:
+     - id: doc-checker-basic
+       args: ["--ignore-submodules", "emu_mps.optimatrix", "emu_sv.time_evolution"]
+     - id: doc-checker-links
+       args: ["--ignore-submodules", "emu_mps.optimatrix", "emu_sv.time_evolution"]
+       verbose: true

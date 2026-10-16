@@ -1,92 +1,157 @@
-from emu_base.base_classes import (
-    CorrelationMatrix,
-    QubitDensity,
-    EnergyVariance,
-    SecondMomentOfEnergy,
-)
-
 import copy
+import logging
+import pathlib
+from types import MethodType
+from typing import Any, ClassVar
 
-
-from emu_base import BackendConfig
-from emu_sv import StateVector
-from typing import Any
+from emu_base import init_logging
+from emu_sv.utils import choose
+from emu_sv.state_vector import StateVector
+from emu_sv.dense_operator import DenseOperator
 
 from emu_sv.custom_callback_implementations import (
-    qubit_density_sv_impl,
-    energy_variance_sv_impl,
-    second_moment_sv_impl,
+    qubit_occupation_sv_impl,
+    qubit_occupation_sv_den_mat_impl,
     correlation_matrix_sv_impl,
+    correlation_matrix_sv_den_mat_impl,
+    energy_second_moment_sv_impl,
+    energy_second_moment_den_mat_impl,
+    energy_variance_sv_impl,
+    energy_variance_sv_den_mat_impl,
 )
 
-from types import MethodType
+from pulser.backend import (
+    CorrelationMatrix,
+    EmulationConfig,
+    EnergySecondMoment,
+    EnergyVariance,
+    Occupation,
+)
+from emu_sv.solver import Solver
 
 
-class SVConfig(BackendConfig):
+class SVConfig(EmulationConfig):
     """
     The configuration of the emu-sv SVBackend. The kwargs passed to this class
     are passed on to the base class.
     See the API for that class for a list of available options.
 
     Args:
-        initial_state: the initial state to use in the simulation
         dt: the timestep size that the solver uses. Note that observables are
             only calculated if the evaluation_times are divisible by dt.
         max_krylov_dim:
             the size of the krylov subspace that the Lanczos algorithm maximally builds
         krylov_tolerance:
             the Lanczos algorithm uses this as the convergence tolerance
-        gpu: Use 1 gpu if True, otherwise, cpu.
-            Will cause errors if True when a gpu is not available
+        gpu: whether to run the simulation on GPU
+            - if `gpu = True`, use 1 GPU to store the state.
+            (causes errors if True when GPU not available)
+            - if `gpu = False`, use CPU to run the entire simulation.
+            - if `gpu = None` (the default value), the backend internally chooses 1 GPU.
+        interaction_cutoff: Set interaction coefficients below this value to `0`.
+            Potentially improves runtime and memory consumption.
+        log_level: How much to log. Set to `logging.WARN` to get rid of the timestep info.
+        log_file: If specified, log to this file rather than stout.
+        solver: The solver to use in the presence of Lindblad noise.
+            By default it will use Monte Carlo quantum jumps if shot noise is present,
+            and the Lindblad equation with density matrices otherwise.
         kwargs: arguments that are passed to the base class
 
     Examples:
-        >>> gpu = True
-        >>> dt = 1 #this will impact the runtime
-        >>> krylov_tolerance = 1e-8 #the simulation will be faster, but less accurate
-        >>> SVConfig(gpu=gpu, dt=dt, krylov_tolerance=krylov_tolerance,
-        >>>     with_modulation=True) #the last arg is taken from the base class
+        ```python
+        gpu = True
+        dt = 1.0 #this will impact the runtime
+        krylov_tolerance = 1e-8 #the simulation will be faster, but less accurate
+        SVConfig(gpu=gpu, dt=dt, krylov_tolerance=krylov_tolerance,
+            with_modulation=True) #the last arg is taken from the base class
+        ```
     """
+
+    # Whether to warn if unexpected kwargs are received
+    _enforce_expected_kwargs: ClassVar[bool] = True
+    _state_type = StateVector
+    _operator_type = DenseOperator
 
     def __init__(
         self,
         *,
-        initial_state: StateVector | None = None,
-        dt: int = 10,
+        dt: float = 10.0,
         max_krylov_dim: int = 100,
-        krylov_tolerance: float = 1e-12,
-        gpu: bool = False,
         cpp: bool = False,
+        krylov_tolerance: float = 1e-10,
+        gpu: bool | None = None,
+        interaction_cutoff: float = 0.0,
+        log_level: int = logging.INFO,
+        log_file: pathlib.Path | None = None,
+        solver: Solver = Solver.DEFAULT,
         **kwargs: Any,
     ):
-        super().__init__(**kwargs)
+        super().__init__(
+            solver=solver,
+            dt=dt,
+            max_krylov_dim=max_krylov_dim,
+            gpu=gpu,
+            krylov_tolerance=krylov_tolerance,
+            interaction_cutoff=interaction_cutoff,
+            log_level=log_level,
+            log_file=log_file,
+            **kwargs,
+        )
 
-        self.initial_state = initial_state
-        self.dt = dt
-        self.max_krylov_dim = max_krylov_dim
-        self.gpu = gpu
-        self.krylov_tolerance = krylov_tolerance
-        self.cpp = cpp
+        self.monkeypatch_observables()
+        logger = init_logging(log_level, log_file)
 
-        for num, obs in enumerate(self.callbacks):  # monkey patch
+        if (self.noise_model.runs != 1 and self.noise_model.runs is not None) or (
+            self.noise_model.samples_per_run != 1
+            and self.noise_model.samples_per_run is not None
+        ):
+            logger.warning(
+                "Warning: The runs and samples_per_run "
+                "values of the NoiseModel are ignored!"
+            )
+
+    def _expected_kwargs(self) -> set[str]:
+        return super()._expected_kwargs() | {
+            "dt",
+            "max_krylov_dim",
+            "krylov_tolerance",
+            "gpu",
+            "interaction_cutoff",
+            "log_level",
+            "log_file",
+            "solver",
+            "cpp",
+        }
+
+    def monkeypatch_observables(self) -> None:
+        obs_list = []
+
+        for _, obs in enumerate(self.observables):  # monkey patch
             obs_copy = copy.deepcopy(obs)
-            if isinstance(obs, QubitDensity):
+
+            if isinstance(obs, Occupation):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    qubit_density_sv_impl, obs
+                    choose(qubit_occupation_sv_impl, qubit_occupation_sv_den_mat_impl),
+                    obs_copy,
                 )
-                self.callbacks[num] = obs_copy
-            elif isinstance(obs, EnergyVariance):
+            if isinstance(obs, CorrelationMatrix):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    energy_variance_sv_impl, obs
+                    choose(
+                        correlation_matrix_sv_impl, correlation_matrix_sv_den_mat_impl
+                    ),
+                    obs_copy,
                 )
-                self.callbacks[num] = obs_copy
-            elif isinstance(obs, SecondMomentOfEnergy):
+            if isinstance(obs, EnergyVariance):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    second_moment_sv_impl, obs
+                    choose(energy_variance_sv_impl, energy_variance_sv_den_mat_impl),
+                    obs_copy,
                 )
-                self.callbacks[num] = obs_copy
-            elif isinstance(obs, CorrelationMatrix):
+            elif isinstance(obs, EnergySecondMoment):
                 obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    correlation_matrix_sv_impl, obs
+                    choose(
+                        energy_second_moment_sv_impl, energy_second_moment_den_mat_impl
+                    ),
+                    obs_copy,
                 )
-                self.callbacks[num] = obs_copy
+            obs_list.append(obs_copy)
+        self._backend_options["observables"] = tuple(obs_list)

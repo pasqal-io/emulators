@@ -1,21 +1,29 @@
-from emu_base import Backend, BackendConfig, Results
+from pulser.backend import EmulatorBackend, Results, BitStrings
 from emu_mps.mps_config import MPSConfig
+from emu_base import init_logging, PulserData, SequenceData
 from emu_mps.mps_backend_impl import create_impl, MPSBackendImpl
-from pulser import Sequence
 import pickle
 import os
 import time
-import logging
 import pathlib
 
 
-class MPSBackend(Backend):
+class MPSBackend(EmulatorBackend):
     """
     A backend for emulating Pulser sequences using Matrix Product States (MPS),
     aka tensor trains.
+
+    Args:
+        sequence: The sequence to be executed.
+        config (MPSConfig): Configuration for the MPS backend.
+        mimic_qpu: Whether to enforce Register constrains imposed
+            by the device in the Sequence.
     """
 
-    def resume(self, autosave_file: str | pathlib.Path) -> Results:
+    default_config = MPSConfig(observables=[BitStrings(evaluation_times=[1.0])])
+
+    @staticmethod
+    def resume(autosave_file: str | pathlib.Path) -> Results:
         """
         Resume simulation from autosave file.
         Only resume simulations from data you trust!
@@ -32,34 +40,40 @@ class MPSBackend(Backend):
 
         impl.autosave_file = autosave_file
         impl.last_save_time = time.time()
-        impl.config.init_logging()  # FIXME: might be best to take logger object out of config.
+        logger = init_logging(impl.config.log_level, impl.config.log_file)
 
-        logging.getLogger("global_logger").warning(
+        logger.warning(
             f"Resuming simulation from file {autosave_file}\n"
             f"Saving simulation state every {impl.config.autosave_dt} seconds"
         )
 
-        return self._run(impl)
+        return MPSBackend._run(impl)
 
-    def run(self, sequence: Sequence, mps_config: BackendConfig) -> Results:
+    def run(self) -> Results:
         """
         Emulates the given sequence.
-
-        Args:
-            sequence: a Pulser sequence to simulate
-            mps_config: the backends config. Should be of type MPSConfig
 
         Returns:
             the simulation results
         """
-        assert isinstance(mps_config, MPSConfig)
+        assert isinstance(self._config, MPSConfig)
 
-        self.validate_sequence(sequence)
+        pulser_data = PulserData(
+            sequence=self._sequence, config=self._config, dt=self._config.dt
+        )
+        results = []
+        for sequence_data in pulser_data.get_sequences():
+            results.append(self._run_from_sequence_data(sequence_data, self._config))
+        return Results.aggregate(results)
 
-        impl = create_impl(sequence, mps_config)
+    @staticmethod
+    def _run_from_sequence_data(
+        sequence_data: SequenceData, config: MPSConfig
+    ) -> Results:
+        impl = create_impl(sequence_data, config)
         impl.init()  # This is separate from the constructor for testing purposes.
-
-        return self._run(impl)
+        result = MPSBackend._run(impl)
+        return impl.permute_results(result, config.optimize_qubit_ordering)
 
     @staticmethod
     def _run(impl: MPSBackendImpl) -> Results:

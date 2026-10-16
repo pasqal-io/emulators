@@ -1,0 +1,139 @@
+name: Publish emulators
+run-name: Publish emulators
+
+on:
+  push:
+    # These are GitHub glob filter patterns, not regexes: `+` means "one or more
+    # of the preceding character" and there is no optional group, so the stable
+    # and release-candidate forms have to be listed separately.
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+rc[0-9]+'
+  workflow_dispatch: {}
+
+concurrency:
+  group: fast-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  publish_emu_base:
+    name: Publish emu-base to PyPI
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      id-token: write
+    steps:
+      - name: Check emulators
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch
+      - name: Build and publish package
+        run: |
+          cd ci/emu_base
+          cp --remove-destination ../../README.md ../../LICENSE .
+          hatch build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: ${{ github.workspace }}/ci/emu_base/dist
+          verbose: true
+  publish_emu_mps:
+    name: Publish emu-mps to PyPI
+    runs-on: ubuntu-latest
+    needs: publish_emu_base
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      id-token: write
+    steps:
+      - name: Check emulators
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch
+      - name: Build and publish package
+        run: |
+          cd ci/emu_mps
+          cp --remove-destination ../../README.md ../../LICENSE .
+          hatch build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: ${{ github.workspace }}/ci/emu_mps/dist
+          verbose: true
+  publish_emu_sv:
+    name: Publish emu-sv to PyPI
+    runs-on: ubuntu-latest
+    needs: publish_emu_base
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      id-token: write
+    steps:
+      - name: Check emulators
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch
+      - name: Build and publish package
+        run: |
+          cd ci/emu_sv
+          cp --remove-destination ../../README.md ../../LICENSE .
+          hatch build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: ${{ github.workspace }}/ci/emu_sv/dist
+          verbose: true
+  deploy_docs:
+    name: Deploy docs (ubuntu)
+    needs: [publish_emu_base, publish_emu_sv, publish_emu_mps]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout emulators
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Setup environment
+        run: |
+          pip install -r doc_requirements.txt
+          pip install -e .
+      - name: Deploy docs
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git fetch origin gh-pages
+          if [[ "$VERSION" == *rc* ]]; then
+            # A release candidate gets its own docs version, but must not become
+            # the `latest` that users land on.
+            mike deploy --push "$VERSION"
+          else
+            mike deploy --push --update-aliases "$VERSION" latest
+          fi

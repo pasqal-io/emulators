@@ -1,38 +1,128 @@
 import math
-import pathlib
-import random
-import uuid
-from resource import RUSAGE_SELF, getrusage
-from typing import Optional
-import pickle
 import os
+import pathlib
+import pickle
+import random
+import time
+import typing
+import uuid
+import logging
+
+from copy import deepcopy
+from collections import Counter
+from enum import Enum, auto
+from types import MethodType
+from typing import Any, Optional
 
 import torch
-import time
-from pulser import Sequence
+from pulser.backend import EmulationConfig, Observable, Results, State, AggregationMethod
 
-from emu_base import Results, State, PulserData
+from emu_base import (
+    DEVICE_COUNT,
+    SequenceData,
+    get_max_rss_cpu,
+    get_max_rss_gpu,
+    HamiltonianType,
+    is_evaluation_time,
+)
 from emu_base.math.brents_root_finding import BrentsRootFinder
-from emu_mps.constants import DEVICE_COUNT
+from emu_base.utils import deallocate_tensor
+
 from emu_mps.hamiltonian import make_H, update_H
 from emu_mps.mpo import MPO
 from emu_mps.mps import MPS
 from emu_mps.mps_config import MPSConfig
-from emu_mps.noise import compute_noise_from_lindbladians, pick_well_prepared_qubits
-from emu_mps.tdvp import (
-    # evolve_single,
-    # evolve_pair,
+from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
+import emu_mps.optimatrix as optimat
+from emu_mps.solver import Solver
+from emu_mps.solver_utils import (
+    evolve_pair,
+    evolve_single,
+    minimize_energy_pair,
     new_right_bath,
     right_baths,
 )
-from emulators_cpp import evolve_single, evolve_pair
 from emu_mps.utils import (
     extended_mpo_factors,
     extended_mps_factors,
     get_extended_site_index,
     new_left_bath,
 )
-from enum import Enum, auto
+from emu_mps.cuda_semantics import (
+    fetch_bath_from_cpu,
+    offload_bath_to_cpu,
+    synchronize_transfers,
+    wait_for_transfers,
+)
+
+dtype = torch.complex128
+
+
+class Statistics(Observable):
+    def __init__(
+        self,
+        evaluation_times: typing.Sequence[float] | None,
+        data: list[float],
+        timestep_count: int,
+    ):
+        super().__init__(
+            evaluation_times=evaluation_times,
+            default_aggregation_method=AggregationMethod.SKIP,
+        )
+        self.data = data
+        self.timestep_count = timestep_count
+
+    @property
+    def _base_tag(self) -> str:
+        return "statistics"
+
+    def apply(
+        self,
+        *,
+        config: EmulationConfig,
+        state: State,
+        **kwargs: Any,
+    ) -> dict:
+        """Calculates the observable to store in the Results."""
+        assert isinstance(state, MPS)
+        duration = self.data[-1]
+        if state.factors[0].is_cuda:
+            max_mem_cpu = get_max_rss_cpu()
+            max_mem_gpu = get_max_rss_gpu()
+
+            logging.getLogger("emulators").info(
+                f"step = {len(self.data)}/{self.timestep_count}, "
+                + f"χ = {state.get_max_bond_dim()}, "
+                + f"|ψ| = {state.get_memory_footprint():.3f} MB, "
+                + f"RSS_CPU = {max_mem_cpu:.3f} MB, "
+                + f"RSS = {max_mem_gpu:.3f} MB, "
+                + f"Δt = {duration:.3f} s"
+            )
+
+            return {
+                "max_bond_dimension": state.get_max_bond_dim(),
+                "memory_footprint": state.get_memory_footprint(),
+                "RSS_cpu": max_mem_cpu,
+                "RSS": max_mem_gpu,
+                "duration": duration,
+            }
+        else:
+            max_mem = get_max_rss_cpu()
+
+            logging.getLogger("emulators").info(
+                f"step = {len(self.data)}/{self.timestep_count}, "
+                + f"χ = {state.get_max_bond_dim()}, "
+                + f"|ψ| = {state.get_memory_footprint():.3f} MB, "
+                + f"RSS = {max_mem:.3f} MB, "
+                + f"Δt = {duration:.3f} s"
+            )
+
+            return {
+                "max_bond_dimension": state.get_max_bond_dim(),
+                "memory_footprint": state.get_memory_footprint(),
+                "RSS": max_mem,
+                "duration": duration,
+            }
 
 
 class SwipeDirection(Enum):
@@ -44,80 +134,168 @@ class MPSBackendImpl:
     current_time: float = (
         0.0  # While dt is an integer, noisy collapse can happen at non-integer times.
     )
-    well_prepared_qubits_filter: Optional[list[bool]]
+
+    well_prepared_qubits_filter: Optional[torch.Tensor]
     hamiltonian: MPO
     state: MPS
+    left_baths: list[torch.Tensor]
     right_baths: list[torch.Tensor]
-    tdvp_index: int
-    swipe_direction: SwipeDirection
-    timestep_index: int
     target_time: float
     results: Results
+    _swipe_direction: SwipeDirection = SwipeDirection.LEFT_TO_RIGHT
+    _sweep_index: int = 0
+    _timestep_index: int = 0
 
-    def __init__(self, mps_config: MPSConfig, pulser_data: PulserData):
+    def __init__(self, mps_config: MPSConfig, pulser_data: SequenceData):
         self.config = mps_config
-        self.target_time = float(self.config.dt)
+        self.target_times = pulser_data.target_times
+        self.target_time = self.target_times[1]
         self.pulser_data = pulser_data
         self.qubit_count = pulser_data.qubit_count
-        assert self.qubit_count >= 2
-        self.omega = pulser_data.omega
-        self.delta = pulser_data.delta
-        self.phi = pulser_data.phi
+        assert self.qubit_count >= 2, (
+            "emu_mps is designed for more than 2 qubits. "
+            "Consider using the emu_sv backend."
+        )
+
+        self.has_lindblad_noise = len(pulser_data.lindblad_ops) > 0
+        self.eigenstates = pulser_data.eigenstates
+        self.dim = pulser_data.dim
+        self.lindblad_noise = torch.zeros(self.dim, self.dim, dtype=dtype)
+
+        self.qubit_permutation = (
+            optimat.minimize_bandwidth(
+                # The dominant interaction term should be first
+                pulser_data.interaction_matrix(self.target_times[-1])[0]
+            )
+            if self.config.optimize_qubit_ordering
+            else optimat.eye_permutation(self.qubit_count)
+        )
+
+        self.omega = pulser_data.omega[:, self.qubit_permutation]
+        self.delta = pulser_data.delta[:, self.qubit_permutation]
+        self.phi = pulser_data.phi[:, self.qubit_permutation]
         self.timestep_count: int = self.omega.shape[0]
-        self.has_lindblad_noise = pulser_data.has_lindblad_noise
-        self.lindblad_noise = torch.zeros(2, 2, dtype=torch.complex128)
-        self.full_interaction_matrix = pulser_data.full_interaction_matrix
-        self.masked_interaction_matrix = pulser_data.masked_interaction_matrix
+
+        # move to emu-base when emu-sv supports non-rydberg?
+        interaction_ops: torch.Tensor
+        if pulser_data.hamiltonian_type == HamiltonianType.Rydberg:
+            interaction_ops = torch.tensor(
+                [[[0.0, 0.0], [0.0, 1.0]]], dtype=torch.complex128
+            )
+        elif pulser_data.hamiltonian_type == HamiltonianType.XY:
+            interaction_ops = 2**0.5 * torch.tensor(
+                [
+                    [[0.0, 0.5], [0.5, 0.0]],
+                    [[0.0, -0.5j], [0.5j, 0.0]],
+                    [[2**-0.5, 0.0], [0.0, 0.0]],
+                ],
+                dtype=torch.complex128,
+            )
+        else:
+            raise ValueError(
+                f"Hamiltonian type {pulser_data.hamiltonian_type} is unknown."
+            )
+
+        self.interaction_ops = interaction_ops
         self.hamiltonian_type = pulser_data.hamiltonian_type
-        self.slm_end_time = pulser_data.slm_end_time
-        self.is_masked = self.slm_end_time > 0.0
-        self.left_baths: list[torch.Tensor]
         self.time = time.time()
-        self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
-        self.tdvp_index = 0
-        self.timestep_index = 0
-        self.results = Results()
+
+        self.results = Results(
+            atom_order=optimat.permute_tuple(
+                pulser_data.qubit_ids, self.qubit_permutation
+            ),
+            total_duration=int(self.target_times[-1]),
+        )
+        self.statistics = Statistics(
+            evaluation_times=[t / self.target_times[-1] for t in self.target_times],
+            data=[],
+            timestep_count=self.timestep_count,
+        )
         self.autosave_file = self._get_autosave_filepath(self.config.autosave_prefix)
-        self.config.logger.warning(
+        logging.getLogger("emulators").debug(
             f"""Will save simulation state to file "{self.autosave_file.name}"
             every {self.config.autosave_dt} seconds.\n"""
             f"""To resume: `MPSBackend().resume("{self.autosave_file}")`"""
         )
         self.last_save_time = time.time()
 
-        if self.config.num_gpus_to_use > DEVICE_COUNT:
-            self.config.logger.warning(
-                f"Requested to use {self.config.num_gpus_to_use} GPU(s) "
-                f"but only {DEVICE_COUNT if DEVICE_COUNT > 0 else 'cpu'} available"
+        requested_gpu = (
+            self.config.gpu if self.config.gpu is not None else DEVICE_COUNT > 0
+        )
+        if requested_gpu and DEVICE_COUNT == 0:
+            logging.getLogger("emulators").warning(
+                "Requested to run on GPU but none is available, running on CPU"
             )
+        self.use_gpu: bool = requested_gpu and DEVICE_COUNT > 0
+
+    def _get_interaction_matrix(self) -> torch.Tensor:
+        """Get the interaction matrix for the current time step, applying qubit
+        permutation and dark qubit filtering if necessary."""
+        matrix = self.pulser_data.interaction_matrix(
+            0.5 * (self.current_time + self.target_time)
+        )
+
+        # permutation if optimization is enabled
+        if not torch.equal(
+            self.qubit_permutation, optimat.eye_permutation(self.qubit_count)
+        ):
+            matrix = optimat.permute_tensor(matrix, self.qubit_permutation)
+
+        if self.well_prepared_qubits_filter is not None:
+            matrix = matrix[:, self.well_prepared_qubits_filter, :][
+                :, :, self.well_prepared_qubits_filter
+            ]
+
+        if self.pulser_data.hamiltonian_type == HamiltonianType.XY:
+            # duplicate the XY interaction, because the XX and YY term
+            # are treated separately in make_H
+            matrix = torch.stack((matrix[0], matrix[0], matrix[1]))
+        return matrix
+
+    def __getstate__(self) -> dict:
+        # Offloaded bath tensors are read on the CPU when pickling;
+        # any pending transfers into them must be finished.
+        synchronize_transfers()
+        d = self.__dict__.copy()
+        options = deepcopy(self.config._backend_options)
+        cp = type(self.config)(**options)  # BackendConfig does not deepcopy directly
+        d["config"] = cp
+        d["state"].config = cp
+        for obs in cp.observables:
+            obs.apply = MethodType(type(obs).apply, obs)  # type: ignore[method-assign]
+        # mypy thinks the method below is an attribute, because of the __getattr__ override
+        d["results"] = self.results._to_abstract_repr()  # type: ignore[operator]
+        return d
+
+    def __setstate__(self, d: dict) -> None:
+        self.__dict__ = d
+        self.results = Results._from_abstract_repr(d["results"])  # type: ignore [attr-defined]
+        self.config.monkeypatch_observables()
+        if self.use_gpu:
+            self.left_baths = [x.pin_memory() if x.is_cpu else x for x in self.left_baths]
+            self.right_baths = [
+                x.pin_memory() if x.is_cpu else x for x in self.right_baths
+            ]
 
     @staticmethod
     def _get_autosave_filepath(autosave_prefix: str) -> pathlib.Path:
-        return pathlib.Path(os.getcwd()) / (autosave_prefix + str(uuid.uuid1()) + ".dat")
-
-    def init_dark_qubits(self) -> None:
-        has_state_preparation_error: bool = (
-            self.config.noise_model is not None
-            and self.config.noise_model.state_prep_error > 0.0
+        return pathlib.Path(os.getcwd()) / (
+            autosave_prefix + str(uuid.uuid1(clock_seq=1337)) + ".dat"
         )
 
-        self.well_prepared_qubits_filter = (
-            pick_well_prepared_qubits(
-                self.config.noise_model.state_prep_error, self.qubit_count
-            )
-            if has_state_preparation_error
-            else None
+    def init_dark_qubits(self) -> None:
+        # has_state_preparation_error
+        if self.pulser_data.state_prep_error > 0.0:
+            bad_atoms = self.pulser_data.bad_atoms
+            self.well_prepared_qubits_filter = torch.logical_not(torch.tensor(bad_atoms))
+        else:
+            self.well_prepared_qubits_filter = None
+        logging.getLogger("emulators").debug(
+            f"Init dark qubits filter: {self.well_prepared_qubits_filter}"
         )
 
         if self.well_prepared_qubits_filter is not None:
             self.qubit_count = sum(1 for x in self.well_prepared_qubits_filter if x)
-
-            self.full_interaction_matrix = self.full_interaction_matrix[
-                self.well_prepared_qubits_filter, :
-            ][:, self.well_prepared_qubits_filter]
-            self.masked_interaction_matrix = self.masked_interaction_matrix[
-                self.well_prepared_qubits_filter, :
-            ][:, self.well_prepared_qubits_filter]
             self.omega = self.omega[:, self.well_prepared_qubits_filter]
             self.delta = self.delta[:, self.well_prepared_qubits_filter]
             self.phi = self.phi[:, self.well_prepared_qubits_filter]
@@ -126,8 +304,10 @@ class MPSBackendImpl:
         if initial_state is None:
             self.state = MPS.make(
                 self.qubit_count,
-                config=self.config,
-                num_gpus_to_use=self.config.num_gpus_to_use,
+                precision=self.config.precision,
+                max_bond_dim=self.config.max_bond_dim,
+                gpu=self.use_gpu,
+                eigenstates=self.eigenstates,
             )
             return
 
@@ -138,67 +318,111 @@ class MPSBackendImpl:
             )
 
         assert isinstance(initial_state, MPS)
+        if not torch.equal(
+            self.qubit_permutation, optimat.eye_permutation(self.qubit_count)
+        ):
+            # permute the initial state to match with permuted Hamiltonian
+            abstr_repr = initial_state._to_abstract_repr()
+            eigs = abstr_repr["eigenstates"]
+            ampl = {
+                optimat.permute_string(bstr, self.qubit_permutation): amp
+                for bstr, amp in abstr_repr["amplitudes"].items()
+            }
+            initial_state = MPS.from_state_amplitudes(eigenstates=eigs, amplitudes=ampl)
+
         initial_state = MPS(
             # Deep copy of every tensor of the initial state.
-            [f.clone().detach() for f in initial_state.factors],
-            config=self.config,
-            num_gpus_to_use=self.config.num_gpus_to_use,
+            [f.detach().clone() for f in initial_state.factors],
+            precision=self.config.precision,
+            max_bond_dim=self.config.max_bond_dim,
+            gpu=self.use_gpu,
+            eigenstates=initial_state.eigenstates,
         )
         initial_state.truncate()
         initial_state *= 1 / initial_state.norm()
         self.state = initial_state
+        self.state.orthogonalize(0)
 
-    def init_hamiltonian(self) -> None:
+    def init_noiseless_hamiltonian(self) -> None:
         """
         Must be called AFTER init_dark_qubits otherwise,
         too many factors are put in the Hamiltonian
         """
+        self.current_interaction_matrix = self._get_interaction_matrix()
         self.hamiltonian = make_H(
-            interaction_matrix=self.masked_interaction_matrix
-            if self.is_masked
-            else self.full_interaction_matrix,
-            hamiltonian_type=self.hamiltonian_type,
-            num_gpus_to_use=self.config.num_gpus_to_use,
+            interaction_matrix=self.current_interaction_matrix,
+            interaction_ops=self.interaction_ops,
+            gpu=self.use_gpu,
+            dim=self.dim,
         )
+        self.update_H_no_noise()
 
+    def update_H(self) -> None:
         update_H(
             hamiltonian=self.hamiltonian,
-            omega=self.omega[self.timestep_index, :],
-            delta=self.delta[self.timestep_index, :],
-            phi=self.phi[self.timestep_index, :],
+            omega=self.omega[self._timestep_index, :],
+            delta=self.delta[self._timestep_index, :],
+            phi=self.phi[self._timestep_index, :],
             noise=self.lindblad_noise,
+        )
+
+    def update_H_no_noise(self) -> None:
+        update_H(
+            hamiltonian=self.hamiltonian,
+            omega=self.omega[self._timestep_index, :],
+            delta=self.delta[self._timestep_index, :],
+            phi=self.phi[self._timestep_index, :],
+            noise=torch.zeros(self.dim, self.dim, dtype=dtype),  # no noise
         )
 
     def init_baths(self) -> None:
         self.left_baths = [
-            torch.ones(
-                1, 1, 1, dtype=torch.complex128, device=self.state.factors[0].device
-            )
+            torch.ones(1, 1, 1, dtype=dtype, device=self.state.factors[0].device)
         ]
-        self.right_baths = right_baths(self.state, self.hamiltonian, final_qubit=2)
+        # clean up the memory in right baths, since otherwise we temporarily have
+        # both the old and the new in memory, which can cause OOM errors
+        self.right_baths: list[torch.Tensor] = []
+        # Only the last bath of each stack is used at any given time (see _evolve);
+        # the other ones are kept in CPU memory to reduce GPU memory pressure.
+        self.right_baths = right_baths(
+            self.state, self.hamiltonian, final_qubit=2, keep_inactive_on_cpu=True
+        )
         assert len(self.right_baths) == self.qubit_count - 1
+
+    def get_current_right_bath(self) -> torch.Tensor:
+        return self.right_baths[-1]
+
+    def get_current_left_bath(self) -> torch.Tensor:
+        return self.left_baths[-1]
 
     def init(self) -> None:
         self.init_dark_qubits()
         self.init_initial_state(self.config.initial_state)
-        self.init_hamiltonian()
+        self.init_noiseless_hamiltonian()
+        self.fill_results()  # at t == 0 for pulser compatibility
+        self.update_H()
         self.init_baths()
 
     def is_finished(self) -> bool:
-        return self.timestep_index >= self.timestep_count
+        return self._timestep_index >= self.timestep_count
 
     def _evolve(
         self, *indices: int, dt: float, orth_center_right: Optional[bool] = None
     ) -> None:
         """
         Time-evolve the state's tensors located at the given 1 or 2 indices by dt,
-        using the baths stored in self.left_baths and self.right_baths.
+        using the last baths stored in self.left_baths and self.right_baths.
         When 2 indices are given, they need to be consecutive.
         Updates the state's orthogonality center according to orth_center_right.
+
+        The last bath of each stack must reside on the compute device; if it was
+        prefetched with fetch_bath_from_cpu, the caller is responsible for calling
+        wait_for_transfers() beforehand. No wait is done here, since that would
+        also serialize against prefetches issued for later steps.
         """
         assert 1 <= len(indices) <= 2
 
-        baths = (self.left_baths[-1], self.right_baths[-1])
+        baths = (self.get_current_left_bath(), self.get_current_right_bath())
 
         if len(indices) == 1:
             assert orth_center_right is None
@@ -229,6 +453,7 @@ class MPSBackendImpl:
                 config=self.config,
                 orth_center_right=orth_center_right,
                 is_hermitian=not self.has_lindblad_noise,
+                dim=self.dim,
             )
 
             self.state.orthogonality_center = r if orth_center_right else l
@@ -237,7 +462,8 @@ class MPSBackendImpl:
         """
         Do one unit of simulation work given the current state.
         Update the state accordingly.
-        The state of the simulation is stored in self.tdvp_index and self.swipe_direction.
+        The state of the simulation is stored in self._sweep_index and
+        self._swipe_direction.
         """
         if self.is_finished():
             return
@@ -247,114 +473,137 @@ class MPSBackendImpl:
         assert self.qubit_count >= 1
         if 1 <= self.qubit_count <= 2:
             # Corner case: only 1 or 2 qubits
-            assert self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-            assert self.tdvp_index == 0
+            assert self._swipe_direction is SwipeDirection.LEFT_TO_RIGHT
+            assert self._sweep_index == 0
 
             if self.qubit_count == 1:
                 self._evolve(0, dt=delta_time)
             else:
                 self._evolve(0, 1, dt=delta_time, orth_center_right=False)
 
-            self.tdvp_complete()
+            self.sweep_complete()
+            self.save_simulation()
+            return
 
-        elif (
-            self.tdvp_index < self.qubit_count - 2
-            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-        ):
-            # Left-to-right swipe of TDVP
+        if self._swipe_direction is SwipeDirection.LEFT_TO_RIGHT:
+            self._left_to_right_update_tdvp(delta_time=delta_time)
+        else:
+            self._right_to_left_update_tdvp(delta_time=delta_time)
+
+        self.save_simulation()
+
+    def _left_to_right_update_tdvp(self, delta_time: float) -> None:
+        # Left-to-right swipe of TDVP
+        # The right bath used below was prefetched by the previous step.
+        wait_for_transfers()
+        if self._sweep_index < self.qubit_count - 2:
             self._evolve(
-                self.tdvp_index,
-                self.tdvp_index + 1,
+                self._sweep_index,
+                self._sweep_index + 1,
                 dt=delta_time / 2,
                 orth_center_right=True,
             )
+            # Prefetch the right bath for the next step; the transfer overlaps
+            # with the bath computation and the evolve_single below.
+            self.right_baths[-2] = fetch_bath_from_cpu(
+                self.right_baths[-2], self.right_baths[-1].device
+            )
             self.left_baths.append(
                 new_left_bath(
-                    self.left_baths[-1],
-                    self.state.factors[self.tdvp_index],
-                    self.hamiltonian.factors[self.tdvp_index],
+                    self.get_current_left_bath(),
+                    self.state.factors[self._sweep_index],
+                    self.hamiltonian.factors[self._sweep_index],
                 )
             )
-            self._evolve(self.tdvp_index + 1, dt=-delta_time / 2)
+            # The previous left bath is unused until the right-to-left sweep
+            # returns here; keep it in CPU memory in the meantime.
+            self.left_baths[-2] = offload_bath_to_cpu(self.left_baths[-2])
+            self._evolve(self._sweep_index + 1, dt=-delta_time / 2)
             self.right_baths.pop()
-            self.tdvp_index += 1
-
-        elif (
-            self.tdvp_index == self.qubit_count - 2
-            and self.swipe_direction == SwipeDirection.LEFT_TO_RIGHT
-        ):
+            self._sweep_index += 1
+        else:
             # Time-evolution of the rightmost 2 tensors
             self._evolve(
-                self.tdvp_index,
-                self.tdvp_index + 1,
+                self._sweep_index,
+                self._sweep_index + 1,
                 dt=delta_time,
                 orth_center_right=False,
             )
-            self.swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+            self._swipe_direction = SwipeDirection.RIGHT_TO_LEFT
 
-        elif (
-            1 <= self.tdvp_index and self.swipe_direction == SwipeDirection.RIGHT_TO_LEFT
-        ):
-            # Right-to-left swipe of TDVP
-            assert self.tdvp_index <= self.qubit_count - 2
+    def _right_to_left_update_tdvp(self, delta_time: float) -> None:
+        if self._sweep_index > 0:
+            # Prefetch the left bath used by the evolve_pair below; the transfer
+            # overlaps with the bath computation and the evolve_single.
+            self.left_baths[-2] = fetch_bath_from_cpu(
+                self.left_baths[-2], self.left_baths[-1].device
+            )
             self.right_baths.append(
                 new_right_bath(
-                    self.right_baths[-1],
-                    self.state.factors[self.tdvp_index + 1],
-                    self.hamiltonian.factors[self.tdvp_index + 1],
+                    self.get_current_right_bath(),
+                    self.state.factors[self._sweep_index + 1],
+                    self.hamiltonian.factors[self._sweep_index + 1],
                 )
             )
             if not self.has_lindblad_noise:
                 # Free memory because it won't be used anymore
-                self.right_baths[-2] = torch.zeros(0)
-
-            self._evolve(self.tdvp_index, dt=-delta_time / 2)
+                deallocate_tensor(self.right_baths[-2])
+            else:
+                # With noise, the accumulated right baths are reused by the next
+                # left-to-right sweep (quantum jump time finding); keep them in
+                # CPU memory until then.
+                self.right_baths[-2] = offload_bath_to_cpu(self.right_baths[-2])
+            self._evolve(self._sweep_index, dt=-delta_time / 2)
             self.left_baths.pop()
-
+            wait_for_transfers()  # for the left bath prefetched above
             self._evolve(
-                self.tdvp_index - 1,
-                self.tdvp_index,
+                self._sweep_index - 1,
+                self._sweep_index,
                 dt=delta_time / 2,
                 orth_center_right=False,
             )
-            self.tdvp_index -= 1
+            self._sweep_index -= 1
 
-            if self.tdvp_index == 0:
-                self.tdvp_complete()
-                self.swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+        if self._sweep_index == 0:
+            self.sweep_complete()
+            self._swipe_direction = SwipeDirection.LEFT_TO_RIGHT
 
-        else:
-            raise Exception("Didn't expect this")
-
-        self.save_simulation()
-
-    def tdvp_complete(self) -> None:
+    def sweep_complete(self) -> None:
         self.current_time = self.target_time
         self.timestep_complete()
 
     def timestep_complete(self) -> None:
         self.fill_results()
-        self.timestep_index += 1
-        self.target_time = float((self.timestep_index + 1) * self.config.dt)
-        if self.is_masked and self.current_time >= self.slm_end_time:
-            self.is_masked = False
+        self._timestep_index += 1
+        interaction_matrix = self._get_interaction_matrix()  # at new time
+
+        is_the_same_matrix = torch.allclose(
+            self.current_interaction_matrix,
+            interaction_matrix,
+            atol=1e-10,
+        )
+        if not is_the_same_matrix:
+            self.current_interaction_matrix = interaction_matrix
             self.hamiltonian = make_H(
-                interaction_matrix=self.full_interaction_matrix,
-                hamiltonian_type=self.hamiltonian_type,
-                num_gpus_to_use=self.config.num_gpus_to_use,
+                interaction_matrix=self.current_interaction_matrix,
+                interaction_ops=self.interaction_ops,
+                dim=self.dim,
+                gpu=self.use_gpu,
             )
 
         if not self.is_finished():
-            update_H(
-                hamiltonian=self.hamiltonian,
-                omega=self.omega[self.timestep_index, :],
-                delta=self.delta[self.timestep_index, :],
-                phi=self.phi[self.timestep_index, :],
-                noise=self.lindblad_noise,
-            )
+            self.target_time = self.target_times[self._timestep_index + 1]
+            self.update_H()
             self.init_baths()
 
-        self.log_step_statistics(duration=time.time() - self.time)
+        self.statistics.data.append(time.time() - self.time)
+        self.statistics(
+            self.config,
+            self.current_time / self.target_times[-1],
+            self.state,
+            self.hamiltonian,
+            self.results,
+        )
         self.time = time.time()
 
     def save_simulation(self) -> None:
@@ -364,7 +613,6 @@ class MPSBackendImpl:
         basename = self.autosave_file
         with open(basename.with_suffix(".new"), "wb") as file_handle:
             pickle.dump(self, file_handle)
-
         if basename.is_file():
             os.rename(basename, basename.with_suffix(".bak"))
 
@@ -376,85 +624,97 @@ class MPSBackendImpl:
 
         self.last_save_time = time.time()
 
-        self.config.logger.debug(
+        logging.getLogger("emulators").debug(
             f"Saved simulation state in file {self.autosave_file} ({autosave_filesize}MB)"
         )
 
     def fill_results(self) -> None:
         normalized_state = 1 / self.state.norm() * self.state
 
-        current_time_int: int = round(self.current_time)
-        assert abs(self.current_time - current_time_int) < 1e-10
+        fractional_time = self.current_time / self.target_times[-1]
 
-        if self.well_prepared_qubits_filter is None:
-            for callback in self.config.callbacks:
-                callback(
-                    self.config,
-                    current_time_int,
-                    normalized_state,
-                    self.hamiltonian,
-                    self.results,
-                )
+        callbacks_for_current_time_step = [
+            callback
+            for callback in self.config.observables
+            if is_evaluation_time(self.config, callback, fractional_time)
+        ]
+        if not callbacks_for_current_time_step:
             return
 
-        full_mpo, full_state = None, None
-        for callback in self.config.callbacks:
-            if current_time_int not in callback.evaluation_times:
-                continue
-
-            if full_mpo is None or full_state is None:
-                # Only do this potentially expensive step once and when needed.
-                full_mpo = MPO(
-                    extended_mpo_factors(
-                        self.hamiltonian.factors, self.well_prepared_qubits_filter
-                    )
-                )
-                full_state = MPS(
-                    extended_mps_factors(
-                        normalized_state.factors, self.well_prepared_qubits_filter
-                    ),
-                    num_gpus_to_use=None,  # Keep the already assigned devices.
-                    orthogonality_center=get_extended_site_index(
-                        self.well_prepared_qubits_filter,
-                        normalized_state.orthogonality_center,
-                    ),
-                )
-
-            callback(self.config, current_time_int, full_state, full_mpo, self.results)
-
-    def log_step_statistics(self, *, duration: float) -> None:
-        if self.state.factors[0].is_cuda:
-            max_mem_per_device = (
-                torch.cuda.max_memory_allocated(device) * 1e-6
-                for device in range(torch.cuda.device_count())
-            )
-            max_mem = max(max_mem_per_device)
+        if self.well_prepared_qubits_filter is None:
+            state = normalized_state
+            hamiltonian = self.hamiltonian
         else:
-            max_mem = getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+            # Only do this potentially expensive step once and when needed.
+            full_mpo = MPO(
+                extended_mpo_factors(
+                    self.hamiltonian.factors, self.well_prepared_qubits_filter
+                )
+            )
+            full_state = MPS(
+                extended_mps_factors(
+                    normalized_state.factors,
+                    self.well_prepared_qubits_filter,
+                ),
+                orthogonality_center=get_extended_site_index(
+                    self.well_prepared_qubits_filter,
+                    normalized_state.orthogonality_center,
+                ),
+                eigenstates=normalized_state.eigenstates,
+            )
+            state = full_state
+            hamiltonian = full_mpo
 
-        self.config.logger.info(
-            f"step = {self.timestep_index}/{self.timestep_count}, "
-            + f"χ = {self.state.get_max_bond_dim()}, "
-            + f"|ψ| = {self.state.get_memory_footprint():.3f} MB, "
-            + f"RSS = {max_mem:.3f} MB, "
-            + f"Δt = {duration:.3f} s"
+        for callback in callbacks_for_current_time_step:
+            callback(
+                self.config,
+                fractional_time,
+                state,
+                hamiltonian,
+                self.results,
+            )
+
+    def permute_results(self, results: Results, permute: bool) -> Results:
+        if permute:
+            inv_perm = optimat.inv_permutation(self.qubit_permutation)
+            permute_bitstrings(results, inv_perm)
+            permute_occupations_and_correlations(results, inv_perm)
+            permute_atom_order(results, inv_perm)
+        return results
+
+
+def permute_bitstrings(results: Results, perm: torch.Tensor) -> None:
+    if "bitstrings" not in results.get_result_tags():
+        return
+    uuid_bs = results._find_uuid("bitstrings")
+
+    results._results[uuid_bs] = [
+        Counter({optimat.permute_string(bstr, perm): c for bstr, c in bs_counter.items()})
+        for bs_counter in results._results[uuid_bs]
+    ]
+
+
+def permute_occupations_and_correlations(results: Results, perm: torch.Tensor) -> None:
+    for corr in ["occupation", "correlation_matrix"]:
+        if corr not in results.get_result_tags():
+            continue
+
+        uuid_corr = results._find_uuid(corr)
+        corrs = results._results[uuid_corr]
+        results._results[uuid_corr] = (
+            [  # vector quantities become lists after results are serialized (e.g. for checkpoints)
+                optimat.permute_tensor(
+                    corr if isinstance(corr, torch.Tensor) else torch.tensor(corr), perm
+                )
+                for corr in corrs
+            ]
         )
 
-        if self.results.statistics is None:
-            assert self.timestep_index == 1
-            self.results.statistics = {"steps": []}
 
-        assert "steps" in self.results.statistics
-        assert len(self.results.statistics["steps"]) == self.timestep_index - 1
-
-        self.results.statistics["steps"].append(
-            {
-                "max_bond_dimension": self.state.get_max_bond_dim(),
-                "memory_footprint": self.state.get_memory_footprint(),
-                "RSS": max_mem,
-                "duration": duration,
-            }
-        )
+def permute_atom_order(results: Results, perm: torch.Tensor) -> None:
+    at_ord = list(results.atom_order)
+    at_ord = optimat.permute_list(at_ord, perm)
+    results.atom_order = tuple(at_ord)
 
 
 class NoisyMPSBackendImpl(MPSBackendImpl):
@@ -468,31 +728,34 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
     norm_gap_before_jump: float
     root_finder: Optional[BrentsRootFinder]
 
-    def __init__(self, config: MPSConfig, pulser_data: PulserData):
+    def __init__(self, config: MPSConfig, pulser_data: SequenceData):
         super().__init__(config, pulser_data)
         self.lindblad_ops = pulser_data.lindblad_ops
         self.root_finder = None
 
-        assert self.has_lindblad_noise
+        assert self.lindblad_ops
 
     def init_lindblad_noise(self) -> None:
         stacked = torch.stack(self.lindblad_ops)
         # The below is used for batch computation of noise collapse weights.
         self.aggregated_lindblad_ops = stacked.conj().transpose(1, 2) @ stacked
 
-        self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops)
-        self.jump_threshold = random.random()
-        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+        self.lindblad_noise = compute_noise_from_lindbladians(self.lindblad_ops, self.dim)
+
+    def set_jump_threshold(self, bound: float) -> None:
+        self.jump_threshold = random.uniform(0.0, bound)
+        self.norm_gap_before_jump = self.state.norm().item() ** 2 - self.jump_threshold
 
     def init(self) -> None:
-        super().init()
         self.init_lindblad_noise()
+        super().init()
+        self.set_jump_threshold(1.0)
 
-    def tdvp_complete(self) -> None:
+    def sweep_complete(self) -> None:
         previous_time = self.current_time
         self.current_time = self.target_time
         previous_norm_gap_before_jump = self.norm_gap_before_jump
-        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+        self.norm_gap_before_jump = self.state.norm().item() ** 2 - self.jump_threshold
 
         if self.root_finder is None:
             # No quantum jump location finding in progress
@@ -512,12 +775,12 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
 
             return
 
-        self.norm_gap_before_jump = self.state.norm() ** 2 - self.jump_threshold
+        self.norm_gap_before_jump = self.state.norm().item() ** 2 - self.jump_threshold
         self.root_finder.provide_ordinate(self.current_time, self.norm_gap_before_jump)
 
         if self.root_finder.is_converged(tolerance=1):
             self.do_random_quantum_jump()
-            self.target_time = (self.timestep_index + 1) * self.config.dt
+            self.target_time = self.target_times[self._timestep_index + 1]
             self.root_finder = None
         else:
             self.target_time = self.root_finder.get_next_abscissa()
@@ -530,35 +793,156 @@ class NoisyMPSBackendImpl(MPSBackendImpl):
                 for qubit in range(self.state.num_sites)
                 for op in self.lindblad_ops
             ],
-            weights=jump_operator_weights.reshape(-1).tolist(),
+            weights=jump_operator_weights.view(-1).tolist(),
         )[0]
 
         self.state.apply(jumped_qubit_index, jump_operator)
         self.state.orthogonalize(0)
         self.state *= 1 / self.state.norm()
+        self.init_baths()
 
-        norm_after_normalizing = self.state.norm()
+        norm_after_normalizing = self.state.norm().item()
         assert math.isclose(norm_after_normalizing, 1, abs_tol=1e-10)
-        self.jump_threshold = random.uniform(0.0, norm_after_normalizing**2)
-        self.norm_gap_before_jump = norm_after_normalizing**2 - self.jump_threshold
+        self.set_jump_threshold(norm_after_normalizing**2)
 
-    def fill_results(self) -> None:
-        # Remove the noise from self.hamiltonian for the callbacks.
-        # Since update_H is called at the start of do_time_step this is safe.
-        update_H(
-            hamiltonian=self.hamiltonian,
-            omega=self.omega[self.timestep_index - 1, :],  # Meh
-            delta=self.delta[self.timestep_index - 1, :],
-            phi=self.phi[self.timestep_index - 1, :],
+    def timestep_complete(self) -> None:
+        self.update_H_no_noise()
+        super().timestep_complete()
+
+
+class DMRGBackendImpl(MPSBackendImpl):
+    def __init__(
+        self,
+        mps_config: MPSConfig,
+        pulser_data: SequenceData,
+        energy_tolerance: float = 1e-5,
+        max_sweeps: int = 2000,
+    ):
+
+        if mps_config.noise_model.noise_types != ():
+            raise NotImplementedError(
+                "DMRG solver does not currently support noise types"
+                f"you are using: {mps_config.noise_model.noise_types}"
+            )
+        super().__init__(mps_config, pulser_data)
+        self.previous_energy: Optional[float] = None
+        self.current_energy: Optional[float] = None
+        self.sweep_count: int = 0
+        self.energy_tolerance: float = energy_tolerance
+        self.max_sweeps: int = max_sweeps
+
+    def convergence_check(self, energy_tolerance: float) -> bool:
+        if self.previous_energy is None or self.current_energy is None:
+            return False
+        return abs(self.current_energy - self.previous_energy) < energy_tolerance
+
+    def progress(self) -> None:
+        if self.is_finished():
+            return
+
+        # perform one two-site energy minimization and update
+        idx = self._sweep_index
+        assert self._swipe_direction in (
+            SwipeDirection.LEFT_TO_RIGHT,
+            SwipeDirection.RIGHT_TO_LEFT,
+        ), "Unknown Swipe direction"
+
+        orth_center_right = self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+        # The baths used below might have been prefetched by the previous step.
+        wait_for_transfers()
+        new_L, new_R, energy = minimize_energy_pair(
+            state_factors=self.state.factors[idx : idx + 2],
+            ham_factors=self.hamiltonian.factors[idx : idx + 2],
+            baths=(self.left_baths[-1], self.right_baths[-1]),
+            orth_center_right=orth_center_right,
+            config=self.config,
+            residual_tolerance=self.config.precision,
         )
+        self.state.factors[idx], self.state.factors[idx + 1] = new_L, new_R
+        self.state.orthogonality_center = idx + 1 if orth_center_right else idx
+        self.current_energy = energy
 
-        super().fill_results()
+        # updating baths and orthogonality center
+        if self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT:
+            self._left_to_right_update(idx)
+        elif self._swipe_direction == SwipeDirection.RIGHT_TO_LEFT:
+            self._right_to_left_update(idx)
+        else:
+            raise Exception("Did not expect this")
+
+        self.save_simulation()
+
+    def _left_to_right_update(self, idx: int) -> None:
+        if idx < self.qubit_count - 2:
+            # Prefetch the right bath for the next minimization; the transfer
+            # overlaps with the bath computation below.
+            self.right_baths[-2] = fetch_bath_from_cpu(
+                self.right_baths[-2], self.right_baths[-1].device
+            )
+            self.left_baths.append(
+                new_left_bath(
+                    self.get_current_left_bath(),
+                    self.state.factors[idx],
+                    self.hamiltonian.factors[idx],
+                )
+            )
+            # The previous left bath is unused until the right-to-left sweep
+            # returns here; keep it in CPU memory in the meantime.
+            self.left_baths[-2] = offload_bath_to_cpu(self.left_baths[-2])
+            self.right_baths.pop()
+            self._sweep_index += 1
+
+        if self._sweep_index == self.qubit_count - 2:
+            self._swipe_direction = SwipeDirection.RIGHT_TO_LEFT
+
+    def _right_to_left_update(self, idx: int) -> None:
+        if idx > 0:
+            # Prefetch the left bath for the next minimization; the transfer
+            # overlaps with the bath computation below.
+            self.left_baths[-2] = fetch_bath_from_cpu(
+                self.left_baths[-2], self.left_baths[-1].device
+            )
+            self.right_baths.append(
+                new_right_bath(
+                    self.get_current_right_bath(),
+                    self.state.factors[idx + 1],
+                    self.hamiltonian.factors[idx + 1],
+                )
+            )
+            # The accumulated right baths are reused by the next left-to-right
+            # sweep; keep them in CPU memory until then.
+            self.right_baths[-2] = offload_bath_to_cpu(self.right_baths[-2])
+            self.left_baths.pop()
+            self._sweep_index -= 1
+
+        if self._sweep_index == 0:
+            self.state.orthogonalize(0)
+            self._swipe_direction = SwipeDirection.LEFT_TO_RIGHT
+            self.sweep_count += 1
+            self.sweep_complete()
+
+    def sweep_complete(self) -> None:
+        # This marks the end of one full sweep: checking convergence
+        if self.convergence_check(self.energy_tolerance):
+            self.current_time = self.target_time
+            self.timestep_complete()
+        elif self.sweep_count + 1 > self.max_sweeps:
+            # not converged
+            raise RuntimeError(f"DMRG did not converge after {self.max_sweeps} sweeps")
+        else:
+            # not converged for the current sweep. restart
+            self.previous_energy = self.current_energy
+
+        assert self._sweep_index == 0
+        assert self.state.orthogonality_center == 0
+        assert self._swipe_direction == SwipeDirection.LEFT_TO_RIGHT
+        self.current_energy = None
 
 
-def create_impl(sequence: Sequence, config: MPSConfig) -> MPSBackendImpl:
-    pulser_data = PulserData(sequence=sequence, config=config, dt=config.dt)
+def create_impl(data: SequenceData, config: MPSConfig) -> MPSBackendImpl:
 
-    if pulser_data.has_lindblad_noise:
-        return NoisyMPSBackendImpl(config, pulser_data)
-
-    return MPSBackendImpl(config, pulser_data)
+    if data.lindblad_ops:
+        return NoisyMPSBackendImpl(config, data)
+    if config.solver == Solver.DMRG:
+        return DMRGBackendImpl(config, data)
+    return MPSBackendImpl(config, data)

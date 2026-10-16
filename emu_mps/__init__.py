@@ -1,20 +1,19 @@
-from emu_base import (
-    Callback,
+from pulser.backend import (
     BitStrings,
     CorrelationMatrix,
     Energy,
     EnergyVariance,
     Expectation,
     Fidelity,
-    QubitDensity,
+    Occupation,
     StateResult,
-    SecondMomentOfEnergy,
+    EnergySecondMoment,
 )
-from .mps_config import MPSConfig
+from .mps_config import MPSConfig, Solver
 from .mpo import MPO
 from .mps import MPS, inner
 from .mps_backend import MPSBackend
-
+from .observables import EntanglementEntropy
 
 __all__ = [
     "__version__",
@@ -22,17 +21,18 @@ __all__ = [
     "MPS",
     "inner",
     "MPSConfig",
+    "Solver",
     "MPSBackend",
-    "Callback",
     "StateResult",
     "BitStrings",
-    "QubitDensity",
+    "Occupation",
     "CorrelationMatrix",
     "Expectation",
     "Fidelity",
     "Energy",
     "EnergyVariance",
-    "SecondMomentOfEnergy",
+    "EnergySecondMoment",
+    "EntanglementEntropy",
 ]
 
-__version__ = "1.2.5"
+__version__ = "2.10.0rc1"

@@ -1,13 +1,19 @@
-import pulser
-from typing import Tuple
-import torch
-import math
-from pulser.noise_model import NoiseModel
+from typing import Callable, Iterable, Sequence, Iterator
+from dataclasses import dataclass
 from enum import Enum
-
-from emu_base.base_classes.config import BackendConfig
-from emu_base.lindblad_operators import get_lindblad_operators
-from emu_base.utils import dist2, dist3
+import bisect
+import math
+import torch
+import pulser
+from pulser.sampler import SequenceSamples
+from pulser.noise_model import NoiseModel
+from pulser.register.base_register import QubitId
+from pulser.backend.config import EmulationConfig
+from pulser.backend.observable import Observable, TIME_TOLERANCE
+from pulser._hamiltonian_data import HamiltonianData
+from pulser.channels.base_channel import States
+from emu_base.jump_lindblad_operators import get_lindblad_operators
+from emu_base.math.pchip_torch import PCHIP1D
 
 
 class HamiltonianType(Enum):
@@ -15,178 +21,19 @@ class HamiltonianType(Enum):
     XY = 2
 
 
-def _get_qubit_positions(
-    register: pulser.Register,
-) -> list[torch.Tensor]:
-    """Conversion from pulser Register to emu-mps register (torch type).
-    Each element will be given as [Rx,Ry,Rz]"""
-
-    positions = [position.as_tensor() for position in register.qubits.values()]
-
-    if len(positions[0]) == 2:
-        return [torch.cat((position, torch.zeros(1))) for position in positions]
-    return positions
-
-
-def _rydberg_interaction(sequence: pulser.Sequence) -> torch.Tensor:
-    """
-    Computes the Ising interaction matrix from the qubit positions.
-    Hᵢⱼ=C₆/Rᵢⱼ⁶ (nᵢ⊗ nⱼ)
-    """
-
-    num_qubits = len(sequence.register.qubit_ids)
-
-    c6 = sequence.device.interaction_coeff
-
-    qubit_positions = _get_qubit_positions(sequence.register)
-    interaction_matrix = torch.zeros(num_qubits, num_qubits, dtype=torch.float64)
-
-    for numi in range(len(qubit_positions)):
-        for numj in range(numi + 1, len(qubit_positions)):
-            interaction_matrix[numi][numj] = (
-                c6 / dist2(qubit_positions[numi], qubit_positions[numj]) ** 3
-            )
-            interaction_matrix[numj, numi] = interaction_matrix[numi, numj]
-    return interaction_matrix
-
-
-def _xy_interaction(sequence: pulser.Sequence) -> torch.Tensor:
-    """
-    Computes the XY interaction matrix from the qubit positions.
-    C₃ (1−3 cos(𝜃ᵢⱼ)²)/ Rᵢⱼ³ (𝜎ᵢ⁺ 𝜎ⱼ⁻ +  𝜎ᵢ⁻ 𝜎ⱼ⁺)
-    """
-    num_qubits = len(sequence.register.qubit_ids)
-
-    c3 = sequence.device.interaction_coeff_xy
-
-    qubit_positions = _get_qubit_positions(sequence.register)
-    interaction_matrix = torch.zeros(num_qubits, num_qubits)
-    mag_field = torch.tensor(sequence.magnetic_field)  # by default [0.0,0.0,30.0]
-    mag_norm = torch.linalg.norm(mag_field)
-
-    for numi in range(len(qubit_positions)):
-        for numj in range(numi + 1, len(qubit_positions)):
-            cosine = 0
-            if mag_norm >= 1e-8:  # selected by hand
-                cosine = torch.dot(
-                    (qubit_positions[numi] - qubit_positions[numj]), mag_field
-                ) / (
-                    torch.linalg.norm(qubit_positions[numi] - qubit_positions[numj])
-                    * mag_norm
-                )
-
-            interaction_matrix[numi][numj] = (
-                c3  # check this value with pulser people
-                * (1 - 3 * cosine**2)
-                / dist3(qubit_positions[numi], qubit_positions[numj])
-            )
-            interaction_matrix[numj, numi] = interaction_matrix[numi, numj]
-
-    return interaction_matrix
-
-
-def _extract_omega_delta_phi(
-    *,
-    sequence: pulser.Sequence,
-    dt: int,
-    with_modulation: bool,
-    laser_waist: float | None,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """
-    Samples the Pulser sequence and returns a tuple of tensors (omega, delta, phi)
-    containing:
-    - omega[i, q] = amplitude at time i * dt for qubit q
-    - delta[i, q] = detuning at time i * dt for qubit q
-    - phi[i, q] = phase at time i * dt for qubit q
-
-    if laser_waist is w_0 != None, the omega values coming from the global pulse channel
-    will me modulated as $\\Omega_i=\\Omega_i e^{-r_i^2/w_0^2}$
-    """
-
-    if with_modulation and sequence._slm_mask_targets:
-        raise NotImplementedError(
-            "Simulation of sequences combining an SLM mask and output "
-            "modulation is not supported."
-        )
-
-    samples = pulser.sampler.sample(
-        sequence,
-        modulation=with_modulation,
-        extended_duration=sequence.get_duration(include_fall_time=with_modulation),
-    )
-    sequence_dict = samples.to_nested_dict(all_local=True, samples_type="tensor")["Local"]
-
-    if "ground-rydberg" in sequence_dict and len(sequence_dict) == 1:
-        locals_a_d_p = sequence_dict["ground-rydberg"]
-    elif "XY" in sequence_dict and len(sequence_dict) == 1:
-        locals_a_d_p = sequence_dict["XY"]
-    else:
-        raise ValueError("Emu-MPS only accepts ground-rydberg or mw_global channels")
-
-    max_duration = sequence.get_duration(include_fall_time=with_modulation)
-
-    nsamples = math.ceil(max_duration / dt - 1 / 2)
-    omega = torch.zeros(
-        nsamples,
-        len(sequence.register.qubit_ids),
-        dtype=torch.float64,
-    )
-
-    delta = torch.zeros(
-        nsamples,
-        len(sequence.register.qubit_ids),
-        dtype=torch.float64,
-    )
-    phi = torch.zeros(
-        nsamples,
-        len(sequence.register.qubit_ids),
-        dtype=torch.float64,
-    )
-
-    if laser_waist:
-        qubit_positions = _get_qubit_positions(sequence.register)
-        waist_factors = torch.tensor(
-            [math.exp(-((x[:2].norm() / laser_waist) ** 2)) for x in qubit_positions]
-        )
-    else:
-        waist_factors = torch.ones(len(sequence.register.qubit_ids))
-
-    global_times = set()
-    for ch, ch_samples in samples.channel_samples.items():
-        if samples._ch_objs[ch].addressing == "Global":
-            for slot in ch_samples.slots:
-                global_times |= set(i for i in range(slot.ti, slot.tf))
-
-    step = 0
-    t = (step + 1 / 2) * dt
-
-    while t < max_duration:
-        for q_pos, q_id in enumerate(sequence.register.qubit_ids):
-            omega[step, q_pos] = (
-                locals_a_d_p[q_id]["amp"][math.floor(t)]
-                + locals_a_d_p[q_id]["amp"][math.ceil(t)]
-            ) / 2.0
-            delta[step, q_pos] = (
-                locals_a_d_p[q_id]["det"][math.floor(t)]
-                + locals_a_d_p[q_id]["det"][math.ceil(t)]
-            ) / 2.0
-            phi[step, q_pos] = (
-                locals_a_d_p[q_id]["phase"][math.floor(t)]
-                + locals_a_d_p[q_id]["phase"][math.ceil(t)]
-            ) / 2.0
-        if t in global_times:
-            omega[step] *= waist_factors
-        step += 1
-        t = (step + 1 / 2) * dt
-
-    return omega, delta, phi
-
-
-_NON_LINDBLADIAN_NOISE = {"SPAM", "doppler", "amplitude"}
+_NON_LINDBLADIAN_NOISE = {
+    "SPAM",
+    "doppler",
+    "amplitude",
+    "detuning",
+    "register",
+    "dmm_sigma",
+    "dmm_crosstalk",
+}
 
 
 def _get_all_lindblad_noise_operators(
-    noise_model: NoiseModel | None,
+    noise_model: NoiseModel | None, dim: int = 2, interact_type: str = "ising"
 ) -> list[torch.Tensor]:
     if noise_model is None:
         return []
@@ -195,67 +42,354 @@ def _get_all_lindblad_noise_operators(
         op
         for noise_type in noise_model.noise_types
         if noise_type not in _NON_LINDBLADIAN_NOISE
-        for op in get_lindblad_operators(noise_type=noise_type, noise_model=noise_model)
+        for op in get_lindblad_operators(
+            noise_type=noise_type,
+            noise_model=noise_model,
+            dim=dim,
+            interact_type=interact_type,
+        )
     ]
 
 
-class PulserData:
-    slm_end_time: int
-    full_interaction_matrix: torch.Tensor
-    masked_interaction_matrix: torch.Tensor
+def _unique_observable_times(
+    config: EmulationConfig,
+) -> set[float]:
+    """Collect unique evaluation times in [0, 1] for all observables."""
+    observable_times: set[float] = set()
+
+    for obs in config.observables:
+        if obs.evaluation_times is not None:
+            observable_times |= set(obs.evaluation_times)
+        elif not isinstance(config.default_evaluation_times, str):  # != "Full"
+            observable_times |= set(config.default_evaluation_times.tolist())
+        else:
+            raise ValueError(
+                f"default config {config.default_evaluation_times} is not supported."
+            )
+
+    return observable_times
+
+
+def _fuzzy_union(
+    base: Sequence[float], extra: Iterable[float], tol: float
+) -> list[float]:
+    """Merge the sorted ``extra`` into the sorted ``base``, dropping near-duplicates.
+
+    Times in ``base`` take precedence: an element of ``extra`` closer than
+    ``tol`` to an already accepted time is discarded rather than replacing it.
+    """
+    merged = list(base)
+    for t in extra:
+        i = bisect.bisect_left(merged, t)
+        near_left = i > 0 and t - merged[i - 1] <= tol
+        near_right = i < len(merged) and merged[i] - t <= tol
+        if not (near_left or near_right):
+            merged.insert(i, t)
+    return merged
+
+
+def is_evaluation_time(
+    config: EmulationConfig,
+    observable: Observable,
+    t: float,
+    tolerance: float = TIME_TOLERANCE,
+) -> bool:
+    """Return True if ``t`` is a genuine sampling time for ``observable``.
+
+    Filters out time grid points that are close to, but not in, the
+    observable's evaluation times. ``tolerance`` matches Pulser's own notion of
+    distinct evaluation times, and the same value collapses near-duplicates in
+    `_get_target_times` - the two must agree, or an observable time could land
+    on a grid point that no longer matches it.
+
+    Args:
+        config: the config the observable belongs to
+        observable: the observable to check
+        t: the relative time, between 0 and 1
+        tolerance: how close ``t`` must be to count as a match
+
+    Returns:
+        whether the observable should be evaluated at ``t``
+    """
+    times = observable.evaluation_times
+
+    is_observable_eval_time = times is not None and config.is_time_in_evaluation_times(
+        t, times, tol=tolerance
+    )
+
+    return is_observable_eval_time or config.is_evaluation_time(t, tol=tolerance)
+
+
+def _get_target_times(
+    sequence: pulser.Sequence,
+    config: EmulationConfig,
+    dt: float,
+) -> list[float]:
+    """Compute the sorted absolute times to sample the sequence.
+
+    Combines a uniform grid with step ``dt`` and any extra observable times,
+    then converts everything to absolute times over the sequence duration.
+    Times closer together than `TIME_TOLERANCE` are considered the same time,
+    consistently with `is_evaluation_time`.
+    """
+    duration = float(sequence.get_duration(include_fall_time=config.with_modulation))
+    n_steps = math.floor(duration / dt)
+    evolution_times_rel = [i * float(dt) / duration for i in range(n_steps + 1)]
+    if evolution_times_rel[-1] < 1.0 - TIME_TOLERANCE:
+        evolution_times_rel.append(1.0)
+    target_times_rel = _fuzzy_union(
+        evolution_times_rel,
+        sorted(_unique_observable_times(config)),
+        TIME_TOLERANCE,
+    )
+    return [t * duration for t in target_times_rel]
+
+
+def _extract_omega_delta_phi(
+    noisy_samples: SequenceSamples,
+    qubit_ids: tuple[str, ...],
+    target_times: Sequence[float],
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Extract per-qubit laser parameters (Ω, δ, phase) from Pulser samples.
+
+    Pulser stores samples on the discrete grid t = 0, 1, ..., T-1
+    (with dt = 1.0), i.e. it does not provide values exactly
+    at t = T = pulse_duration. Pulser effectively assumes
+    Ω(T) = δ(T) = phase(T) = 0. For midpoint discretization we therefore
+    interpolate (and implicitly extrapolate near the end) to obtain
+    Ω(t_mid), δ(t_mid), and phase(t_mid) at t_mid = (t_k + t_{k+1}) / 2.
+
+    We evaluate the laser parameters at time midpoints to benefit from
+    a midpoint scheme.
+    https://en.wikipedia.org/wiki/Midpoint_method
+    """
+    sequence_dict = noisy_samples.to_nested_dict(
+        all_local=True,
+        samples_type="tensor",
+    )["Local"]
+    if len(sequence_dict) != 1:
+        raise ValueError("Only single interaction type is supported.")
+
+    if "ground-rydberg" in sequence_dict:
+        locals_a_d_p = sequence_dict["ground-rydberg"]
+    elif "XY" in sequence_dict:
+        locals_a_d_p = sequence_dict["XY"]
+    else:
+        raise ValueError(
+            "Only `ground-rydberg` and `mw_global`(XY) channels are supported."
+        )
+    qubit_ids_filtered = [
+        (qpos, qid) for qpos, qid in enumerate(qubit_ids) if qid in locals_a_d_p
+    ]
+
+    target_t = torch.as_tensor(target_times, dtype=torch.float64)
+    t_mid = 0.5 * (target_t[:-1] + target_t[1:])
+
+    shape = (t_mid.numel(), len(qubit_ids))
+    omega_mid = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
+    delta_mid = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
+    phi_mid = torch.zeros(shape, dtype=torch.float64, device=t_mid.device)
+
+    assert (
+        noisy_samples.max_duration - target_times[-1]
+    ) / noisy_samples.max_duration < TIME_TOLERANCE
+    t_grid = torch.arange(target_times[-1], dtype=torch.float64)
+
+    laser_by_data = {
+        "amp": omega_mid,
+        "det": delta_mid,
+        "phase": phi_mid,
+    }
+    for name, data_mid in laser_by_data.items():
+        for q_pos, q_id in qubit_ids_filtered:
+            signal = torch.as_tensor(locals_a_d_p[q_id][name])
+            if torch.is_complex(signal) and not torch.allclose(
+                signal.imag, torch.zeros_like(signal.imag)
+            ):
+                raise ValueError(f"Input {name} has non-zero imaginary part.")
+
+            pchip = PCHIP1D(t_grid, signal.real)
+            data_mid[:, q_pos] = pchip(t_mid)
+            if name == "amp":
+                data_mid[-1, q_pos] = torch.where(
+                    data_mid[-1, q_pos] > 0,
+                    data_mid[-1, q_pos],
+                    0,
+                )
+
+    omega_c, delta_c, phi_c = (
+        arr.to(torch.complex128) for arr in (omega_mid, delta_mid, phi_mid)
+    )
+    return omega_c, delta_c, phi_c
+
+
+class _InteractionMatrixCallable:
+    """
+    Callable wrapper returning the SLM-masked or full interaction matrix
+    depending on time.
+
+    Returns the masked matrix before the SLM end time, and the full matrix
+    after.
+    Implemented as a class (rather than a lambda) to support pickling in the
+    MPSbackend.
+    """
+
+    def __init__(
+        self, full_matrix: torch.Tensor, masked_matrix: torch.Tensor, slm_end_time: float
+    ):
+        self.full_matrix = full_matrix
+        self.masked_matrix = masked_matrix
+        self.slm_end_time = slm_end_time
+
+    def __call__(self, t: float) -> torch.Tensor:
+        if t < self.slm_end_time:
+            return self.masked_matrix
+        else:
+            return self.full_matrix
+
+
+@dataclass(frozen=True)
+class SequenceData:
     omega: torch.Tensor
     delta: torch.Tensor
     phi: torch.Tensor
+    interaction_matrix: Callable[[float], torch.Tensor]
+    qubit_ids: tuple[QubitId, ...]
+    bad_atoms: tuple[bool, ...]
+    lindblad_ops: list[torch.Tensor]
+    state_prep_error: float
+    target_times: list[float]
+    eigenstates: list[States]
+    hamiltonian_type: HamiltonianType
+
+    @property
+    def qubit_count(self) -> int:
+        return len(self.qubit_ids)
+
+    @property
+    def dim(self) -> int:
+        return len(self.eigenstates)
+
+
+class PulserData:
+    target_times: list[float]
+    slm_end_time: float
+    full_interaction_matrix: torch.Tensor | None
     hamiltonian_type: HamiltonianType
     lindblad_ops: list[torch.Tensor]
+    qubit_ids: tuple[QubitId, ...]
+    noise_model: pulser.NoiseModel
+    interaction_cutoff: float
+    eigenstates: list[States]
+    qubit_count: int
+    dim: int
 
-    def __init__(self, *, sequence: pulser.Sequence, config: BackendConfig, dt: int):
-        self.qubit_count = len(sequence.register.qubit_ids)
-
-        laser_waist = (
-            config.noise_model.laser_waist if config.noise_model is not None else None
+    def __init__(self, *, sequence: pulser.Sequence, config: EmulationConfig, dt: float):
+        self._sequence = sequence
+        self.qubit_ids = sequence.register.qubit_ids
+        self.qubit_count = len(self.qubit_ids)
+        self.target_times = _get_target_times(sequence=sequence, config=config, dt=dt)
+        self.noise_model = (
+            sequence.device.default_noise_model
+            if config.prefer_device_noise_model
+            else config.noise_model
         )
-        self.omega, self.delta, self.phi = _extract_omega_delta_phi(
-            sequence=sequence,
-            dt=dt,
+
+        if not self.noise_model:
+            self.noise_model = NoiseModel()
+
+        self.hamiltonian = HamiltonianData.from_sequence(
+            sequence,
             with_modulation=config.with_modulation,
-            laser_waist=laser_waist,
+            noise_model=self.noise_model,
+            n_trajectories=config.n_trajectories,
         )
-        self.lindblad_ops = _get_all_lindblad_noise_operators(config.noise_model)
-        self.has_lindblad_noise: bool = self.lindblad_ops != []
 
-        addressed_basis = sequence.get_addressed_bases()[0]
-        if addressed_basis == "ground-rydberg":  # for local and global
+        self.eigenstates = self.hamiltonian.basis_data.eigenbasis
+
+        int_type = self.hamiltonian.basis_data.interaction_type
+        self.dim = self.hamiltonian.basis_data.dim
+        if int_type == "ising":  # for local and global
             self.hamiltonian_type = HamiltonianType.Rydberg
-        elif addressed_basis == "XY":
+        elif int_type == "XY":
             self.hamiltonian_type = HamiltonianType.XY
         else:
-            raise ValueError(f"Unsupported basis: {addressed_basis}")
+            raise ValueError(f"Unsupported basis: {int_type}")
 
+        self.lindblad_ops = _get_all_lindblad_noise_operators(
+            self.noise_model, dim=self.dim, interact_type=int_type
+        )
+        self.has_lindblad_noise: bool = self.lindblad_ops != []
+
+        self.full_interaction_matrix = None
         if config.interaction_matrix is not None:
-            assert len(config.interaction_matrix) == self.qubit_count, (
+            assert config.interaction_matrix.shape[1] == self.qubit_count, (
                 "The number of qubits in the register should be the same as the size of "
                 "the interaction matrix"
             )
+            self.full_interaction_matrix = config.interaction_matrix.as_tensor()
+            if self.hamiltonian_type == HamiltonianType.Rydberg:
+                assert (
+                    self.full_interaction_matrix.shape[0] == 1
+                ), "There must be 1 interaction matrix in the stack for the Rydberg term."
+            elif self.hamiltonian_type == HamiltonianType.XY:
+                assert self.full_interaction_matrix.shape[0] == 2, (
+                    "There must be 2 interaction matrices in the stack "
+                    "for the XY and Rydberg term respectively."
+                )
+            else:
+                raise ValueError(f"Unsupported interaction type {self.hamiltonian_type}")
 
-            self.full_interaction_matrix = torch.tensor(
-                config.interaction_matrix, dtype=torch.float64
-            )
-        elif self.hamiltonian_type == HamiltonianType.Rydberg:
-            self.full_interaction_matrix = _rydberg_interaction(sequence)
-        elif self.hamiltonian_type == HamiltonianType.XY:
-            self.full_interaction_matrix = _xy_interaction(sequence)
-        self.full_interaction_matrix[
-            torch.abs(self.full_interaction_matrix) < config.interaction_cutoff
-        ] = 0.0
-        self.masked_interaction_matrix = self.full_interaction_matrix.clone()
-
+        self.interaction_cutoff = config.interaction_cutoff
         self.slm_end_time = (
             sequence._slm_mask_time[1] if len(sequence._slm_mask_time) > 1 else 0.0
         )
 
-        # disable interaction for SLM masked qubits
-        slm_targets = list(sequence._slm_mask_targets)
-        for target in sequence.register.find_indices(slm_targets):
-            self.masked_interaction_matrix[target] = 0.0
-            self.masked_interaction_matrix[:, target] = 0.0
+    def get_sequences(self) -> Iterator[SequenceData]:
+        for samples in self.hamiltonian.noisy_samples:
+            full_interaction_matrix = (
+                self.full_interaction_matrix
+                if self.full_interaction_matrix is not None
+                else samples.trajectory.interaction_matrix.as_tensor()
+            )
+
+            full_interaction_matrix = full_interaction_matrix.clone()
+
+            full_interaction_matrix[
+                torch.abs(full_interaction_matrix) < self.interaction_cutoff
+            ] = 0.0
+
+            masked_interaction_matrix = full_interaction_matrix.clone()
+
+            # disable interaction for SLM masked qubits
+
+            slm_targets = list(self._sequence._slm_mask_targets)
+            for target in self._sequence.register.find_indices(slm_targets):
+                masked_interaction_matrix[:, target] = 0.0
+                masked_interaction_matrix[:, :, target] = 0.0
+
+            omega, delta, phi = _extract_omega_delta_phi(
+                samples.samples, self.qubit_ids, self.target_times
+            )
+
+            interaction_matrix = _InteractionMatrixCallable(
+                full_matrix=full_interaction_matrix,
+                masked_matrix=masked_interaction_matrix,
+                slm_end_time=self.slm_end_time,
+            )
+
+            for _ in range(samples.reps):
+                yield SequenceData(
+                    omega,
+                    delta,
+                    phi,
+                    interaction_matrix,
+                    tuple(samples.trajectory.bad_atoms.keys()),
+                    tuple(bool(x) for x in samples.trajectory.bad_atoms.values()),
+                    self.lindblad_ops,
+                    self.noise_model.state_prep_error,
+                    self.target_times,
+                    self.eigenstates,
+                    self.hamiltonian_type,
+                )

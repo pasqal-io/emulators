@@ -1,47 +1,39 @@
-from .base_classes.results import Results
-from .base_classes.callback import Callback, AggregationType
-from .base_classes.config import BackendConfig
-from .base_classes.operator import Operator
-from .base_classes.state import State
-from .base_classes.backend import Backend
-from .base_classes.default_callbacks import (
-    BitStrings,
-    CorrelationMatrix,
-    Energy,
-    EnergyVariance,
-    Expectation,
-    Fidelity,
-    QubitDensity,
-    StateResult,
-    SecondMomentOfEnergy,
+from .constants import DEVICE_COUNT
+from .pulser_adapter import (
+    PulserData,
+    HamiltonianType,
+    SequenceData,
+    is_evaluation_time,
 )
-from .pulser_adapter import PulserData, HamiltonianType
 from .math.brents_root_finding import find_root_brents
 from .math.krylov_exp import krylov_exp, DEFAULT_MAX_KRYLOV_DIM
+from .jump_lindblad_operators import compute_noise_from_lindbladians
+from .math.matmul import matmul_2x2_with_batched
+from .utils import (
+    get_max_rss_cpu,
+    get_max_rss_gpu,
+    apply_measurement_errors,
+    unix_like,
+    init_logging,
+)
 
 __all__ = [
     "__version__",
-    "Results",
-    "BackendConfig",
-    "Operator",
-    "State",
-    "Backend",
-    "AggregationType",
-    "Callback",
-    "StateResult",
-    "BitStrings",
-    "QubitDensity",
-    "CorrelationMatrix",
-    "Expectation",
-    "Fidelity",
-    "Energy",
-    "EnergyVariance",
-    "SecondMomentOfEnergy",
+    "get_max_rss_cpu",
+    "get_max_rss_gpu",
+    "compute_noise_from_lindbladians",
+    "matmul_2x2_with_batched",
     "PulserData",
+    "SequenceData",
+    "is_evaluation_time",
     "find_root_brents",
     "krylov_exp",
     "HamiltonianType",
     "DEFAULT_MAX_KRYLOV_DIM",
+    "DEVICE_COUNT",
+    "apply_measurement_errors",
+    "unix_like",
+    "init_logging",
 ]
 
-__version__ = "1.2.5"
+__version__ = "2.10.0rc1"

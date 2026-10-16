@@ -1,0 +1,285 @@
+import torch
+import pytest
+
+from emu_base.math.krylov_energy_min import (
+    _ritz_vector,
+    krylov_energy_minimization_impl,
+)
+from test.emu_mps.test_hamiltonian import single_gate, sigma_x
+from .data import (
+    v1,
+    v2,
+    lb1,
+    rb1,
+    lb2,
+    rb2,
+    combined_hamiltonian_factors1,
+    combined_hamiltonian_factors2,
+)
+
+dtype = torch.complex128
+
+
+def sigma_z(i: int, nqubits: int, dim: int) -> torch.Tensor:
+    s_z = torch.zeros(dim, dim, dtype=dtype)
+    s_z[0, 0] = 1.0
+    s_z[1, 1] = -1.0
+    return single_gate(i, nqubits, s_z)
+
+
+def build_Ising_hamiltonian(N: int, J: float, h: float) -> torch.Tensor:
+    """Build the Ising Hamiltonian and test the Lanczos routine afterwards
+
+    Returns: H = -J * sum Z_i Z_{i+1} - h * sum X_i
+    """
+    H = torch.zeros((2**N, 2**N), dtype=dtype)
+
+    # Interaction terms
+    for i in range(N - 1):
+        H += -J * (sigma_z(i, N, 2) @ sigma_z(i + 1, N, 2))
+
+    # Transverse field terms
+    for i in range(N):
+        H += -h * sigma_x(i, N, 2)
+
+    return H
+
+
+def check(
+    A: torch.Tensor,
+    v: torch.Tensor,
+    norm_tolerance: float,
+    residual_tolerance: float,
+    expect_converged: bool,
+    expected_iteration_count: int,
+    expect_happy_breakdown: bool,
+    max_krylov_dim: int = 80,
+):
+
+    v = v.clone().to(A.dtype)
+    v = v / v.norm()
+
+    def op(x: torch.Tensor) -> torch.Tensor:
+        assert x.norm() == pytest.approx(1)
+        return A @ x
+
+    result = krylov_energy_minimization_impl(
+        op=op,
+        psi=v,
+        norm_tolerance=norm_tolerance,
+        residual_tolerance=residual_tolerance,
+        max_krylov_dim=max_krylov_dim,
+    )
+
+    assert result.converged == expect_converged
+    assert result.happy_breakdown == expect_happy_breakdown
+    assert result.iteration_count in {
+        expected_iteration_count,
+        expected_iteration_count + 1,
+    }  # +1 is for windows machines. otherwise pipeline fails
+    E_approx = result.ground_energy.real
+    psi_approx = result.ground_state
+
+    eigen_energy, eigen_state = torch.linalg.eigh(A)
+    E_exact = eigen_energy[0]
+    psi_exact = eigen_state[:, 0]
+
+    # test residual norm criterion
+    if expect_converged:
+        assert torch.allclose(
+            torch.tensor(E_approx), torch.tensor(E_exact), atol=norm_tolerance
+        )
+        res = torch.norm(op(psi_approx) - E_approx * psi_approx).item()
+        assert res < residual_tolerance
+
+        # test happy breakdown criterion
+        if expect_happy_breakdown:
+            overlap = torch.norm(torch.dot(psi_exact.conj(), psi_approx))
+            assert torch.allclose(
+                overlap, torch.tensor(1.0, dtype=overlap.dtype), atol=1e-8
+            )
+
+
+def test_id():
+    dim = 3
+    A = torch.eye(dim, dtype=dtype)
+    v = torch.zeros(dim, dtype=dtype)
+    v[0] = 1.0
+
+    check(
+        A,
+        v,
+        norm_tolerance=1e-8,
+        residual_tolerance=1e-10,
+        expect_converged=True,
+        expect_happy_breakdown=True,
+        expected_iteration_count=1,
+        max_krylov_dim=dim,
+    )
+
+
+def test_id_large():
+    dim = 100
+    A = torch.eye(dim, dtype=dtype)
+    v = torch.zeros(dim, dtype=dtype)
+    v[0] = 1.0
+
+    check(
+        A,
+        v,
+        norm_tolerance=1e-8,
+        residual_tolerance=1e-10,
+        expect_converged=True,
+        expect_happy_breakdown=True,
+        expected_iteration_count=1,
+        max_krylov_dim=dim,
+    )
+
+
+def test_exact_case():
+    # A has ground-state with eigenvalue 1.0
+    A = torch.tensor([[2.0, -1.0], [-1.0, 2.0]], dtype=torch.float64)
+    v = torch.tensor([1.0, 1.0], dtype=torch.float64)
+    check(
+        A,
+        v,
+        norm_tolerance=1e-12,
+        residual_tolerance=1e-10,
+        expect_converged=True,
+        expect_happy_breakdown=True,
+        expected_iteration_count=1,
+        max_krylov_dim=2,
+    )
+
+
+def test_ising_hamiltonian():
+    N = 9
+    d = 2
+    J, h = 1.0, 0.1
+
+    # build initial state 'v' from the solution of the smaller H
+    N_small = 4
+    H_small = build_Ising_hamiltonian(N_small, J, h)
+    eigvals, eigvecs = torch.linalg.eigh(H_small)
+    ground_state_small = eigvecs[:, 0]
+
+    v = torch.ones(d**N, dtype=ground_state_small.dtype)
+    v[: d**N_small] = ground_state_small
+    v = v / v.norm()
+
+    A = build_Ising_hamiltonian(N, J, h)
+
+    check(
+        A,
+        v,
+        max_krylov_dim=d**N,
+        norm_tolerance=1e-8,
+        residual_tolerance=1e-8,
+        expect_converged=True,
+        expect_happy_breakdown=False,
+        expected_iteration_count=28,
+    )
+
+
+@pytest.mark.parametrize(
+    ("lb", "rb", "combined_hamiltonian_factors", "v", "krylov_dim"),
+    [
+        pytest.param(lb1, rb1, combined_hamiltonian_factors1, v1, 10),
+        pytest.param(lb2, rb2, combined_hamiltonian_factors2, v2, 100),
+    ],
+)
+def test_live_data(lb, rb, combined_hamiltonian_factors, v, krylov_dim):
+    v = v.reshape(-1)
+
+    tensored_h = torch.einsum(
+        "ibu, bjvc, kcw -> ijkuvw", lb, combined_hamiltonian_factors, rb
+    ).reshape(len(v), len(v))
+
+    def op(x: torch.Tensor) -> torch.Tensor:
+        return tensored_h @ x
+
+    eigenvalues, eigenvectors = torch.linalg.eigh(tensored_h)
+    min_ed, e_ed = eigenvectors[:, 0], eigenvalues[0]
+    result = krylov_energy_minimization_impl(op, v, 1e-8, 1e-5, krylov_dim)
+    e_vec = result.ground_energy.real
+    min_vec = result.ground_state
+    assert torch.allclose(torch.tensor([e_vec], dtype=torch.float64), e_ed)
+
+    complex_phase = torch.vdot(min_ed, min_vec) / torch.vdot(min_ed, min_ed)
+    assert torch.allclose(min_vec, complex_phase * min_ed, rtol=1e-5, atol=1e-6)
+
+
+def test_krylov_restart():
+    dtype = torch.float64
+    N = 3
+    diag_elem = torch.tensor(range(N), dtype=dtype)
+    A = torch.diag(diag_elem)
+    v = torch.ones(N, dtype=dtype)
+
+    check(
+        A,
+        v,
+        norm_tolerance=1e-12,
+        residual_tolerance=1e-10,
+        expect_converged=True,
+        expect_happy_breakdown=False,
+        expected_iteration_count=36,
+        max_krylov_dim=2,
+    )
+
+
+def test_krylov_restart_misconvergence():
+    dtype = torch.float64
+    N = 3
+    diag_elem = torch.tensor([1, 2, 3], dtype=dtype)
+    A = torch.diag(diag_elem)  # eigenvectors are [1,0,0], [0,1,0], [0,0,1]
+    v_init = torch.ones(N, dtype=dtype)
+    v_init[0] = 0  # v_init == [0,1,0] + [0,0,1], it doesnt contain [1,0,0] direction
+
+    with pytest.raises(AssertionError):
+        # Since (v_init * [1,0,0]) == 0, the Krylov subspace will never include
+        # direction [1,0,0].
+        # This can cause the iteration to miss the true ground state and instead
+        # converge to the next eigenvector.
+        # Making it small solves the problem `v_init += 1e-3[1,0,0]`
+        check(
+            A,
+            v_init,
+            norm_tolerance=1e-12,
+            residual_tolerance=1e-10,
+            expect_converged=True,
+            expect_happy_breakdown=True,
+            expected_iteration_count=2,
+            max_krylov_dim=2,
+        )
+
+    v_init[0] = 1e-3
+    check(
+        A,
+        v_init,
+        norm_tolerance=1e-12,
+        residual_tolerance=1e-10,
+        expect_converged=True,
+        expect_happy_breakdown=False,
+        expected_iteration_count=8,
+        max_krylov_dim=2,
+    )
+
+
+def test_ritz_vector():
+    basis = [torch.tensor([1.0, 0.0]), torch.tensor([0.0, 1.0])]
+    coeffs = torch.tensor([3.0, 4.0])
+
+    v = _ritz_vector(coeffs, basis)
+
+    expected = torch.tensor([3.0, 4.0]) / 5.0
+    assert torch.allclose(v, expected)
+    assert torch.allclose(torch.linalg.norm(v), torch.tensor(1.0))
+
+
+def test_ritz_vector_zero_norm_raises():
+    basis = [torch.tensor([1.0, 0.0]), torch.tensor([0.0, 1.0])]
+    coeffs = torch.tensor([0.0, 0.0])
+
+    with pytest.raises(ValueError, match="zero norm"):
+        _ritz_vector(coeffs, basis)

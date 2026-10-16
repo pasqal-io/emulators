@@ -1,0 +1,29 @@
+
+
+
+1. This is the code that generates the plot
+
+flowchart TD
+  Start([Start of time-step]) --> SweepLR["Sweep Left → Right"]
+  SweepLR --> Pair{"For each pair (j, j+1)"}
+
+  Pair --> BuildHeff["Build effective 2-site Hamiltonian H_ef(j, j+1)"]
+  BuildHeff --> ErrorA["Error A: Approximate long-range interactions (partial trace over distant qubits)"]
+
+  BuildHeff --> Evolve["Numerically evolve the pair under H_eff"]
+  Evolve --> ErrorB["Error B: Numerical / Lanczos error (Krylov subspace, finite precision) [controled with precesion and extra_krylov_tolerance]"]
+
+  Evolve --> Split["After evolution, split via SVD"]
+  Split --> ErrorC["Error C: Truncation error (dropping small singular values) [controlled with max_bond_dim and precision]"]
+
+  Split --> Reinsert["Re-insert tensors into MPS"]
+
+  Reinsert --> SweepRL["Sweep Right → Left (repeat once but in reverse order)"]
+
+  SweepRL -->Pair
+  SweepRL --> End(["End of time-step"])
+
+  End --> ErrorD["Error D: Looping / Trotter-like sweep error (because we do many local updates)"]
+
+2. Go to https://simplemermaid.com/mermaid-tool.html
+3. Copy and paste the flowchart

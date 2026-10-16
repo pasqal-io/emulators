@@ -1,0 +1,74 @@
+#This will only build on windows if symlinks are available for the readme and licence
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "emu-sv"
+description = "Pasqal State Vector based pulse emulator built on PyTorch"
+readme = "README.md"
+authors = [
+    { name = "Kemal Bidzhiev", email="kemal.bidzhiev@pasqal.com" },
+    { name = "Stefano Grava", email="stefano.grava@pasqal.com" },
+    { name = "Pablo Le Henaff", email="pablo.le-henaff@pasqal.com" },
+    { name = "Mauro Mendizabal", email="mauro.mendizabal-pico@pasqal.com" },
+    { name = "Elie Merhej", email="elie.merhej@pasqal.com" },
+    { name = "Anton Quelle", email = "anton.quelle@pasqal.com"},
+]
+requires-python = ">=3.11,<3.15"
+license = {file = "LICENSE"}
+classifiers=[
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dynamic = ["version"]
+dependencies = [
+  "emu-base==2.10.0rc1"]
+
+[project.urls]
+Documentation = "https://pasqal-io.github.io/emulators/"
+Repository = "https://github.com/pasqal-io/emulators"
+Issues = "https://github.com/pasqal-io/emulators/issues"
+
+[tool.hatch.version]
+path = "emu_sv/__init__.py"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+allow-ambiguous-features = true
+
+[tool.hatch.envs.docs]
+dependencies = [
+]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+[tool.black] #sometimes black uses this pyproject, rather than the other one for config.
+line-length = 90
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''

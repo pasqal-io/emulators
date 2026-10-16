@@ -1,0 +1,293 @@
+import torch
+from typing import Callable, Sequence
+
+from emu_base import krylov_exp
+from emu_base.math.krylov_energy_min import krylov_energy_minimization
+from emu_base.utils import deallocate_tensor
+from emu_mps import MPS, MPO
+from emu_mps.utils import split_matrix
+from emu_mps.cuda_semantics import offload_bath_to_cpu
+from emu_mps.mps_config import MPSConfig
+
+
+class EffectiveHamiltonian:
+    """
+    Helper class to compute Heff(psi) where
+        x-    -x
+        x  ||  x             ||
+    H = x- xx -x  and psi = -xx-
+        x  ||  x
+        x-    -x
+
+    Expects the two qubit factors of the MPS precontracted,
+    with one 'fat' physical index of dim 4 and index ordering
+    (left bond, physical index, right bond):
+             ||
+          -xxxxxx-
+    The Hamiltonian should have an index ordering of
+    (left bond, out, in, right bond).
+    The baths must have shape (top, middle, bottom).
+    All tensors must be on the same device
+    """
+
+    def __init__(
+        self,
+        ham: torch.Tensor,
+        left_bath: torch.Tensor,
+        right_bath: torch.Tensor,
+    ):
+        self._validate_input(ham, left_bath, right_bath)
+        self.left_b = left_bath
+
+        self.ham = ham.permute(0, 2, 1, 3)
+        self.ham = self.ham.contiguous().view(-1, self.ham.shape[2], self.ham.shape[3])
+
+        self.right_b = right_bath.permute(2, 1, 0)
+        self.right_b = self.right_b.contiguous().view(-1, self.right_b.shape[2])
+
+    def _validate_input(
+        self,
+        ham: torch.Tensor,
+        left_b: torch.Tensor,
+        right_b: torch.Tensor,
+    ) -> None:
+        assert left_b.ndim == 3 and left_b.shape[0] == left_b.shape[2]
+        assert right_b.ndim == 3 and right_b.shape[0] == right_b.shape[2]
+        assert left_b.shape[1] == ham.shape[0] and right_b.shape[1] == ham.shape[3]
+
+    def __call__(self, state: torch.Tensor) -> torch.Tensor:
+        # the optimal contraction order depends on the details
+        # this order seems to be pretty balanced, but needs to be
+        # revisited when use-cases are more well-known
+        state = torch.tensordot(self.left_b, state, 1)
+        state = state.permute(0, 3, 1, 2)
+        # Use `contiguous` after `view` since `tensordot` is more
+        # memory efficient when the input has
+        # a contiguous memory layout. In other parts of the code we use
+        # `view` after `contiguous` for handling tensors returned by `.permute`
+        state = state.view(state.shape[0], state.shape[1], -1).contiguous()
+        state = torch.tensordot(state, self.ham, 1)
+        state = state.permute(0, 2, 1, 3)
+        state = state.contiguous().view(state.shape[0], state.shape[1], -1)
+        state = torch.tensordot(state, self.right_b, 1)
+        return state
+
+
+def make_op(
+    time_step: float | complex,
+    state_factors: Sequence[torch.Tensor],
+    baths: tuple[torch.Tensor, torch.Tensor],
+    ham_factors: Sequence[torch.Tensor],
+    dim: int = 2,
+) -> tuple[torch.Tensor, Callable[[torch.Tensor], torch.Tensor]]:
+    assert len(state_factors) == 2
+    assert len(baths) == 2
+    assert len(ham_factors) == 2
+
+    left_state_factor, right_state_factor = state_factors
+    left_bath, right_bath = baths
+    left_ham_factor, right_ham_factor = ham_factors
+
+    left_bond_dim = left_state_factor.shape[0]
+    right_bond_dim = right_state_factor.shape[-1]
+
+    combined_state_factors = torch.tensordot(
+        left_state_factor, right_state_factor, dims=1
+    ).reshape(left_bond_dim, dim**2, right_bond_dim)
+
+    deallocate_tensor(left_state_factor)
+    deallocate_tensor(right_state_factor)
+
+    combined_ham_factors = (
+        torch.tensordot(left_ham_factor, right_ham_factor, dims=1)
+        .transpose(2, 3)
+        .contiguous()
+        .view(left_ham_factor.shape[0], dim**2, dim**2, -1)
+    )
+
+    eff_h = EffectiveHamiltonian(combined_ham_factors, left_bath, right_bath)
+
+    def op(x: torch.Tensor) -> torch.Tensor:
+        return time_step * eff_h(x)
+
+    return combined_state_factors, op
+
+
+def new_right_bath(
+    bath: torch.Tensor, state: torch.Tensor, op: torch.Tensor
+) -> torch.Tensor:
+    bath = torch.tensordot(state, bath, ([2], [2]))
+    bath = torch.tensordot(op, bath, ([2, 3], [1, 3]))
+    bath = torch.tensordot(state.conj(), bath, ([1, 2], [1, 3]))
+    return bath
+
+
+"""
+function to compute the right baths. The three indices in the bath are as follows:
+(bond of state conj, bond of operator, bond of state)
+The baths have shape
+-xx
+-xx
+-xx
+with the index ordering (top, middle, bottom)
+"""
+
+
+def right_baths(
+    state: MPS,
+    op: MPO,
+    final_qubit: int,
+    keep_inactive_on_cpu: bool = False,
+) -> list[torch.Tensor]:
+    """
+    Compute the right baths of `state` and `op`, from the last qubit down to
+    `final_qubit`. When `keep_inactive_on_cpu` is set, all baths except the last
+    one computed are asynchronously moved to CPU memory, to reduce GPU memory
+    pressure; the transfers overlap with the computation of the remaining baths.
+    """
+    state_factor = state.factors[-1]
+    bath = torch.ones(1, 1, 1, device=state_factor.device, dtype=state_factor.dtype)
+    baths = [bath]
+    for i in range(len(state.factors) - 1, final_qubit - 1, -1):
+        bath = new_right_bath(bath, state.factors[i], op.factors[i])
+        if keep_inactive_on_cpu:
+            # max_pending_frees=10 is big enough that the code doesn't
+            # stall on transfers, but small enough that the baths don't
+            # become the memory bottleneck for large qubit numbers
+            baths[-1] = offload_bath_to_cpu(baths[-1])
+        baths.append(bath)
+    return baths
+
+
+_TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
+
+
+def evolve_pair(
+    *,
+    state_factors: list[torch.Tensor],
+    baths: tuple[torch.Tensor, torch.Tensor],
+    ham_factors: list[torch.Tensor],
+    dt: float,
+    orth_center_right: bool,
+    is_hermitian: bool,
+    config: MPSConfig,
+    dim: int = 2,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Time evolution of a pair of tensors of a tensor train using baths and truncated SVD.
+    Returned state tensors are kept on their respective devices.
+
+    The input state tensor objects become invalid after calling that function.
+    """
+
+    time_step = -1j * _TIME_CONVERSION_COEFF * dt
+    combined_state_factors, op = make_op(
+        time_step=time_step,
+        state_factors=state_factors,
+        baths=baths,
+        ham_factors=ham_factors,
+        dim=dim,
+    )
+    left_bond_dim = combined_state_factors.shape[0]
+    right_bond_dim = combined_state_factors.shape[-1]
+
+    evol = krylov_exp(
+        op,
+        combined_state_factors,
+        exp_tolerance=config.precision * config.extra_krylov_tolerance,
+        norm_tolerance=config.precision * config.extra_krylov_tolerance,
+        max_krylov_dim=config.max_krylov_dim,
+        is_hermitian=is_hermitian,
+    ).view(left_bond_dim * dim, dim * right_bond_dim)
+
+    l, r = split_matrix(
+        evol,
+        max_error=config.precision,
+        max_rank=config.max_bond_dim,
+        orth_center_right=orth_center_right,
+        preserve_norm=not is_hermitian,  # only relevant for computing jump times
+    )
+
+    return l.view(left_bond_dim, dim, -1), r.view(-1, dim, right_bond_dim)
+
+
+def evolve_single(
+    *,
+    state_factor: torch.Tensor,
+    baths: tuple[torch.Tensor, torch.Tensor],
+    ham_factor: torch.Tensor,
+    dt: float,
+    is_hermitian: bool,
+    config: MPSConfig,
+) -> torch.Tensor:
+    """
+    Time evolution of a single tensor of a tensor train using baths.
+
+    The input state tensor object becomes invalid after calling that function.
+    """
+    assert len(baths) == 2
+
+    left_bath, right_bath = baths
+
+    time_step = -_TIME_CONVERSION_COEFF * 1j * dt
+
+    eff_h = EffectiveHamiltonian(ham_factor, left_bath, right_bath)
+
+    def op(x: torch.Tensor) -> torch.Tensor:
+        return time_step * eff_h(x)
+
+    return krylov_exp(
+        op,
+        state_factor,
+        exp_tolerance=config.precision * config.extra_krylov_tolerance,
+        norm_tolerance=config.precision * config.extra_krylov_tolerance,
+        max_krylov_dim=config.max_krylov_dim,
+        is_hermitian=is_hermitian,
+    )
+
+
+def minimize_energy_pair(
+    *,
+    state_factors: Sequence[torch.Tensor],
+    baths: tuple[torch.Tensor, torch.Tensor],
+    ham_factors: Sequence[torch.Tensor],
+    orth_center_right: bool,
+    config: MPSConfig,
+    residual_tolerance: float,
+) -> tuple[torch.Tensor, torch.Tensor, float]:
+    """
+    Minimizes the state factors (ψ_i, ψ_{i+1}) using the Lanczos/Arnoldi method
+    """
+
+    time_step = 1.0
+    combined_state_factors, op = make_op(
+        time_step=time_step,
+        state_factors=state_factors,
+        baths=baths,
+        ham_factors=ham_factors,
+    )
+
+    left_bond_dim = combined_state_factors.shape[0]
+    right_bond_dim = combined_state_factors.shape[-1]
+
+    updated_state, updated_energy = krylov_energy_minimization(
+        op,
+        combined_state_factors,
+        norm_tolerance=config.precision * config.extra_krylov_tolerance,
+        residual_tolerance=residual_tolerance,
+        max_krylov_dim=config.max_krylov_dim,
+    )
+    updated_state = updated_state.view(left_bond_dim * 2, 2 * right_bond_dim)
+
+    l, r = split_matrix(
+        updated_state,
+        max_error=config.precision,
+        max_rank=config.max_bond_dim,
+        orth_center_right=orth_center_right,
+    )
+
+    return (
+        l.view(left_bond_dim, 2, -1),
+        r.view(-1, 2, right_bond_dim),
+        updated_energy,
+    )

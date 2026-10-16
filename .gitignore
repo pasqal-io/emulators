@@ -22,3 +22,7 @@ public
 
 *.so
 *.a
+# for emu_mps_save
+*.dat
+
+CLAUDE.md

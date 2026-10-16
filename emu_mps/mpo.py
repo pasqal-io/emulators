@@ -1,68 +1,68 @@
 from __future__ import annotations
-import itertools
-from typing import Any, List, Iterable, Optional
+from typing import Any, List, Sequence, Optional
 
 import torch
 
+from pulser.backend import State, Operator
+from emu_base import DEVICE_COUNT
 from emu_mps.algebra import add_factors, scale_factors, zip_right
-from emu_base.base_classes.operator import FullOp, QuditOp
-from emu_base import Operator, State
-from emu_mps.mps import MPS
-from emu_mps.utils import new_left_bath, assign_devices
-from emu_mps.constants import DEVICE_COUNT
+from pulser.backend.operator import FullOp, QuditOp
+from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
+from emu_mps.utils import new_left_bath
+
+dtype = torch.complex128
 
 
-def _validate_operator_targets(operations: FullOp, nqubits: int) -> None:
-    for tensorop in operations:
-        target_qids = (factor[1] for factor in tensorop[1])
-        target_qids_list = list(itertools.chain(*target_qids))
-        target_qids_set = set(target_qids_list)
-        if len(target_qids_set) < len(target_qids_list):
-            # Either the qubit id has been defined twice in an operation:
-            for qids in target_qids:
-                if len(set(qids)) < len(qids):
-                    raise ValueError("Duplicate atom ids in argument list.")
-            # Or it was defined in two different operations
-            raise ValueError("Each qubit can be targeted by only one operation.")
-        if max(target_qids_set) >= nqubits:
-            raise ValueError(
-                "The operation targets more qubits than there are in the register."
-            )
-
-
-class MPO(Operator):
+class MPO(Operator[complex, torch.Tensor, MPS]):
     """
     Matrix Product Operator.
 
-    Each tensor has 4 dimensions ordered as such: (left bond, output, input, right bond).
+    Each tensor is 4 dimensions with axes ordered as
+    (left_bond, phys_out, phys_in, right_bond). When contracting an MPO with
+    an MPS as H|ψ⟩, phys_in contracts with the MPS physical index, while
+    phys_out becomes the physical index of the resulting MPS.
 
     Args:
-        factors: the tensors making up the MPO
+        factors: List of 4D tensors with shape (Dl, d_out, d_in, Dr).
+            Neighboring tensors must satisfy Dr[i] == Dl[i+1].
+        gpu: the device on which to place the MPO factors.
+            - If True, all factors are placed on the GPU (falls back to CPU
+            if no GPU is available).
+            - If False, all factors are placed on CPU.
+            - If None (the default), factors retain their current device
+            assignment. All factors must be on the same device.
+
+    Raises:
+        ValueError: If any factor is not 4D or if neighboring bond dimensions
+            do not match.
     """
 
-    def __init__(
-        self, factors: List[torch.Tensor], /, num_gpus_to_use: Optional[int] = None
-    ):
+    def __init__(self, factors: List[torch.Tensor], /, gpu: Optional[bool] = None):
+        if gpu is not None:
+            device = "cuda" if gpu and DEVICE_COUNT > 0 else "cpu"
+            factors = [f.to(device) for f in factors]
+        assert all(
+            f.device == factors[0].device for f in factors
+        ), "All factors must be on the same device"
+
         self.factors = factors
         self.num_sites = len(factors)
         if not self.num_sites > 1:
             raise ValueError("For 1 qubit states, do state vector")
         if factors[0].shape[0] != 1 or factors[-1].shape[-1] != 1:
             raise ValueError(
-                "The dimension of the left (right) link of the first (last) tensor should be 1"
+                "The dimension of the left (right) link of the first (last) "
+                "tensor should be 1"
             )
         assert all(
             factors[i - 1].shape[-1] == factors[i].shape[0]
             for i in range(1, self.num_sites)
         )
 
-        if num_gpus_to_use is not None:
-            assign_devices(self.factors, min(DEVICE_COUNT, num_gpus_to_use))
-
     def __repr__(self) -> str:
         return "[" + ", ".join(map(repr, self.factors)) + "]"
 
-    def __mul__(self, other: State) -> MPS:
+    def apply_to(self, other: MPS) -> MPS:
         """
         Applies this MPO to the given MPS.
         The returned MPS is:
@@ -81,11 +81,12 @@ class MPO(Operator):
         factors = zip_right(
             self.factors,
             other.factors,
-            config=other.config,
+            precision=other.precision,
+            max_bond_dim=other.max_bond_dim,
         )
-        return MPS(factors, orthogonality_center=0)
+        return MPS(factors, orthogonality_center=0, eigenstates=other.eigenstates)
 
-    def __add__(self, other: Operator) -> MPO:
+    def __add__(self, other: MPO) -> MPO:
         """
         Returns the sum of two MPOs, computed with a direct algorithm.
         The result is currently not truncated
@@ -114,7 +115,7 @@ class MPO(Operator):
         factors = scale_factors(self.factors, scalar, which=0)
         return MPO(factors)
 
-    def __matmul__(self, other: Operator) -> MPO:
+    def __matmul__(self, other: MPO) -> MPO:
         """
         Compose two operators. The ordering is that
         self is applied after other.
@@ -126,10 +127,15 @@ class MPO(Operator):
             the composed operator
         """
         assert isinstance(other, MPO), "MPO can only be applied to another MPO"
-        factors = zip_right(self.factors, other.factors)
+        factors = zip_right(
+            self.factors,
+            other.factors,
+            precision=DEFAULT_PRECISION,
+            max_bond_dim=DEFAULT_MAX_BOND_DIM,
+        )
         return MPO(factors)
 
-    def expect(self, state: State) -> float | complex:
+    def expect(self, state: State) -> torch.Tensor:
         """
         Compute the expectation value of self on the given state.
 
@@ -139,30 +145,27 @@ class MPO(Operator):
         Returns:
             the expectation
         """
-        assert isinstance(
-            state, MPS
-        ), "currently, only expectation values of MPSs are \
+        assert isinstance(state, MPS), "currently, only expectation values of MPSs are \
         supported"
         acc = torch.ones(
             1, 1, 1, dtype=state.factors[0].dtype, device=state.factors[0].device
         )
         n = len(self.factors) - 1
         for i in range(n):
-            acc = new_left_bath(acc, state.factors[i], self.factors[i]).to(
-                state.factors[i + 1].device
-            )
-        acc = new_left_bath(acc, state.factors[n], self.factors[n])
-        return acc.item()  # type: ignore [no-any-return]
+            # .to handles operators on a different device than the state
+            acc = new_left_bath(acc, state.factors[i], self.factors[i].to(acc.device))
+        acc = new_left_bath(acc, state.factors[n], self.factors[n].to(acc.device))
+        return acc.view(1)[0].cpu()
 
-    @staticmethod
-    def from_operator_string(
-        basis: Iterable[str],
-        nqubits: int,
-        operations: FullOp,
-        operators: dict[str, QuditOp] = {},
-        /,
+    @classmethod
+    def _from_operator_repr(
+        cls,
+        *,
+        eigenstates: Sequence[str],
+        n_qudits: int,
+        operations: FullOp[complex],
         **kwargs: Any,
-    ) -> MPO:
+    ) -> tuple[MPO, FullOp[complex]]:
         """
         See the base class
 
@@ -175,45 +178,77 @@ class MPO(Operator):
         Returns:
             the operator in MPO form.
         """
-        operators_with_tensors: dict[str, torch.Tensor | QuditOp] = dict(operators)
 
-        _validate_operator_targets(operations, nqubits)
-
-        basis = set(basis)
+        basis = set(eigenstates)
+        dim = len(basis)
+        operators_with_tensors: dict[str, torch.Tensor | QuditOp]
         if basis == {"r", "g"}:
-            # operators_with_tensors will now contain the basis for single qubit ops,
-            # and potentially user defined strings in terms of these
-            operators_with_tensors |= {
-                "gg": torch.tensor(
-                    [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "gr": torch.tensor(
-                    [[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "rg": torch.tensor(
-                    [[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "rr": torch.tensor(
-                    [[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
+            # operators_with_tensors will now contain the basis for single
+            # qubit ops, and potentially user defined strings in terms of these
+            operators_with_tensors = {
+                "gg": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype).view(
+                    1, dim, dim, 1
+                ),
+                "rg": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype).view(
+                    1, 2, 2, 1
+                ),
+                "gr": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype).view(
+                    1, 2, 2, 1
+                ),
+                "rr": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype).view(
+                    1, dim, dim, 1
+                ),
             }
         elif basis == {"0", "1"}:
-            # operators_with_tensors will now contain the basis for single qubit ops,
-            # and potentially user defined strings in terms of these
-            operators_with_tensors |= {
-                "00": torch.tensor(
-                    [[1.0, 0.0], [0.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "01": torch.tensor(
-                    [[0.0, 0.0], [1.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "10": torch.tensor(
-                    [[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
-                "11": torch.tensor(
-                    [[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128
-                ).reshape(1, 2, 2, 1),
+            # operators_with_tensors will now contain the basis for single
+            # qubit ops, and potentially user defined strings in terms of these
+            operators_with_tensors = {
+                "00": torch.tensor([[1.0, 0.0], [0.0, 0.0]], dtype=dtype).view(
+                    1, dim, dim, 1
+                ),
+                "10": torch.tensor([[0.0, 0.0], [1.0, 0.0]], dtype=dtype).view(
+                    1, 2, 2, 1
+                ),
+                "01": torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=dtype).view(
+                    1, 2, 2, 1
+                ),
+                "11": torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=dtype).view(
+                    1, dim, dim, 1
+                ),
             }
+        elif basis == {"r", "g", "x"}:
+            # operators_with_tensors will now contain the basis for single
+            # qubit ops, and potentially user defined strings in terms of these
+            operators_with_tensors = {
+                "gg": torch.tensor(
+                    [[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "gr": torch.tensor(
+                    [[0.0, 1.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "rg": torch.tensor(
+                    [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "rr": torch.tensor(
+                    [[0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "xx": torch.tensor(
+                    [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "xg": torch.tensor(
+                    [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "xr": torch.tensor(
+                    [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "gx": torch.tensor(
+                    [[0.0, 0.0, 1.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+                "rx": torch.tensor(
+                    [[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0, 0.0]], dtype=dtype
+                ).view(1, dim, dim, 1),
+            }
+
         else:
             raise ValueError("Unsupported basis provided")
 
@@ -226,21 +261,19 @@ class MPO(Operator):
                 if isinstance(op, torch.Tensor):
                     return op
 
-                result = torch.zeros(1, 2, 2, 1, dtype=torch.complex128)
+                result = torch.zeros(1, dim, dim, 1, dtype=dtype)
                 for opstr, coeff in op.items():
                     tensor = replace_operator_string(operators_with_tensors[opstr])
                     operators_with_tensors[opstr] = tensor
                     result += tensor * coeff
                 return result
 
-            factors = [
-                torch.eye(2, 2, dtype=torch.complex128).reshape(1, 2, 2, 1)
-            ] * nqubits
+            factors = [torch.eye(dim, dim, dtype=dtype).view(1, dim, dim, 1)] * n_qudits
 
             for op in tensorop:
                 factor = replace_operator_string(op[0])
                 for target_qubit in op[1]:
                     factors[target_qubit] = factor
 
-            mpos.append(coeff * MPO(factors, **kwargs))
-        return sum(mpos[1:], start=mpos[0])
+            mpos.append(coeff * cls(factors, **kwargs))
+        return sum(mpos[1:], start=mpos[0]), operations  # type: ignore[no-any-return]
