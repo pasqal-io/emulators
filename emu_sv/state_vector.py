@@ -6,7 +6,7 @@ from typing import Sequence, Type, TypeVar, Mapping
 
 import torch
 
-from emu_sv.utils import index_to_bitstring
+from emu_sv.utils import index_to_bitstring, sample_indices
 
 from emu_base import DEVICE_COUNT, apply_measurement_errors
 from pulser.backend import State
@@ -163,7 +163,7 @@ class StateVector(State[complex, torch.Tensor]):
 
         probabilities = torch.abs(self.data) ** 2
 
-        outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
+        outcomes = sample_indices(probabilities, num_shots)
 
         # Convert outcomes to bitstrings and count occurrences
         counts = Counter(

@@ -6,7 +6,7 @@ import torch
 from pulser.backend import State
 from emu_base import DEVICE_COUNT, apply_measurement_errors
 from emu_sv.state_vector import StateVector
-from emu_sv.utils import index_to_bitstring
+from emu_sv.utils import index_to_bitstring, sample_indices
 from pulser.backend.state import Eigenstate
 
 DensityMatrixType = TypeVar("DensityMatrixType", bound="DensityMatrix")
@@ -222,7 +222,7 @@ class DensityMatrix(State[complex, torch.Tensor]):
 
         probabilities = torch.abs(self.data.diagonal())
 
-        outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
+        outcomes = sample_indices(probabilities, num_shots)
 
         # Convert outcomes to bitstrings and count occurrences
         counts = Counter(
