@@ -2,7 +2,7 @@ import pytest
 import torch
 import math
 from emu_sv import StateVector, inner
-from emu_sv.utils import index_to_bitstring
+from emu_sv.utils import index_to_bitstring, sample_indices
 
 pi = torch.tensor(math.pi)
 factor = 1.0 / torch.sqrt(torch.tensor(2.0))
@@ -113,6 +113,54 @@ def test_sample() -> None:
     assert sampling["111"] == 485
     assert sampling["001"] == 0
     assert sampling["000"] == 515
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+def test_sample_indices_uses_multinomial_up_to_max_categories() -> None:
+    probabilities = torch.rand(2**5, dtype=torch.float64, device=device)
+
+    torch.manual_seed(seed)
+    expected = torch.multinomial(probabilities, 1000, replacement=True)
+    torch.manual_seed(seed)
+    outcomes = sample_indices(probabilities, 1000)
+
+    assert torch.equal(outcomes, expected)
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+def test_sample_indices_beyond_max_categories() -> None:
+    # max_categories=1 forces the inverse-CDF path used beyond 2**24 categories
+    torch.manual_seed(seed)
+    num_samples = 100_000
+    weights = torch.tensor([1.0, 0.0, 3.0, 6.0, 0.0], dtype=torch.float64)
+    probabilities = 2.5 * weights.to(device)  # not normalized
+
+    outcomes = sample_indices(probabilities, num_samples, max_categories=1)
+
+    assert outcomes.device == probabilities.device
+    counts = torch.bincount(outcomes.cpu(), minlength=5).to(torch.float64)
+    assert counts[1] == 0 and counts[4] == 0
+    expected = num_samples * weights / weights.sum()
+    nonzero = weights > 0
+    chi2 = (((counts - expected)[nonzero]) ** 2 / expected[nonzero]).sum()
+    assert chi2 < 18.4  # 99.99% quantile of chi2 with 2 degrees of freedom
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+@pytest.mark.parametrize("index", [0, 7])
+def test_sample_indices_beyond_max_categories_single_outcome(index: int) -> None:
+    probabilities = torch.zeros(8, dtype=torch.float64, device=device)
+    probabilities[index] = 0.3
+
+    outcomes = sample_indices(probabilities, 1000, max_categories=1)
+
+    assert torch.all(outcomes == index)
+
+
+def test_sample_indices_beyond_max_categories_zero_probabilities() -> None:
+    probabilities = torch.zeros(8, dtype=torch.float64, device=device)
+    with pytest.raises(RuntimeError, match="sum of probabilities <= 0"):
+        sample_indices(probabilities, 10, max_categories=1)
 
 
 def test_from_amplitudes() -> None:
