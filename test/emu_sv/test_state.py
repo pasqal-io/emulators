@@ -152,6 +152,13 @@ def test_sample_indices_uses_multinomial_up_to_max_categories(size: int) -> None
             [1],
             id="clamp-to-last-index",
         ),
+        pytest.param(
+            # bin 1 spans 0.5 ± 2.5e-11: a float32 cumsum (eps 1.2e-7) loses it
+            [1.0, 1e-10, 1.0],
+            [0.5],
+            [1],
+            id="bin-below-float32-resolution",
+        ),
     ],
 )
 def test_sample_indices_inverse_cdf_maps_draws_to_indices(
