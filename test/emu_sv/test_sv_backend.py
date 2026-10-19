@@ -255,11 +255,14 @@ def test_max_krylov_dim_reaches_krylov_exp(solver, lindblad_ops, stepper_type):
     bknd_impl = SVBackendImpl(config, pulser_data)
     assert type(bknd_impl.stepper) is stepper_type
 
-    with patch.object(
-        time_evolution_torch, "krylov_exp", autospec=True, side_effect=krylov_exp
-    ) as torch_spy, patch.object(
-        time_evolution_impl, "krylov_exp", autospec=True, side_effect=krylov_exp
-    ) as impl_spy:
+    with (
+        patch.object(
+            time_evolution_torch, "krylov_exp", autospec=True, side_effect=krylov_exp
+        ) as torch_spy,
+        patch.object(
+            time_evolution_impl, "krylov_exp", autospec=True, side_effect=krylov_exp
+        ) as impl_spy,
+    ):
         bknd_impl._evolve_step(1.0, 0)
 
     dims = received_max_krylov_dims(torch_spy, krylov_exp)
@@ -281,11 +284,17 @@ def test_max_krylov_dim_reaches_backward():
     state = torch.randn(2**nqubits, dtype=torch.complex128)
     state = (state / state.norm()).requires_grad_()
 
-    with patch.object(
-        time_evolution_torch, "krylov_exp", autospec=True, side_effect=krylov_exp
-    ) as krylov_spy, patch.object(
-        time_evolution_torch, "double_krylov", autospec=True, side_effect=double_krylov
-    ) as double_spy:
+    with (
+        patch.object(
+            time_evolution_torch, "krylov_exp", autospec=True, side_effect=krylov_exp
+        ) as krylov_spy,
+        patch.object(
+            time_evolution_torch,
+            "double_krylov",
+            autospec=True,
+            side_effect=double_krylov,
+        ) as double_spy,
+    ):
         state_out, _ = EvolveStateVector(MAX_KRYLOV_DIM).apply(
             1.0, omegas, deltas, phis, interaction, state, 1e-10, None
         )
