@@ -1,6 +1,8 @@
 import pytest
 import torch
-from emu_base.math.double_krylov import double_krylov
+from unittest.mock import call, patch
+import emu_base.math.double_krylov as double_krylov_module
+from emu_base.math.double_krylov import double_krylov, lanczos
 from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM
 from emu_sv.hamiltonian import RydbergHamiltonian
 from test.utils_testing.utils_dense_hamiltonians import dense_rydberg_hamiltonian
@@ -73,6 +75,13 @@ def test_double_krylov(N, tolerance):
     # max_krylov_dim bounds the Lanczos iterations (it used to be a fixed 100). A basis
     # of L vectors took at least L - 1 iterations, so L - 2 must fail and L must not.
     longest = max(len(lanczos_vectors_state), len(lanczos_vectors_grad))
-    double_krylov(op, state, grad, tolerance, longest)
+    with patch.object(
+        double_krylov_module, "lanczos", autospec=True, side_effect=lanczos
+    ) as lanczos_spy:
+        double_krylov(op, state, grad, tolerance, longest)
+    assert lanczos_spy.call_args_list == [
+        call(op, state, tolerance, longest),  # same tensor objects: compared by identity
+        call(op, grad, tolerance, longest),
+    ]
     with pytest.raises(RecursionError):
         double_krylov(op, state, grad, tolerance, longest - 2)
