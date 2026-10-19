@@ -1,16 +1,13 @@
 import torch
 from typing import Callable
 
-from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM
-
-max_krylov_dim = DEFAULT_MAX_KRYLOV_DIM
-
 
 def double_krylov(
     op: Callable,
     state: torch.Tensor,
     grad: torch.Tensor,
     tolerance: float,
+    max_krylov_dim: int,
 ) -> tuple[list[torch.Tensor], torch.Tensor, list[torch.Tensor]]:
     """
     Returns a Lanczos decomposition of the Fréchet derivative of the exponential
@@ -23,6 +20,7 @@ def double_krylov(
         state (torch.Tensor):
         grad (torch.Tensor):
         tolerance (float): tolerance of the returned derivative.
+        max_krylov_dim (int): maximal number of Lanczos iterations per basis.
 
     Returns:
         Vstate (list): Lanczos basis of state
@@ -50,8 +48,8 @@ def double_krylov(
         gives us the desired matrix dS such that
             dU(op, |a❭❬b|) = Vaᵗ @ dS @ Vb*
     """
-    Vs, Ts = lanczos(op, state, tolerance)
-    Vg, Tg = lanczos(op, grad, tolerance)
+    Vs, Ts = lanczos(op, state, tolerance, max_krylov_dim)
+    Vg, Tg = lanczos(op, grad, tolerance, max_krylov_dim)
     size_s = len(Vs)
     big_mat = torch.block_diag(Ts, Tg)
     # Only one element in the top-right corner
@@ -64,6 +62,7 @@ def lanczos(
     op: Callable,
     v: torch.Tensor,
     tolerance: float,
+    max_krylov_dim: int,
 ) -> tuple[list[torch.Tensor], torch.Tensor]:
     """
     Copy of the code in krylov_exp to do Laczos iteration

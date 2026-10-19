@@ -2,7 +2,7 @@ import torch
 from emu_base.math.double_krylov import double_krylov
 from typing import Any, no_type_check
 from emu_sv.hamiltonian import RydbergHamiltonian
-from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
+from emu_base.math.krylov_exp import krylov_exp
 
 
 def _apply_omega_real(
@@ -148,7 +148,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         interaction_matrix: torch.Tensor,
         state: torch.Tensor,
         krylov_tolerance: float,
-        max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+        max_krylov_dim: int,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         ham = DifferentiableStateVectorEvolution.get_hamiltonian(
             omegas=omegas,
@@ -182,7 +182,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         interaction_matrix: torch.Tensor,
         state: torch.Tensor,
         krylov_tolerance: float,
-        max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+        max_krylov_dim: int,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         """
         Returns the time evolved state
@@ -312,7 +312,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
                 return -1j * dt * (ham * x)
 
             lanczos_vectors_state, dS, lanczos_vectors_grad = double_krylov(
-                op, state, grad_state_out, tolerance
+                op, state, grad_state_out, tolerance, ctx.max_krylov_dim
             )
             # TODO: explore returning directly the basis in matrix form
             Vs = torch.stack(lanczos_vectors_state)

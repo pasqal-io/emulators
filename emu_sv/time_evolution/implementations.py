@@ -14,6 +14,9 @@ JUMP_TIME_TOLERANCE_FRACTION = 0.1
 
 
 class EvolveStateVector(BaseStepper):
+    def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
+        super().__init__(max_krylov_dim)
+
     @staticmethod
     def get_hamiltonian(
         omegas: torch.Tensor,
@@ -59,6 +62,9 @@ class EvolveStateVector(BaseStepper):
 
 class EvolveDensityMatrix(BaseStepper):
     """Evolution of a density matrix under a Lindbladian operator."""
+
+    def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
+        super().__init__(max_krylov_dim)
 
     @staticmethod
     def get_hamiltonian(
