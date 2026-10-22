@@ -80,9 +80,10 @@ class DenseState(State[complex, torch.Tensor]):
 
         outcomes = sample_indices(probabilities, num_shots)
 
-        # Convert outcomes to bitstrings and count occurrences
+        # Convert outcomes to bitstrings and count occurrences.
+        # One device-to-host copy, instead of one GPU synchronisation per shot.
         counts = Counter(
-            [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes]
+            [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes.tolist()]
         )
 
         if p_false_neg > 0 or p_false_pos > 0:
