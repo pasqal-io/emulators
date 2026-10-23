@@ -2,7 +2,7 @@
 
 To faithfully emulate the Pasqal QPU using emu-mps, we need to include noise effects, as these effects cannot be neglected in a real quantum system—they significantly impact the performance and fidelity of the QPU.
 
-In open quantum many-body systems, noise is typically expressed in terms of **mixed states** and **noise channels** using a **density matrix representation**. Similar to a state-vector emulator, emu-mps **only handles pure states**. Therefore, we implement noise using a higher order Monte Carlo Wave Function (MCWF) method ([see here](https://www.phys.ens.psl.eu/~dalibard/publi3/osa_93.pdf)), where we evolve the system using an **effective Hamiltonian** and then apply a quantum jump at certain times. This method is probabilistic in the sense that it approximates the simulation of a mixed state using many non-deterministic pure state simulations.
+In open quantum many-body systems, noise is typically expressed in terms of **mixed states** and **noise channels** using a **density matrix representation**. Similar to a state-vector emulator, emu-mps **only handles pure states**. Therefore, we implement noise using a higher order Monte Carlo Wave Function (MCWF) method ([see here](https://pro.college-de-france.fr/jean.dalibard/publi3/osa_93.pdf)), where we evolve the system using an **effective Hamiltonian** and then apply a quantum jump at certain times. This method is probabilistic in the sense that it approximates the simulation of a mixed state using many non-deterministic pure state simulations.
 
 ## Noise Types
 
