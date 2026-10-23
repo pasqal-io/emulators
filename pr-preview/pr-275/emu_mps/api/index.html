@@ -3450,7 +3450,7 @@ of a given adiabatic pulse.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Observables carry their own tensors, which live wherever the live. Move them
+        <p>Observables carry their own tensors, wherever they were created. Move them
 to the device the simulation will run on, copying the observable so the
 objects given by the user are left untouched. Contractions move tensors to
 the right device anyway, so this is only about avoiding needless copies.</p>
@@ -3487,7 +3487,7 @@ the right device anyway, so this is only about avoiding needless copies.</p>
 <span class="normal"><a href="#emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-220">220</a></span>
 <span class="normal"><a href="#emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-221">221</a></span>
 <span class="normal"><a href="#emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-222">222</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-194" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-194"></a><span class="k">def</span><span class="w"> </span><span class="nf">move_observable_tensors_to_correct_device</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-195" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-195"></a><span class="w">    </span><span class="sd">"""Observables carry their own tensors, which live wherever the live. Move them</span>
+<a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-195" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-195"></a><span class="w">    </span><span class="sd">"""Observables carry their own tensors, wherever they were created. Move them</span>
 <a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-196" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-196"></a><span class="sd">    to the device the simulation will run on, copying the observable so the</span>
 <a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-197" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-197"></a><span class="sd">    objects given by the user are left untouched. Contractions move tensors to</span>
 <a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-198" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-198"></a><span class="sd">    the right device anyway, so this is only about avoiding needless copies.</span>

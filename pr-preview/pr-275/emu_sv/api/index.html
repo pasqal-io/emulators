@@ -2894,8 +2894,8 @@ and the Lindblad equation with density matrices otherwise.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Observables carry their own tensors, which are created on a GPU when one
-is present. Move them to the device the simulation will run on, copying the
+        <p>Observables carry their own tensors, wherever they were created.
+Move them to the device the simulation will run on, copying the
 observable so the objects given by the user are left untouched.</p>
 
 
@@ -2932,8 +2932,8 @@ observable so the objects given by the user are left untouched.</p>
 <span class="normal"><a href="#emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-155">155</a></span>
 <span class="normal"><a href="#emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-156">156</a></span>
 <span class="normal"><a href="#emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-157">157</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-127" name="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-127"></a><span class="k">def</span><span class="w"> </span><span class="nf">move_observable_tensors_to_correct_device</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-128" name="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-128"></a><span class="w">    </span><span class="sd">"""Observables carry their own tensors, which are created on a GPU when one</span>
-<a id="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-129" name="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-129"></a><span class="sd">    is present. Move them to the device the simulation will run on, copying the</span>
+<a id="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-128" name="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-128"></a><span class="w">    </span><span class="sd">"""Observables carry their own tensors, wherever they were created.</span>
+<a id="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-129" name="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-129"></a><span class="sd">    Move them to the device the simulation will run on, copying the</span>
 <a id="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-130" name="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-130"></a><span class="sd">    observable so the objects given by the user are left untouched.</span>
 <a id="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-131" name="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-131"></a><span class="sd">    """</span>
 <a id="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-132" name="emu_sv.sv_config.SVConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-132"></a>    <span class="n">device</span> <span class="o">=</span> <span class="s2">"cuda"</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gpu</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">False</span> <span class="ow">and</span> <span class="n">DEVICE_COUNT</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">"cpu"</span>
