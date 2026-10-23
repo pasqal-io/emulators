@@ -82,10 +82,11 @@ class MatrixOperator(Operator[complex, torch.Tensor, StateVector]):
             return MatrixOperator(
                 sparse_add(
                     self.data.to_sparse_coo(), other.data.to_sparse_coo()
-                ).to_sparse_csr()
+                ).to_sparse_csr(),
+                gpu=self.data.is_cuda,
             )
         else:
-            return t(self.data + other.data)
+            return t(self.data + other.data, gpu=self.data.is_cuda)
 
     def __matmul__(self, other: Operator) -> MatrixOperator:
         """
@@ -114,7 +115,7 @@ class MatrixOperator(Operator[complex, torch.Tensor, StateVector]):
             other, StateVector
         ), "emu-sv operators can only be applied to a StateVector."
 
-        return StateVector(self.data @ other.data)
+        return StateVector(self.data @ other.data, gpu=self.data.is_cuda)
 
     def expect(self, state: State) -> torch.Tensor:
         """
