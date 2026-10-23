@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import torch
-from emu_sv.hamiltonian import RydbergHamiltonian, interaction_diagonal
+from emu_sv.hamiltonian import RydbergHamiltonian, make_interaction_diagonal
 from emu_sv.lindblad_operator import RydbergLindbladian
 
 
@@ -23,7 +23,7 @@ class BaseStepper(ABC):
         ):
             cached = (
                 interaction_matrix.detach().clone(),
-                interaction_diagonal(interaction_matrix, device),
+                make_interaction_diagonal(interaction_matrix, device),
             )
             self._interaction = cached
         return cached[1]

@@ -5,7 +5,7 @@ from emu_sv.state_vector import StateVector
 from emu_sv import hamiltonian_kernels as kernels
 
 
-def interaction_diagonal(
+def make_interaction_diagonal(
     interaction_matrix: torch.Tensor, device: torch.device | str
 ) -> torch.Tensor:
     """
@@ -85,7 +85,7 @@ class RydbergHamiltonian:
         self.noise: torch.Tensor | None = noise
 
         if interaction_diag is None:
-            interaction_diag = interaction_diagonal(interaction_matrix, device)
+            interaction_diag = make_interaction_diagonal(interaction_matrix, device)
         self.interaction_diag: torch.Tensor = interaction_diag
         self._diag: torch.Tensor | None = None
         self._kernel_buffer: torch.Tensor | None = None
