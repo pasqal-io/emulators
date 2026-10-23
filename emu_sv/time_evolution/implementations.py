@@ -45,7 +45,14 @@ class EvolveStateVector(BaseStepper):
         return cast(
             tuple[torch.Tensor, RydbergHamiltonian],
             DifferentiableStateVectorEvolution.apply(
-                dt, omegas, deltas, phis, full_interaction_matrix, state, krylov_tolerance
+                dt,
+                omegas,
+                deltas,
+                phis,
+                full_interaction_matrix,
+                state,
+                krylov_tolerance,
+                self.interaction_diagonal(full_interaction_matrix, state.device),
             ),
         )
 
@@ -120,6 +127,7 @@ class EvolveMonteCarlo(BaseStepper):
         pulser_lindblads: list[torch.Tensor],
         interaction_matrix: torch.Tensor,
         device: torch.device,
+        interaction_diag: torch.Tensor | None = None,
     ) -> RydbergHamiltonian:
         return RydbergHamiltonian(
             omegas=omegas,
@@ -128,6 +136,7 @@ class EvolveMonteCarlo(BaseStepper):
             interaction_matrix=interaction_matrix,
             device=device,
             noise=compute_noise_from_lindbladians(pulser_lindblads),
+            interaction_diag=interaction_diag,
         )
 
     @staticmethod
@@ -137,12 +146,8 @@ class EvolveMonteCarlo(BaseStepper):
         state: torch.Tensor,
         krylov_tolerance: float,
     ) -> torch.Tensor:
-
-        def op(x: torch.Tensor) -> torch.Tensor:
-            return -1j * dt * (hamiltonian * x)
-
         return krylov_exp(
-            op,
+            hamiltonian.make_op(-1j * dt),
             state,
             norm_tolerance=krylov_tolerance,
             exp_tolerance=krylov_tolerance,
@@ -191,6 +196,9 @@ class EvolveMonteCarlo(BaseStepper):
             pulser_lindblads=pulser_lindblads,
             interaction_matrix=full_interaction_matrix,
             device=state.device,
+            interaction_diag=self.interaction_diagonal(
+                full_interaction_matrix, state.device
+            ),
         )
 
         current_time = 0.0
