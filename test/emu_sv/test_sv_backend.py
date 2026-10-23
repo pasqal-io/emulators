@@ -1,9 +1,16 @@
-from unittest.mock import MagicMock
+import inspect
+from collections.abc import Callable
+from unittest.mock import MagicMock, patch
 import torch
 from emu_sv import SVConfig, SVBackend, Occupation, Solver, StateVector, DensityMatrix
 from emu_sv.dense_state import DenseState
 from emu_sv.sv_backend_impl import SVBackendImpl
 from emu_sv.time_evolution import EvolveDensityMatrix, EvolveMonteCarlo, EvolveStateVector
+import emu_sv.time_evolution.implementations as time_evolution_impl
+import emu_sv.time_evolution.torch as time_evolution_torch
+from emu_base.math.double_krylov import double_krylov
+from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
+from test.utils_testing import randn_interaction_matrix
 from emu_base import SequenceData, HamiltonianType
 import pytest
 import logging
@@ -202,3 +209,100 @@ def test_backend_impl_stepper_logic():
     mock_sequence.has_stochastic_noise = False
     backend_impl = SVBackendImpl(mock_config, mock_sequence)
     assert type(backend_impl.stepper) is EvolveStateVector
+
+
+# SVConfig.max_krylov_dim used to be ignored: every Krylov call ran with the default of
+# 100, so a step needing more Lanczos vectors failed with RecursionError whatever the
+# config said. 17 differs from that default and is enough to span the largest space used
+# below (a 2-qubit density matrix, 4**2 = 16), so convergence never depends on it.
+MAX_KRYLOV_DIM = 17
+assert MAX_KRYLOV_DIM != DEFAULT_MAX_KRYLOV_DIM
+
+
+def received_max_krylov_dims(spy: MagicMock, real: Callable) -> list[int]:
+    """The max_krylov_dim of every recorded call, defaults applied."""
+    dims = []
+    for call in spy.call_args_list:
+        bound = inspect.signature(real).bind(*call.args, **call.kwargs)
+        bound.apply_defaults()
+        dims.append(bound.arguments["max_krylov_dim"])
+    return dims
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+@pytest.mark.parametrize(
+    "solver, lindblad_ops, stepper_type",
+    [
+        (Solver.DEFAULT, [], EvolveStateVector),
+        (Solver.LINDBLAD, [torch.eye(2, dtype=torch.complex128)], EvolveDensityMatrix),
+        (Solver.MONTECARLO, [torch.eye(2, dtype=torch.complex128)], EvolveMonteCarlo),
+    ],
+)
+def test_max_krylov_dim_reaches_krylov_exp(solver, lindblad_ops, stepper_type):
+    """SVConfig.max_krylov_dim reaches every krylov_exp call of a time step."""
+    config = SVConfig(gpu=False, max_krylov_dim=MAX_KRYLOV_DIM, solver=solver)
+    pulser_data = MagicMock(
+        spec=SequenceData,
+        omega=torch.tensor([[1.0, 1.0]]),
+        delta=torch.tensor([[1.0, 1.0]]),
+        phi=torch.tensor([[0.0, 0.0]]),
+        interaction_matrix=lambda t: torch.zeros((1, 2, 2), dtype=torch.float64),
+        state_prep_error=0.0,
+        target_times=[0.0, 1.0],
+        qubit_ids=(),
+        lindblad_ops=lindblad_ops,
+    )
+    bknd_impl = SVBackendImpl(config, pulser_data)
+    assert type(bknd_impl.stepper) is stepper_type
+
+    with (
+        patch.object(
+            time_evolution_torch, "krylov_exp", autospec=True, side_effect=krylov_exp
+        ) as torch_spy,
+        patch.object(
+            time_evolution_impl, "krylov_exp", autospec=True, side_effect=krylov_exp
+        ) as impl_spy,
+    ):
+        bknd_impl._evolve_step(1.0, 0)
+
+    dims = received_max_krylov_dims(torch_spy, krylov_exp)
+    dims += received_max_krylov_dims(impl_spy, krylov_exp)
+    assert len(dims) >= 1
+    assert dims == [MAX_KRYLOV_DIM] * len(dims)
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+def test_max_krylov_dim_reaches_backward():
+    """The gradient pass uses the stepper's max_krylov_dim, for the gradient of the
+    input state (krylov_exp) and of the pulse parameters (double_krylov)."""
+    torch.manual_seed(1337)
+    nqubits = 2
+    omegas = torch.rand(nqubits, dtype=torch.float64, requires_grad=True)
+    deltas = torch.rand(nqubits, dtype=torch.float64, requires_grad=True)
+    phis = torch.rand(nqubits, dtype=torch.float64, requires_grad=True)
+    interaction = randn_interaction_matrix(nqubits, requires_grad=True)
+    state = torch.randn(2**nqubits, dtype=torch.complex128)
+    state = (state / state.norm()).requires_grad_()
+
+    with (
+        patch.object(
+            time_evolution_torch, "krylov_exp", autospec=True, side_effect=krylov_exp
+        ) as krylov_spy,
+        patch.object(
+            time_evolution_torch,
+            "double_krylov",
+            autospec=True,
+            side_effect=double_krylov,
+        ) as double_spy,
+    ):
+        state_out, _ = EvolveStateVector(MAX_KRYLOV_DIM).apply(
+            1.0, omegas, deltas, phis, interaction, state, 1e-10, None
+        )
+        torch.autograd.grad(
+            state_out.real.sum(), (omegas, deltas, phis, interaction, state)
+        )
+
+    # forward step, then backward for the input state
+    assert received_max_krylov_dims(krylov_spy, krylov_exp) == [MAX_KRYLOV_DIM] * 2
+    # backward for omegas, deltas, phis and the interaction matrix
+    assert received_max_krylov_dims(double_spy, double_krylov) == [MAX_KRYLOV_DIM]
