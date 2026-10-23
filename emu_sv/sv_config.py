@@ -125,8 +125,8 @@ class SVConfig(EmulationConfig):
         }
 
     def move_observable_tensors_to_correct_device(self) -> None:
-        """Observables carry their own tensors, which are created on a GPU when one
-        is present. Move them to the device the simulation will run on, copying the
+        """Observables carry their own tensors, wherever they were created.
+        Move them to the device the simulation will run on, copying the
         observable so the objects given by the user are left untouched.
         """
         device = "cuda" if self.gpu is not False and DEVICE_COUNT > 0 else "cpu"
@@ -160,31 +160,26 @@ class SVConfig(EmulationConfig):
         obs_list = []
 
         for _, obs in enumerate(self.observables):  # monkey patch
-            obs_copy = copy.deepcopy(obs)
 
             if isinstance(obs, Occupation):
-                obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    choose(qubit_occupation_sv_impl, qubit_occupation_sv_den_mat_impl),
-                    obs_copy,
+                method = choose(
+                    qubit_occupation_sv_impl, qubit_occupation_sv_den_mat_impl
                 )
-            if isinstance(obs, CorrelationMatrix):
-                obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    choose(
-                        correlation_matrix_sv_impl, correlation_matrix_sv_den_mat_impl
-                    ),
-                    obs_copy,
+            elif isinstance(obs, CorrelationMatrix):
+                method = choose(
+                    correlation_matrix_sv_impl, correlation_matrix_sv_den_mat_impl
                 )
-            if isinstance(obs, EnergyVariance):
-                obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    choose(energy_variance_sv_impl, energy_variance_sv_den_mat_impl),
-                    obs_copy,
-                )
+            elif isinstance(obs, EnergyVariance):
+                method = choose(energy_variance_sv_impl, energy_variance_sv_den_mat_impl)
             elif isinstance(obs, EnergySecondMoment):
-                obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    choose(
-                        energy_second_moment_sv_impl, energy_second_moment_den_mat_impl
-                    ),
-                    obs_copy,
+                method = choose(
+                    energy_second_moment_sv_impl, energy_second_moment_den_mat_impl
                 )
+            else:
+                obs_list.append(obs)
+                continue
+
+            obs_copy = copy.deepcopy(obs)
+            obs_copy.apply = MethodType(method, obs_copy)  # type: ignore[method-assign]
             obs_list.append(obs_copy)
         self._backend_options["observables"] = tuple(obs_list)
