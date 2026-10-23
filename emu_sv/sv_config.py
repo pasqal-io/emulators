@@ -141,8 +141,9 @@ class SVConfig(EmulationConfig):
                 obs_list.append(obs)
                 continue
 
-            # a config can be created directly, in which case the observables
-            # might still hold pulser's StateRepr/OperatorRepr, which have no data
+            # pulser's StateRepr/OperatorRepr carry no tensors, so there is nothing
+            # to move; a backend casts them to our types and rebuilds the config,
+            # which calls this method again on the converted objects
             holder = getattr(obs, attr)
             if (
                 isinstance(holder, (DenseState, MatrixOperator))
