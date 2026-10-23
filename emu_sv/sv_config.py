@@ -4,7 +4,7 @@ import pathlib
 from types import MethodType
 from typing import Any, ClassVar
 
-from emu_base import init_logging
+from emu_base import DEVICE_COUNT, init_logging
 from emu_sv.utils import choose
 from emu_sv.dense_state import DenseState
 from emu_sv.matrix_operator import MatrixOperator
@@ -25,6 +25,8 @@ from pulser.backend import (
     EmulationConfig,
     EnergySecondMoment,
     EnergyVariance,
+    Expectation,
+    Fidelity,
     Occupation,
 )
 from emu_sv.solver import Solver
@@ -97,6 +99,7 @@ class SVConfig(EmulationConfig):
             **kwargs,
         )
 
+        self.move_observable_tensors_to_correct_device()
         self.monkeypatch_observables()
         logger = init_logging(log_level, log_file)
 
@@ -120,6 +123,37 @@ class SVConfig(EmulationConfig):
             "log_file",
             "solver",
         }
+
+    def move_observable_tensors_to_correct_device(self) -> None:
+        """Observables carry their own tensors, which are created on a GPU when one
+        is present. Move them to the device the simulation will run on, copying the
+        observable so the objects given by the user are left untouched.
+        """
+        device = "cuda" if self.gpu is not False and DEVICE_COUNT > 0 else "cpu"
+
+        obs_list = []
+        for obs in self.observables:
+            if isinstance(obs, Fidelity):
+                attr = "state"
+            elif isinstance(obs, Expectation):
+                attr = "operator"
+            else:
+                obs_list.append(obs)
+                continue
+
+            # a config can be created directly, in which case the observables
+            # might still hold pulser's StateRepr/OperatorRepr, which have no data
+            holder = getattr(obs, attr)
+            if (
+                isinstance(holder, (DenseState, MatrixOperator))
+                and holder.data.device.type != device
+            ):
+                obs = copy.copy(obs)
+                moved = copy.copy(holder)
+                moved.data = holder.data.to(device)
+                setattr(obs, attr, moved)
+            obs_list.append(obs)
+        self._backend_options["observables"] = tuple(obs_list)
 
     def monkeypatch_observables(self) -> None:
         obs_list = []

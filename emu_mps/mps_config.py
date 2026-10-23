@@ -4,7 +4,7 @@ from types import MethodType
 import copy
 import warnings
 
-from emu_base import init_logging
+from emu_base import DEVICE_COUNT, init_logging
 from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
 from emu_mps.mpo import MPO
 from emu_mps.solver import Solver
@@ -22,6 +22,8 @@ from pulser.backend import (
     EnergySecondMoment,
     EnergyVariance,
     EmulationConfig,
+    Expectation,
+    Fidelity,
 )
 import logging
 import pathlib
@@ -157,6 +159,7 @@ class MPSConfig(EmulationConfig):
             new_extra_krylov_tolerance = extra_krylov_tolerance
         self._backend_options["extra_krylov_tolerance"] = new_extra_krylov_tolerance
 
+        self.move_observable_tensors_to_correct_device()
         self.monkeypatch_observables()
 
         if (self.noise_model.runs != 1 and self.noise_model.runs is not None) or (
@@ -187,6 +190,35 @@ class MPSConfig(EmulationConfig):
             "autosave_dt",
             "solver",
         }
+
+    def move_observable_tensors_to_correct_device(self) -> None:
+        """Observables carry their own tensors, which live wherever the live. Move them
+        to the device the simulation will run on, copying the observable so the
+        objects given by the user are left untouched. Contractions move tensors to
+        the right device anyway, so this is only about avoiding needless copies.
+        """
+        device = "cuda" if self.gpu is not False and DEVICE_COUNT > 0 else "cpu"
+
+        obs_list = []
+        for obs in self.observables:
+            if isinstance(obs, Fidelity):
+                attr = "state"
+            elif isinstance(obs, Expectation):
+                attr = "operator"
+            else:
+                obs_list.append(obs)
+                continue
+
+            # a config can be created directly, in which case the observables
+            # might still hold pulser's StateRepr/OperatorRepr, which have no factors
+            holder = getattr(obs, attr)
+            if isinstance(holder, (MPS, MPO)) and holder.factors[0].device.type != device:
+                obs = copy.copy(obs)
+                moved = copy.copy(holder)
+                moved.factors = [f.to(device) for f in holder.factors]
+                setattr(obs, attr, moved)
+            obs_list.append(obs)
+        self._backend_options["observables"] = tuple(obs_list)
 
     def monkeypatch_observables(self) -> None:
         obs_list = []
