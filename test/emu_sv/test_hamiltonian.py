@@ -170,3 +170,26 @@ def test_expect():
         ),
     )
     assert h0.expect(state) == h.expect(state)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
+def test_cpp_apply_matches_torch() -> None:
+    n = 10
+    g = torch.Generator().manual_seed(1337)
+    params = dict(
+        omegas=torch.rand(n, generator=g, dtype=torch.float64),
+        deltas=torch.rand(n, generator=g, dtype=torch.float64),
+        phis=torch.zeros(n, dtype=torch.float64),
+        interaction_matrix=randn_interaction_matrix(n),
+        device=torch.device("cuda"),
+    )
+    ham_torch = RydbergHamiltonian(**params, cpp=False)
+    ham_cpp = RydbergHamiltonian(**params, cpp=True)
+    vec = torch.randn(2**n, generator=g, dtype=dtype).cuda()
+    factor = -0.3j
+
+    expected = factor * (ham_torch * vec)
+    # first call fills the cached diagonal, second call reads it
+    assert torch.allclose(ham_cpp.apply(vec, factor), expected)
+    assert torch.allclose(ham_cpp.apply(vec, factor), expected)
+    assert torch.allclose(ham_cpp * vec, ham_torch * vec)

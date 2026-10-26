@@ -225,16 +225,34 @@ static PyObject *apply_rydberg_sv(
     ) {
     emulators_cpp::HamParameters ham_params;
     at::Tensor state_vector;
+    Py_complex factor{1., 0.};
+    at::Tensor diagonal; // Optional cache of the real diagonal of the Hamiltonian.
+    int diagonal_valid = false; // Warning: don't use bool type here, it causes parsing with "p" to fail.
 
-    static char *kwlist[] = {"hamiltonian", "state_vector", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "$O&O&", kwlist,
+    static char *kwlist[] = {"hamiltonian", "state_vector", "factor", "diagonal", "diagonal_valid", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&O&|$DO&p", kwlist,
                                      &get_ham_parameters, &ham_params,
-                                     &get_tensor, &state_vector)) {
+                                     &get_tensor, &state_vector,
+                                     &factor,
+                                     &get_tensor, &diagonal,
+                                     &diagonal_valid)) {
         return NULL;
     }
 
     try {
-        auto result = emulators_cpp::apply_rydberg_sv(ham_params, state_vector);
+        HamDiagonalCache<double> ham_diagonal_cache{};
+        if (diagonal.defined()) {
+            TORCH_CHECK(diagonal.dtype() == at::kDouble, "diagonal should be float64");
+            TORCH_CHECK(diagonal.device() == state_vector.device(), "diagonal should be on the device of the state");
+            TORCH_CHECK(diagonal.numel() == state_vector.numel(), "diagonal should have the size of the state");
+            TORCH_CHECK(diagonal.is_contiguous(), "diagonal should be contiguous");
+            ham_diagonal_cache.fill = !diagonal_valid;
+            ham_diagonal_cache.valid = diagonal_valid;
+            ham_diagonal_cache.diagonal = diagonal.data_ptr<double>();
+        }
+
+        auto result = emulators_cpp::apply_rydberg_sv(ham_params, state_vector,
+            std::complex<double>(factor.real, factor.imag), &ham_diagonal_cache);
         return THPVariable_Wrap(result);
     } catch (std::exception const& e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());

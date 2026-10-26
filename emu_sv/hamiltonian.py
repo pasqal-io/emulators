@@ -59,8 +59,13 @@ class RydbergHamiltonian:
             self.diag: torch.Tensor = self._create_diagonal().to(device=device)
             self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
         else:
-            self.omegas = self.omegas.real
-            self.deltas = self.deltas.real
+            self.omegas = self.omegas.real.contiguous()
+            self.deltas = self.deltas.real.contiguous()
+            # Real diagonal of H, filled by the first application and reused after.
+            self._diagonal = torch.empty(
+                2**self.nqubits, dtype=torch.float64, device=device
+            )
+            self._diagonal_valid = False
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
@@ -78,7 +83,7 @@ class RydbergHamiltonian:
             the resulting state vector.
         """
         if self.cpp:
-            return apply_rydberg_sv(hamiltonian=self, state_vector=vec)
+            return self.apply(vec)
 
         # TODO: add the complex part of the Hamiltonian
 
@@ -86,6 +91,24 @@ class RydbergHamiltonian:
 
         self._apply_sigma_operators_real(result, vec)  # ∑ᵢ 𝛺ᵢ/2 𝜎ᵢˣ |𝜓>
 
+        return result
+
+    def apply(self, vec: torch.Tensor, factor: complex = 1.0) -> torch.Tensor:
+        """
+        Return factor * H|ψ❭. With `cpp`, the factor is applied inside the kernel
+        and the diagonal of H is computed once and kept for the next applications.
+        """
+        if not self.cpp:
+            return factor * (self * vec)
+
+        result = apply_rydberg_sv(
+            hamiltonian=self,
+            state_vector=vec,
+            factor=factor,
+            diagonal=self._diagonal,
+            diagonal_valid=self._diagonal_valid,
+        )
+        self._diagonal_valid = True
         return result
 
     def _apply_sigma_operators_real(

@@ -162,7 +162,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         )
 
         def op(x: torch.Tensor) -> torch.Tensor:
-            return -1j * dt * (ham * x)
+            return ham.apply(x, -1j * dt)
 
         res = krylov_exp(
             op,

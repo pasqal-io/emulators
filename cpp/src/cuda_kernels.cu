@@ -35,31 +35,32 @@ __device__ double get_ham_diagonal_element(int qubit_count, double const* deltas
 
 __global__ void sv_rydberg_kernel(int qubit_count, double const* deltas, double const* omegas, double const* interaction_matrix,
                 cuda::std::complex<double> const* state_vector, cuda::std::complex<double>* result, cuda::std::complex<double> coeff,
-                HamDiagonalCache<cuda::std::complex<double>> ham_diagonal_cache) {
+                HamDiagonalCache<double> ham_diagonal_cache) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < (1 << qubit_count)) {
-        auto diag = ham_diagonal_cache.valid ? ham_diagonal_cache.diagonal[idx] : get_ham_diagonal_element(qubit_count, deltas, interaction_matrix, idx);
+        double diag = ham_diagonal_cache.valid ? ham_diagonal_cache.diagonal[idx] : get_ham_diagonal_element(qubit_count, deltas, interaction_matrix, idx);
 
         if (ham_diagonal_cache.fill) {
             ham_diagonal_cache.diagonal[idx] = diag;
         }
 
-        result[idx] = diag * state_vector[idx];
+        // Accumulate in a register and write the result once.
+        cuda::std::complex<double> acc = diag * state_vector[idx];
 
         for (int qubit = 0; qubit < qubit_count; ++qubit) {
             // bitflip qubit
             int flipped_idx = idx ^ (1 << (qubit_count - 1 - qubit));
-            result[idx] += omegas[qubit] * state_vector[flipped_idx];
+            acc += omegas[qubit] * state_vector[flipped_idx];
         }
 
-        result[idx] *= coeff;
+        result[idx] = coeff * acc;
     }
 }
 
 void call_sv_rydberg_kernel(int qubit_count, double const* deltas, double const* omegas, double const* interaction_matrix,
                 std::complex<double> const* state_vector, std::complex<double>* result, std::complex<double> coeff,
-                HamDiagonalCache<std::complex<double>> ham_diagonal_cache) {
+                HamDiagonalCache<double> ham_diagonal_cache) {
     sv_rydberg_kernel<<<((1 << qubit_count)+511)/512, 512>>>(
         qubit_count,
         deltas,
@@ -68,11 +69,7 @@ void call_sv_rydberg_kernel(int qubit_count, double const* deltas, double const*
         (cuda::std::complex<double> const*) state_vector,
         (cuda::std::complex<double> *) result,
         cuda::std::complex<double>(coeff.real(), coeff.imag()),
-        HamDiagonalCache<cuda::std::complex<double>>{
-            .fill = ham_diagonal_cache.fill,
-            .valid = ham_diagonal_cache.valid,
-            .diagonal = (cuda::std::complex<double>*) ham_diagonal_cache.diagonal
-        }
+        ham_diagonal_cache
     );
 
     if (auto const error = cudaGetLastError(); error != cudaSuccess) {

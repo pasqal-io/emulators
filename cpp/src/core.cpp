@@ -143,7 +143,7 @@ std::pair<at::Tensor, at::Tensor> evolve_pair(at::Tensor const& left_state_facto
     return {l.reshape({left_state_factor.size(0), 2, -1}), r.reshape({-1, 2, right_state_factor.size(2)}).to(right_device)};
 }
 
-at::Tensor apply_rydberg_sv(HamParameters const& ham_params, at::Tensor state, std::complex<double> coeff, HamDiagonalCache<std::complex<double>>* ham_diagonal_cache) {
+at::Tensor apply_rydberg_sv(HamParameters const& ham_params, at::Tensor state, std::complex<double> coeff, HamDiagonalCache<double>* ham_diagonal_cache) {
     TORCH_CHECK(state.dtype() == at::kComplexDouble);
     TORCH_CHECK(ham_params.omegas.dtype() == at::kDouble);
     TORCH_CHECK(ham_params.deltas.dtype() == at::kDouble);
@@ -159,24 +159,24 @@ at::Tensor apply_rydberg_sv(HamParameters const& ham_params, at::Tensor state, s
     auto const contiguous_state = state.contiguous();
     auto const* state_ptr = static_cast<std::complex<double> const*>(contiguous_state.data_ptr());
 
-    auto result = torch::zeros_like(state).contiguous();
+    auto result = torch::empty_like(contiguous_state);
     auto* result_ptr = static_cast<std::complex<double> *>(result.data_ptr());
 
     call_sv_rydberg_kernel(ham_params.omegas.size(0),
         ham_params.deltas.contiguous().data_ptr<double>(),
         ham_params.omegas.contiguous().data_ptr<double>(),
         ham_params.interaction_matrix.contiguous().data_ptr<double>(),
-        state_ptr, result_ptr, coeff, ham_diagonal_cache ? *ham_diagonal_cache : HamDiagonalCache<std::complex<double>>{});
+        state_ptr, result_ptr, coeff, ham_diagonal_cache ? *ham_diagonal_cache : HamDiagonalCache<double>{});
 
     return result;
 }
 
 at::Tensor evolve_sv_rydberg(double dt, HamParameters const& ham_params, at::Tensor state, double krylov_tolerance) {
-    HamDiagonalCache<std::complex<double>> ham_diagonal_cache;
+    HamDiagonalCache<double> ham_diagonal_cache;
     ham_diagonal_cache.fill = true;
     ham_diagonal_cache.valid = false;
-    auto diagonal_tensor = torch::empty_like(state).contiguous();
-    ham_diagonal_cache.diagonal = static_cast<std::complex<double> *>(diagonal_tensor.data_ptr());
+    auto diagonal_tensor = torch::empty({state.numel()}, state.options().dtype(at::kDouble));
+    ham_diagonal_cache.diagonal = diagonal_tensor.data_ptr<double>();
 
     auto op = [&ham_params, dt, &ham_diagonal_cache] (at::Tensor const& x) -> at::Tensor {
         auto result = apply_rydberg_sv(ham_params, x, std::complex<double>(0.0, - dt), &ham_diagonal_cache);
