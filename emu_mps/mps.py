@@ -248,18 +248,24 @@ class MPS(State[complex, torch.Tensor]):
 
         # Shots are performed in batches.
         # Larger max_batch_size is faster but uses more memory.
+
+        if p_false_pos > 0 and self.dim > 2:
+            raise NotImplementedError("Not implemented for qudits > 2 levels")
+
         max_batch_size = 32
 
         shots_done = 0
+        device = self.factors[0].device
 
         while shots_done < num_shots:
             batch_size = min(max_batch_size, num_shots - shots_done)
-            batched_accumulator = torch.ones(
-                batch_size, 1, dtype=dtype, device=self.factors[0].device
-            )
+            batched_accumulator = torch.ones(batch_size, 1, dtype=dtype, device=device)
 
-            batch_outcomes = torch.empty(batch_size, self.num_sites, dtype=torch.int)
-            rangebatch = torch.arange(batch_size)
+            # Kept on the device to avoid one GPU synchronisation per qubit.
+            batch_outcomes = torch.empty(
+                batch_size, self.num_sites, dtype=torch.int, device=device
+            )
+            rangebatch = torch.arange(batch_size, device=device)
             for qubit, factor in enumerate(self.factors):
                 batched_accumulator = torch.tensordot(batched_accumulator, factor, dims=1)
 
@@ -276,18 +282,16 @@ class MPS(State[complex, torch.Tensor]):
 
             shots_done += batch_size
 
-            for outcome in batch_outcomes:
+            # One device-to-host copy; iterating over a tensor is slow even on CPU.
+            for outcome in batch_outcomes.tolist():
                 bitstrings.update(["".join("1" if x == 1 else "0" for x in outcome)])
 
-        if p_false_neg > 0 or p_false_pos > 0 and self.dim == 2:
+        if p_false_neg > 0 or p_false_pos > 0:
             bitstrings = apply_measurement_errors(
                 bitstrings,
                 p_false_pos=p_false_pos,
                 p_false_neg=p_false_neg,
             )
-        if p_false_pos > 0 and self.dim > 2:
-            raise NotImplementedError("Not implemented for qudits > 2 levels")
-
         return bitstrings
 
     def norm(self) -> torch.Tensor:
@@ -566,7 +570,10 @@ class MPS(State[complex, torch.Tensor]):
 
         assert operator.shape == (self.dim, self.dim), "Operator has wrong shape"
 
-        result = torch.zeros(self.num_sites, self.num_sites, dtype=dtype)
+        # Filled on the device to avoid one GPU synchronisation per entry.
+        result = torch.zeros(
+            self.num_sites, self.num_sites, dtype=dtype, device=self.factors[0].device
+        )
 
         for left in range(0, self.num_sites):
             self.orthogonalize(left)
@@ -578,7 +585,7 @@ class MPS(State[complex, torch.Tensor]):
             accumulator = torch.tensordot(
                 accumulator, self.factors[left].conj(), dims=([0, 2], [0, 1])
             )
-            result[left, left] = accumulator.trace().item().real
+            result[left, left] = accumulator.trace().real
             for right in range(left + 1, self.num_sites):
                 partial = torch.tensordot(
                     accumulator,
@@ -594,13 +601,12 @@ class MPS(State[complex, torch.Tensor]):
                         partial, operator.to(partial.device), dims=([0, 2], [0, 1])
                     )
                     .trace()
-                    .item()
                     .real
                 )
                 result[right, left] = result[left, right]
                 accumulator = tensor_trace(partial, 0, 2)
 
-        return result
+        return result.cpu()
 
 
 def inner(left: MPS, right: MPS) -> torch.Tensor:
