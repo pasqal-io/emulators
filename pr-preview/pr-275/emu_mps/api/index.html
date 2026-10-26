@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -27,10 +27,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -3486,7 +3486,9 @@ the right device anyway, so this is only about avoiding needless copies.</p>
 <span class="normal"><a href="#emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-219">219</a></span>
 <span class="normal"><a href="#emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-220">220</a></span>
 <span class="normal"><a href="#emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-221">221</a></span>
-<span class="normal"><a href="#emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-222">222</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-194" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-194"></a><span class="k">def</span><span class="w"> </span><span class="nf">move_observable_tensors_to_correct_device</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="normal"><a href="#emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-222">222</a></span>
+<span class="normal"><a href="#emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-223">223</a></span>
+<span class="normal"><a href="#emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-224">224</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-194" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-194"></a><span class="k">def</span><span class="w"> </span><span class="nf">move_observable_tensors_to_correct_device</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-195" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-195"></a><span class="w">    </span><span class="sd">"""Observables carry their own tensors, wherever they were created. Move them</span>
 <a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-196" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-196"></a><span class="sd">    to the device the simulation will run on, copying the observable so the</span>
 <a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-197" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-197"></a><span class="sd">    objects given by the user are left untouched. Contractions move tensors to</span>
@@ -3513,8 +3515,10 @@ the right device anyway, so this is only about avoiding needless copies.</p>
 <a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-218" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-218"></a>            <span class="n">moved</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">holder</span><span class="p">)</span>
 <a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-219" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-219"></a>            <span class="n">moved</span><span class="o">.</span><span class="n">factors</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">holder</span><span class="o">.</span><span class="n">factors</span><span class="p">]</span>
 <a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-220" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-220"></a>            <span class="nb">setattr</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">moved</span><span class="p">)</span>
-<a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-221" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-221"></a>        <span class="n">obs_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obs</span><span class="p">)</span>
-<a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-222" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-222"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_backend_options</span><span class="p">[</span><span class="s2">"observables"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">obs_list</span><span class="p">)</span>
+<a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-221" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-221"></a>            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">moved</span><span class="p">,</span> <span class="n">MPS</span><span class="p">):</span>
+<a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-222" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-222"></a>                <span class="n">moved</span><span class="o">.</span><span class="n">n_operator</span> <span class="o">=</span> <span class="n">moved</span><span class="o">.</span><span class="n">n_operator</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+<a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-223" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-223"></a>        <span class="n">obs_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obs</span><span class="p">)</span>
+<a id="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-224" name="emu_mps.mps_config.MPSConfig.move_observable_tensors_to_correct_device--source--__codelineno-0-224"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_backend_options</span><span class="p">[</span><span class="s2">"observables"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">obs_list</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -6532,10 +6536,10 @@ same EmulationConfig.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.annotate", "content.action.view", "content.action.edit", "navigation.tabs", "navigation.indexes", "navigation.sections", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.annotate", "content.action.view", "content.action.edit", "navigation.tabs", "navigation.indexes", "navigation.sections", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
       
         <script src="../../assets/_markdown_exec_pyodide.js"></script>
       
