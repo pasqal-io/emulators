@@ -6,7 +6,8 @@ from emu_sv import SVConfig, StateVector, Solver
 import pulser
 import numpy as np
 from pulser.backend.config import EmulationConfig
-from pulser.backend import BitStrings
+from pulser.backend import BitStrings, Expectation, Fidelity
+from emu_base import DEVICE_COUNT
 
 # copypaste sv_config.py specific attributes
 # attributes from SVConfig._expected_kwargs
@@ -96,3 +97,26 @@ def test_serialization_with_state():
 
     assert my_config["initial_state"]["eigenstates"] == basis
     assert my_config["initial_state"]["amplitudes"] == amp_full
+
+
+def test_observable_tensors_moved_to_config_device():
+    """Observables create their tensors on a gpu when one is available,
+    the config has to move them to the device the simulation runs on."""
+    operator = SVConfig.operator_type.from_operator_repr(
+        eigenstates=("r", "g"), n_qudits=1, operations=[(1.0, [({"rr": 1.0}, [0])])]
+    )
+    state = SVConfig.state_type.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"r": 1.0}
+    )
+    config = SVConfig(
+        observables=[Expectation(operator), Fidelity(state)],
+        gpu=False,
+    )
+
+    expectation, fidelity = config.observables
+    assert expectation.operator.data.device.type == "cpu"
+    assert fidelity.state.data.device.type == "cpu"
+
+    # the objects given by the user are left alone
+    assert operator.data.device.type == ("cuda" if DEVICE_COUNT > 0 else "cpu")
+    assert state.data.device.type == ("cuda" if DEVICE_COUNT > 0 else "cpu")

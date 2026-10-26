@@ -849,7 +849,7 @@ def test_spam_bitstring_class() -> None:
     seq.declare_channel("ising_global", "rydberg_global")
     seq.add(pulse, "ising_global")
     with patch(
-        "emu_sv.state_vector.apply_measurement_errors"
+        "emu_sv.dense_state.apply_measurement_errors"
     ) as apply_measurement_errors_mock:
         bitstrings = MagicMock()
         apply_measurement_errors_mock.return_value = bitstrings
@@ -860,7 +860,7 @@ def test_spam_bitstring_class() -> None:
         )
         assert results.bitstrings[-1] is bitstrings
     with patch(
-        "emu_sv.density_matrix_state.apply_measurement_errors"
+        "emu_sv.dense_state.apply_measurement_errors"
     ) as apply_measurement_errors_mock:
         bitstrings = MagicMock()
         apply_measurement_errors_mock.return_value = bitstrings
@@ -1031,3 +1031,33 @@ def test_observables_time_0():
     result = backend.run()
 
     assert torch.isreal(result.energy[0])
+
+
+def test_observable_tensors_on_wrong_device():
+    if not torch.cuda.is_available():
+        pytest.skip("This test needs a GPU with CUDA installed")
+
+    seq = pulser.Sequence(pulser.Register({"q0": (0, 0)}), pulser.MockDevice)
+    seq.declare_channel("ch", "rydberg_global")
+    seq.add(pulser.Pulse.ConstantPulse(100, 1.0, 0.0, 0.0), "ch")
+
+    # both are created on the gpu, while the simulation runs on the cpu
+    n = SVConfig.operator_type.from_operator_repr(
+        eigenstates=("r", "g"), n_qudits=1, operations=[(1.0, [({"rr": 1.0}, [0])])]
+    )
+    state = SVConfig.state_type.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"r": 1.0}
+    )
+
+    config = SVConfig(
+        observables=[
+            Expectation(n, evaluation_times=[1.0]),
+            Fidelity(state, evaluation_times=[1.0]),
+        ],
+        gpu=False,
+    )
+    results = SVBackend(seq, config=config).run()  # this shouldn't error
+
+    excited_population = math.sin(0.05) ** 2  # Ω * t / 2 = 1.0 rad/µs * 0.1 µs / 2
+    assert results.expectation[0].item().real == approx(excited_population, abs=1e-4)
+    assert results.fidelity[0].item() == approx(excited_population, abs=1e-4)

@@ -1,10 +1,10 @@
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Callable
 from types import MethodType
 
 import copy
 import warnings
 
-from emu_base import init_logging
+from emu_base import DEVICE_COUNT, init_logging
 from emu_mps.mps import MPS, DEFAULT_MAX_BOND_DIM, DEFAULT_PRECISION
 from emu_mps.mpo import MPO
 from emu_mps.solver import Solver
@@ -22,6 +22,8 @@ from pulser.backend import (
     EnergySecondMoment,
     EnergyVariance,
     EmulationConfig,
+    Expectation,
+    Fidelity,
 )
 import logging
 import pathlib
@@ -157,6 +159,7 @@ class MPSConfig(EmulationConfig):
             new_extra_krylov_tolerance = extra_krylov_tolerance
         self._backend_options["extra_krylov_tolerance"] = new_extra_krylov_tolerance
 
+        self.move_observable_tensors_to_correct_device()
         self.monkeypatch_observables()
 
         if (self.noise_model.runs != 1 and self.noise_model.runs is not None) or (
@@ -188,30 +191,59 @@ class MPSConfig(EmulationConfig):
             "solver",
         }
 
+    def move_observable_tensors_to_correct_device(self) -> None:
+        """Observables carry their own tensors, wherever they were created. Move them
+        to the device the simulation will run on, copying the observable so the
+        objects given by the user are left untouched. Contractions move tensors to
+        the right device anyway, so this is only about avoiding needless copies.
+        """
+        device = "cuda" if self.gpu is not False and DEVICE_COUNT > 0 else "cpu"
+
+        obs_list = []
+        for obs in self.observables:
+            if isinstance(obs, Fidelity):
+                attr = "state"
+            elif isinstance(obs, Expectation):
+                attr = "operator"
+            else:
+                obs_list.append(obs)
+                continue
+
+            # pulser's StateRepr/OperatorRepr carry no tensors, so there is nothing
+            # to move; a backend casts them to our types and rebuilds the config,
+            # which calls this method again on the converted objects
+            holder = getattr(obs, attr)
+            if isinstance(holder, (MPS, MPO)) and holder.factors[0].device.type != device:
+                obs = copy.copy(obs)
+                moved = copy.copy(holder)
+                moved.factors = [f.to(device) for f in holder.factors]
+                setattr(obs, attr, moved)
+                if isinstance(moved, MPS):
+                    moved.n_operator = moved.n_operator.to(device)
+            obs_list.append(obs)
+        self._backend_options["observables"] = tuple(obs_list)
+
     def monkeypatch_observables(self) -> None:
         obs_list = []
+
         for _, obs in enumerate(self.observables):  # monkey patch
-            obs_copy = copy.deepcopy(obs)
+            method: Callable
             if isinstance(obs, Occupation):
-                obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    qubit_occupation_mps_impl, obs_copy
-                )
+                method = qubit_occupation_mps_impl
             elif isinstance(obs, EnergyVariance):
-                obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    energy_variance_mps_impl, obs_copy
-                )
+                method = energy_variance_mps_impl
             elif isinstance(obs, EnergySecondMoment):
-                obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    energy_second_moment_mps_impl, obs_copy
-                )
+                method = energy_second_moment_mps_impl
             elif isinstance(obs, CorrelationMatrix):
-                obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    correlation_matrix_mps_impl, obs_copy
-                )
+                method = correlation_matrix_mps_impl
             elif isinstance(obs, Energy):
-                obs_copy.apply = MethodType(  # type: ignore[method-assign]
-                    energy_mps_impl, obs_copy
-                )
+                method = energy_mps_impl
+            else:
+                obs_list.append(obs)
+                continue
+
+            obs_copy = copy.deepcopy(obs)
+            obs_copy.apply = MethodType(method, obs_copy)  # type: ignore[method-assign]
             obs_list.append(obs_copy)
         self._backend_options["observables"] = tuple(obs_list)
 

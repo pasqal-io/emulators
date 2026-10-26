@@ -5,8 +5,9 @@ import torch
 import pulser
 import numpy as np
 from emu_mps.mps_config import MPSConfig, MPS
+from emu_base import DEVICE_COUNT
 from pulser.backend.config import EmulationConfig
-from pulser.backend import BitStrings, StateResult
+from pulser.backend import BitStrings, Expectation, Fidelity, StateResult
 from emu_mps.observables import EntanglementEntropy
 import json
 
@@ -195,3 +196,37 @@ def test_num_gpus_deprecated() -> None:
         match="num_gpus_to_use is deprecated, please use the gpu flag instead.",
     ):
         MPSConfig(num_gpus_to_use=1)
+
+
+def test_observable_tensors_moved_to_config_device():
+    """Observables create their tensors on cpu, the config has to move them
+    to the device the simulation runs on."""
+    operator = MPSConfig.operator_type.from_operator_repr(
+        eigenstates=("r", "g"), n_qudits=2, operations=[(1.0, [({"rr": 1.0}, [0])])]
+    )
+    state = MPSConfig.state_type.from_state_amplitudes(
+        eigenstates=("r", "g"), amplitudes={"rr": 1.0}
+    )
+    config = MPSConfig(
+        observables=[Expectation(operator), Fidelity(state)],
+        gpu=False,
+    )
+
+    expectation, fidelity = config.observables
+    assert all(f.device.type == "cpu" for f in expectation.operator.factors)
+    assert all(f.device.type == "cpu" for f in fidelity.state.factors)
+
+    config = MPSConfig(
+        observables=[Expectation(operator), Fidelity(state)],
+        gpu=True,
+    )
+    device = "cuda" if DEVICE_COUNT > 0 else "cpu"
+
+    expectation, fidelity = config.observables
+    assert all(f.device.type == device for f in expectation.operator.factors)
+    assert all(f.device.type == device for f in fidelity.state.factors)
+    assert fidelity.state.n_operator.device.type == device
+
+    # the objects given by the user are left alone
+    assert all(f.device.type == "cpu" for f in operator.factors)
+    assert all(f.device.type == "cpu" for f in state.factors)

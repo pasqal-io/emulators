@@ -5,6 +5,9 @@ from emu_sv.lindblad_operator import RydbergLindbladian
 
 
 class BaseStepper(ABC):
+    def __init__(self, max_krylov_dim: int) -> None:
+        self.max_krylov_dim = max_krylov_dim
+
     @staticmethod
     @abstractmethod
     def get_hamiltonian(
