@@ -54,6 +54,7 @@ class RydbergHamiltonian:
         self.deltas: torch.Tensor = deltas.to(device=device)
         self.interaction_matrix: torch.Tensor = interaction_matrix.to(device=device)
         self.cpp = cpp
+        self.device = device
         if not self.cpp:
             self.diag: torch.Tensor = self._create_diagonal().to(device=device)
             self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
@@ -78,12 +79,9 @@ class RydbergHamiltonian:
 
         # TODO: add the complex part of the Hamiltonian
 
-        diag_result = self.diag * vec  # (-∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ nⱼ) * |𝜓>
+        result = self.diag * vec  # (-∑ᵢ𝛿ᵢnᵢ +1/2∑ᵢⱼ Uᵢⱼ nᵢ nⱼ) * |𝜓>
 
-        sigmax_result = self._apply_sigma_operators_real(vec)  # ∑ᵢ 𝛺ᵢ/2 𝜎ᵢˣ |𝜓>
-
-        result: torch.Tensor
-        result = diag_result + sigmax_result
+        self._apply_sigma_operators_real(result, vec)  # ∑ᵢ 𝛺ᵢ/2 𝜎ᵢˣ |𝜓>
 
         return result
 
@@ -141,12 +139,6 @@ class RydbergHamiltonian:
         """
         diag = torch.zeros(2**self.nqubits, dtype=torch.complex128, device=self.device)
 
-        if self.noise is not None:
-            for i in range(self.nqubits):
-                diag = diag.view(2**i, 2, -1)
-                diag[:, 0, :] += self.noise[0, 0]
-                diag[:, 1, :] += self.noise[1, 1]
-
         for i in range(self.nqubits):
             diag = diag.view(2**i, 2, -1)
             i_fixed = diag[:, 1, :]
@@ -164,6 +156,5 @@ class RydbergHamiltonian:
             state, StateVector
         ), "Currently, only expectation values of StateVectors are supported"
         en = torch.vdot(state.data, self * state.data)
-        if self.noise is None:
-            assert torch.allclose(en.imag, torch.zeros_like(en.imag), atol=1e-8)
+        assert torch.allclose(en.imag, torch.zeros_like(en.imag), atol=1e-8)
         return en.real  # if there is lindblad noise, there is non-zero imaginary part.

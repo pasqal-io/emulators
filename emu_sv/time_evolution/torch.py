@@ -136,7 +136,6 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=device,
-            noise=None,
         )
 
     @staticmethod

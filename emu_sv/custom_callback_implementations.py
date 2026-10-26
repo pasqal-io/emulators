@@ -20,10 +20,8 @@ def _strip_noise(hamiltonian: RydbergHamiltonian) -> RydbergHamiltonian:
     return RydbergHamiltonian(
         omegas=hamiltonian.omegas * 2.0,
         deltas=hamiltonian.deltas,
-        phis=hamiltonian.phis,
         interaction_matrix=hamiltonian.interaction_matrix,
         device=hamiltonian.device,
-        noise=None,
     )
 
 

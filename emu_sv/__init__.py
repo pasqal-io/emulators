@@ -1,7 +1,6 @@
 from emu_sv.state_vector import StateVector, inner
 from emu_sv.dense_operator import DenseOperator
 from emu_sv.sv_backend import SVBackend, SVConfig
-from emu_sv.time_evolution import evolve_sv_rydberg
 from pulser.backend.results import Results
 
 from pulser.backend import (
@@ -32,7 +31,6 @@ __all__ = [
     "Fidelity",
     "Occupation",
     "Results",
-    "evolve_sv_rydberg",
     "SVBackend",
     "SVConfig",
     "StateResult",
