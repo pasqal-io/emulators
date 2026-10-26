@@ -25,12 +25,12 @@ classifiers=[
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "pulser-core[torch]>=1.9.0rc1", "torch~=2.7"]  # The version in .pre-commit-config.yaml must match
+  "pulser-core[torch]>=1.9.0rc1", "torch~=2.14"]  # The version in .pre-commit-config.yaml must match
 dynamic = ["version"]
 
 [tool.setuptools]
 packages = ["emu_base", "emu_mps", "emu_sv"]
-ext-modules = [{name = "emulators_cpp", sources = ["cpp/src/core.cpp", "cpp/src/python_bindings.cpp"], include-dirs = ["cpp/include", "/opt/pyenv/versions/3.14.3/lib/python3.14/site-packages/torch/include", "/opt/pyenv/versions/3.14.3/lib/python3.14/site-packages/torch/include/torch/csrc/api/include"], library-dirs=["/opt/pyenv/versions/3.14.3/lib/python3.14/site-packages/torch/lib", "cpp/lib"], runtime-library-dirs=["/opt/pyenv/versions/3.14.3/lib/python3.14/site-packages/torch/lib", "cpp/lib"], libraries=["emulators_cuda_kernels", "c10", "torch", "torch_cpu", "torch_cuda", "torch_python"], extra-compile-args=["-std=c++17", "-O3", "-D_GLIBCXX_USE_CXX11_ABI=0"], py-limited-api = true}]
+ext-modules = [{name = "emulators_cpp", sources = ["cpp/src/core.cpp", "cpp/src/python_bindings.cpp"], include-dirs = ["cpp/include", "/opt/pyenv/versions/3.14.3/lib/python3.14/site-packages/torch/include", "/opt/pyenv/versions/3.14.3/lib/python3.14/site-packages/torch/include/torch/csrc/api/include"], library-dirs=["/opt/pyenv/versions/3.14.3/lib/python3.14/site-packages/torch/lib", "cpp/lib"], runtime-library-dirs=["/opt/pyenv/versions/3.14.3/lib/python3.14/site-packages/torch/lib", "$ORIGIN/cpp/lib"], libraries=["emulators_cuda_kernels", "c10", "torch", "torch_cpu", "torch_cuda", "torch_python"], extra-compile-args=["-std=c++20", "-O3", "-D_GLIBCXX_USE_CXX11_ABI=1"], py-limited-api = true}]
 # For debug: "-ggdb", "-O0",
 
 [tool.coverage.run]
