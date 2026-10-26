@@ -218,6 +218,8 @@ class MPSConfig(EmulationConfig):
                 moved = copy.copy(holder)
                 moved.factors = [f.to(device) for f in holder.factors]
                 setattr(obs, attr, moved)
+                if isinstance(moved, MPS):
+                    moved.n_operator = moved.n_operator.to(device)
             obs_list.append(obs)
         self._backend_options["observables"] = tuple(obs_list)
 

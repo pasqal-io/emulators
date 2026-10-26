@@ -225,6 +225,7 @@ def test_observable_tensors_moved_to_config_device():
     expectation, fidelity = config.observables
     assert all(f.device.type == device for f in expectation.operator.factors)
     assert all(f.device.type == device for f in fidelity.state.factors)
+    assert fidelity.state.n_operator.device.type == device
 
     # the objects given by the user are left alone
     assert all(f.device.type == "cpu" for f in operator.factors)
