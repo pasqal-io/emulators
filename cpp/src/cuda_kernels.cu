@@ -1,5 +1,6 @@
 #include "cuda_kernels.cuh"
 #include <cuda/std/complex>
+#include <stdexcept>
 
 namespace {
 
@@ -73,4 +74,8 @@ void call_sv_rydberg_kernel(int qubit_count, double const* deltas, double const*
             .diagonal = (cuda::std::complex<double>*) ham_diagonal_cache.diagonal
         }
     );
+
+    if (auto const error = cudaGetLastError(); error != cudaSuccess) {
+        throw std::runtime_error(cudaGetErrorString(error));
+    }
 }

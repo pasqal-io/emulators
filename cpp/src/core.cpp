@@ -156,7 +156,8 @@ at::Tensor apply_rydberg_sv(HamParameters const& ham_params, at::Tensor state, s
 
     // Note: normally should use `.data_ptr<std::complex<double>>()` instead of casting
     // but specialization for complex numbers is missing.
-    auto const* state_ptr = static_cast<std::complex<double> const*>(state.contiguous().data_ptr());
+    auto const contiguous_state = state.contiguous();
+    auto const* state_ptr = static_cast<std::complex<double> const*>(contiguous_state.data_ptr());
 
     auto result = torch::zeros_like(state).contiguous();
     auto* result_ptr = static_cast<std::complex<double> *>(result.data_ptr());
