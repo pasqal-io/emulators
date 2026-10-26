@@ -129,6 +129,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         phis: torch.Tensor,
         interaction_matrix: torch.Tensor,
         device: torch.device,
+        cpp: bool,
     ) -> RydbergHamiltonian:
         return RydbergHamiltonian(
             omegas=omegas,
@@ -136,6 +137,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=device,
+            cpp=cpp,
         )
 
     @staticmethod
@@ -148,6 +150,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         state: torch.Tensor,
         krylov_tolerance: float,
         max_krylov_dim: int,
+        cpp: bool,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         ham = DifferentiableStateVectorEvolution.get_hamiltonian(
             omegas=omegas,
@@ -155,6 +158,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=state.device,
+            cpp=cpp,
         )
 
         def op(x: torch.Tensor) -> torch.Tensor:
@@ -182,6 +186,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         state: torch.Tensor,
         krylov_tolerance: float,
         max_krylov_dim: int,
+        cpp: bool,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         """
         Returns the time evolved state
@@ -210,6 +215,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             state,
             krylov_tolerance,
             max_krylov_dim,
+            cpp,
         )
         ctx.save_for_backward(omegas, deltas, phis, interaction_matrix, state)
         ctx.dt = dt

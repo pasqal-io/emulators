@@ -25,6 +25,7 @@ class EvolveStateVector(BaseStepper):
         pulser_lindblads: list[torch.Tensor],
         interaction_matrix: torch.Tensor,
         device: torch.device,
+        cpp: bool,
     ) -> RydbergHamiltonian:
         return DifferentiableStateVectorEvolution.get_hamiltonian(
             omegas=omegas,
@@ -32,6 +33,7 @@ class EvolveStateVector(BaseStepper):
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=device,
+            cpp=cpp,
         )
 
     def apply(
@@ -44,6 +46,7 @@ class EvolveStateVector(BaseStepper):
         state: torch.Tensor,
         krylov_tolerance: float,
         pulser_lindblads: list[torch.Tensor],
+        cpp: bool,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         return cast(
             tuple[torch.Tensor, RydbergHamiltonian],
@@ -56,6 +59,7 @@ class EvolveStateVector(BaseStepper):
                 state,
                 krylov_tolerance,
                 self.max_krylov_dim,
+                cpp,
             ),
         )
 

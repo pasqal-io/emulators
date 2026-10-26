@@ -206,6 +206,7 @@ class SVBackendImpl:
             self.state.data,
             self._config.krylov_tolerance,
             self.pulser_lindblads,
+            self._config.cpp,
         )
 
     def _apply_observables(self, step_idx: int) -> None:

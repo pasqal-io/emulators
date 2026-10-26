@@ -50,14 +50,17 @@ class RydbergHamiltonian:
         cpp: bool = False,
     ):
         self.nqubits: int = len(omegas)
+        self.interaction_matrix: torch.Tensor = interaction_matrix.to(device=device)
         self.omegas: torch.Tensor = omegas.to(device=device) / 2.0
         self.deltas: torch.Tensor = deltas.to(device=device)
-        self.interaction_matrix: torch.Tensor = interaction_matrix.to(device=device)
         self.cpp = cpp
         self.device = device
         if not self.cpp:
             self.diag: torch.Tensor = self._create_diagonal().to(device=device)
             self.inds = torch.tensor([1, 0], device=device)  # flips the state, for 𝜎ₓ
+        else:
+            self.omegas = self.omegas.real
+            self.deltas = self.deltas.real
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """

@@ -97,6 +97,7 @@ class SVConfig(EmulationConfig):
             interaction_cutoff=interaction_cutoff,
             log_level=log_level,
             log_file=log_file,
+            cpp=cpp,
             **kwargs,
         )
 
