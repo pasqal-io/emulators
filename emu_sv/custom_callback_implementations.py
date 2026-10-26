@@ -114,7 +114,7 @@ def correlation_matrix_sv_den_mat_impl(
     in the case of Lindblad noise
     """
     nqubits = state.n_qudits
-    correlation = torch.zeros(nqubits, nqubits, dtype=dtype)
+    correlation = torch.zeros(nqubits, nqubits, dtype=dtype, device=state.data.device)
     state_diag_matrix = state.data.diagonal()
     for i in range(nqubits):  # applying ni
         shapei = (2**i, 2, 2 ** (nqubits - i - 1))
