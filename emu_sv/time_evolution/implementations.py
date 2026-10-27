@@ -1,7 +1,7 @@
 import torch
 import random
 from typing import cast
-from emu_base.math.krylov_exp import krylov_exp
+from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 from emu_sv.hamiltonian import RydbergHamiltonian
@@ -14,6 +14,9 @@ JUMP_TIME_TOLERANCE_FRACTION = 0.1
 
 
 class EvolveStateVector(BaseStepper):
+    def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
+        super().__init__(max_krylov_dim)
+
     @staticmethod
     def get_hamiltonian(
         omegas: torch.Tensor,
@@ -52,6 +55,7 @@ class EvolveStateVector(BaseStepper):
                 full_interaction_matrix,
                 state,
                 krylov_tolerance,
+                self.max_krylov_dim,
                 self.interaction_diagonal(full_interaction_matrix, state.device),
             ),
         )
@@ -59,6 +63,9 @@ class EvolveStateVector(BaseStepper):
 
 class EvolveDensityMatrix(BaseStepper):
     """Evolution of a density matrix under a Lindbladian operator."""
+
+    def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
+        super().__init__(max_krylov_dim)
 
     @staticmethod
     def get_hamiltonian(
@@ -108,6 +115,7 @@ class EvolveDensityMatrix(BaseStepper):
                 norm_tolerance=krylov_tolerance,
                 exp_tolerance=krylov_tolerance,
                 is_hermitian=False,
+                max_krylov_dim=self.max_krylov_dim,
             ),
             ham,
         )
@@ -116,7 +124,8 @@ class EvolveDensityMatrix(BaseStepper):
 class EvolveMonteCarlo(BaseStepper):
     """Evolution of a state vector under Monte Carlo quantum jumps."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
+        super().__init__(max_krylov_dim)
         self.jump_threshold = random.uniform(0.0, 1.0)
 
     @staticmethod
@@ -139,8 +148,8 @@ class EvolveMonteCarlo(BaseStepper):
             interaction_diag=interaction_diag,
         )
 
-    @staticmethod
     def evolve(
+        self,
         dt: float,
         hamiltonian: RydbergHamiltonian,
         state: torch.Tensor,
@@ -152,6 +161,7 @@ class EvolveMonteCarlo(BaseStepper):
             norm_tolerance=krylov_tolerance,
             exp_tolerance=krylov_tolerance,
             is_hermitian=False,
+            max_krylov_dim=self.max_krylov_dim,
         )
 
     def do_quantum_jump(

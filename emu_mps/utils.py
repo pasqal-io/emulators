@@ -17,12 +17,10 @@ def new_left_bath(
 def _determine_cutoff_index(d: torch.Tensor, max_error: float) -> int:
     assert max_error > 0
     squared_max_error = max_error * max_error
-    acc = 0.0
-    for i in range(d.shape[0]):
-        acc += d[i].item()
-        if acc > squared_max_error:
-            return i
-    return 0  # type: ignore[no-any-return]
+    # First index where the cumulative sum exceeds the error, 0 if none does.
+    # One device-to-host copy, instead of one GPU synchronisation per element.
+    exceeded = torch.cumsum(d, dim=0) > squared_max_error
+    return int(exceeded.to(torch.uint8).argmax())
 
 
 def split_matrix(

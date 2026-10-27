@@ -8,6 +8,9 @@ class BaseStepper(ABC):
     # (interaction matrix, interaction diagonal) of the last time step
     _interaction: tuple[torch.Tensor, torch.Tensor] | None = None
 
+    def __init__(self, max_krylov_dim: int) -> None:
+        self.max_krylov_dim = max_krylov_dim
+
     def interaction_diagonal(
         self, interaction_matrix: torch.Tensor, device: torch.device
     ) -> torch.Tensor:

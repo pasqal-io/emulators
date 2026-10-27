@@ -150,6 +150,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         interaction_matrix: torch.Tensor,
         state: torch.Tensor,
         krylov_tolerance: float,
+        max_krylov_dim: int,
         interaction_diag: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         ham = DifferentiableStateVectorEvolution.get_hamiltonian(
@@ -166,6 +167,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             norm_tolerance=krylov_tolerance,
             exp_tolerance=krylov_tolerance,
             is_hermitian=True,
+            max_krylov_dim=max_krylov_dim,
         )
         return res, ham
 
@@ -180,6 +182,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         interaction_matrix: torch.Tensor,
         state: torch.Tensor,
         krylov_tolerance: float,
+        max_krylov_dim: int,
         interaction_diag: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         """
@@ -200,6 +203,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             krylov_tolerance (float): tolerance for krylov_exp
             interaction_diag (torch.Tensor, optional): the interaction part of the
                 Hamiltonian diagonal, if already computed (see `RydbergHamiltonian`).
+            max_krylov_dim (int): maximal Krylov subspace dimension for krylov_exp
         """
         res, ham = DifferentiableStateVectorEvolution.evolve(
             dt,
@@ -209,13 +213,20 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             interaction_matrix,
             state,
             krylov_tolerance,
+            max_krylov_dim,
             interaction_diag,
         )
         ctx.save_for_backward(
-            omegas, deltas, phis, interaction_matrix, state, interaction_diag
+            omegas,
+            deltas,
+            phis,
+            interaction_matrix,
+            state,
+            interaction_diag,
         )
         ctx.dt = dt
         ctx.tolerance = krylov_tolerance
+        ctx.max_krylov_dim = max_krylov_dim
         return res, ham
 
     # mypy complains and I don't know why
@@ -311,7 +322,11 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
 
         if any(ctx.needs_input_grad[1:5]):
             lanczos_vectors_state, dS, lanczos_vectors_grad = double_krylov(
-                ham.make_op(-1j * dt), state, grad_state_out, tolerance
+                ham.make_op(-1j * dt),
+                state,
+                grad_state_out,
+                tolerance,
+                ctx.max_krylov_dim,
             )
             # TODO: explore returning directly the basis in matrix form
             Vs = torch.stack(lanczos_vectors_state)
@@ -353,7 +368,11 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
 
         if ctx.needs_input_grad[5]:
             grad_state_in = krylov_exp(
-                ham.make_op(1j * dt), grad_state_out.detach(), tolerance, tolerance
+                ham.make_op(1j * dt),
+                grad_state_out.detach(),
+                tolerance,
+                tolerance,
+                max_krylov_dim=ctx.max_krylov_dim,
             )
 
         return (

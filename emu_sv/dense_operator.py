@@ -38,7 +38,7 @@ class DenseOperator(MatrixOperator):
         assert isinstance(
             other, DenseOperator
         ), "DenseOperator can only be multiplied with a DenseOperator."
-        return DenseOperator(self.data @ other.data)
+        return DenseOperator(self.data @ other.data, gpu=self.data.is_cuda)
 
     @classmethod
     def _from_operator_repr(
