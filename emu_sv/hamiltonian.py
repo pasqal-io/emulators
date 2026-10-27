@@ -85,7 +85,9 @@ class RydbergHamiltonian:
         self.noise: torch.Tensor | None = noise
 
         if interaction_diag is None:
-            interaction_diag = make_interaction_diagonal(interaction_matrix, device)
+            interaction_diag = make_interaction_diagonal(
+                interaction_matrix.detach(), device
+            )
         self.interaction_diag: torch.Tensor = interaction_diag
         self._diag: torch.Tensor | None = None
         self._kernel_buffer: torch.Tensor | None = None

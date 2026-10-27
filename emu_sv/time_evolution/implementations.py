@@ -113,14 +113,6 @@ class EvolveDensityMatrix(BaseStepper):
         )
 
 
-MONTE_CARLO_GRAD_ERROR = (
-    "Gradients are not supported with Monte Carlo quantum jumps: the time "
-    "of each jump depends on the parameters, and that dependence is not "
-    "differentiated. Detach the initial state, the sequence parameters "
-    "and the noise operators to run without gradients."
-)
-
-
 class EvolveMonteCarlo(BaseStepper):
     """Evolution of a state vector under Monte Carlo quantum jumps."""
 
@@ -197,11 +189,20 @@ class EvolveMonteCarlo(BaseStepper):
         krylov_tolerance: float,
         pulser_lindblads: list[torch.Tensor],
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
-        if any(
-            t.requires_grad
-            for t in (state, omegas, deltas, phis, full_interaction_matrix)
-        ) or any(op.requires_grad for op in pulser_lindblads):
-            raise NotImplementedError(MONTE_CARLO_GRAD_ERROR)
+        if (
+            torch.is_grad_enabled()
+            and any(
+                t.requires_grad
+                for t in (state, omegas, deltas, phis, full_interaction_matrix)
+            )
+            or any(op.requires_grad for op in pulser_lindblads)
+        ):
+            raise NotImplementedError(
+                "Gradients are not supported with Monte Carlo quantum jumps: the time "
+                "of each jump depends on the parameters, and that dependence is not "
+                "differentiated. Detach the initial state, the sequence parameters "
+                "and the noise operators to run without gradients."
+            )
         ham = self.get_hamiltonian(
             omegas=omegas,
             deltas=deltas,
