@@ -17,11 +17,12 @@ Notes on the triton programming model:
 On a CUDA gpu, each parallel execution of the code is called a thread, and threads are
 grouped in blocks. Each thread must execute exactly the same instructions but
 potentially on different data. Similar to a broadcasting statement in numpy, writing
-c=a+b for two arrays does a single add, but the two input elements are at a diffent
+c=a+b for two arrays does many single adds, but the two input elements are at a diffent
 location and so is the output. Consequently, in triton each CUDA block is called a
 program and you write each program using broadcast semantics on a vector.
-
-
+You launch a kernel as `kernel[(n_blocks_to_use,)]` and then get the program id at
+runtime using `tl.program_id`. From this you can compute what subset of the data
+that program needs to operate on.
 """
 
 # Triton kernels cannot be type-annotated in a way mypy understands.
