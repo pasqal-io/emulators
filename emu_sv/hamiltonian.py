@@ -89,6 +89,7 @@ class RydbergHamiltonian:
         self.interaction_diag: torch.Tensor = interaction_diag
         self._diag: torch.Tensor | None = None
         self._kernel_buffer: torch.Tensor | None = None
+        self._kernel_diag: torch.Tensor | None = None
         # the fused kernel does not record operations for autograd
         self._requires_grad = any(
             t.requires_grad for t in (omegas, deltas, phis, interaction_matrix)
@@ -114,10 +115,11 @@ class RydbergHamiltonian:
             torch.is_grad_enabled() and (vec.requires_grad or self._requires_grad)
         )
 
-    def _kernel_args(self) -> tuple[torch.Tensor, torch.Tensor]:
+    def _kernel_args(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Per-qubit coefficients of the fused kernel (see `hamiltonian_kernels`) and the
-        scalar 1, copied to the device once per Hamiltonian.
+        Full diagonal of H, per-qubit coefficients of the fused kernel (see
+        `hamiltonian_kernels`) and the scalar 1, built on the device once per
+        Hamiltonian.
         """
         if self._kernel_buffer is None:
             d0 = torch.zeros(self.nqubits, dtype=torch.complex128)
@@ -135,7 +137,11 @@ class RydbergHamiltonian:
             buffer = torch.cat((torch.stack((d0, d1, f0, f1), dim=1).view(-1), one))
             self._kernel_buffer = buffer.to(self.interaction_diag.device)
         table = torch.view_as_real(self._kernel_buffer[:-1]).reshape(-1)
-        return table, self._kernel_buffer[-1:]
+        if self._kernel_diag is None:
+            self._kernel_diag = kernels.make_diagonal(
+                self.interaction_diag, table, self.noise is not None
+            )
+        return self._kernel_diag, table, self._kernel_buffer[-1:]
 
     def make_op(self, factor: complex) -> Callable[[torch.Tensor], torch.Tensor]:
         """
@@ -152,10 +158,8 @@ class RydbergHamiltonian:
                 factor_on_device = torch.tensor(
                     [factor], dtype=torch.complex128, device=x.device
                 )
-            table, _ = self._kernel_args()
-            return kernels.apply(
-                x, self.interaction_diag, table, factor_on_device, self.complex
-            )
+            diag, table, _ = self._kernel_args()
+            return kernels.apply(x, diag, table, factor_on_device, self.complex)
 
         return op
 
@@ -178,8 +182,8 @@ class RydbergHamiltonian:
             the resulting state vector.
         """
         if self._use_kernel(vec):
-            table, one = self._kernel_args()
-            return kernels.apply(vec, self.interaction_diag, table, one, self.complex)
+            diag, table, one = self._kernel_args()
+            return kernels.apply(vec, diag, table, one, self.complex)
         # (-∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ)|ψ❭
         result = self.diag * vec
         # ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ]|ψ❭
