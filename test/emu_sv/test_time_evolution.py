@@ -101,3 +101,28 @@ def test_backward_accuracy(N, tolerance):
 
     for g, eg in zip(grads, expected_grads):
         assert torch.allclose(g, eg, rtol=tolerance)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
+@pytest.mark.usefixtures("restore_rng_state")
+@pytest.mark.parametrize("N", [8, 9])
+def test_forward_backward_accuracy_cuda(N: int) -> None:
+    """On CUDA with Triton, both passes apply H with the fused kernel."""
+    torch.manual_seed(1337)
+    tolerance = 1e-10
+    ham_params = get_randn_ham_params(N, with_phase=True, requires_grad=True)
+    state_in = get_randn_state(N, device="cuda", requires_grad=True)
+    dt = 1.0
+    r = torch.randn(2**N, dtype=state_in.dtype, device=state_in.device)
+    r *= 0.71 / r.norm()
+
+    state_out, _ = EvolveStateVector().apply(dt, *ham_params, state_in, tolerance, None)
+    grads = torch.autograd.grad(torch.vdot(r, state_out).real, (*ham_params, state_in))
+
+    expected = do_dense_time_step(dt, *ham_params, state_in)
+    expected_grads = torch.autograd.grad(
+        torch.vdot(r, expected).real, (*ham_params, state_in)
+    )
+    assert torch.allclose(expected, state_out, atol=tolerance)
+    for g, eg in zip(grads, expected_grads):
+        assert torch.allclose(g, eg, rtol=tolerance)

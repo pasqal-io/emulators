@@ -56,6 +56,7 @@ class EvolveStateVector(BaseStepper):
                 state,
                 krylov_tolerance,
                 self.max_krylov_dim,
+                self.interaction_diagonal(full_interaction_matrix, state.device),
             ),
         )
 
@@ -135,6 +136,7 @@ class EvolveMonteCarlo(BaseStepper):
         pulser_lindblads: list[torch.Tensor],
         interaction_matrix: torch.Tensor,
         device: torch.device,
+        interaction_diag: torch.Tensor | None = None,
     ) -> RydbergHamiltonian:
         return RydbergHamiltonian(
             omegas=omegas,
@@ -143,6 +145,7 @@ class EvolveMonteCarlo(BaseStepper):
             interaction_matrix=interaction_matrix,
             device=device,
             noise=compute_noise_from_lindbladians(pulser_lindblads),
+            interaction_diag=interaction_diag,
         )
 
     def evolve(
@@ -152,12 +155,8 @@ class EvolveMonteCarlo(BaseStepper):
         state: torch.Tensor,
         krylov_tolerance: float,
     ) -> torch.Tensor:
-
-        def op(x: torch.Tensor) -> torch.Tensor:
-            return -1j * dt * (hamiltonian * x)
-
         return krylov_exp(
-            op,
+            hamiltonian.make_op(-1j * dt),
             state,
             norm_tolerance=krylov_tolerance,
             exp_tolerance=krylov_tolerance,
@@ -200,6 +199,20 @@ class EvolveMonteCarlo(BaseStepper):
         krylov_tolerance: float,
         pulser_lindblads: list[torch.Tensor],
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
+        if (
+            torch.is_grad_enabled()
+            and any(
+                t.requires_grad
+                for t in (state, omegas, deltas, phis, full_interaction_matrix)
+            )
+            or any(op.requires_grad for op in pulser_lindblads)
+        ):
+            raise NotImplementedError(
+                "Gradients are not supported with Monte Carlo quantum jumps: the time "
+                "of each jump depends on the parameters, and that dependence is not "
+                "differentiated. Detach the initial state, the sequence parameters "
+                "and the noise operators to run without gradients."
+            )
         ham = self.get_hamiltonian(
             omegas=omegas,
             deltas=deltas,
@@ -207,6 +220,9 @@ class EvolveMonteCarlo(BaseStepper):
             pulser_lindblads=pulser_lindblads,
             interaction_matrix=full_interaction_matrix,
             device=state.device,
+            interaction_diag=self.interaction_diagonal(
+                full_interaction_matrix, state.device
+            ),
         )
 
         current_time = 0.0

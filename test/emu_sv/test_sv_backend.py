@@ -211,6 +211,23 @@ def test_backend_impl_stepper_logic():
     assert type(backend_impl.stepper) is EvolveStateVector
 
 
+def test_monte_carlo_stepper_rejects_state_requiring_grad():
+    """the stepper itself refuses, also when used without SVBackendImpl"""
+    state = torch.tensor([0.0, 1.0], dtype=torch.complex128, requires_grad=True)
+    zero = torch.zeros(1, dtype=torch.float64)
+    with pytest.raises(NotImplementedError, match="Monte Carlo"):
+        EvolveMonteCarlo().apply(
+            0.1,
+            zero,
+            zero,
+            zero,
+            torch.zeros(1, 1, dtype=torch.float64),
+            state,
+            1e-10,
+            [torch.eye(2, dtype=torch.complex128)],
+        )
+
+
 # SVConfig.max_krylov_dim used to be ignored: every Krylov call ran with the default of
 # 100, so a step needing more Lanczos vectors failed with RecursionError whatever the
 # config said. 17 differs from that default and is enough to span the largest space used
