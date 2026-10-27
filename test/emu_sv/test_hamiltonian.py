@@ -229,13 +229,18 @@ def test_fused_kernel_matches_torch(N: int, with_phase: bool, with_noise: bool) 
         noise=noise,
     )
     state = torch.randn(2**N, dtype=dtype, device="cuda")
-    assert ham._use_kernel(state)
+    assert ham._use_kernel(state.requires_grad)
     fused = ham * state
     fused_op = ham.make_op(-0.3j)(state)
+    # the kernel copies non-contiguous input instead of reading it as contiguous
+    strided = torch.randn(2 * 2**N, dtype=dtype, device="cuda")[::2]
+    fused_strided = ham.make_op(-0.3j)(strided)
     with patch.object(kernels, "is_available", return_value=False):
         reference = ham * state
+        reference_strided = ham * strided
     assert torch.allclose(fused, reference, atol=1e-12)
     assert torch.allclose(fused_op, -0.3j * reference, atol=1e-12)
+    assert torch.allclose(fused_strided, -0.3j * reference_strided, atol=1e-12)
 
     # the kernel is not differentiable: autograd falls back to torch
     ham_grad = RydbergHamiltonian(
@@ -246,6 +251,6 @@ def test_fused_kernel_matches_torch(N: int, with_phase: bool, with_noise: bool) 
         device="cuda",
         noise=noise,
     )
-    assert not ham_grad._use_kernel(state)
+    assert not ham_grad._use_kernel(state.requires_grad)
     with torch.no_grad():
-        assert ham_grad._use_kernel(state)
+        assert ham_grad._use_kernel(state.requires_grad)

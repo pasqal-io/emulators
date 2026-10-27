@@ -202,3 +202,46 @@ def test_backend_impl_stepper_logic():
     mock_sequence.has_stochastic_noise = False
     backend_impl = SVBackendImpl(mock_config, mock_sequence)
     assert type(backend_impl.stepper) is EvolveStateVector
+
+
+@pytest.mark.parametrize("grad_input", ["omega", "initial_state"])
+def test_monte_carlo_rejects_inputs_requiring_grad(grad_input):
+    """quantum jump times depend on the parameters, which autograd does not see"""
+    initial_state = None
+    if grad_input == "initial_state":
+        initial_state = StateVector(
+            torch.tensor([0.0, 1.0], dtype=torch.complex128, requires_grad=True),
+            gpu=False,
+        )
+    config = SVConfig(gpu=False, initial_state=initial_state)
+    pulser_data = MagicMock(
+        spec=SequenceData,
+        omega=torch.tensor([[1.0]], requires_grad=grad_input == "omega"),
+        delta=torch.tensor([[1.0]]),
+        phi=torch.tensor([[1.0]]),
+        interaction_matrix=lambda t: torch.zeros((1, 1, 1), dtype=torch.float64),
+        state_prep_error=0.0,
+        target_times=[0.0, 1.0],
+        qubit_ids=(),
+        lindblad_ops=[torch.eye(2, dtype=torch.complex128)],
+        has_stochastic_noise=True,
+    )
+    with pytest.raises(NotImplementedError, match="Monte Carlo"):
+        SVBackendImpl(config, pulser_data)
+
+
+def test_monte_carlo_stepper_rejects_state_requiring_grad():
+    """the stepper itself refuses, also when used without SVBackendImpl"""
+    state = torch.tensor([0.0, 1.0], dtype=torch.complex128, requires_grad=True)
+    zero = torch.zeros(1, dtype=torch.float64)
+    with pytest.raises(NotImplementedError, match="Monte Carlo"):
+        EvolveMonteCarlo().apply(
+            0.1,
+            zero,
+            zero,
+            zero,
+            torch.zeros(1, 1, dtype=torch.float64),
+            state,
+            1e-10,
+            [torch.eye(2, dtype=torch.complex128)],
+        )

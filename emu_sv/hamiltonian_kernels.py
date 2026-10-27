@@ -9,7 +9,7 @@ built once per Hamiltonian by `make_diagonal`, so the loop over the neighbours o
 does the off-diagonal terms.
 
 The kernels are only used when Triton can be imported (it ships with the CUDA builds
-of torch on Linux) and the state is a contiguous complex128 CUDA vector; otherwise
+of torch on Linux) and the state is a complex128 CUDA vector; otherwise
 `RydbergHamiltonian` uses its torch implementation (CPU, macOS, Windows, no Triton).
 """
 
@@ -32,16 +32,10 @@ MIN_QUBITS = 8
 WIDE_QUBITS = 30
 
 
-def is_available(vec: torch.Tensor) -> bool:
-    """Whether the fused kernel can be applied to `vec`."""
-    return (
-        triton is not None
-        and vec.is_cuda
-        and vec.dtype == torch.complex128
-        and vec.dim() == 1
-        and vec.is_contiguous()
-        and vec.numel() >= 2**MIN_QUBITS
-    )
+def is_available(device: torch.device, nqubits: int) -> bool:
+    """Whether the fused kernel can apply H to complex128 states of `nqubits` qubits
+    on `device`."""
+    return triton is not None and device.type == "cuda" and nqubits >= MIN_QUBITS
 
 
 if triton is not None:
@@ -180,6 +174,7 @@ def apply(
     `factor` is a one-element complex128 tensor on the device of `x` (a tensor rather
     than a Python number, which Triton would pass as float32).
     """
+    x = x.contiguous()
     nqubits = x.numel().bit_length() - 1
     noise = diag.is_complex()
     out = torch.empty_like(x)

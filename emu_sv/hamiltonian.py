@@ -110,9 +110,15 @@ class RydbergHamiltonian:
             self._diag = self._create_diagonal()
         return self._diag
 
-    def _use_kernel(self, vec: torch.Tensor) -> bool:
-        return kernels.is_available(vec) and not (
-            torch.is_grad_enabled() and (vec.requires_grad or self._requires_grad)
+    def _use_kernel(self, requires_grad: bool = False) -> bool:
+        """
+        Whether the fused kernel can apply H to states that do (or do not)
+        `requires_grad`. The kernel is not recorded by autograd, so it is only used
+        when autograd does not need to record through H. Inside the custom forward
+        and backward of `DifferentiableStateVectorEvolution`, grad mode is off.
+        """
+        return kernels.is_available(self.interaction_diag.device, self.nqubits) and not (
+            torch.is_grad_enabled() and (requires_grad or self._requires_grad)
         )
 
     def _kernel_args(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -146,22 +152,21 @@ class RydbergHamiltonian:
     def make_op(self, factor: complex) -> Callable[[torch.Tensor], torch.Tensor]:
         """
         Return the operator x ↦ factor·(H x), e.g. -i dt H for `krylov_exp`.
+
+        Whether to use the fused kernel is decided here, once, for vectors that do
+        not require grad, and the operator must be used in the grad mode it was made
+        in. That holds for every caller: `DifferentiableStateVectorEvolution` runs
+        with grad mode off, and `EvolveMonteCarlo` rejects inputs that require grad.
         With the fused kernel, the factor is applied inside the kernel.
         """
-        factor_on_device: torch.Tensor | None = None
-
-        def op(x: torch.Tensor) -> torch.Tensor:
-            nonlocal factor_on_device
-            if not self._use_kernel(x):
-                return factor * (self * x)
-            if factor_on_device is None:
-                factor_on_device = torch.tensor(
-                    [factor], dtype=torch.complex128, device=x.device
-                )
-            diag, table, _ = self._kernel_args()
-            return kernels.apply(x, diag, table, factor_on_device, self.complex)
-
-        return op
+        if not self._use_kernel():
+            return lambda x: factor * self._apply_torch(x)
+        diag, table, _ = self._kernel_args()
+        factor_on_device = torch.tensor(
+            [factor], dtype=torch.complex128, device=self.interaction_diag.device
+        )
+        is_complex = self.complex
+        return lambda x: kernels.apply(x, diag, table, factor_on_device, is_complex)
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
@@ -181,9 +186,13 @@ class RydbergHamiltonian:
         Returns:
             the resulting state vector.
         """
-        if self._use_kernel(vec):
+        if vec.dtype == torch.complex128 and self._use_kernel(vec.requires_grad):
             diag, table, one = self._kernel_args()
             return kernels.apply(vec, diag, table, one, self.complex)
+        return self._apply_torch(vec)
+
+    def _apply_torch(self, vec: torch.Tensor) -> torch.Tensor:
+        """H*|ψ❭ with torch operations (CPU, no Triton, or autograd recording)."""
         # (-∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ)|ψ❭
         result = self.diag * vec
         # ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ]|ψ❭

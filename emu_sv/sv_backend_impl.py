@@ -25,6 +25,7 @@ from emu_sv.time_evolution import (
     EvolveMonteCarlo,
     BaseStepper,
 )
+from emu_sv.time_evolution.implementations import MONTE_CARLO_GRAD_ERROR
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
 
@@ -113,6 +114,19 @@ class SVBackendImpl:
         self.resolved_gpu = requested_gpu
 
         self.init_initial_state(config, state_type)
+
+        if isinstance(stepper, EvolveMonteCarlo) and any(
+            torch.is_tensor(t) and t.requires_grad
+            for t in (
+                self.state.data,
+                data.omega,
+                data.delta,
+                data.phi,
+                data.interaction_matrix(self.target_times[0]),
+                *self.pulser_lindblads,
+            )
+        ):
+            raise NotImplementedError(MONTE_CARLO_GRAD_ERROR)
 
         self.time = time.time()
         self.results = Results(
