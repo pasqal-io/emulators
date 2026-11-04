@@ -17,7 +17,7 @@ from emu_base.math.chebyshev import chebyshev_exp, exp_chebyshev_coefficients
 from emu_base.math.double_krylov import double_krylov
 from emu_base.math.krylov_exp import krylov_exp
 from emu_sv import hamiltonian_kernels as kernels
-from emu_sv.hamiltonian import RydbergHamiltonian, interaction_diagonal
+from emu_sv.hamiltonian import RydbergHamiltonian, make_interaction_diagonal
 from emu_sv.time_evolution import (
     EvolveDensityMatrix,
     EvolveMonteCarlo,
@@ -216,7 +216,7 @@ def test_chebyshev_step_returns_unshifted_hamiltonian() -> None:
     torch.manual_seed(1337)
     N = 4
     omegas, deltas, phis, interaction = off_centre_params(N, with_phase=True)
-    interaction_diag = interaction_diagonal(interaction, device)
+    interaction_diag = make_interaction_diagonal(interaction, device)
     interaction_diag_copy = interaction_diag.clone()
     state_in = get_randn_state(N, device=device)
 

@@ -9,7 +9,7 @@ from test.utils_testing import (
     requires_kernel,
 )
 from emu_sv.state_vector import StateVector
-from emu_sv.hamiltonian import RydbergHamiltonian, interaction_diagonal
+from emu_sv.hamiltonian import RydbergHamiltonian, make_interaction_diagonal
 from emu_sv import hamiltonian_kernels as kernels
 from emu_sv.time_evolution import EvolveStateVector
 
@@ -272,7 +272,7 @@ def test_spectral_bounds(with_phase: bool, input_dtype: torch.dtype) -> None:
     deltas[3] = -deltas[3].abs() - 0.5
     phis = torch.randn(N, dtype=torch.float64) if with_phase else torch.zeros(N)
     interaction_matrix = randn_interaction_matrix(N)
-    interaction_diag = interaction_diagonal(interaction_matrix, device)
+    interaction_diag = make_interaction_diagonal(interaction_matrix, device)
     interaction_diag_copy = interaction_diag.clone()
     dense = dense_rydberg_hamiltonian(omegas, deltas, phis, interaction_matrix)
     d_dense = torch.diagonal(dense).real
@@ -334,7 +334,7 @@ def test_shifted_interaction_diag(dev: str, with_phase: bool) -> None:
         interaction_matrix=interaction_matrix,
         device=dev,
         noise=None,
-        interaction_diag=interaction_diagonal(interaction_matrix, dev) - shift,
+        interaction_diag=make_interaction_diagonal(interaction_matrix, dev) - shift,
     )
     state = torch.randn(2**N, dtype=dtype, device=dev)
     assert ham._use_kernel(state) == (dev == "cuda")

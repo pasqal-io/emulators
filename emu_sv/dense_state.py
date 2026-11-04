@@ -6,7 +6,7 @@ from pulser.backend.state import Eigenstate
 from typing import Sequence, TypeVar, Type, Mapping
 from emu_base import DEVICE_COUNT
 from emu_base import apply_measurement_errors
-from emu_sv.utils import index_to_bitstring
+from emu_sv.utils import index_to_bitstring, sample_indices
 from collections import Counter
 
 dtype = torch.complex128
@@ -78,11 +78,12 @@ class DenseState(State[complex, torch.Tensor]):
         elif self.data.dim() == 1:
             probabilities = torch.abs(self.data) ** 2
 
-        outcomes = torch.multinomial(probabilities, num_shots, replacement=True)
+        outcomes = sample_indices(probabilities, num_shots)
 
-        # Convert outcomes to bitstrings and count occurrences
+        # Convert outcomes to bitstrings and count occurrences.
+        # One device-to-host copy, instead of one GPU synchronisation per shot.
         counts = Counter(
-            [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes]
+            [index_to_bitstring(self.n_qudits, outcome) for outcome in outcomes.tolist()]
         )
 
         if p_false_neg > 0 or p_false_pos > 0:
