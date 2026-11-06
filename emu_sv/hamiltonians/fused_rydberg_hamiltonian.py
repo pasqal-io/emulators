@@ -26,6 +26,8 @@ runtime using `tl.program_id`. From this you can compute what subset of the data
 that program needs to operate on.
 """
 
+import functools
+import logging
 from typing import Callable
 
 import torch
@@ -177,6 +179,36 @@ if triton is not None:
             tl.join(s_r * hr - s_i * hi, s_r * hi + s_i * hr),
         )
 
+    @triton.jit
+    def _add_kernel(x_ptr, y_ptr, out_ptr, BLOCK: tl.constexpr):  # type: ignore[no-untyped-def]
+        """out = x + y, only used by `_kernels_work` to check that Triton works."""
+        offs = _offsets(BLOCK, False)
+        tl.store(out_ptr + offs, tl.load(x_ptr + offs) + tl.load(y_ptr + offs))
+
+
+@functools.cache
+def _kernels_work(device: torch.device) -> bool:
+    """
+    Whether Triton kernels compile and run correctly on `device`. Triton imports
+    without a C compiler, a CUDA driver or support for the GPU architecture, and that
+    only shows when a kernel is compiled and run, so do that once per device with a
+    tiny kernel.
+    """
+    try:
+        x = torch.arange(BLOCK, dtype=torch.float64, device=device)
+        out = torch.empty_like(x)
+        _add_kernel[(1,)](x, x, out, BLOCK=BLOCK)
+        if torch.equal(out, 2 * x):
+            return True
+        reason = "the test kernel returned wrong results"
+    except Exception as e:
+        reason = f"the test kernel failed: {e!r}"
+    logging.getLogger("emulators").warning(
+        f"Triton is installed but cannot run kernels on {device} ({reason}). "
+        "The Hamiltonian is applied with torch instead of the fused kernel."
+    )
+    return False
+
 
 def _make_diagonal(
     interaction_diag: torch.Tensor, table: torch.Tensor, noise: bool
@@ -297,9 +329,15 @@ class FusedRydbergHamiltonian(RydbergHamiltonian):
 
     @staticmethod
     def is_available(device: torch.device, nqubits: int) -> bool:
-        """Whether the fused kernel can apply H to complex128 states of `nqubits`
-        qubits on `device`."""
-        return triton is not None and device.type == "cuda" and nqubits >= MIN_QUBITS
+        """
+        Whether the fused kernel can apply H to complex128 states of `nqubits` qubits
+        on `device`. The first call for a CUDA device compiles and runs a test kernel
+        on it (see `_kernels_work`).
+        """
+        if triton is None or device.type != "cuda" or nqubits < MIN_QUBITS:
+            return False
+        index = device.index if device.index is not None else torch.cuda.current_device()
+        return _kernels_work(torch.device("cuda", index))
 
     def _use_kernel(self, requires_grad: bool = False) -> bool:
         """

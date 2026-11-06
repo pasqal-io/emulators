@@ -1,6 +1,7 @@
+import logging
 import torch
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from test.utils_testing import (
     dense_rydberg_hamiltonian,
     nn_interaction_matrix,
@@ -200,6 +201,19 @@ def test_interaction_diagonal_is_kept_between_steps() -> None:
         assert torch.allclose(ham.diag, torch.diagonal(dense).to(dtype), atol=1e-12)
 
 
+def test_kernel_probe_failure_falls_back() -> None:
+    """Triton can import fine and still fail to compile, e.g. without a C compiler."""
+    launcher = MagicMock(side_effect=RuntimeError("no C compiler"))
+    # the "emulators" logger does not propagate, so caplog does not see it
+    with (
+        patch.object(fused, "_add_kernel", {(1,): launcher}, create=True),
+        patch.object(logging.getLogger("emulators"), "warning") as warning,
+    ):
+        assert not fused._kernels_work.__wrapped__(torch.device("cpu"))
+    launcher.assert_called_once()
+    assert "no C compiler" in warning.call_args.args[0]
+
+
 @pytest.mark.skipif(
     not torch.cuda.is_available() or fused.triton is None,
     reason="the fused kernel needs CUDA and Triton",
@@ -228,6 +242,7 @@ def test_fused_kernel_matches_torch(N: int, with_phase: bool, with_noise: bool) 
         device="cuda",
         noise=noise,
     )
+    assert FusedRydbergHamiltonian.is_available(torch.device("cuda"), N)
     ham = FusedRydbergHamiltonian(**params)
     reference_ham = RydbergHamiltonian(**params)
     state = torch.randn(2**N, dtype=dtype, device="cuda")
