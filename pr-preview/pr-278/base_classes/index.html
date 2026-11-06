@@ -968,6 +968,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pulser.backend.state.State.from_state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        from_state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pulser.backend.state.State.from_state_amplitudes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1145,6 +1156,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pulser.backend.operator.Operator.from_operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        from_operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pulser.backend.operator.Operator.from_operator_repr" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1152,6 +1174,45 @@
       
     </span>
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pulser.backend.operator.Operator.from_pauli_string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        from_pauli_string
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="from_pauli_string">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pulser.backend.operator.Operator.from_pauli_string--z_1-x_3-z_10-in-a-system-of-12-qubits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        σ^z_1 σ^x_3 σ^z_10 in a system of 12 qubits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pulser.backend.operator.Operator.from_pauli_string--to-compute-its-expectation-value-during-the-emulation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        To compute its expectation value during the emulation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -3005,6 +3066,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pulser.backend.state.State.from_state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        from_state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pulser.backend.state.State.from_state_amplitudes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3182,6 +3254,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pulser.backend.operator.Operator.from_operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        from_operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pulser.backend.operator.Operator.from_operator_repr" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3189,6 +3272,45 @@
       
     </span>
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pulser.backend.operator.Operator.from_pauli_string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        from_pauli_string
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="from_pauli_string">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pulser.backend.operator.Operator.from_pauli_string--z_1-x_3-z_10-in-a-system-of-12-qubits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        σ^z_1 σ^x_3 σ^z_10 in a system of 12 qubits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pulser.backend.operator.Operator.from_pauli_string--to-compute-its-expectation-value-during-the-emulation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        To compute its expectation value during the emulation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -3715,10 +3837,11 @@ every step in the emulation will also be an evaluation time.</p>
             </td>
             <td class="doc-param-details">
               <div class="doc-md-description">
-                <p>The initial state from which emulation starts. If
-specified, the state type needs to be compatible with the emulator
-backend (i.e. it must match
-<code>EmulatorBackend.config_type.state_type</code>).
+                <p>The initial state from which emulation starts. When
+given to an <code>EmulatorBackend</code>, it is automatically converted to
+<code>EmulatorBackend.config_type.state_type</code> if needed, which
+requires it to have been created via
+<code>State.from_state_amplitudes()</code>.
 If left undefined, defaults to starting with all qudits in the
 ground state.</p>
               </div>
@@ -5144,6 +5267,111 @@ to eigenvector (1, 0, ...), "b" to (0, 1, ...) and so on.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="pulser.backend.state.State.from_state" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">from_state</span><span class="p">(</span><span class="n">state</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#pulser.backend.state.State.from_state" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Creates a new state of this type from another state.</p>
+<p>By default, the state is converted through its abstract
+representation, which is only possible if it was created via
+<code>from_state_amplitudes()</code> and not modified afterwards. If the
+state is already an instance of this type, a shallow copy of it is
+returned instead, so it does not need to be serializable.</p>
+<p>Subclasses can override this method to support other
+conversions (e.g. directly from a state type they know).</p>
+
+
+<table>
+      <thead>
+        <tr>
+          <th><span class="doc-section-title">PARAMETER</span></th>
+          <th><span>DESCRIPTION</span></th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>state</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>The state to convert.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="pulser.backend.state.State">State</span></code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<table>
+      <thead>
+        <tr>
+          <th><span class="doc-section-title">RETURNS</span></th>
+          <th><span>DESCRIPTION</span></th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <span class="doc-returns-annotation">
+                    <code><span title="pulser.backend.state.StateType">StateType</span></code>
+                </span>
+            </td>
+            <td class="doc-returns-details">
+              <div class="doc-md-description">
+                <p>A new state of this type, equivalent to the given one.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<table>
+      <thead>
+        <tr>
+          <th><span class="doc-section-title">RAISES</span></th>
+          <th><span>DESCRIPTION</span></th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+              <span class="doc-raises-annotation">
+                  <code><span title="TypeError">TypeError</span></code>
+              </span>
+            </td>
+            <td class="doc-raises-details">
+              <div class="doc-md-description">
+                <p>If the state can't be converted to this type.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="pulser.backend.state.State.from_state_amplitudes" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">from_state_amplitudes</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">eigenstates</span><span class="p">,</span> <span class="n">amplitudes</span><span class="p">)</span></code>
 
@@ -5157,7 +5385,8 @@ to eigenvector (1, 0, ...), "b" to (0, 1, ...) and so on.</p>
     <div class="doc doc-contents ">
 
         <p>Construct the state from its basis states' amplitudes.</p>
-<p>Only states constructed with this method are allowed in remote backend.</p>
+<p>Only states constructed with this method are accepted by
+the remote backends.</p>
 
 
 <table>
@@ -5191,7 +5420,8 @@ to eigenvector (1, 0, ...), "b" to (0, 1, ...) and so on.</p>
             <td class="doc-param-details">
               <div class="doc-md-description">
                 <p>A mapping between basis state combinations and
-complex amplitudes (e.g., {"rgr": 0.5, "grg": 0.5}).</p>
+complex amplitudes (e.g., {"rgr": 1.0 / np.sqrt(2),
+"grg": 1.0 / np.sqrt(2)}).</p>
               </div>
               <p>
                   <span class="doc-param-annotation">
@@ -5227,6 +5457,19 @@ complex amplitudes (e.g., {"rgr": 0.5, "grg": 0.5}).</p>
           </tr>
       </tbody>
     </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">eigenstates</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"r"</span><span class="p">,</span> <span class="s2">"g"</span><span class="p">)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">norm_factor</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="c1"># build an equal superposition of "rgr" and "grg" basis states</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">amplitudes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"rgr"</span><span class="p">:</span> <span class="n">norm_factor</span><span class="p">,</span> <span class="s2">"grg"</span><span class="p">:</span> <span class="n">norm_factor</span><span class="p">}</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">config_class</span> <span class="o">=</span> <span class="n">your_pulser_backend</span><span class="o">.</span><span class="n">config_type</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">state_class</span> <span class="o">=</span> <span class="n">config_class</span><span class="o">.</span><span class="n">state_type</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">state</span> <span class="o">=</span> <span class="n">state_class</span><span class="o">.</span><span class="n">from_state_amplitudes</span><span class="p">(</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="n">eigenstates</span><span class="o">=</span><span class="n">eigenstates</span><span class="p">,</span> <span class="n">amplitudes</span><span class="o">=</span><span class="n">amplitudes</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+</code></pre></div>
 
 
     </div>
@@ -5564,7 +5807,8 @@ method <code>from_state_amplitudes</code>, which requires:</p>
 <ul>
 <li>eigenstates: The basis states (e.g., ('r', 'g')).</li>
 <li>amplitudes: A mapping between basis state combinations and
-  complex amplitudes (e.g., {"rgr": 0.5, "grg": 0.5}).</li>
+  complex amplitudes (e.g., {"rgr": 1.0 / np.sqrt(2),
+  "grg": 1.0 / np.sqrt(2)}).</li>
 </ul>
 <p>The created state, supports de/serialization methods for remote backend
 execution.</p>
@@ -5572,10 +5816,11 @@ execution.</p>
 
 <p><span class="doc-section-title">Examples:</span></p>
     <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">eigenstates</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"r"</span><span class="p">,</span> <span class="s2">"g"</span><span class="p">)</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">amplitudes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"rgr"</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s2">"grg"</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">}</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">state</span> <span class="o">=</span> <span class="n">StateRepr</span><span class="o">.</span><span class="n">from_state_amplitudes</span><span class="p">(</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="n">eigenstates</span><span class="o">=</span><span class="n">eigenstates</span><span class="p">,</span> <span class="n">amplitudes</span><span class="o">=</span><span class="n">amplitudes</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">norm_factor</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">amplitudes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"rgr"</span><span class="p">:</span> <span class="n">norm_factor</span><span class="p">,</span> <span class="s2">"grg"</span><span class="p">:</span> <span class="n">norm_factor</span><span class="p">}</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">state</span> <span class="o">=</span> <span class="n">StateRepr</span><span class="o">.</span><span class="n">from_state_amplitudes</span><span class="p">(</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="n">eigenstates</span><span class="o">=</span><span class="n">eigenstates</span><span class="p">,</span> <span class="n">amplitudes</span><span class="o">=</span><span class="n">amplitudes</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
 </code></pre></div>
 
 
@@ -6076,6 +6321,111 @@ execution.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="pulser.backend.operator.Operator.from_operator" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">from_operator</span><span class="p">(</span><span class="n">operator</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#pulser.backend.operator.Operator.from_operator" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Creates a new operator of this type from another operator.</p>
+<p>By default, the operator is converted through its abstract
+representation, which is only possible if it was created via
+<code>from_operator_repr()</code>. If the operator is already an instance of
+this type, a shallow copy of it is returned instead, so it does not
+need to be serializable.</p>
+<p>Subclasses can override this method to support other
+conversions (e.g. directly from an operator type they know).</p>
+
+
+<table>
+      <thead>
+        <tr>
+          <th><span class="doc-section-title">PARAMETER</span></th>
+          <th><span>DESCRIPTION</span></th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>operator</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>The operator to convert.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="pulser.backend.operator.Operator">Operator</span></code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<table>
+      <thead>
+        <tr>
+          <th><span class="doc-section-title">RETURNS</span></th>
+          <th><span>DESCRIPTION</span></th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <span class="doc-returns-annotation">
+                    <code><span title="pulser.backend.operator.OperatorType">OperatorType</span></code>
+                </span>
+            </td>
+            <td class="doc-returns-details">
+              <div class="doc-md-description">
+                <p>A new operator of this type, equivalent to the given one.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<table>
+      <thead>
+        <tr>
+          <th><span class="doc-section-title">RAISES</span></th>
+          <th><span>DESCRIPTION</span></th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+              <span class="doc-raises-annotation">
+                  <code><span title="TypeError">TypeError</span></code>
+              </span>
+            </td>
+            <td class="doc-raises-details">
+              <div class="doc-md-description">
+                <p>If the operator can't be converted to this type.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="pulser.backend.operator.Operator.from_operator_repr" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">from_operator_repr</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">eigenstates</span><span class="p">,</span> <span class="n">n_qudits</span><span class="p">,</span> <span class="n">operations</span><span class="p">)</span></code>
 
@@ -6193,6 +6543,199 @@ where <code>i</code> and <code>j</code> are eigenstates that denote <code>|i&gt;
       </tbody>
     </table>
 
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">eigenstates</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"r"</span><span class="p">,</span> <span class="s2">"g"</span><span class="p">)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">n_qudits</span> <span class="o">=</span> <span class="mi">4</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="c1"># define X,Y,Z</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">X</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"gr"</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="s2">"rg"</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">}</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Y</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"gr"</span><span class="p">:</span> <span class="mf">1.0</span><span class="n">j</span><span class="p">,</span> <span class="s2">"rg"</span><span class="p">:</span> <span class="o">-</span><span class="mf">1.0</span><span class="n">j</span><span class="p">}</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Z</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"rr"</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="s2">"gg"</span><span class="p">:</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">}</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="c1"># build for example 0.5*X0Y1X2Z3 - j0.2*Z1Y3 + (-0.1+j4.0)*X2</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">operations</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="p">(</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="gp">&gt;&gt;&gt; </span>        <span class="mf">0.5</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="gp">&gt;&gt;&gt; </span>        <span class="p">[</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="gp">&gt;&gt;&gt; </span>            <span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]),</span> <span class="c1"># acts on qudit 0 and 2</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="gp">&gt;&gt;&gt; </span>            <span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="gp">&gt;&gt;&gt; </span>            <span class="p">(</span><span class="n">Z</span><span class="p">,</span> <span class="p">[</span><span class="mi">3</span><span class="p">]),</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="gp">&gt;&gt;&gt; </span>        <span class="p">],</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="p">),</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="p">(</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="gp">&gt;&gt;&gt; </span>        <span class="o">-</span><span class="mf">0.2</span><span class="n">j</span><span class="p">,</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="gp">&gt;&gt;&gt; </span>        <span class="p">[</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="gp">&gt;&gt;&gt; </span>            <span class="p">(</span><span class="n">Z</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="gp">&gt;&gt;&gt; </span>            <span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="p">[</span><span class="mi">3</span><span class="p">]),</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="gp">&gt;&gt;&gt; </span>        <span class="p">],</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="p">),</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="p">(</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="gp">&gt;&gt;&gt; </span>        <span class="o">-</span><span class="mf">0.1</span> <span class="o">+</span> <span class="mf">4.0</span><span class="n">j</span><span class="p">,</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="gp">&gt;&gt;&gt; </span>        <span class="p">[</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="gp">&gt;&gt;&gt; </span>            <span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="gp">&gt;&gt;&gt; </span>        <span class="p">],</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="p">),</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="gp">&gt;&gt;&gt; </span><span class="p">]</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">config_class</span> <span class="o">=</span> <span class="n">your_pulser_backend</span><span class="o">.</span><span class="n">config_type</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">operator_class</span> <span class="o">=</span> <span class="n">config_class</span><span class="o">.</span><span class="n">operator_type</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">op</span> <span class="o">=</span> <span class="n">operator_class</span><span class="o">.</span><span class="n">from_operator_repr</span><span class="p">(</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="n">eigenstates</span><span class="o">=</span><span class="n">eigenstates</span><span class="p">,</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="n">n_qudits</span><span class="o">=</span><span class="n">n_qudits</span><span class="p">,</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="gp">&gt;&gt;&gt; </span>    <span class="n">operations</span><span class="o">=</span><span class="n">operations</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+</code></pre></div>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pulser.backend.operator.Operator.from_pauli_string" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">from_pauli_string</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">eigenstates</span><span class="p">,</span> <span class="n">n_qudits</span><span class="p">,</span> <span class="n">paulis</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#pulser.backend.operator.Operator.from_pauli_string" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create the operator for a Pauli string.</p>
+<p>A Pauli string is a product of Pauli matrices acting on different
+qudits, e.g. <code>σ^z_1 σ^x_3 σ^z_10</code>. Qudits without an associated
+Pauli matrix are applied the identity. The resulting operator is
+built with <code>from_operator_repr()</code>, so it is supported by every
+backend (including remote ones) and can be given to the
+<code>Expectation</code> observable to compute its expectation value.</p>
+<p>The Pauli matrices are defined following the order of the
+eigenstates. For eigenstates <code>(e0, e1)</code>, they are</p>
+<ul>
+<li><code>σ^x = |e0&gt;&lt;e1| + |e1&gt;&lt;e0|</code></li>
+<li><code>σ^y = -i|e0&gt;&lt;e1| + i|e1&gt;&lt;e0|</code></li>
+<li><code>σ^z = |e0&gt;&lt;e0| - |e1&gt;&lt;e1|</code></li>
+</ul>
+<p>which matches the conventions of <code>pulser-simulation</code> for both the
+<code>ground-rydberg</code> (<code>("r", "g")</code>) and <code>XY</code> (<code>("0", "1")</code>)
+bases.</p>
+<p>The leakage state <code>"x"</code> (added to the eigenstates when the noise
+model includes leakage) is not one of the two states the Pauli
+matrices act on, so all Pauli matrices act as zero on it. As such,
+population in the leakage state does not contribute to the
+expectation value of a Pauli string. Bases with more than two
+eigenstates besides <code>"x"</code> are not supported.</p>
+
+
+<table>
+      <thead>
+        <tr>
+          <th><span class="doc-section-title">PARAMETER</span></th>
+          <th><span>DESCRIPTION</span></th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>eigenstates</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>The eigenstates to use. Must contain exactly two
+eigenstates, besides the optional leakage state <code>"x"</code>.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="collections.abc.Sequence">Sequence</span>[<span title="pulser.backend.state.Eigenstate">Eigenstate</span>]</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_qudits</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>How many qudits there are in the system.</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="int">int</span></code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>paulis</code>
+            </td>
+            <td class="doc-param-details">
+              <div class="doc-md-description">
+                <p>A mapping between the index of a qudit and the Pauli
+matrix applied to it, given as one of <code>"X"</code>, <code>"Y"</code> or
+<code>"Z"</code> (case-insensitive). The qudit indices follow the
+order of the qubit IDs in the Sequence's register (i.e.
+<code>seq.register.qubit_ids</code>).</p>
+              </div>
+              <p>
+                  <span class="doc-param-annotation">
+                    <b>TYPE:</b>
+                      <code><span title="collections.abc.Mapping">Mapping</span>[<span title="int">int</span>, <span title="str">str</span>]</code>
+                  </span>
+              </p>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<table>
+      <thead>
+        <tr>
+          <th><span class="doc-section-title">RETURNS</span></th>
+          <th><span>DESCRIPTION</span></th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <span class="doc-returns-annotation">
+                    <code><span title="pulser.backend.operator.OperatorType">OperatorType</span></code>
+                </span>
+            </td>
+            <td class="doc-returns-details">
+              <div class="doc-md-description">
+                <p>The operator for the Pauli string.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<h4 id="pulser.backend.operator.Operator.from_pauli_string--z_1-x_3-z_10-in-a-system-of-12-qubits">σ^z_1 σ^x_3 σ^z_10 in a system of 12 qubits<a class="headerlink" href="#pulser.backend.operator.Operator.from_pauli_string--z_1-x_3-z_10-in-a-system-of-12-qubits" title="Permanent link">&para;</a></h4>
+<p>operator_class = your_pulser_backend.config_type.operator_type
+op = operator_class.from_pauli_string(
+    eigenstates=("r", "g"),
+    n_qudits=12,
+    paulis={1: "Z", 3: "X", 10: "Z"},
+)</p>
+<h4 id="pulser.backend.operator.Operator.from_pauli_string--to-compute-its-expectation-value-during-the-emulation">To compute its expectation value during the emulation<a class="headerlink" href="#pulser.backend.operator.Operator.from_pauli_string--to-compute-its-expectation-value-during-the-emulation" title="Permanent link">&para;</a></h4>
+<p>Expectation(op, tag_suffix="zxz")</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
 
     </div>
 
