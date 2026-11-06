@@ -75,6 +75,11 @@ if triton is not None:
         """
         out = interaction + ∑ₙ d_b(n), with d_b(n) the (re, im) pair at tab[8n + 2b]
         for b = bit_n(k). out is real, or interleaved complex when NOISE.
+
+        Args:
+            interaction_ptr: pointer to the interaction part of the diagonal
+            tab_ptr: pointer to a tensor packing the hamiltonian parameters
+            out_ptr: pointer to the output vector
         """
         offs = _offsets(BLOCK, WIDE)  # indices of out this program works on
 
@@ -85,6 +90,7 @@ if triton is not None:
         # for qubit n, add the diagonal part of H corresponding to that qubit
         for n in tl.static_range(NQUBITS):  # static range loops are unrolled
             # which element of the 2x2 matrix to load depends on the sign of bit n
+            # compute this sign for each index in the block using the offs vector
             bit = (offs & (1 << (NQUBITS - 1 - n))) != 0
 
             # add the delta term to the interaction
@@ -121,12 +127,20 @@ if triton is not None:
         diag: full diagonal of H from `_diagonal_kernel`, complex only when NOISE.
         tab: 8 float64 per qubit n, (d0, d1, f0, f1) as (re, im) pairs: f_b multiplies
             x[k ^ bit_n] when bit_n(k) = b. Without COMPLEX, f0 = f1 is real.
+
+        Args:
+            x_ptr: pointer to the data for the state vector
+            out_ptr: pointer to the output vector
+            diag_ptr: pointer to the diagonal of the hamiltonian
+            tab_ptr: pointer to a tensor packing the hamiltonian parameters
+            s_ptr: pointer to the number s from the formula above
         """
         offs = _offsets(BLOCK, WIDE)  # the indices of out this program will operate on
         pair = tl.arange(0, 2)  # for indexing real and imaginary parts
 
-        # load the part of x needed by this program for applying the diagonal of H
-        # real and imaginary part are treated separately.
+        # load the size BLOCK subvector of the state needed by this program for applying
+        # the diagonal of H. The real and imaginary parts are loaded separately
+        # by loading as a tensor of pairs, and then splitting on the final index.
         xr, xi = tl.split(tl.load(x_ptr + 2 * offs[:, None] + pair[None, :]))
 
         # apply the diagonal to x, store in a register h
@@ -150,8 +164,8 @@ if triton is not None:
             # load the real and imag part of x[j] separately
             yr, yi = tl.split(tl.load(x_ptr + 2 * j[:, None] + pair[None, :]))
             if COMPLEX:  # omega complex, handle real and imag parts separately
-                # which off-diagonal element of the 2x2 matrix to take.
-                # depends on the sign of bit n
+                # which element of the 2x2 matrix to load depends on the sign of bit n
+                # compute this sign for each index in the block using the offs vector
                 bit = (offs & mask) != 0
 
                 # load the real and imaginary part, conditional on the sign

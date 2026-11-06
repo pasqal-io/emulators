@@ -210,9 +210,8 @@ class EvolveMonteCarlo(BaseStepper):
         krylov_tolerance: float,
         pulser_lindblads: list[torch.Tensor],
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
-        if (
-            torch.is_grad_enabled()
-            and any(
+        if torch.is_grad_enabled() and (
+            any(
                 t.requires_grad
                 for t in (state, omegas, deltas, phis, full_interaction_matrix)
             )
