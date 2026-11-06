@@ -31,6 +31,7 @@ The following features are currently supported:
     - Various precision parameters
     - Whether to run on CPU or GPU
         - On a CUDA GPU, if [Triton](https://triton-lang.org) can be imported (it ships with the Linux CUDA builds of torch), the Hamiltonian is applied to the state by a fused kernel. Otherwise, and on CPU, a torch implementation is used. Triton is not a dependency of emu-sv.
+        - When the fused kernel is used, noiseless time steps expand $e^{-iH dt}$ in Chebyshev polynomials instead of using the Lanczos algorithm. Results then differ from Lanczos (CPU runs, previous versions) at the level of `krylov_tolerance` per time step; `SVConfig(chebyshev_on_gpu=False)` restores Lanczos.
     - The $U_{ij}$ coefficients from [here](../emu_mps//advanced/hamiltonian.md)
 - In the noiseless case, the emulator is differentiable
 

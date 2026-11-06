@@ -92,7 +92,7 @@ class SVBackendImpl:
                 stepper = EvolveDensityMatrix()
                 state_type = DensityMatrix
         else:
-            stepper = EvolveStateVector()
+            stepper = EvolveStateVector(chebyshev_on_gpu=config.chebyshev_on_gpu)
             state_type = StateVector
 
         self.stepper = stepper

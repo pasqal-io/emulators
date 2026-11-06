@@ -8,10 +8,18 @@ from .utils_testing import (
     pulser_blackman,
     cpu_multinomial_wrapper,
     pulser_constant_2pi_pulse_sequence,
+    requires_kernel,
 )
 from .utils_interaction_matrix import randn_interaction_matrix, nn_interaction_matrix
 from .utils_dense_hamiltonians import dense_rydberg_hamiltonian
 from .utils_testing import list_to_kron
+from .utils_chebyshev import (
+    EPS,
+    chebyshev_coefficients_exact,
+    chebyshev_rounding_bound,
+    chebyshev_step_budget,
+    matrix_exp_error,
+)
 
 __all__ = [
     "pulser_afm_sequence_ring",
@@ -27,4 +35,10 @@ __all__ = [
     "list_to_kron",
     "cpu_multinomial_wrapper",
     "pulser_constant_2pi_pulse_sequence",
+    "requires_kernel",
+    "EPS",
+    "chebyshev_coefficients_exact",
+    "chebyshev_rounding_bound",
+    "chebyshev_step_budget",
+    "matrix_exp_error",
 ]

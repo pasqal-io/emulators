@@ -4,6 +4,7 @@ from typing import cast
 from emu_base.math.krylov_exp import krylov_exp
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
+from emu_sv import hamiltonian_kernels
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_sv.lindblad_operator import RydbergLindbladian
 from emu_sv.algebra import apply, expect_batch
@@ -14,6 +15,10 @@ JUMP_TIME_TOLERANCE_FRACTION = 0.1
 
 
 class EvolveStateVector(BaseStepper):
+    def __init__(self, chebyshev_on_gpu: bool = True) -> None:
+        # Chebyshev steps where the fused kernel is used (see `SVConfig`)
+        self.chebyshev_on_gpu = chebyshev_on_gpu
+
     @staticmethod
     def get_hamiltonian(
         omegas: torch.Tensor,
@@ -53,6 +58,7 @@ class EvolveStateVector(BaseStepper):
                 state,
                 krylov_tolerance,
                 self.interaction_diagonal(full_interaction_matrix, state.device),
+                self.chebyshev_on_gpu and hamiltonian_kernels.is_available(state),
             ),
         )
 

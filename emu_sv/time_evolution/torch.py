@@ -1,8 +1,19 @@
+import cmath
+import math
+
 import torch
 from emu_base.math.double_krylov import double_krylov
 from typing import Any, no_type_check
 from emu_sv.hamiltonian import RydbergHamiltonian
 from emu_base.math.krylov_exp import krylov_exp
+from emu_base.math.chebyshev import chebyshev_exp
+
+# The Chebyshev series is truncated where its error bound reaches this fraction of
+# krylov_tolerance: the Lanczos stopping test overestimates the error (see
+# docs/emu_sv/benchmarks/accuracy.md), whereas the Chebyshev bound is nearly attained.
+CHEBYSHEV_TOLERANCE_FACTOR = 1e-2
+# Steps with a larger alpha = r dt are split into equal sub-steps (rounding control).
+CHEBYSHEV_MAX_ALPHA = 2000.0
 
 
 def _apply_omega_real(
@@ -151,6 +162,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         state: torch.Tensor,
         krylov_tolerance: float,
         interaction_diag: torch.Tensor | None = None,
+        use_chebyshev: bool = False,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         ham = DifferentiableStateVectorEvolution.get_hamiltonian(
             omegas=omegas,
@@ -160,6 +172,31 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             device=state.device,
             interaction_diag=interaction_diag,
         )
+        if use_chebyshev:
+            d, lower, upper = ham.spectral_bounds()
+            if not ham.omegas.any():  # H is diagonal
+                return torch.exp(-1j * dt * d) * state, ham
+            del d
+            # exp(-i dt H) = exp(-i dt c) exp(-i α (H - c)/r), with c the shift, r the
+            # radius and α = r dt: the spectrum of (H - c)/r lies in [-1, 1]
+            shift, radius = (upper + lower) / 2, (upper - lower) / 2
+            alpha = radius * dt
+            substeps = max(1, math.ceil(abs(alpha) / CHEBYSHEV_MAX_ALPHA))
+            shifted = DifferentiableStateVectorEvolution.get_hamiltonian(
+                omegas=omegas,
+                deltas=deltas,
+                phis=phis,
+                interaction_matrix=interaction_matrix,
+                device=state.device,
+                interaction_diag=ham.interaction_diag - shift,
+            )
+            op = shifted.make_op(2 / radius)
+            phase = cmath.exp(-1j * dt * shift / substeps)
+            tolerance = krylov_tolerance * CHEBYSHEV_TOLERANCE_FACTOR / substeps
+            res = state
+            for _ in range(substeps):
+                res = chebyshev_exp(op, res, alpha / substeps, phase, tolerance)
+            return res, ham
         res = krylov_exp(
             ham.make_op(-1j * dt),
             state,
@@ -181,6 +218,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         state: torch.Tensor,
         krylov_tolerance: float,
         interaction_diag: torch.Tensor | None = None,
+        use_chebyshev: bool = False,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         """
         Returns the time evolved state
@@ -200,6 +238,8 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             krylov_tolerance (float): tolerance for krylov_exp
             interaction_diag (torch.Tensor, optional): the interaction part of the
                 Hamiltonian diagonal, if already computed (see `RydbergHamiltonian`).
+            use_chebyshev (bool): expand exp(-i dt H) in Chebyshev polynomials instead
+                of using the Lanczos algorithm (forward step only).
         """
         res, ham = DifferentiableStateVectorEvolution.evolve(
             dt,
@@ -210,6 +250,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             state,
             krylov_tolerance,
             interaction_diag,
+            use_chebyshev,
         )
         ctx.save_for_backward(
             omegas, deltas, phis, interaction_matrix, state, interaction_diag
@@ -229,6 +270,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         torch.Tensor | None,
         torch.Tensor | None,
         torch.Tensor | None,
+        None,
         None,
         None,
         None,
@@ -363,6 +405,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             grad_phis,
             grad_int_mat,
             grad_state_in,
+            None,
             None,
             None,
             None,

@@ -257,6 +257,20 @@ class RydbergHamiltonian:
             i_fixed -= self.deltas[i]
         return diag.view(-1)
 
+    def spectral_bounds(self) -> tuple[torch.Tensor, float, float]:
+        """
+        Return the real diagonal d = -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ of H (float64) and the bounds
+        min(d) - R ≤ λ ≤ max(d) + R on its spectrum, with R = ∑ⱼ|Ωⱼ|/2 (Gershgorin),
+        whatever the phases ϕⱼ. Only for a Hermitian H (no noise).
+        """
+        assert self.noise is None
+        d = self.interaction_diag.clone()
+        for i in range(self.nqubits):
+            d.view(2**i, 2, -1)[:, 1, :] -= self.deltas[i].real
+        radius = self.omegas.abs().sum().item()
+        d_min, d_max = torch.stack(torch.aminmax(d)).tolist()
+        return d, d_min - radius, d_max + radius
+
     def expect(self, state: StateVector) -> torch.Tensor:
         """Return the energy expectation value E=❬ψ|H|ψ❭"""
         assert isinstance(

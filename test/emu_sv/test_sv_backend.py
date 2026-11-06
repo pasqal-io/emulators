@@ -1,9 +1,10 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import torch
 from emu_sv import SVConfig, SVBackend, Occupation, Solver, StateVector, DensityMatrix
 from emu_sv.dense_state import DenseState
 from emu_sv.sv_backend_impl import SVBackendImpl
 from emu_sv.time_evolution import EvolveDensityMatrix, EvolveMonteCarlo, EvolveStateVector
+from emu_sv.time_evolution.torch import DifferentiableStateVectorEvolution
 from emu_base import SequenceData, HamiltonianType
 import pytest
 import logging
@@ -27,6 +28,40 @@ def test_sv_impl():
     )
     bknd_impl = SVBackendImpl(config, pulser_data)
     bknd_impl._evolve_step(1.0, 0)
+
+
+def test_chebyshev_option_reaches_dispatch() -> None:
+    """SVConfig(chebyshev_on_gpu=False) reaches the noiseless step dispatch."""
+    config = SVConfig(gpu=False, chebyshev_on_gpu=False)
+    pulser_data = MagicMock(
+        spec=SequenceData,
+        omega=torch.tensor([[1.0]]),
+        delta=torch.tensor([[1.0]]),
+        phi=torch.tensor([[1.0]]),
+        interaction_matrix=lambda t: torch.zeros((1, 1, 1), dtype=torch.float64),
+        state_prep_error=0.0,
+        target_times=[1.0],
+        qubit_ids=(),
+        lindblad_ops=[],
+    )
+    bknd_impl = SVBackendImpl(config, pulser_data)
+    state = bknd_impl.state.data
+    with (
+        patch(
+            "emu_sv.hamiltonian_kernels.is_available", autospec=True, return_value=True
+        ),
+        patch.object(
+            DifferentiableStateVectorEvolution,
+            "apply",
+            autospec=True,
+            return_value=(state, None),
+        ) as evolution,
+    ):
+        bknd_impl._evolve_step(1.0, 0)
+
+    args = evolution.call_args.args
+    assert len(args) == 9
+    assert args[8] is False
 
 
 @pytest.mark.parametrize(

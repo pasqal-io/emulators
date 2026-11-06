@@ -5,9 +5,17 @@ from typing import List, Optional, Union
 import numpy as np
 import pulser
 import math
+import pytest
+
+from emu_sv import hamiltonian_kernels
 
 # for testing purposes, reference to the real multinomial
 _real_multinomial = torch.multinomial
+
+requires_kernel = pytest.mark.skipif(
+    not torch.cuda.is_available() or hamiltonian_kernels.triton is None,
+    reason="the fused kernel needs CUDA and Triton",
+)
 
 
 def cpu_multinomial_wrapper(probs: torch.Tensor, num_samples: int, replacement=False):

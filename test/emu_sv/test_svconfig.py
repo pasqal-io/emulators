@@ -20,6 +20,7 @@ sv_params = {
     "log_level": logging.ERROR,
     "log_file": None,
     "solver": Solver.LINDBLAD,
+    "chebyshev_on_gpu": False,
 }
 
 
@@ -27,6 +28,7 @@ def test_default_SVConfig_ctr() -> None:
     sv_config = SVConfig()
     assert len(sv_config.observables) == 0
     assert len(sv_config.callbacks) == 0
+    assert sv_config.chebyshev_on_gpu is True
 
 
 def test_default_config_repr() -> None:

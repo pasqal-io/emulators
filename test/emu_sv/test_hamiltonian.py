@@ -2,12 +2,14 @@ import torch
 import pytest
 from unittest.mock import patch
 from test.utils_testing import (
+    EPS,
     dense_rydberg_hamiltonian,
     nn_interaction_matrix,
     randn_interaction_matrix,
+    requires_kernel,
 )
 from emu_sv.state_vector import StateVector
-from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.hamiltonian import RydbergHamiltonian, make_interaction_diagonal
 from emu_sv import hamiltonian_kernels as kernels
 from emu_sv.time_evolution import EvolveStateVector
 
@@ -249,3 +251,101 @@ def test_fused_kernel_matches_torch(N: int, with_phase: bool, with_noise: bool) 
     assert not ham_grad._use_kernel(state)
     with torch.no_grad():
         assert ham_grad._use_kernel(state)
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+@pytest.mark.parametrize("with_phase", [False, True])
+@pytest.mark.parametrize("input_dtype", [torch.float64, torch.complex128])
+def test_spectral_bounds(with_phase: bool, input_dtype: torch.dtype) -> None:
+    """
+    d is the real diagonal of H; the bounds are min(d) - R and max(d) + R with
+    R = sum_j |Omega_j| / 2 (Gershgorin), whatever the phases; they contain the spectrum.
+    Negative and zero Omega, detunings of both signs, complex inputs as from the adapter.
+    """
+    torch.manual_seed(1337)
+    N = 5
+    omegas = torch.randn(N, dtype=torch.float64)
+    omegas[0] = -omegas[0].abs() - 0.5
+    omegas[2] = 0.0
+    deltas = torch.randn(N, dtype=torch.float64)
+    deltas[1] = deltas[1].abs() + 0.5
+    deltas[3] = -deltas[3].abs() - 0.5
+    phis = torch.randn(N, dtype=torch.float64) if with_phase else torch.zeros(N)
+    interaction_matrix = randn_interaction_matrix(N)
+    interaction_diag = make_interaction_diagonal(interaction_matrix, device)
+    interaction_diag_copy = interaction_diag.clone()
+    dense = dense_rydberg_hamiltonian(omegas, deltas, phis, interaction_matrix)
+    d_dense = torch.diagonal(dense).real
+    radius = omegas.abs().sum().item() / 2
+    eigs = torch.linalg.eigvalsh(dense)
+
+    ham = RydbergHamiltonian(
+        omegas=omegas.to(input_dtype),
+        deltas=deltas.to(input_dtype),
+        phis=phis.to(input_dtype),
+        interaction_matrix=interaction_matrix,
+        device=device,
+        noise=None,
+        interaction_diag=interaction_diag,
+    )
+    d, lower, upper = ham.spectral_bounds()
+
+    assert d.dtype == torch.float64
+    assert isinstance(lower, float) and isinstance(upper, float)
+    # the stepper keeps interaction_diag between steps: it must not be modified
+    assert torch.equal(interaction_diag, interaction_diag_copy)
+    # Budget: each diagonal entry sums at most N + N(N-1)/2 terms, both here and in the
+    # dense reference: |error| <= 2 * n_terms * eps * S, S = sum |Delta| + sum |U|.
+    # R sums N terms: N eps R. atol = 2x the budget. Bugs (R doubled or halved, Delta
+    # left out) move the bounds by >= 0.25.
+    n_terms = N + N * (N - 1) // 2
+    scale = deltas.abs().sum().item() + interaction_matrix.abs().sum().item() / 2
+    atol = 2 * (2 * n_terms * EPS * scale + N * EPS * radius)
+    torch.testing.assert_close(d, d_dense, rtol=0.0, atol=atol)
+    assert lower == pytest.approx(d_dense.min().item() - radius, rel=0.0, abs=atol)
+    assert upper == pytest.approx(d_dense.max().item() + radius, rel=0.0, abs=atol)
+    # eigvalsh error <~ dim eps ||H||
+    slack = 2**N * EPS * eigs.abs().max().item()
+    assert lower <= eigs[0].item() + slack
+    assert upper >= eigs[-1].item() - slack
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+@pytest.mark.parametrize(
+    "dev", ["cpu", pytest.param("cuda", marks=requires_kernel, id="cuda")]
+)
+@pytest.mark.parametrize("with_phase", [False, True])
+def test_shifted_interaction_diag(dev: str, with_phase: bool) -> None:
+    """
+    The Chebyshev steps shift H by a constant c through `interaction_diag - c`:
+    both the torch path and the fused kernel then apply H - c.
+    """
+    torch.manual_seed(1337)
+    N = 8  # the kernel needs N >= MIN_QUBITS
+    omegas = torch.randn(N, dtype=torch.float64)
+    deltas = torch.randn(N, dtype=torch.float64)
+    phis = torch.randn(N, dtype=torch.float64) if with_phase else torch.zeros(N)
+    interaction_matrix = randn_interaction_matrix(N)
+    shift = 2.75
+    ham = RydbergHamiltonian(
+        omegas=omegas,
+        deltas=deltas,
+        phis=phis,
+        interaction_matrix=interaction_matrix,
+        device=dev,
+        noise=None,
+        interaction_diag=make_interaction_diagonal(interaction_matrix, dev) - shift,
+    )
+    state = torch.randn(2**N, dtype=dtype, device=dev)
+    assert ham._use_kernel(state) == (dev == "cuda")
+
+    dense = dense_rydberg_hamiltonian(omegas, deltas, phis, interaction_matrix)
+    expected = (dense - shift * torch.eye(2**N, dtype=dtype)) @ state.cpu()
+    # Budget per entry: the dense matrix sums <= N^2 terms per entry, the sparse product
+    # N + 1 products and the shifted diagonal N + N(N-1)/2 terms, all bounded by
+    # S = sum|Delta| + sum|U| + |c| + sum|Omega|/2 times max|psi|. atol = 4 N^2 eps S max|psi|.
+    scale = (
+        deltas.abs().sum() + interaction_matrix.abs().sum() / 2 + shift
+    ).item() + omegas.abs().sum().item() / 2
+    atol = 4 * N**2 * EPS * scale * state.abs().max().item()
+    torch.testing.assert_close((ham * state).cpu(), expected, rtol=0.0, atol=atol)

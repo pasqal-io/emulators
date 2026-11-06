@@ -40,9 +40,12 @@ class SVConfig(EmulationConfig):
         dt: the timestep size that the solver uses. Note that observables are
             only calculated if the evaluation_times are divisible by dt.
         max_krylov_dim:
-            the size of the krylov subspace that the Lanczos algorithm maximally builds
+            the size of the krylov subspace that the Lanczos algorithm maximally builds.
+            Not used by the Chebyshev steps (see `chebyshev_on_gpu`).
         krylov_tolerance:
-            the Lanczos algorithm uses this as the convergence tolerance
+            the Lanczos algorithm uses this as the convergence tolerance. The
+            Chebyshev steps (see `chebyshev_on_gpu`) truncate their series where its
+            error bound reaches krylov_tolerance / 100.
         gpu: whether to run the simulation on GPU
             - if `gpu = True`, use 1 GPU to store the state.
             (causes errors if True when GPU not available)
@@ -55,6 +58,12 @@ class SVConfig(EmulationConfig):
         solver: The solver to use in the presence of Lindblad noise.
             By default it will use Monte Carlo quantum jumps if shot noise is present,
             and the Lindblad equation with density matrices otherwise.
+        chebyshev_on_gpu: noiseless state-vector time steps on a CUDA GPU, when the
+            fused Hamiltonian kernel is used (Triton available), expand exp(-i dt H)
+            in Chebyshev polynomials instead of using the Lanczos algorithm.
+            Results then differ from Lanczos (CPU runs, previous versions) at the
+            level of krylov_tolerance per time step; set to False to use Lanczos
+            everywhere and reproduce them.
         kwargs: arguments that are passed to the base class
 
     Examples:
@@ -83,6 +92,7 @@ class SVConfig(EmulationConfig):
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
         solver: Solver = Solver.DEFAULT,
+        chebyshev_on_gpu: bool = True,
         **kwargs: Any,
     ):
         super().__init__(
@@ -94,6 +104,7 @@ class SVConfig(EmulationConfig):
             interaction_cutoff=interaction_cutoff,
             log_level=log_level,
             log_file=log_file,
+            chebyshev_on_gpu=chebyshev_on_gpu,
             **kwargs,
         )
 
@@ -119,6 +130,7 @@ class SVConfig(EmulationConfig):
             "log_level",
             "log_file",
             "solver",
+            "chebyshev_on_gpu",
         }
 
     def monkeypatch_observables(self) -> None:
