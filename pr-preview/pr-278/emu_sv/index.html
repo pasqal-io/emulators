@@ -1823,7 +1823,7 @@
 <li>Initial state</li>
 <li>Various precision parameters</li>
 <li>Whether to run on CPU or GPU<ul>
-<li>On a CUDA GPU, if <a href="https://triton-lang.org">Triton</a> can be imported (it ships with the Linux CUDA builds of torch), the Hamiltonian is applied to the state by a fused kernel. Otherwise, and on CPU, a torch implementation is used. Triton is not a dependency of emu-sv.</li>
+<li>On a CUDA GPU, if <a href="https://triton-lang.org">Triton</a> can be imported (it ships with the Linux CUDA builds of torch) and compiles kernels for the GPU (checked once with a small test kernel), the Hamiltonian is applied to the state by a fused kernel. Otherwise, and on CPU, a torch implementation is used. Triton is not a dependency of emu-sv.</li>
 </ul>
 </li>
 <li>The <span class="arithmatex">\(U_{ij}\)</span> coefficients from <a href="../emu_mps/advanced/hamiltonian/">here</a></li>
