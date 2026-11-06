@@ -5,7 +5,16 @@ import torch
 from emu_sv import SVConfig, SVBackend, Occupation, Solver, StateVector, DensityMatrix
 from emu_sv.dense_state import DenseState
 from emu_sv.sv_backend_impl import SVBackendImpl
-from emu_sv.time_evolution import EvolveDensityMatrix, EvolveMonteCarlo, EvolveStateVector
+from emu_sv.time_evolution import (
+    BaseStepper,
+    EvolveDensityMatrix,
+    EvolveMonteCarlo,
+    EvolveStateVector,
+)
+from emu_sv.hamiltonians import (
+    FusedRydbergHamiltonian,
+    RydbergHamiltonian,
+)
 import emu_sv.time_evolution.implementations as time_evolution_impl
 import emu_sv.time_evolution.torch as time_evolution_torch
 from emu_base.math.double_krylov import double_krylov
@@ -154,6 +163,7 @@ def test_run_from_sequence_data():
 
 def test_backend_impl_stepper_logic():
     mock_config = MagicMock()
+    mock_config.gpu = False
     mock_config.initial_state = None
     mock_config.solver = Solver.DEFAULT
 
@@ -209,6 +219,43 @@ def test_backend_impl_stepper_logic():
     mock_sequence.has_stochastic_noise = False
     backend_impl = SVBackendImpl(mock_config, mock_sequence)
     assert type(backend_impl.stepper) is EvolveStateVector
+
+
+@pytest.mark.parametrize("kernel_available", [False, True])
+@pytest.mark.parametrize("stepper_type", [EvolveStateVector, EvolveMonteCarlo])
+def test_backend_impl_hamiltonian_type(
+    kernel_available: bool, stepper_type: type[BaseStepper]
+) -> None:
+    mock_config = MagicMock(initial_state=None, solver=Solver.MONTECARLO, gpu=False)
+    mock_sequence = MagicMock(
+        state_prep_error=0.0,
+        lindblad_ops=[1.0, 2.0] if stepper_type is EvolveMonteCarlo else [],
+        has_stochastic_noise=False,
+    )
+    with patch.object(
+        FusedRydbergHamiltonian, "is_available", return_value=kernel_available
+    ):
+        backend_impl = SVBackendImpl(mock_config, mock_sequence)
+    assert type(backend_impl.stepper) is stepper_type
+    expected = FusedRydbergHamiltonian if kernel_available else RydbergHamiltonian
+    assert backend_impl.stepper.hamiltonian_type is expected
+
+
+def test_monte_carlo_stepper_rejects_state_requiring_grad():
+    """the stepper itself refuses, also when used without SVBackendImpl"""
+    state = torch.tensor([0.0, 1.0], dtype=torch.complex128, requires_grad=True)
+    zero = torch.zeros(1, dtype=torch.float64)
+    with pytest.raises(NotImplementedError, match="Monte Carlo"):
+        EvolveMonteCarlo().apply(
+            0.1,
+            zero,
+            zero,
+            zero,
+            torch.zeros(1, 1, dtype=torch.float64),
+            state,
+            1e-10,
+            [torch.eye(2, dtype=torch.complex128)],
+        )
 
 
 # SVConfig.max_krylov_dim used to be ignored: every Krylov call ran with the default of

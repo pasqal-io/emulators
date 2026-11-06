@@ -10,14 +10,13 @@ from pulser.backend import (
 from emu_sv.density_matrix_state import DensityMatrix
 from emu_sv.state_vector import StateVector
 from emu_sv.dense_operator import DenseOperator
-from emu_sv.hamiltonian import RydbergHamiltonian
-from emu_sv.lindblad_operator import RydbergLindbladian
+from emu_sv.hamiltonians import RydbergHamiltonian, RydbergLindbladian
 
 dtype = torch.float64
 
 
 def _strip_noise(hamiltonian: RydbergHamiltonian) -> RydbergHamiltonian:
-    return RydbergHamiltonian(
+    return type(hamiltonian)(
         omegas=hamiltonian.omegas * 2.0,
         deltas=hamiltonian.deltas,
         phis=hamiltonian.phis,

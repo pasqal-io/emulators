@@ -1,16 +1,42 @@
 from abc import ABC, abstractmethod
 import torch
-from emu_sv.hamiltonian import RydbergHamiltonian
-from emu_sv.lindblad_operator import RydbergLindbladian
+from emu_sv.hamiltonians import (
+    RydbergHamiltonian,
+    make_interaction_diagonal,
+    RydbergLindbladian,
+)
 
 
 class BaseStepper(ABC):
+    # (interaction matrix, interaction diagonal) of the last time step
+    _interaction: tuple[torch.Tensor, torch.Tensor] | None = None
+
     def __init__(self, max_krylov_dim: int) -> None:
         self.max_krylov_dim = max_krylov_dim
 
-    @staticmethod
+    def interaction_diagonal(
+        self, interaction_matrix: torch.Tensor, device: torch.device
+    ) -> torch.Tensor:
+        """
+        Return the interaction part ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ of the Hamiltonian diagonal, rebuilt
+        only when the interaction matrix changes (e.g. at the end of an SLM mask).
+        """
+        cached = self._interaction
+        if (
+            cached is None
+            or cached[1].device != device
+            or not torch.equal(cached[0], interaction_matrix)
+        ):
+            cached = (
+                interaction_matrix.detach().clone(),
+                make_interaction_diagonal(interaction_matrix, device),
+            )
+            self._interaction = cached
+        return cached[1]
+
     @abstractmethod
     def get_hamiltonian(
+        self,
         omegas: torch.Tensor,
         deltas: torch.Tensor,
         phis: torch.Tensor,

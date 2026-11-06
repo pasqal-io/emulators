@@ -1,5 +1,29 @@
+from typing import Callable
+
 import torch
 from emu_sv.state_vector import StateVector
+
+
+def make_interaction_diagonal(
+    interaction_matrix: torch.Tensor, device: torch.device | str
+) -> torch.Tensor:
+    """
+    Return the interaction part ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ of the Hamiltonian diagonal, as a real
+    vector of length 2**N. Building it takes N(N-1)/2 passes over that vector, while
+    the interaction matrix rarely changes during a sequence: the time steppers keep
+    it between time steps (see `BaseStepper.interaction_diagonal`).
+    """
+    nqubits = interaction_matrix.shape[0]
+    diag = torch.zeros(2**nqubits, dtype=torch.float64, device=device)
+    for i in range(nqubits):
+        diag = diag.view(2**i, 2, -1)
+        i_fixed = diag[:, 1, :]
+        for j in range(i + 1, nqubits):
+            i_fixed = i_fixed.view(2**i, 2 ** (j - i - 1), 2, -1)
+            # replacing i_j_fixed by i_fixed breaks the code :)
+            i_j_fixed = i_fixed[:, :, 1, :]
+            i_j_fixed += interaction_matrix[i, j]
+    return diag.view(-1)
 
 
 class RydbergHamiltonian:
@@ -27,7 +51,9 @@ class RydbergHamiltonian:
             term -0.5i∑ⱼLⱼ†Lⱼ applied to all qubits.
             This can be computed using the `compute_noise_from_lindbladians`
             function.
-        diag (torch.Tensor): diagonal contribution to the Hamiltonian (detuning + interactions).
+        diag (torch.Tensor): diagonal contribution to the Hamiltonian (detuning + interactions),
+            built on first use.
+        interaction_diag (torch.Tensor): real interaction part ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ of the diagonal.
         inds (torch.Tensor): index mapping for σˣ operations.
         nqubits (int): number of qubits in the system.
 
@@ -47,6 +73,7 @@ class RydbergHamiltonian:
         interaction_matrix: torch.Tensor,
         device: torch.device,
         noise: torch.Tensor | None,
+        interaction_diag: torch.Tensor | None = None,
     ):
         self.nqubits: int = len(omegas)
         self.omegas: torch.Tensor = omegas / 2.0
@@ -56,15 +83,31 @@ class RydbergHamiltonian:
         self.device: torch.device = device
         self.noise: torch.Tensor | None = noise
 
-        self.diag: torch.Tensor = self._create_diagonal()
+        if interaction_diag is None:
+            interaction_diag = make_interaction_diagonal(
+                interaction_matrix.detach(), device
+            )
+        self.interaction_diag: torch.Tensor = interaction_diag
+        self._diag: torch.Tensor | None = None
         self.inds = torch.tensor([1, 0], device=self.device)  # flips the state, for σˣ
-        self.complex = self.phis.any() or noise is not None
+        self.complex = bool(self.phis.any()) or noise is not None
         if self.complex:
             self.omegas_c = self.omegas * torch.exp(1.0j * self.phis)
             self.omegas_c = torch.stack((self.omegas_c, self.omegas_c.conj()), dim=1)
             if noise is not None:
                 self.omegas_c[:, 0] += noise[1, 0]
                 self.omegas_c[:, 1] += noise[0, 1]
+
+    @property
+    def diag(self) -> torch.Tensor:
+        """Diagonal of H (complex128), built on first use."""
+        if self._diag is None:
+            self._diag = self._create_diagonal()
+        return self._diag
+
+    def make_op(self, factor: complex) -> Callable[[torch.Tensor], torch.Tensor]:
+        """Return the operator x ↦ factor·(H x), e.g. -i dt H for `krylov_exp`."""
+        return lambda x: factor * (self * x)
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """
@@ -141,8 +184,10 @@ class RydbergHamiltonian:
         Return the diagonal elements of the Rydberg Hamiltonian matrix
 
             H.diag = -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
+
+        from the real interaction part `interaction_diag`.
         """
-        diag = torch.zeros(2**self.nqubits, dtype=torch.complex128, device=self.device)
+        diag = self.interaction_diag.to(torch.complex128)
 
         if self.noise is not None:
             for i in range(self.nqubits):
@@ -154,11 +199,6 @@ class RydbergHamiltonian:
             diag = diag.view(2**i, 2, -1)
             i_fixed = diag[:, 1, :]
             i_fixed -= self.deltas[i]
-            for j in range(i + 1, self.nqubits):
-                i_fixed = i_fixed.view(2**i, 2 ** (j - i - 1), 2, -1)
-                # replacing i_j_fixed by i_fixed breaks the code :)
-                i_j_fixed = i_fixed[:, :, 1, :]
-                i_j_fixed += self.interaction_matrix[i, j]
         return diag.view(-1)
 
     def expect(self, state: StateVector) -> torch.Tensor:

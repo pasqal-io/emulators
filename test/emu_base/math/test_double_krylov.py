@@ -4,7 +4,7 @@ from unittest.mock import call, patch
 import emu_base.math.double_krylov as double_krylov_module
 from emu_base.math.double_krylov import double_krylov, lanczos
 from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM
-from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.hamiltonians import RydbergHamiltonian
 from test.utils_testing.utils_dense_hamiltonians import dense_rydberg_hamiltonian
 from test.utils_testing.utils_interaction_matrix import randn_interaction_matrix
 from pytest import mark

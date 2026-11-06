@@ -3,8 +3,11 @@ import typing
 import torch
 import logging
 
-from emu_sv.hamiltonian import RydbergHamiltonian
-from emu_sv.lindblad_operator import RydbergLindbladian
+from emu_sv.hamiltonians import (
+    FusedRydbergHamiltonian,
+    RydbergHamiltonian,
+    RydbergLindbladian,
+)
 
 from pulser.backend import Results, Observable, State, EmulationConfig, AggregationMethod
 from emu_base import (
@@ -80,22 +83,12 @@ class SVBackendImpl:
 
     def __init__(self, config: SVConfig, data: SequenceData):
         self.pulser_lindblads = data.lindblad_ops
-        stepper: BaseStepper
-        state_type: type[StateVector] | type[DensityMatrix]
-        if self.pulser_lindblads:
-            if (
-                config.solver == Solver.DEFAULT and data.has_stochastic_noise
-            ) or config.solver == Solver.MONTECARLO:
-                stepper = EvolveMonteCarlo(config.max_krylov_dim)
-                state_type = StateVector
-            else:
-                stepper = EvolveDensityMatrix(config.max_krylov_dim)
-                state_type = DensityMatrix
-        else:
-            stepper = EvolveStateVector(config.max_krylov_dim)
-            state_type = StateVector
+        use_density_matrix = bool(self.pulser_lindblads) and not (
+            (config.solver == Solver.DEFAULT and data.has_stochastic_noise)
+            or config.solver == Solver.MONTECARLO
+        )
+        state_type = DensityMatrix if use_density_matrix else StateVector
 
-        self.stepper = stepper
         self._config = config
         self._data = data
         self.target_times = data.target_times
@@ -113,6 +106,24 @@ class SVBackendImpl:
         self.resolved_gpu = requested_gpu
 
         self.init_initial_state(config, state_type)
+
+        # the Hamiltonian is a RydbergLindbladian for density matrices, and for state
+        # vectors a RydbergHamiltonian, applied by the fused kernel where it can be
+        self.stepper: BaseStepper
+        if use_density_matrix:
+            self.stepper = EvolveDensityMatrix(config.max_krylov_dim)
+        else:
+            hamiltonian_type = (
+                FusedRydbergHamiltonian
+                if FusedRydbergHamiltonian.is_available(
+                    self.state.data.device, self.nqubits
+                )
+                else RydbergHamiltonian
+            )
+            stepper_type = (
+                EvolveMonteCarlo if self.pulser_lindblads else EvolveStateVector
+            )
+            self.stepper = stepper_type(config.max_krylov_dim, hamiltonian_type)
 
         self.time = time.time()
         self.results = Results(

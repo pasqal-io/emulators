@@ -4,8 +4,7 @@ from typing import cast
 from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
-from emu_sv.hamiltonian import RydbergHamiltonian
-from emu_sv.lindblad_operator import RydbergLindbladian
+from emu_sv.hamiltonians import RydbergHamiltonian, RydbergLindbladian
 from emu_sv.algebra import apply, expect_batch
 from emu_sv.time_evolution import BaseStepper
 from .torch import DifferentiableStateVectorEvolution
@@ -14,11 +13,16 @@ JUMP_TIME_TOLERANCE_FRACTION = 0.1
 
 
 class EvolveStateVector(BaseStepper):
-    def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
+    def __init__(
+        self,
+        max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+        hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
+    ) -> None:
         super().__init__(max_krylov_dim)
+        self.hamiltonian_type = hamiltonian_type
 
-    @staticmethod
     def get_hamiltonian(
+        self,
         omegas: torch.Tensor,
         deltas: torch.Tensor,
         phis: torch.Tensor,
@@ -32,6 +36,7 @@ class EvolveStateVector(BaseStepper):
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=device,
+            hamiltonian_type=self.hamiltonian_type,
         )
 
     def apply(
@@ -56,6 +61,8 @@ class EvolveStateVector(BaseStepper):
                 state,
                 krylov_tolerance,
                 self.max_krylov_dim,
+                self.interaction_diagonal(full_interaction_matrix, state.device),
+                self.hamiltonian_type,
             ),
         )
 
@@ -66,8 +73,8 @@ class EvolveDensityMatrix(BaseStepper):
     def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
         super().__init__(max_krylov_dim)
 
-    @staticmethod
     def get_hamiltonian(
+        self,
         omegas: torch.Tensor,
         deltas: torch.Tensor,
         phis: torch.Tensor,
@@ -123,26 +130,33 @@ class EvolveDensityMatrix(BaseStepper):
 class EvolveMonteCarlo(BaseStepper):
     """Evolution of a state vector under Monte Carlo quantum jumps."""
 
-    def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
+    def __init__(
+        self,
+        max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+        hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
+    ) -> None:
         super().__init__(max_krylov_dim)
+        self.hamiltonian_type = hamiltonian_type
         self.jump_threshold = random.uniform(0.0, 1.0)
 
-    @staticmethod
     def get_hamiltonian(
+        self,
         omegas: torch.Tensor,
         deltas: torch.Tensor,
         phis: torch.Tensor,
         pulser_lindblads: list[torch.Tensor],
         interaction_matrix: torch.Tensor,
         device: torch.device,
+        interaction_diag: torch.Tensor | None = None,
     ) -> RydbergHamiltonian:
-        return RydbergHamiltonian(
+        return self.hamiltonian_type(
             omegas=omegas,
             deltas=deltas,
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=device,
             noise=compute_noise_from_lindbladians(pulser_lindblads),
+            interaction_diag=interaction_diag,
         )
 
     def evolve(
@@ -152,12 +166,8 @@ class EvolveMonteCarlo(BaseStepper):
         state: torch.Tensor,
         krylov_tolerance: float,
     ) -> torch.Tensor:
-
-        def op(x: torch.Tensor) -> torch.Tensor:
-            return -1j * dt * (hamiltonian * x)
-
         return krylov_exp(
-            op,
+            hamiltonian.make_op(-1j * dt),
             state,
             norm_tolerance=krylov_tolerance,
             exp_tolerance=krylov_tolerance,
@@ -200,6 +210,19 @@ class EvolveMonteCarlo(BaseStepper):
         krylov_tolerance: float,
         pulser_lindblads: list[torch.Tensor],
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
+        if torch.is_grad_enabled() and (
+            any(
+                t.requires_grad
+                for t in (state, omegas, deltas, phis, full_interaction_matrix)
+            )
+            or any(op.requires_grad for op in pulser_lindblads)
+        ):
+            raise NotImplementedError(
+                "Gradients are not supported with Monte Carlo quantum jumps: the time "
+                "of each jump depends on the parameters, and that dependence is not "
+                "differentiated. Detach the initial state, the sequence parameters "
+                "and the noise operators to run without gradients."
+            )
         ham = self.get_hamiltonian(
             omegas=omegas,
             deltas=deltas,
@@ -207,6 +230,9 @@ class EvolveMonteCarlo(BaseStepper):
             pulser_lindblads=pulser_lindblads,
             interaction_matrix=full_interaction_matrix,
             device=state.device,
+            interaction_diag=self.interaction_diagonal(
+                full_interaction_matrix, state.device
+            ),
         )
 
         current_time = 0.0
