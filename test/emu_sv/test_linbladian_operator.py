@@ -1,7 +1,7 @@
 import math
 import pytest
 import torch
-from emu_sv.lindblad_operator import RydbergLindbladian
+from emu_sv.hamiltonians import RydbergLindbladian
 from emu_sv import DensityMatrix
 from test.utils_testing import (
     dense_rydberg_hamiltonian,

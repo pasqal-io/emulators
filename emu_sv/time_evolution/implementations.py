@@ -4,8 +4,7 @@ from typing import cast
 from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
-from emu_sv.hamiltonian import RydbergHamiltonian
-from emu_sv.lindblad_operator import RydbergLindbladian
+from emu_sv.hamiltonians import RydbergHamiltonian, RydbergLindbladian
 from emu_sv.algebra import apply, expect_batch
 from emu_sv.time_evolution import BaseStepper
 from .torch import DifferentiableStateVectorEvolution
@@ -14,11 +13,16 @@ JUMP_TIME_TOLERANCE_FRACTION = 0.1
 
 
 class EvolveStateVector(BaseStepper):
-    def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
+    def __init__(
+        self,
+        max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+        hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
+    ) -> None:
         super().__init__(max_krylov_dim)
+        self.hamiltonian_type = hamiltonian_type
 
-    @staticmethod
     def get_hamiltonian(
+        self,
         omegas: torch.Tensor,
         deltas: torch.Tensor,
         phis: torch.Tensor,
@@ -32,6 +36,7 @@ class EvolveStateVector(BaseStepper):
             phis=phis,
             interaction_matrix=interaction_matrix,
             device=device,
+            hamiltonian_type=self.hamiltonian_type,
         )
 
     def apply(
@@ -57,6 +62,7 @@ class EvolveStateVector(BaseStepper):
                 krylov_tolerance,
                 self.max_krylov_dim,
                 self.interaction_diagonal(full_interaction_matrix, state.device),
+                self.hamiltonian_type,
             ),
         )
 
@@ -67,8 +73,8 @@ class EvolveDensityMatrix(BaseStepper):
     def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
         super().__init__(max_krylov_dim)
 
-    @staticmethod
     def get_hamiltonian(
+        self,
         omegas: torch.Tensor,
         deltas: torch.Tensor,
         phis: torch.Tensor,
@@ -124,12 +130,17 @@ class EvolveDensityMatrix(BaseStepper):
 class EvolveMonteCarlo(BaseStepper):
     """Evolution of a state vector under Monte Carlo quantum jumps."""
 
-    def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
+    def __init__(
+        self,
+        max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+        hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
+    ) -> None:
         super().__init__(max_krylov_dim)
+        self.hamiltonian_type = hamiltonian_type
         self.jump_threshold = random.uniform(0.0, 1.0)
 
-    @staticmethod
     def get_hamiltonian(
+        self,
         omegas: torch.Tensor,
         deltas: torch.Tensor,
         phis: torch.Tensor,
@@ -138,7 +149,7 @@ class EvolveMonteCarlo(BaseStepper):
         device: torch.device,
         interaction_diag: torch.Tensor | None = None,
     ) -> RydbergHamiltonian:
-        return RydbergHamiltonian(
+        return self.hamiltonian_type(
             omegas=omegas,
             deltas=deltas,
             phis=phis,

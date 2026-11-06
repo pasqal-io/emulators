@@ -40,7 +40,7 @@ repos:
     rev: 2b7f94f6ace2e8553ab6ffc7953c5c8e405b04aa # full SHA for the commit to use; keep in sync with lint_test.yml
     hooks:
      - id: doc-checker-basic
-       args: ["--ignore-submodules", "emu_mps.optimatrix", "emu_sv.time_evolution"]
+       args: ["--ignore-submodules", "emu_mps.optimatrix", "emu_sv.time_evolution", "emu_sv.hamiltonians"]
      - id: doc-checker-links
-       args: ["--ignore-submodules", "emu_mps.optimatrix", "emu_sv.time_evolution"]
+       args: ["--ignore-submodules", "emu_mps.optimatrix", "emu_sv.time_evolution", "emu_sv.hamiltonians"]
        verbose: true

@@ -7,8 +7,8 @@ from test.utils_testing import (
     randn_interaction_matrix,
 )
 from emu_sv.state_vector import StateVector
-from emu_sv.hamiltonian import RydbergHamiltonian
-from emu_sv import hamiltonian_kernels as kernels
+from emu_sv.hamiltonians import FusedRydbergHamiltonian, RydbergHamiltonian
+from emu_sv.hamiltonians import fused_rydberg_hamiltonian as fused
 from emu_sv.time_evolution import EvolveStateVector
 
 dtype = torch.complex128
@@ -201,7 +201,7 @@ def test_interaction_diagonal_is_kept_between_steps() -> None:
 
 
 @pytest.mark.skipif(
-    not torch.cuda.is_available() or kernels.triton is None,
+    not torch.cuda.is_available() or fused.triton is None,
     reason="the fused kernel needs CUDA and Triton",
 )
 @pytest.mark.usefixtures("restore_rng_state")
@@ -220,7 +220,7 @@ def test_fused_kernel_matches_torch(N: int, with_phase: bool, with_noise: bool) 
     deltas = torch.randn(N, dtype=torch.float64)
     phis = torch.randn(N, dtype=torch.float64) if with_phase else torch.zeros(N)
     interaction_matrix = randn_interaction_matrix(N)
-    ham = RydbergHamiltonian(
+    params = dict(
         omegas=omegas,
         deltas=deltas,
         phis=phis,
@@ -228,6 +228,8 @@ def test_fused_kernel_matches_torch(N: int, with_phase: bool, with_noise: bool) 
         device="cuda",
         noise=noise,
     )
+    ham = FusedRydbergHamiltonian(**params)
+    reference_ham = RydbergHamiltonian(**params)
     state = torch.randn(2**N, dtype=dtype, device="cuda")
     assert ham._use_kernel(state.requires_grad)
     fused = ham * state
@@ -235,21 +237,15 @@ def test_fused_kernel_matches_torch(N: int, with_phase: bool, with_noise: bool) 
     # the kernel copies non-contiguous input instead of reading it as contiguous
     strided = torch.randn(2 * 2**N, dtype=dtype, device="cuda")[::2]
     fused_strided = ham.make_op(-0.3j)(strided)
-    with patch.object(kernels, "is_available", return_value=False):
-        reference = ham * state
-        reference_strided = ham * strided
+    reference = reference_ham * state
+    reference_strided = reference_ham * strided
     assert torch.allclose(fused, reference, atol=1e-12)
     assert torch.allclose(fused_op, -0.3j * reference, atol=1e-12)
     assert torch.allclose(fused_strided, -0.3j * reference_strided, atol=1e-12)
 
     # the kernel is not differentiable: autograd falls back to torch
-    ham_grad = RydbergHamiltonian(
-        omegas=omegas.clone().requires_grad_(),
-        deltas=deltas,
-        phis=phis,
-        interaction_matrix=interaction_matrix,
-        device="cuda",
-        noise=noise,
+    ham_grad = FusedRydbergHamiltonian(
+        **{**params, "omegas": omegas.clone().requires_grad_()}
     )
     assert not ham_grad._use_kernel(state.requires_grad)
     with torch.no_grad():

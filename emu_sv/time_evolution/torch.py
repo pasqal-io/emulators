@@ -1,7 +1,7 @@
 import torch
 from emu_base.math.double_krylov import double_krylov
 from typing import Any, no_type_check
-from emu_sv.hamiltonian import RydbergHamiltonian
+from emu_sv.hamiltonians import RydbergHamiltonian
 from emu_base.math.krylov_exp import krylov_exp
 
 
@@ -130,8 +130,9 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         interaction_matrix: torch.Tensor,
         device: torch.device,
         interaction_diag: torch.Tensor | None = None,
+        hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
     ) -> RydbergHamiltonian:
-        return RydbergHamiltonian(
+        return hamiltonian_type(
             omegas=omegas,
             deltas=deltas,
             phis=phis,
@@ -152,6 +153,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         krylov_tolerance: float,
         max_krylov_dim: int,
         interaction_diag: torch.Tensor | None = None,
+        hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         ham = DifferentiableStateVectorEvolution.get_hamiltonian(
             omegas=omegas,
@@ -160,6 +162,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             interaction_matrix=interaction_matrix,
             device=state.device,
             interaction_diag=interaction_diag,
+            hamiltonian_type=hamiltonian_type,
         )
         res = krylov_exp(
             ham.make_op(-1j * dt),
@@ -184,6 +187,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         krylov_tolerance: float,
         max_krylov_dim: int,
         interaction_diag: torch.Tensor | None = None,
+        hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
         """
         Returns the time evolved state
@@ -204,6 +208,8 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             interaction_diag (torch.Tensor, optional): the interaction part of the
                 Hamiltonian diagonal, if already computed (see `RydbergHamiltonian`).
             max_krylov_dim (int): maximal Krylov subspace dimension for krylov_exp
+            hamiltonian_type (type[RydbergHamiltonian]): `RydbergHamiltonian`, or
+                `FusedRydbergHamiltonian` to apply H with the fused kernel.
         """
         res, ham = DifferentiableStateVectorEvolution.evolve(
             dt,
@@ -215,6 +221,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             krylov_tolerance,
             max_krylov_dim,
             interaction_diag,
+            hamiltonian_type,
         )
         ctx.save_for_backward(
             omegas,
@@ -227,6 +234,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         ctx.dt = dt
         ctx.tolerance = krylov_tolerance
         ctx.max_krylov_dim = max_krylov_dim
+        ctx.hamiltonian_type = hamiltonian_type
         return res, ham
 
     # mypy complains and I don't know why
@@ -240,6 +248,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         torch.Tensor | None,
         torch.Tensor | None,
         torch.Tensor | None,
+        None,
         None,
         None,
         None,
@@ -318,6 +327,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             interaction_matrix=interaction_matrix,
             device=state.device,
             interaction_diag=interaction_diag,
+            hamiltonian_type=ctx.hamiltonian_type,
         )
 
         if any(ctx.needs_input_grad[1:5]):
@@ -382,6 +392,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             grad_phis,
             grad_int_mat,
             grad_state_in,
+            None,
             None,
             None,
             None,

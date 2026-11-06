@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
 import torch
-from emu_sv.hamiltonian import RydbergHamiltonian, make_interaction_diagonal
-from emu_sv.lindblad_operator import RydbergLindbladian
+from emu_sv.hamiltonians import (
+    RydbergHamiltonian,
+    make_interaction_diagonal,
+    RydbergLindbladian,
+)
 
 
 class BaseStepper(ABC):
@@ -31,9 +34,9 @@ class BaseStepper(ABC):
             self._interaction = cached
         return cached[1]
 
-    @staticmethod
     @abstractmethod
     def get_hamiltonian(
+        self,
         omegas: torch.Tensor,
         deltas: torch.Tensor,
         phis: torch.Tensor,

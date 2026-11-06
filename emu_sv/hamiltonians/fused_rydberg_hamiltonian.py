@@ -1,16 +1,17 @@
 """
-Optional fused GPU kernels for `RydbergHamiltonian` (needs Triton).
+`FusedRydbergHamiltonian` and its fused GPU kernels (needs Triton).
 
 The torch implementation applies H in N + 1 passes over the state: one for the
-diagonal, then one `index_add_` per qubit. `apply` computes each output amplitude in
+diagonal, then one `index_add_` per qubit. `_apply` computes each output amplitude in
 a single pass: it reads ψ at the amplitude and at its N single-bit-flip neighbours,
 and writes the result once. The full diagonal (interaction, detuning and noise) is
-built once per Hamiltonian by `make_diagonal`, so the loop over the neighbours only
+built once per Hamiltonian by `_make_diagonal`, so the loop over the neighbours only
 does the off-diagonal terms.
 
 The kernels are only used when Triton can be imported (it ships with the CUDA builds
-of torch on Linux) and the state is a complex128 CUDA vector; otherwise
-`RydbergHamiltonian` uses its torch implementation (CPU, macOS, Windows, no Triton).
+of torch on Linux) and the state is a complex128 CUDA vector: `SVBackendImpl` then
+picks `FusedRydbergHamiltonian`, and otherwise `RydbergHamiltonian` with its torch
+implementation (CPU, macOS, Windows, no Triton).
 
 Notes on the triton programming model:
 
@@ -25,10 +26,10 @@ runtime using `tl.program_id`. From this you can compute what subset of the data
 that program needs to operate on.
 """
 
-# Triton kernels cannot be type-annotated in a way mypy understands.
-# mypy: disable-error-code="no-untyped-def"
+from typing import Callable
 
 import torch
+from emu_sv.hamiltonians.rydberg_hamiltonian import RydbergHamiltonian
 
 try:
     import triton  # type: ignore
@@ -44,16 +45,11 @@ MIN_QUBITS = 8
 WIDE_QUBITS = 30
 
 
-def is_available(device: torch.device, nqubits: int) -> bool:
-    """Whether the fused kernel can apply H to complex128 states of `nqubits` qubits
-    on `device`."""
-    return triton is not None and device.type == "cuda" and nqubits >= MIN_QUBITS
-
-
 if triton is not None:
 
+    # Triton kernels cannot be type-annotated in a way mypy understands.
     @triton.jit
-    def _offsets(BLOCK: tl.constexpr, WIDE: tl.constexpr):
+    def _offsets(BLOCK: tl.constexpr, WIDE: tl.constexpr):  # type: ignore[no-untyped-def]
         """
         Triton sees an entire block of cuda threads as a single vectorized program.
         This returns a vector of all the indices in out handled by each thread
@@ -65,7 +61,7 @@ if triton is not None:
         return pid * BLOCK + tl.arange(0, BLOCK)  # blockIdx.x * blockDim.x + threadIdx.x
 
     @triton.jit
-    def _diagonal_kernel(
+    def _diagonal_kernel(  # type: ignore[no-untyped-def]
         interaction_ptr,
         tab_ptr,
         out_ptr,
@@ -102,7 +98,7 @@ if triton is not None:
             tl.store(out_ptr + offs, dr)
 
     @triton.jit
-    def _apply_kernel(
+    def _apply_kernel(  # type: ignore[no-untyped-def]
         x_ptr,
         out_ptr,
         diag_ptr,
@@ -141,7 +137,7 @@ if triton is not None:
             hr = d * xr
             hi = d * xi
 
-        # this does all the _index_add operations from RydbergHamiltonian._apply_torch
+        # this does all the index_add_ operations from RydbergHamiltonian.__mul__
         # the loop is executed on the device, leading to speedup
         # for qubit n, it applies the corresponding single-qubit term in H
         for n in tl.static_range(NQUBITS):
@@ -182,11 +178,11 @@ if triton is not None:
         )
 
 
-def make_diagonal(
+def _make_diagonal(
     interaction_diag: torch.Tensor, table: torch.Tensor, noise: bool
 ) -> torch.Tensor:
     """
-    Return the full diagonal of H for `apply`: the real interaction part plus the
+    Return the full diagonal of H for `_apply`: the real interaction part plus the
     per-qubit detuning (and noise) terms of `table`. Real, or complex128 with `noise`.
     """
     nqubits = interaction_diag.numel().bit_length() - 1
@@ -208,7 +204,7 @@ def make_diagonal(
     return out
 
 
-def apply(
+def _apply(
     x: torch.Tensor,
     diag: torch.Tensor,
     table: torch.Tensor,
@@ -217,13 +213,13 @@ def apply(
 ) -> torch.Tensor:
     """
     Return factor·(H x) for the Hamiltonian described by `diag` (from
-    `make_diagonal`) and `table`.
+    `_make_diagonal`) and `table`.
     `factor` is a one-element complex128 tensor on the device of `x` (a tensor rather
     than a Python number, which Triton would pass as float32).
 
     `table` is a 1D float64 tensor of length 8·N on the device of `x`, built by
-    `RydbergHamiltonian._kernel_args`. It holds four complex coefficients per qubit n
-    (n = 0 is the most significant bit of the basis index), each stored as
+    `FusedRydbergHamiltonian._kernel_args`. It holds four complex coefficients per
+    qubit n (n = 0 is the most significant bit of the basis index), each stored as
     (real, imaginary):
 
         index        coefficient                            used
@@ -235,8 +231,8 @@ def apply(
     Ωₙ, Δₙ and φₙ are the Rabi frequency, detuning and phase of qubit n, and `noise`
     is the 2x2 single-qubit term -½i∑ⱼLⱼ†Lⱼ (see `compute_noise_from_lindbladians`).
     f0 and f1 are the matrix elements ⟨0|H|1⟩ and ⟨1|H|0⟩ of qubit n.
-    d0 and d1 are only read by `make_diagonal`, which adds them to the interaction
-    diagonal; `apply` reads f0 and f1. Without `is_complex` (no phase, no noise),
+    d0 and d1 are only read by `_make_diagonal`, which adds them to the interaction
+    diagonal; `_apply` reads f0 and f1. Without `is_complex` (no phase, no noise),
     f0 = f1 = Ωₙ/2 is real and only index 8n+4 is read.
     """
     assert len(x.shape) == 1
@@ -260,3 +256,110 @@ def apply(
         num_warps=8,  # BLOCK/32 since 32 threads in a warp
     )
     return out
+
+
+class FusedRydbergHamiltonian(RydbergHamiltonian):
+    """
+    `RydbergHamiltonian` applied to complex128 CUDA states by the fused kernel of
+    this module, which applies the diagonal and all the single-qubit terms in a
+    single pass over the state.
+
+    Only use it where `is_available` holds for the device of the states and the
+    number of qubits (`SVBackendImpl` makes that choice). The kernel is
+    not recorded by autograd, so H is applied with the torch implementation of
+    `RydbergHamiltonian` whenever autograd needs to record through it.
+    """
+
+    def __init__(
+        self,
+        omegas: torch.Tensor,
+        deltas: torch.Tensor,
+        phis: torch.Tensor,
+        interaction_matrix: torch.Tensor,
+        device: torch.device,
+        noise: torch.Tensor | None,
+        interaction_diag: torch.Tensor | None = None,
+    ):
+        super().__init__(
+            omegas=omegas,
+            deltas=deltas,
+            phis=phis,
+            interaction_matrix=interaction_matrix,
+            device=device,
+            noise=noise,
+            interaction_diag=interaction_diag,
+        )
+        self._kernel_buffer: torch.Tensor | None = None
+        self._kernel_diag: torch.Tensor | None = None
+        self._requires_grad = any(
+            t.requires_grad for t in (omegas, deltas, phis, interaction_matrix)
+        )
+
+    @staticmethod
+    def is_available(device: torch.device, nqubits: int) -> bool:
+        """Whether the fused kernel can apply H to complex128 states of `nqubits`
+        qubits on `device`."""
+        return triton is not None and device.type == "cuda" and nqubits >= MIN_QUBITS
+
+    def _use_kernel(self, requires_grad: bool = False) -> bool:
+        """
+        Whether the fused kernel can apply H to states that do (or do not)
+        `requires_grad`, i.e. whether autograd does not need to record through H.
+        Inside the custom forward and backward of `DifferentiableStateVectorEvolution`,
+        grad mode is off.
+        """
+        return not (torch.is_grad_enabled() and (requires_grad or self._requires_grad))
+
+    def _kernel_args(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Full diagonal of H, per-qubit coefficients of the fused kernel (see
+        `_apply`) and the scalar 1, built on the device once per
+        Hamiltonian.
+        """
+        if self._kernel_buffer is None:
+            d0 = torch.zeros(self.nqubits, dtype=torch.complex128)
+            d1 = -self.deltas.detach().cpu().to(torch.complex128)
+            if self.complex:
+                omegas_c = self.omegas_c.detach().cpu()
+                f1, f0 = omegas_c[:, 0], omegas_c[:, 1]
+            else:
+                f0 = f1 = self.omegas.detach().cpu().to(torch.complex128)
+            if self.noise is not None:
+                noise = self.noise.detach().cpu()
+                d0 += noise[0, 0]
+                d1 += noise[1, 1]
+            one = torch.ones(1, dtype=torch.complex128)
+            buffer = torch.cat((torch.stack((d0, d1, f0, f1), dim=1).view(-1), one))
+            self._kernel_buffer = buffer.to(self.interaction_diag.device)
+        table = torch.view_as_real(self._kernel_buffer[:-1]).reshape(-1)
+        if self._kernel_diag is None:
+            self._kernel_diag = _make_diagonal(
+                self.interaction_diag, table, self.noise is not None
+            )
+        return self._kernel_diag, table, self._kernel_buffer[-1:]
+
+    def make_op(self, factor: complex) -> Callable[[torch.Tensor], torch.Tensor]:
+        """
+        Return the operator x ↦ factor·(H x), e.g. -i dt H for `krylov_exp`.
+
+        Whether to use the fused kernel is decided here, once, for vectors that do
+        not require grad, and the operator must be used in the grad mode it was made
+        in. That holds for every caller: `DifferentiableStateVectorEvolution` runs
+        with grad mode off, and `EvolveMonteCarlo` rejects inputs that require grad.
+        With the fused kernel, the factor is applied inside the kernel.
+        """
+        if not self._use_kernel():
+            return super().make_op(factor)
+        diag, table, _ = self._kernel_args()
+        factor_on_device = torch.tensor(
+            [factor], dtype=torch.complex128, device=self.interaction_diag.device
+        )
+        is_complex = self.complex
+        return lambda x: _apply(x, diag, table, factor_on_device, is_complex)
+
+    def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
+        """H*|ψ❭, with the fused kernel unless autograd needs to record through H."""
+        if vec.dtype == torch.complex128 and self._use_kernel(vec.requires_grad):
+            diag, table, one = self._kernel_args()
+            return _apply(vec, diag, table, one, self.complex)
+        return super().__mul__(vec)

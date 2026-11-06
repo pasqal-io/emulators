@@ -6,8 +6,7 @@ from unittest.mock import MagicMock
 import pulser
 from emu_base import DEVICE_COUNT
 
-from emu_sv.hamiltonian import RydbergHamiltonian
-from emu_sv.lindblad_operator import RydbergLindbladian
+from emu_sv.hamiltonians import RydbergHamiltonian, RydbergLindbladian
 from emu_sv import (
     DenseOperator,
     SVConfig,
