@@ -59,10 +59,10 @@ class SVConfig(EmulationConfig):
             and the Lindblad equation with density matrices otherwise.
         exponentiator: Which exponentiation algorithm to use for computing the propagator
             over the timestep dt where H is assumed constant. The accuracy should be
-            similar, CHEBYSHEV is more memory efficient, and probably faster on gpu.
-            By default it does CHEBYSHEV on gpu for >=8 qubits, and LANCZOS otherwise.
-            CHEBYSHEV is only available for noiseless state vector evolution, and does
-            not use max_krylov_dim (gradients are still computed with Lanczos).
+            similar, CHEBYSHEV is more memory efficient, and probably faster.
+            By default it does CHEBYSHEV in the absence of Lindblad noise,
+            and LANCZOS otherwise. CHEBYSHEV is only available without Lindblad noise,
+            and does not use max_krylov_dim (gradients are still computed with Lanczos).
         kwargs: arguments that are passed to the base class
 
     Examples:

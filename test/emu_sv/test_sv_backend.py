@@ -247,7 +247,7 @@ def test_backend_impl_hamiltonian_type(
 @pytest.mark.parametrize(
     "requested, lindblad_ops, solver, kernel_available, expected",
     [
-        (Exponentiator.DEFAULT, [], Solver.DEFAULT, False, Lanczos),
+        (Exponentiator.DEFAULT, [], Solver.DEFAULT, False, Chebyshev),
         (Exponentiator.DEFAULT, [], Solver.DEFAULT, True, Chebyshev),
         (Exponentiator.LANCZOS, [], Solver.DEFAULT, True, Lanczos),
         (Exponentiator.CHEBYSHEV, [], Solver.DEFAULT, False, Chebyshev),
@@ -330,7 +330,12 @@ def received_max_krylov_dims(spy: MagicMock, real: Callable) -> list[int]:
 )
 def test_max_krylov_dim_reaches_krylov_exp(solver, lindblad_ops, stepper_type):
     """SVConfig.max_krylov_dim reaches every krylov_exp call of a time step."""
-    config = SVConfig(gpu=False, max_krylov_dim=MAX_KRYLOV_DIM, solver=solver)
+    config = SVConfig(
+        gpu=False,
+        max_krylov_dim=MAX_KRYLOV_DIM,
+        solver=solver,
+        exponentiator=Exponentiator.LANCZOS,
+    )
     pulser_data = MagicMock(
         spec=SequenceData,
         omega=torch.tensor([[1.0, 1.0]]),

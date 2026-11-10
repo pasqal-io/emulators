@@ -169,17 +169,16 @@ class SVBackendImpl:
         )
         exponentiator = self.init_exponentiator(
             hermitian=not self.pulser_lindblads,
-            fused=hamiltonian_type is FusedRydbergHamiltonian,
         )
         if use_density_matrix:
             return EvolveDensityMatrix(exponentiator, max_krylov_dim)
         stepper_type = EvolveMonteCarlo if self.pulser_lindblads else EvolveStateVector
         return stepper_type(exponentiator, max_krylov_dim, hamiltonian_type)
 
-    def init_exponentiator(self, hermitian: bool, fused: bool) -> Exponentiation:
+    def init_exponentiator(self, hermitian: bool) -> Exponentiation:
         """
-        The exponentiator requested in the config. By default, Chebyshev where the
-        fused kernel is used (GPU, >= 8 qubits), and Lanczos otherwise. Chebyshev
+        The exponentiator requested in the config. By default,
+        Chebyshev if there's no Lindblad noise, and Lanczos otherwise. Chebyshev
         needs a Hermitian generator, so it is not available with Lindblad noise.
         """
         requested = self._config.exponentiator
@@ -189,7 +188,7 @@ class SVBackendImpl:
                 "vector evolution; use Exponentiator.LANCZOS with Lindblad noise."
             )
         if requested == Exponentiator.CHEBYSHEV or (
-            requested == Exponentiator.DEFAULT and hermitian and fused
+            requested == Exponentiator.DEFAULT and hermitian
         ):
             return Chebyshev()
         return Lanczos(self._config.max_krylov_dim)
