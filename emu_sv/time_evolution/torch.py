@@ -3,6 +3,7 @@ from emu_base.math.double_krylov import double_krylov
 from typing import Any, no_type_check
 from emu_sv.hamiltonians import RydbergHamiltonian
 from emu_base.math.krylov_exp import krylov_exp
+from emu_sv.time_evolution.exponentiation import Exponentiation
 
 
 def _apply_omega_real(
@@ -152,6 +153,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         state: torch.Tensor,
         krylov_tolerance: float,
         max_krylov_dim: int,
+        exponentiator: Exponentiation,
         interaction_diag: torch.Tensor | None = None,
         hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
@@ -164,15 +166,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             interaction_diag=interaction_diag,
             hamiltonian_type=hamiltonian_type,
         )
-        res = krylov_exp(
-            ham.make_op(-1j * dt),
-            state,
-            norm_tolerance=krylov_tolerance,
-            exp_tolerance=krylov_tolerance,
-            is_hermitian=True,
-            max_krylov_dim=max_krylov_dim,
-        )
-        return res, ham
+        return exponentiator(ham, dt, state, krylov_tolerance), ham
 
     @torch.autograd.function.once_differentiable
     @staticmethod
@@ -186,6 +180,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         state: torch.Tensor,
         krylov_tolerance: float,
         max_krylov_dim: int,
+        exponentiator: Exponentiation,
         interaction_diag: torch.Tensor | None = None,
         hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
     ) -> tuple[torch.Tensor, RydbergHamiltonian]:
@@ -205,9 +200,11 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
                 strengths between each pair of qubits.
             state (Tensor): input state to be evolved
             krylov_tolerance (float): tolerance for krylov_exp
+            max_krylov_dim (int): maximal Krylov subspace dimension for the backward
+                pass, which is Lanczos-based whatever the exponentiator
+            exponentiator (Exponentiation): algorithm computing exp(-i dt H)|ψ(t)〉
             interaction_diag (torch.Tensor, optional): the interaction part of the
                 Hamiltonian diagonal, if already computed (see `RydbergHamiltonian`).
-            max_krylov_dim (int): maximal Krylov subspace dimension for krylov_exp
             hamiltonian_type (type[RydbergHamiltonian]): `RydbergHamiltonian`, or
                 `FusedRydbergHamiltonian` to apply H with the fused kernel.
         """
@@ -220,6 +217,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             state,
             krylov_tolerance,
             max_krylov_dim,
+            exponentiator,
             interaction_diag,
             hamiltonian_type,
         )
@@ -248,6 +246,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
         torch.Tensor | None,
         torch.Tensor | None,
         torch.Tensor | None,
+        None,
         None,
         None,
         None,
@@ -392,6 +391,7 @@ class DifferentiableStateVectorEvolution(torch.autograd.Function):
             grad_phis,
             grad_int_mat,
             grad_state_in,
+            None,
             None,
             None,
             None,

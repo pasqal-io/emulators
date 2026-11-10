@@ -10,7 +10,7 @@ from test.utils_testing import (
 from emu_sv.state_vector import StateVector
 from emu_sv.hamiltonians import FusedRydbergHamiltonian, RydbergHamiltonian
 from emu_sv.hamiltonians import fused_rydberg_hamiltonian as fused
-from emu_sv.time_evolution import EvolveStateVector
+from emu_sv.time_evolution import EvolveStateVector, Lanczos
 
 dtype = torch.complex128
 device = "cpu"
@@ -179,7 +179,7 @@ def test_expect():
 def test_interaction_diagonal_is_kept_between_steps() -> None:
     torch.manual_seed(1337)
     N = 4
-    stepper = EvolveStateVector()
+    stepper = EvolveStateVector(Lanczos())  # the exponentiator is not used
     first = randn_interaction_matrix(N)
     diag = stepper.interaction_diagonal(first, torch.device(device))
     assert stepper.interaction_diagonal(first.clone(), torch.device(device)) is diag

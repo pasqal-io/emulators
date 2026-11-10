@@ -1,12 +1,13 @@
 import torch
 import random
 from typing import cast
-from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
+from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 from emu_sv.hamiltonians import RydbergHamiltonian, RydbergLindbladian
 from emu_sv.algebra import apply, expect_batch
 from emu_sv.time_evolution import BaseStepper
+from emu_sv.time_evolution.exponentiation import Exponentiation
 from .torch import DifferentiableStateVectorEvolution
 
 JUMP_TIME_TOLERANCE_FRACTION = 0.1
@@ -15,10 +16,11 @@ JUMP_TIME_TOLERANCE_FRACTION = 0.1
 class EvolveStateVector(BaseStepper):
     def __init__(
         self,
+        exponentiator: Exponentiation,
         max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
         hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
     ) -> None:
-        super().__init__(max_krylov_dim)
+        super().__init__(exponentiator, max_krylov_dim)
         self.hamiltonian_type = hamiltonian_type
 
     def get_hamiltonian(
@@ -61,6 +63,7 @@ class EvolveStateVector(BaseStepper):
                 state,
                 krylov_tolerance,
                 self.max_krylov_dim,
+                self.exponentiator,
                 self.interaction_diagonal(full_interaction_matrix, state.device),
                 self.hamiltonian_type,
             ),
@@ -70,8 +73,12 @@ class EvolveStateVector(BaseStepper):
 class EvolveDensityMatrix(BaseStepper):
     """Evolution of a density matrix under a Lindbladian operator."""
 
-    def __init__(self, max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM) -> None:
-        super().__init__(max_krylov_dim)
+    def __init__(
+        self,
+        exponentiator: Exponentiation,
+        max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+    ) -> None:
+        super().__init__(exponentiator, max_krylov_dim)
 
     def get_hamiltonian(
         self,
@@ -110,21 +117,7 @@ class EvolveDensityMatrix(BaseStepper):
             interaction_matrix=full_interaction_matrix,
             device=state.device,
         )
-
-        def op(x: torch.Tensor) -> torch.Tensor:
-            return -1j * dt * (ham @ x)
-
-        return (
-            krylov_exp(
-                op,
-                state,
-                norm_tolerance=krylov_tolerance,
-                exp_tolerance=krylov_tolerance,
-                is_hermitian=False,
-                max_krylov_dim=self.max_krylov_dim,
-            ),
-            ham,
-        )
+        return self.exponentiator(ham, dt, state, krylov_tolerance), ham
 
 
 class EvolveMonteCarlo(BaseStepper):
@@ -132,10 +125,11 @@ class EvolveMonteCarlo(BaseStepper):
 
     def __init__(
         self,
+        exponentiator: Exponentiation,
         max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
         hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
     ) -> None:
-        super().__init__(max_krylov_dim)
+        super().__init__(exponentiator, max_krylov_dim)
         self.hamiltonian_type = hamiltonian_type
         self.jump_threshold = random.uniform(0.0, 1.0)
 
@@ -166,14 +160,7 @@ class EvolveMonteCarlo(BaseStepper):
         state: torch.Tensor,
         krylov_tolerance: float,
     ) -> torch.Tensor:
-        return krylov_exp(
-            hamiltonian.make_op(-1j * dt),
-            state,
-            norm_tolerance=krylov_tolerance,
-            exp_tolerance=krylov_tolerance,
-            is_hermitian=False,
-            max_krylov_dim=self.max_krylov_dim,
-        )
+        return self.exponentiator(hamiltonian, dt, state, krylov_tolerance)
 
     def do_quantum_jump(
         self,

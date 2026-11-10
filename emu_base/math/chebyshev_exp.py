@@ -24,10 +24,15 @@ def exp_chebyshev_coefficients(alpha: float, tolerance: float) -> list[complex]:
         # c₀ = 1 and c₁ = -iα in double precision, |c₂| ≈ α²/4 is below any useful
         # tolerance, and the recurrence below would overflow.
         return [1.0 + 0.0j] if a <= tolerance else [1.0 + 0.0j, -1.0j * alpha]
-    # Jₖ(a) decays faster than exponentially once k > a + O(a^(1/3)).
+    # Jₖ(a) decays faster than exponentially once k > a + O(a^(1/3)). Iterate backwards,
+    # so we find Jₖ(a), and not Yₖ(a), which has the same recurrence but grows.
+    # The 12 α^{1/3} term puts J_start ≲ 1e-17 (below double-precision roundoff),
+    # in the regime where J_k(α) ≈ (2/α)^{1/3} Ai(t).
+    # The Airy estimate is only accurate for large α; for α ≲ 10, more terms are needed.
+    # For the extra 60 do J_k(α) ≈ (α/2)^k/k! from the power series and take a margin.
     start = int(a + 12.0 * a ** (1.0 / 3.0) + 60.0)
     values = [0.0] * (start + 1)
-    values[start] = 1.0
+    values[start] = 1.0  # find a scaled solution by starting the recurrence at 1
     j_next, j_cur = 0.0, 1.0
     for k in range(start, 0, -1):
         j_next, j_cur = j_cur, 2.0 * k / a * j_cur - j_next
@@ -37,16 +42,17 @@ def exp_chebyshev_coefficients(alpha: float, tolerance: float) -> list[complex]:
                 values[i] *= 1e-200
             j_next *= 1e-200
             j_cur *= 1e-200
-    norm = values[0] + 2.0 * sum(values[2::2])
-    bessel = [v / norm for v in values]
+    norm = values[0] + 2.0 * sum(values[2::2])  # the normalization condition
+    bessel = [v / norm for v in values]  # the normalized solution
 
     tail = 0.0
-    last = start
+    last = start  # find K by summing the tail until we hit tolerance
     while last > 0 and tail + 2.0 * abs(bessel[last]) <= tolerance:
         tail += 2.0 * abs(bessel[last])
         last -= 1
+
     powers = (1.0 + 0.0j, -1.0j, -1.0 + 0.0j, 1.0j)  # (-i)ᵏ
-    coefs = [complex(bessel[0])] + [
+    coefs = [complex(bessel[0])] + [  # put in the prefactor for k>0
         2.0 * powers[k % 4] * bessel[k] for k in range(1, last + 1)
     ]
     if alpha < 0.0:
@@ -68,6 +74,10 @@ def chebyshev_exp(
     truncation error is ≤ tolerance·‖v‖ in exact arithmetic.
 
     Calls `op` K times, K + 1 being the number of coefficients. `v` is not modified.
+
+    Unlike the power series of exp, this is numerically stable since |Tₖ(x)| <= 1.
+    The number of iterations is ~alpha, which is good since Tₖ(x) has the same
+    number of oscillations as exp(ikx), so it needs at least alpha.
     """
     coefs = [phase * c for c in exp_chebyshev_coefficients(alpha, tolerance)]
     acc = coefs[0] * v
@@ -78,6 +88,8 @@ def chebyshev_exp(
     acc.add_(cur, alpha=coefs[1])
     prev = v
     for coef in coefs[2:]:
+        # op = 2A to avoid a scalar multiplication here.
+        # Saves a kernel launch when using a fused gpu kernel.
         out = op(cur)
         out.sub_(prev)  # Tₖ = 2ATₖ₋₁ - Tₖ₋₂
         acc.add_(out, alpha=coef)

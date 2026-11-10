@@ -5,13 +5,17 @@ from emu_sv.hamiltonians import (
     make_interaction_diagonal,
     RydbergLindbladian,
 )
+from emu_sv.time_evolution.exponentiation import Exponentiation
 
 
 class BaseStepper(ABC):
     # (interaction matrix, interaction diagonal) of the last time step
     _interaction: tuple[torch.Tensor, torch.Tensor] | None = None
 
-    def __init__(self, max_krylov_dim: int) -> None:
+    def __init__(self, exponentiator: Exponentiation, max_krylov_dim: int) -> None:
+        self.exponentiator = exponentiator
+        # used by the gradient computation, which is Lanczos-based whatever the
+        # exponentiator
         self.max_krylov_dim = max_krylov_dim
 
     def interaction_diagonal(
