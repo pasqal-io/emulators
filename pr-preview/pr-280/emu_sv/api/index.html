@@ -2809,10 +2809,10 @@ and the Lindblad equation with density matrices otherwise.</p>
               <div class="doc-md-description">
                 <p>Which exponentiation algorithm to use for computing the propagator
 over the timestep dt where H is assumed constant. The accuracy should be
-similar, CHEBYSHEV is more memory efficient, and probably faster on gpu.
-By default it does CHEBYSHEV on gpu for &gt;=8 qubits, and LANCZOS otherwise.
-CHEBYSHEV is only available for noiseless state vector evolution, and does
-not use max_krylov_dim (gradients are still computed with Lanczos).</p>
+similar, CHEBYSHEV is more memory efficient, and probably faster.
+By default it does CHEBYSHEV in the absence of Lindblad noise,
+and LANCZOS otherwise. CHEBYSHEV is only available without Lindblad noise,
+and does not use max_krylov_dim (gradients are still computed with Lanczos).</p>
               </div>
               <p>
                   <span class="doc-param-annotation">
