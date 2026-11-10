@@ -1,12 +1,12 @@
 import cmath
 import math
-from abc import ABC, abstractmethod
-
 import torch
+
 
 from emu_base.math.chebyshev_exp import chebyshev_exp
 from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
 from emu_sv.hamiltonians import RydbergHamiltonian, RydbergLindbladian
+from emu_sv.time_evolution.interface import Exponentiation
 
 # The Chebyshev series is truncated where its error bound reaches this fraction of
 # the tolerance: the Lanczos stopping test overestimates the error (see
@@ -14,20 +14,6 @@ from emu_sv.hamiltonians import RydbergHamiltonian, RydbergLindbladian
 CHEBYSHEV_TOLERANCE_FACTOR = 1e-2
 # Steps with a larger alpha = r dt are split into equal sub-steps (rounding control).
 CHEBYSHEV_MAX_ALPHA = 2000.0
-
-
-class Exponentiation(ABC):
-    """Algorithm computing exp(-i dt H)|ψ❭ for a time step where H is constant."""
-
-    @abstractmethod
-    def __call__(
-        self,
-        ham: RydbergHamiltonian | RydbergLindbladian,
-        dt: float,
-        state: torch.Tensor,
-        tolerance: float,
-    ) -> torch.Tensor:
-        pass
 
 
 class Lanczos(Exponentiation):

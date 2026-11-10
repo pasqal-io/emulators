@@ -4,6 +4,8 @@ from test.utils_testing import (
     dense_rydberg_hamiltonian,
     randn_interaction_matrix,
 )
+from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM
+from emu_sv.hamiltonians import RydbergHamiltonian
 from emu_sv.time_evolution import Chebyshev, EvolveStateVector, Exponentiation, Lanczos
 
 # to test locally on GPU just change device here
@@ -58,9 +60,9 @@ def test_forward_with_requires_grad(requires_grad, exponentiator: Exponentiation
         1, with_phase=False, requires_grad=not requires_grad
     )
     state_in = get_randn_state(1, device=device, requires_grad=requires_grad)
-    state_out, _ = EvolveStateVector(exponentiator).apply(
-        0.3, *ham_params, state_in, 1e-5, None
-    )
+    state_out, _ = EvolveStateVector(
+        exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian
+    ).apply(0.3, *ham_params, state_in, 1e-5, None)
     assert state_out.requires_grad
 
 
@@ -84,9 +86,9 @@ def test_forward_accuracy(
     dt = 1.0  # 1 μs big time step
 
     expected = do_dense_time_step(dt, *ham_params, state_in)
-    state_out, _ = EvolveStateVector(exponentiator).apply(
-        dt, *ham_params, state_in, tolerance, None
-    )
+    state_out, _ = EvolveStateVector(
+        exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian
+    ).apply(dt, *ham_params, state_in, tolerance, None)
     assert torch.allclose(expected, state_out, atol=tolerance)
 
 
@@ -106,9 +108,9 @@ def test_backward_accuracy(N, tolerance, exponentiator: Exponentiation):
     r = torch.randn(2**N, dtype=state_in.dtype, device=state_in.device)
     r *= 0.71 / r.norm()
 
-    state_out, _ = EvolveStateVector(exponentiator).apply(
-        dt, *ham_params, state_in, tolerance, None
-    )
+    state_out, _ = EvolveStateVector(
+        exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian
+    ).apply(dt, *ham_params, state_in, tolerance, None)
     scalar = torch.vdot(r, state_out).real
     grads = torch.autograd.grad(scalar, (*ham_params, state_in))
 
@@ -134,9 +136,9 @@ def test_forward_backward_accuracy_cuda(N: int, exponentiator: Exponentiation) -
     r = torch.randn(2**N, dtype=state_in.dtype, device=state_in.device)
     r *= 0.71 / r.norm()
 
-    state_out, _ = EvolveStateVector(exponentiator).apply(
-        dt, *ham_params, state_in, tolerance, None
-    )
+    state_out, _ = EvolveStateVector(
+        exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian
+    ).apply(dt, *ham_params, state_in, tolerance, None)
     grads = torch.autograd.grad(torch.vdot(r, state_out).real, (*ham_params, state_in))
 
     expected = do_dense_time_step(dt, *ham_params, state_in)
@@ -161,7 +163,7 @@ def test_forward_accuracy_dt(
     state_in = get_randn_state(N, device=device)
 
     expected = do_dense_time_step(dt, *ham_params, state_in)
-    stepper = EvolveStateVector(exponentiator)
+    stepper = EvolveStateVector(exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian)
     state_out, _ = stepper.apply(dt, *ham_params, state_in, tolerance, None)
     assert torch.allclose(expected, state_out, atol=tolerance)
 
@@ -175,7 +177,7 @@ def test_diagonal_hamiltonian(exponentiator: Exponentiation) -> None:
     state_in = get_randn_state(N, device=device)
 
     expected = do_dense_time_step(dt, omegas, deltas, phis, interaction, state_in)
-    stepper = EvolveStateVector(exponentiator)
+    stepper = EvolveStateVector(exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian)
     state_out, _ = stepper.apply(
         dt, omegas, deltas, phis, interaction, state_in, 1e-10, None
     )

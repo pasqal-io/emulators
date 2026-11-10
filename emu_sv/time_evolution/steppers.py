@@ -1,13 +1,11 @@
 import torch
 import random
 from typing import cast
-from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM
 from emu_base.math.brents_root_finding import BrentsRootFinder
 from emu_base.jump_lindblad_operators import compute_noise_from_lindbladians
 from emu_sv.hamiltonians import RydbergHamiltonian, RydbergLindbladian
 from emu_sv.algebra import apply, expect_batch
-from emu_sv.time_evolution import BaseStepper
-from emu_sv.time_evolution.exponentiation import Exponentiation
+from emu_sv.time_evolution import BaseStepper, Exponentiation
 from .torch import DifferentiableStateVectorEvolution
 
 JUMP_TIME_TOLERANCE_FRACTION = 0.1
@@ -17,8 +15,8 @@ class EvolveStateVector(BaseStepper):
     def __init__(
         self,
         exponentiator: Exponentiation,
-        max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
-        hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
+        max_krylov_dim: int,
+        hamiltonian_type: type[RydbergHamiltonian],
     ) -> None:
         super().__init__(exponentiator, max_krylov_dim)
         self.hamiltonian_type = hamiltonian_type
@@ -76,7 +74,7 @@ class EvolveDensityMatrix(BaseStepper):
     def __init__(
         self,
         exponentiator: Exponentiation,
-        max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
+        max_krylov_dim: int,
     ) -> None:
         super().__init__(exponentiator, max_krylov_dim)
 
@@ -126,8 +124,8 @@ class EvolveMonteCarlo(BaseStepper):
     def __init__(
         self,
         exponentiator: Exponentiation,
-        max_krylov_dim: int = DEFAULT_MAX_KRYLOV_DIM,
-        hamiltonian_type: type[RydbergHamiltonian] = RydbergHamiltonian,
+        max_krylov_dim: int,
+        hamiltonian_type: type[RydbergHamiltonian],
     ) -> None:
         super().__init__(exponentiator, max_krylov_dim)
         self.hamiltonian_type = hamiltonian_type

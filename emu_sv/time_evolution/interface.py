@@ -5,7 +5,20 @@ from emu_sv.hamiltonians import (
     make_interaction_diagonal,
     RydbergLindbladian,
 )
-from emu_sv.time_evolution.exponentiation import Exponentiation
+
+
+class Exponentiation(ABC):
+    """Algorithm computing exp(-i dt H)|ψ❭ for a time step where H is constant."""
+
+    @abstractmethod
+    def __call__(
+        self,
+        ham: RydbergHamiltonian | RydbergLindbladian,
+        dt: float,
+        state: torch.Tensor,
+        tolerance: float,
+    ) -> torch.Tensor:
+        pass
 
 
 class BaseStepper(ABC):

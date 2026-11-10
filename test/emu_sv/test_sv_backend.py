@@ -289,7 +289,7 @@ def test_monte_carlo_stepper_rejects_state_requiring_grad():
     state = torch.tensor([0.0, 1.0], dtype=torch.complex128, requires_grad=True)
     zero = torch.zeros(1, dtype=torch.float64)
     with pytest.raises(NotImplementedError, match="Monte Carlo"):
-        EvolveMonteCarlo(Lanczos()).apply(
+        EvolveMonteCarlo(Lanczos(), DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian).apply(
             0.1,
             zero,
             zero,
@@ -399,9 +399,9 @@ def test_max_krylov_dim_reaches_backward(exponentiator_type):
             side_effect=double_krylov,
         ) as double_spy,
     ):
-        state_out, _ = EvolveStateVector(exponentiator, MAX_KRYLOV_DIM).apply(
-            1.0, omegas, deltas, phis, interaction, state, 1e-10, None
-        )
+        state_out, _ = EvolveStateVector(
+            exponentiator, MAX_KRYLOV_DIM, RydbergHamiltonian
+        ).apply(1.0, omegas, deltas, phis, interaction, state, 1e-10, None)
         torch.autograd.grad(
             state_out.real.sum(), (omegas, deltas, phis, interaction, state)
         )
