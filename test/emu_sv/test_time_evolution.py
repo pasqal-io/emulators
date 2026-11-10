@@ -1,11 +1,12 @@
 import torch
+from typing import Type
 import pytest
 from test.utils_testing import (
     dense_rydberg_hamiltonian,
     randn_interaction_matrix,
 )
 from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM
-from emu_sv.hamiltonians import RydbergHamiltonian
+from emu_sv.hamiltonians import RydbergHamiltonian, FusedRydbergHamiltonian
 from emu_sv.time_evolution import Chebyshev, EvolveStateVector, Exponentiation, Lanczos
 
 # to test locally on GPU just change device here
@@ -122,11 +123,16 @@ def test_backward_accuracy(N, tolerance, exponentiator: Exponentiation):
         assert torch.allclose(g, eg, rtol=tolerance)
 
 
+@pytest.mark.parametrize(
+    "hamiltonian_type", [RydbergHamiltonian, FusedRydbergHamiltonian]
+)
 @with_exponentiators
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
 @pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize("N", [8, 9])
-def test_forward_backward_accuracy_cuda(N: int, exponentiator: Exponentiation) -> None:
+def test_forward_backward_accuracy_cuda(
+    N: int, exponentiator: Exponentiation, hamiltonian_type: Type
+) -> None:
     """On CUDA with Triton, both passes apply H with the fused kernel."""
     torch.manual_seed(1337)
     tolerance = 1e-10
@@ -137,7 +143,7 @@ def test_forward_backward_accuracy_cuda(N: int, exponentiator: Exponentiation) -
     r *= 0.71 / r.norm()
 
     state_out, _ = EvolveStateVector(
-        exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian
+        exponentiator, DEFAULT_MAX_KRYLOV_DIM, hamiltonian_type
     ).apply(dt, *ham_params, state_in, tolerance, None)
     grads = torch.autograd.grad(torch.vdot(r, state_out).real, (*ham_params, state_in))
 
