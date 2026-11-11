@@ -35,6 +35,7 @@ def exp_chebyshev_coefficients(alpha: float, tolerance: float) -> list[complex]:
     values[start] = 1.0  # find a scaled solution by starting the recurrence at 1
     j_next, j_cur = 0.0, 1.0
     for k in range(start, 0, -1):
+        # the recursion relation j_(n-1)(x) = 2n j_n(x)/x - j_(n+1)(x)
         j_next, j_cur = j_cur, 2.0 * k / a * j_cur - j_next
         values[k - 1] = j_cur
         if abs(j_cur) > 1e200:  # rescale to avoid overflow
