@@ -29,7 +29,7 @@ from pulser.backend import (
     Fidelity,
     Occupation,
 )
-from emu_sv.solver import Solver
+from emu_sv.enums import Solver, Exponentiator
 
 
 class SVConfig(EmulationConfig):
@@ -57,6 +57,12 @@ class SVConfig(EmulationConfig):
         solver: The solver to use in the presence of Lindblad noise.
             By default it will use Monte Carlo quantum jumps if shot noise is present,
             and the Lindblad equation with density matrices otherwise.
+        exponentiator: Which exponentiation algorithm to use for computing the propagator
+            over the timestep dt where H is assumed constant. The accuracy should be
+            similar, CHEBYSHEV is more memory efficient, and probably faster.
+            By default it does CHEBYSHEV in the absence of Lindblad noise,
+            and LANCZOS otherwise. CHEBYSHEV is only available without Lindblad noise,
+            and does not use max_krylov_dim (gradients are still computed with Lanczos).
         kwargs: arguments that are passed to the base class
 
     Examples:
@@ -85,9 +91,11 @@ class SVConfig(EmulationConfig):
         log_level: int = logging.INFO,
         log_file: pathlib.Path | None = None,
         solver: Solver = Solver.DEFAULT,
+        exponentiator: Exponentiator = Exponentiator.DEFAULT,
         **kwargs: Any,
     ):
         super().__init__(
+            exponentiator=exponentiator,
             solver=solver,
             dt=dt,
             max_krylov_dim=max_krylov_dim,
@@ -122,6 +130,7 @@ class SVConfig(EmulationConfig):
             "log_level",
             "log_file",
             "solver",
+            "exponentiator",
         }
 
     def move_observable_tensors_to_correct_device(self) -> None:

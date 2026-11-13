@@ -10,12 +10,15 @@ from emu_sv.time_evolution import (
     EvolveDensityMatrix,
     EvolveMonteCarlo,
     EvolveStateVector,
+    Chebyshev,
+    Lanczos,
 )
+from emu_sv.enums import Exponentiator
 from emu_sv.hamiltonians import (
     FusedRydbergHamiltonian,
     RydbergHamiltonian,
 )
-import emu_sv.time_evolution.implementations as time_evolution_impl
+import emu_sv.time_evolution.exponentiation as time_evolution_exponentiation
 import emu_sv.time_evolution.torch as time_evolution_torch
 from emu_base.math.double_krylov import double_krylov
 from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
@@ -241,12 +244,52 @@ def test_backend_impl_hamiltonian_type(
     assert backend_impl.stepper.hamiltonian_type is expected
 
 
+@pytest.mark.parametrize(
+    "requested, lindblad_ops, solver, kernel_available, expected",
+    [
+        (Exponentiator.DEFAULT, [], Solver.DEFAULT, False, Chebyshev),
+        (Exponentiator.DEFAULT, [], Solver.DEFAULT, True, Chebyshev),
+        (Exponentiator.LANCZOS, [], Solver.DEFAULT, True, Lanczos),
+        (Exponentiator.CHEBYSHEV, [], Solver.DEFAULT, False, Chebyshev),
+        (Exponentiator.DEFAULT, [1.0], Solver.MONTECARLO, True, Lanczos),
+        (Exponentiator.DEFAULT, [1.0], Solver.LINDBLAD, True, Lanczos),
+        (Exponentiator.CHEBYSHEV, [1.0], Solver.MONTECARLO, True, ValueError),
+        (Exponentiator.CHEBYSHEV, [1.0], Solver.LINDBLAD, True, ValueError),
+    ],
+)
+def test_backend_impl_exponentiator(
+    requested, lindblad_ops, solver, kernel_available, expected
+) -> None:
+    mock_config = MagicMock(
+        initial_state=None,
+        solver=solver,
+        gpu=False,
+        max_krylov_dim=MAX_KRYLOV_DIM,
+        exponentiator=requested,
+    )
+    mock_sequence = MagicMock(
+        state_prep_error=0.0, lindblad_ops=lindblad_ops, has_stochastic_noise=False
+    )
+    with patch.object(
+        FusedRydbergHamiltonian, "is_available", return_value=kernel_available
+    ):
+        if expected is ValueError:
+            with pytest.raises(ValueError, match="CHEBYSHEV"):
+                SVBackendImpl(mock_config, mock_sequence)
+            return
+        backend_impl = SVBackendImpl(mock_config, mock_sequence)
+    exponentiator = backend_impl.stepper.exponentiator
+    assert type(exponentiator) is expected
+    if expected is Lanczos:
+        assert exponentiator.max_krylov_dim == MAX_KRYLOV_DIM
+
+
 def test_monte_carlo_stepper_rejects_state_requiring_grad():
     """the stepper itself refuses, also when used without SVBackendImpl"""
     state = torch.tensor([0.0, 1.0], dtype=torch.complex128, requires_grad=True)
     zero = torch.zeros(1, dtype=torch.float64)
     with pytest.raises(NotImplementedError, match="Monte Carlo"):
-        EvolveMonteCarlo().apply(
+        EvolveMonteCarlo(Lanczos(), DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian).apply(
             0.1,
             zero,
             zero,
@@ -287,7 +330,12 @@ def received_max_krylov_dims(spy: MagicMock, real: Callable) -> list[int]:
 )
 def test_max_krylov_dim_reaches_krylov_exp(solver, lindblad_ops, stepper_type):
     """SVConfig.max_krylov_dim reaches every krylov_exp call of a time step."""
-    config = SVConfig(gpu=False, max_krylov_dim=MAX_KRYLOV_DIM, solver=solver)
+    config = SVConfig(
+        gpu=False,
+        max_krylov_dim=MAX_KRYLOV_DIM,
+        solver=solver,
+        exponentiator=Exponentiator.LANCZOS,
+    )
     pulser_data = MagicMock(
         spec=SequenceData,
         omega=torch.tensor([[1.0, 1.0]]),
@@ -307,7 +355,10 @@ def test_max_krylov_dim_reaches_krylov_exp(solver, lindblad_ops, stepper_type):
             time_evolution_torch, "krylov_exp", autospec=True, side_effect=krylov_exp
         ) as torch_spy,
         patch.object(
-            time_evolution_impl, "krylov_exp", autospec=True, side_effect=krylov_exp
+            time_evolution_exponentiation,
+            "krylov_exp",
+            autospec=True,
+            side_effect=krylov_exp,
         ) as impl_spy,
     ):
         bknd_impl._evolve_step(1.0, 0)
@@ -319,9 +370,14 @@ def test_max_krylov_dim_reaches_krylov_exp(solver, lindblad_ops, stepper_type):
 
 
 @pytest.mark.usefixtures("restore_rng_state")
-def test_max_krylov_dim_reaches_backward():
+@pytest.mark.parametrize("exponentiator_type", [Lanczos, Chebyshev])
+def test_max_krylov_dim_reaches_backward(exponentiator_type):
     """The gradient pass uses the stepper's max_krylov_dim, for the gradient of the
-    input state (krylov_exp) and of the pulse parameters (double_krylov)."""
+    input state (krylov_exp) and of the pulse parameters (double_krylov), whatever
+    the exponentiator of the forward step."""
+    exponentiator = (
+        Lanczos(MAX_KRYLOV_DIM) if exponentiator_type is Lanczos else Chebyshev()
+    )
     torch.manual_seed(1337)
     nqubits = 2
     omegas = torch.rand(nqubits, dtype=torch.float64, requires_grad=True)
@@ -336,20 +392,29 @@ def test_max_krylov_dim_reaches_backward():
             time_evolution_torch, "krylov_exp", autospec=True, side_effect=krylov_exp
         ) as krylov_spy,
         patch.object(
+            time_evolution_exponentiation,
+            "krylov_exp",
+            autospec=True,
+            side_effect=krylov_exp,
+        ) as forward_spy,
+        patch.object(
             time_evolution_torch,
             "double_krylov",
             autospec=True,
             side_effect=double_krylov,
         ) as double_spy,
     ):
-        state_out, _ = EvolveStateVector(MAX_KRYLOV_DIM).apply(
-            1.0, omegas, deltas, phis, interaction, state, 1e-10, None
-        )
+        state_out, _ = EvolveStateVector(
+            exponentiator, MAX_KRYLOV_DIM, RydbergHamiltonian
+        ).apply(1.0, omegas, deltas, phis, interaction, state, 1e-10, None)
         torch.autograd.grad(
             state_out.real.sum(), (omegas, deltas, phis, interaction, state)
         )
 
-    # forward step, then backward for the input state
-    assert received_max_krylov_dims(krylov_spy, krylov_exp) == [MAX_KRYLOV_DIM] * 2
+    # forward step (no Krylov call for Chebyshev)
+    expected_forward = [MAX_KRYLOV_DIM] if exponentiator_type is Lanczos else []
+    assert received_max_krylov_dims(forward_spy, krylov_exp) == expected_forward
+    # backward for the input state
+    assert received_max_krylov_dims(krylov_spy, krylov_exp) == [MAX_KRYLOV_DIM]
     # backward for omegas, deltas, phis and the interaction matrix
     assert received_max_krylov_dims(double_spy, double_krylov) == [MAX_KRYLOV_DIM]

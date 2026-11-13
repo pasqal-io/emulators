@@ -7,11 +7,28 @@ from emu_sv.hamiltonians import (
 )
 
 
+class Exponentiation(ABC):
+    """Algorithm computing exp(-i dt H)|ψ❭ for a time step where H is constant."""
+
+    @abstractmethod
+    def __call__(
+        self,
+        ham: RydbergHamiltonian | RydbergLindbladian,
+        dt: float,
+        state: torch.Tensor,
+        tolerance: float,
+    ) -> torch.Tensor:
+        pass
+
+
 class BaseStepper(ABC):
     # (interaction matrix, interaction diagonal) of the last time step
     _interaction: tuple[torch.Tensor, torch.Tensor] | None = None
 
-    def __init__(self, max_krylov_dim: int) -> None:
+    def __init__(self, exponentiator: Exponentiation, max_krylov_dim: int) -> None:
+        self.exponentiator = exponentiator
+        # used by the gradient computation, which is Lanczos-based whatever the
+        # exponentiator
         self.max_krylov_dim = max_krylov_dim
 
     def interaction_diagonal(
