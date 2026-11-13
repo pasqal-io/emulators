@@ -8,10 +8,6 @@ from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp
 from emu_sv.hamiltonians import RydbergHamiltonian, RydbergLindbladian
 from emu_sv.time_evolution.interface import Exponentiation
 
-# The Chebyshev series is truncated where its error bound reaches this fraction of
-# the tolerance: the Lanczos stopping test overestimates the error (see
-# docs/emu_sv/benchmarks/accuracy.md), whereas the Chebyshev bound is nearly attained.
-CHEBYSHEV_TOLERANCE_FACTOR = 1e-2
 # Steps with a larger alpha = r dt are split into equal sub-steps (rounding control).
 CHEBYSHEV_MAX_ALPHA = 2000.0
 
@@ -68,7 +64,7 @@ class Chebyshev(Exponentiation):
         substeps = max(1, math.ceil(abs(alpha) / CHEBYSHEV_MAX_ALPHA))
         op = ham.shifted(shift).make_op(2 / radius)
         phase = cmath.exp(-1j * dt * shift / substeps)
-        tolerance = tolerance * CHEBYSHEV_TOLERANCE_FACTOR / substeps
+        tolerance = tolerance / substeps
         res = state
         for _ in range(substeps):
             res = chebyshev_exp(op, res, alpha / substeps, phase, tolerance)
