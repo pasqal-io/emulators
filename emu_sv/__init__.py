@@ -42,4 +42,4 @@ __all__ = [
     "Exponentiator",
 ]
 
-__version__ = "2.10.1"
+__version__ = "2.11.0"
