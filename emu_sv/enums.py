@@ -32,3 +32,22 @@ class Solver(str, Enum):
     DEFAULT = "default"
     MONTECARLO = "montecarlo"
     LINDBLAD = "lindblad"
+
+
+class HamiltonianFormat(str, Enum):
+    """How emu-sv applies the Hamiltonian to state vectors.
+
+    Members:
+
+    - HamiltonianFormat.DEFAULT: CSR on CPU up to 16 qubits, MATRIX_FREE otherwise.
+    - HamiltonianFormat.MATRIX_FREE: apply each term of H directly to the state,
+      without storing H. On GPU, a fused kernel is used where available.
+    - HamiltonianFormat.CSR: store H as a CSR sparse matrix. Faster for small
+      states, but takes (N + 1) entries per basis state.
+
+    CSR is not available for density matrices (Lindblad noise without Monte Carlo).
+    """
+
+    DEFAULT = "default"
+    MATRIX_FREE = "matrix_free"
+    CSR = "csr"

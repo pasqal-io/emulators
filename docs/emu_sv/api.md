@@ -14,6 +14,9 @@ The emu-sv API is based on the specification [here](../base_classes.md). Concret
 ## Exponentiators
 ::: emu_sv.enums.Exponentiator
 
+## Hamiltonian formats
+::: emu_sv.enums.HamiltonianFormat
+
 ## StateVector
 ::: emu_sv.state_vector.StateVector
 

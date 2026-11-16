@@ -4,6 +4,7 @@ import torch
 import logging
 
 from emu_sv.hamiltonians import (
+    CSRRydbergHamiltonian,
     FusedRydbergHamiltonian,
     RydbergHamiltonian,
     RydbergLindbladian,
@@ -17,7 +18,8 @@ from emu_base import (
     is_evaluation_time,
 )
 
-from emu_sv.enums import Solver, Exponentiator
+from emu_sv.enums import Solver, Exponentiator, HamiltonianFormat
+from emu_sv.hamiltonians.csr_rydberg_hamiltonian import CSR_MAX_QUBITS
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
 from emu_sv.dense_state import DenseState
@@ -161,12 +163,7 @@ class SVBackendImpl:
 
     def init_stepper(self, use_density_matrix: bool) -> BaseStepper:
         max_krylov_dim = self._config.max_krylov_dim
-        hamiltonian_type = (
-            FusedRydbergHamiltonian
-            if not use_density_matrix
-            and FusedRydbergHamiltonian.is_available(self.state.data.device, self.nqubits)
-            else RydbergHamiltonian
-        )
+        hamiltonian_type = self.init_hamiltonian_type(use_density_matrix)
         exponentiator = self.init_exponentiator(
             hermitian=not self.pulser_lindblads,
         )
@@ -174,6 +171,30 @@ class SVBackendImpl:
             return EvolveDensityMatrix(exponentiator, max_krylov_dim)
         stepper_type = EvolveMonteCarlo if self.pulser_lindblads else EvolveStateVector
         return stepper_type(exponentiator, max_krylov_dim, hamiltonian_type)
+
+    def init_hamiltonian_type(self, use_density_matrix: bool) -> type[RydbergHamiltonian]:
+        """
+        The state vector Hamiltonian for the format requested in the config.
+        By default, CSR on CPU up to `CSR_MAX_QUBITS` qubits. Matrix-free uses the
+        fused kernel wherever it is available. Density matrices use their own
+        `RydbergLindbladian`, so CSR is not available for them.
+        """
+        requested = self._config.hamiltonian_format
+        if requested == HamiltonianFormat.CSR and use_density_matrix:
+            raise ValueError(
+                "HamiltonianFormat.CSR is only available for state vector evolution; "
+                "use HamiltonianFormat.MATRIX_FREE for density matrices."
+            )
+        device = self.state.data.device
+        if requested == HamiltonianFormat.CSR or (
+            requested == HamiltonianFormat.DEFAULT
+            and device.type == "cpu"
+            and self.nqubits <= CSR_MAX_QUBITS
+        ):
+            return CSRRydbergHamiltonian
+        if FusedRydbergHamiltonian.is_available(device, self.nqubits):
+            return FusedRydbergHamiltonian
+        return RydbergHamiltonian
 
     def init_exponentiator(self, hermitian: bool) -> Exponentiation:
         """

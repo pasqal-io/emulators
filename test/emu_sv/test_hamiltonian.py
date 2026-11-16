@@ -8,7 +8,11 @@ from test.utils_testing import (
     randn_interaction_matrix,
 )
 from emu_sv.state_vector import StateVector
-from emu_sv.hamiltonians import FusedRydbergHamiltonian, RydbergHamiltonian
+from emu_sv.hamiltonians import (
+    CSRRydbergHamiltonian,
+    FusedRydbergHamiltonian,
+    RydbergHamiltonian,
+)
 from emu_sv.hamiltonians import fused_rydberg_hamiltonian as fused
 from emu_sv.time_evolution import EvolveStateVector, Lanczos
 from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM
@@ -201,6 +205,63 @@ def test_interaction_diagonal_is_kept_between_steps() -> None:
         )
         dense = dense_rydberg_hamiltonian(zeros, zeros, zeros, interaction_matrix)
         assert torch.allclose(ham.diag, torch.diagonal(dense).to(dtype), atol=1e-12)
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+@pytest.mark.parametrize(
+    "N, with_phase, with_noise",
+    [(n, p, nz) for n in [1, 3, 6] for p in [False, True] for nz in [False, True]],
+)
+def test_csr_matches_torch(N: int, with_phase: bool, with_noise: bool) -> None:
+    torch.manual_seed(1337)
+    noise = (
+        torch.tensor([[-0.1j, 0.2 + 0.1j], [0.3j, -0.4j]], dtype=dtype)
+        if with_noise
+        else None
+    )
+    params = dict(
+        omegas=torch.randn(N, dtype=torch.float64),
+        deltas=torch.randn(N, dtype=torch.float64),
+        phis=torch.randn(N, dtype=torch.float64) if with_phase else torch.zeros(N),
+        interaction_matrix=randn_interaction_matrix(N),
+        device=device,
+        noise=noise,
+    )
+    ham = CSRRydbergHamiltonian(**params)
+    reference_ham = RydbergHamiltonian(**params)
+    state = torch.randn(2**N, dtype=dtype)
+    reference = reference_ham * state
+    assert torch.allclose(ham * state, reference, atol=1e-12)
+    assert torch.allclose(ham.make_op(-0.3j)(state), -0.3j * reference, atol=1e-12)
+    if not with_noise:
+        dense = dense_rydberg_hamiltonian(
+            params["omegas"],
+            params["deltas"],
+            params["phis"],
+            params["interaction_matrix"],
+        ).to(dtype)
+        assert torch.allclose(ham._matrix().to_dense(), dense, atol=1e-12)
+
+
+def test_csr_records_through_torch_implementation() -> None:
+    """torch does not differentiate sparse products: autograd uses index_add."""
+    N = 3
+    deltas = torch.randn(N, dtype=torch.float64, requires_grad=True)
+    ham = CSRRydbergHamiltonian(
+        omegas=torch.randn(N, dtype=torch.float64),
+        deltas=deltas,
+        phis=torch.zeros(N, dtype=torch.float64),
+        interaction_matrix=randn_interaction_matrix(N),
+        device=device,
+        noise=None,
+    )
+    state = torch.randn(2**N, dtype=dtype)
+    (grad,) = torch.autograd.grad((ham * state).abs().sum(), deltas)
+    assert grad.abs().sum() > 0
+    assert ham._csr is None
+    with torch.no_grad():
+        ham * state
+    assert ham._csr is not None
 
 
 def test_kernel_probe_failure_falls_back() -> None:

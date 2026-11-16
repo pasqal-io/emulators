@@ -17,7 +17,7 @@ from .sparse_operator import SparseOperator
 from .sv_backend import SVBackend, SVConfig
 from .state_vector import StateVector, inner
 from .density_matrix_state import DensityMatrix
-from .enums import Solver, Exponentiator
+from .enums import Solver, Exponentiator, HamiltonianFormat
 
 __all__ = [
     "__version__",
@@ -40,6 +40,7 @@ __all__ = [
     "SparseOperator",
     "Solver",
     "Exponentiator",
+    "HamiltonianFormat",
 ]
 
 __version__ = "2.11.0"

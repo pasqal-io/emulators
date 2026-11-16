@@ -1,4 +1,5 @@
 import inspect
+from types import SimpleNamespace
 from collections.abc import Callable
 from unittest.mock import MagicMock, patch
 import torch
@@ -13,8 +14,10 @@ from emu_sv.time_evolution import (
     Chebyshev,
     Lanczos,
 )
-from emu_sv.enums import Exponentiator
+from emu_sv.enums import Exponentiator, HamiltonianFormat
+from emu_sv.hamiltonians.csr_rydberg_hamiltonian import CSR_MAX_QUBITS
 from emu_sv.hamiltonians import (
+    CSRRydbergHamiltonian,
     FusedRydbergHamiltonian,
     RydbergHamiltonian,
 )
@@ -418,3 +421,42 @@ def test_max_krylov_dim_reaches_backward(exponentiator_type):
     assert received_max_krylov_dims(krylov_spy, krylov_exp) == [MAX_KRYLOV_DIM]
     # backward for omegas, deltas, phis and the interaction matrix
     assert received_max_krylov_dims(double_spy, double_krylov) == [MAX_KRYLOV_DIM]
+
+
+@pytest.mark.parametrize(
+    "requested, device, nqubits, density_matrix, expected",
+    [
+        (HamiltonianFormat.DEFAULT, "cpu", 5, False, CSRRydbergHamiltonian),
+        (HamiltonianFormat.DEFAULT, "cpu", CSR_MAX_QUBITS, False, CSRRydbergHamiltonian),
+        (HamiltonianFormat.DEFAULT, "cpu", CSR_MAX_QUBITS + 1, False, RydbergHamiltonian),
+        (HamiltonianFormat.MATRIX_FREE, "cpu", 5, False, RydbergHamiltonian),
+        (HamiltonianFormat.CSR, "cpu", 25, False, CSRRydbergHamiltonian),
+        (HamiltonianFormat.CSR, "cpu", 5, True, ValueError),
+    ],
+)
+def test_init_hamiltonian_type(requested, device, nqubits, density_matrix, expected):
+    impl = SimpleNamespace(
+        _config=SimpleNamespace(hamiltonian_format=requested),
+        state=SimpleNamespace(data=torch.zeros(1, device=device)),
+        nqubits=nqubits,
+    )
+    if expected is ValueError:
+        with pytest.raises(ValueError, match="CSR"):
+            SVBackendImpl.init_hamiltonian_type(impl, density_matrix)
+    else:
+        assert SVBackendImpl.init_hamiltonian_type(impl, density_matrix) is expected
+
+
+@pytest.mark.parametrize(
+    "requested", [HamiltonianFormat.DEFAULT, HamiltonianFormat.MATRIX_FREE]
+)
+def test_init_hamiltonian_type_uses_fused_kernel_where_available(requested):
+    impl = SimpleNamespace(
+        _config=SimpleNamespace(hamiltonian_format=requested),
+        state=SimpleNamespace(data=torch.zeros(1)),
+        nqubits=CSR_MAX_QUBITS + 1,
+    )
+    with patch.object(FusedRydbergHamiltonian, "is_available", return_value=True):
+        assert SVBackendImpl.init_hamiltonian_type(impl, False) is (
+            FusedRydbergHamiltonian
+        )

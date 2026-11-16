@@ -29,7 +29,7 @@ from pulser.backend import (
     Fidelity,
     Occupation,
 )
-from emu_sv.enums import Solver, Exponentiator
+from emu_sv.enums import Solver, Exponentiator, HamiltonianFormat
 
 
 class SVConfig(EmulationConfig):
@@ -63,6 +63,9 @@ class SVConfig(EmulationConfig):
             By default it does CHEBYSHEV in the absence of Lindblad noise,
             and LANCZOS otherwise. CHEBYSHEV is only available without Lindblad noise,
             and does not use max_krylov_dim (gradients are still computed with Lanczos).
+        hamiltonian_format: How to apply the Hamiltonian to state vectors.
+            By default, as a CSR sparse matrix on CPU up to 16 qubits, which is faster
+            for small states, and matrix-free otherwise. See `HamiltonianFormat`.
         kwargs: arguments that are passed to the base class
 
     Examples:
@@ -92,10 +95,12 @@ class SVConfig(EmulationConfig):
         log_file: pathlib.Path | None = None,
         solver: Solver = Solver.DEFAULT,
         exponentiator: Exponentiator = Exponentiator.DEFAULT,
+        hamiltonian_format: HamiltonianFormat = HamiltonianFormat.DEFAULT,
         **kwargs: Any,
     ):
         super().__init__(
             exponentiator=exponentiator,
+            hamiltonian_format=hamiltonian_format,
             solver=solver,
             dt=dt,
             max_krylov_dim=max_krylov_dim,
@@ -131,6 +136,7 @@ class SVConfig(EmulationConfig):
             "log_file",
             "solver",
             "exponentiator",
+            "hamiltonian_format",
         }
 
     def move_observable_tensors_to_correct_device(self) -> None:
