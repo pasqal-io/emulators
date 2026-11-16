@@ -120,3 +120,11 @@ def test_observable_tensors_moved_to_config_device():
     # the objects given by the user are left alone
     assert operator.data.device.type == ("cuda" if DEVICE_COUNT > 0 else "cpu")
     assert state.data.device.type == ("cuda" if DEVICE_COUNT > 0 else "cpu")
+
+
+def test_enum_args():
+    SVConfig(solver="default", exponentiator="default")
+    with pytest.raises(ValueError, match="Solver"):
+        SVConfig(solver="wrong")
+    with pytest.raises(ValueError, match="Exponentiator"):
+        SVConfig(exponentiator="wrong")
