@@ -43,7 +43,7 @@ def checked_truncation_index(alpha: float, tolerance: float) -> int:
 def test_exp_chebyshev_coefficients_match_oracle(alpha: float, tolerance: float) -> None:
     """
     Values, signs of (-i)^k, factor 2 on k >= 1, conjugation for alpha < 0, minimal K,
-    including the series tolerances used by the steps (krylov_tolerance / 100).
+    including the series tolerances used by the steps.
     """
     expected, _ = chebyshev_coefficients_exact(alpha)
     K = checked_truncation_index(alpha, tolerance)
