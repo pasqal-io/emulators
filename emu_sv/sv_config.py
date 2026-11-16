@@ -94,6 +94,10 @@ class SVConfig(EmulationConfig):
         exponentiator: Exponentiator = Exponentiator.DEFAULT,
         **kwargs: Any,
     ):
+        if not isinstance(solver, Solver):
+            solver = Solver(solver)
+        if not isinstance(exponentiator, Exponentiator):
+            exponentiator = Exponentiator(exponentiator)
         super().__init__(
             exponentiator=exponentiator,
             solver=solver,
