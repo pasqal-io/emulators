@@ -17,7 +17,7 @@ from emu_base import (
     is_evaluation_time,
 )
 
-from emu_sv.solver import Solver
+from emu_sv.enums import Solver, Exponentiator
 from emu_sv.state_vector import StateVector
 from emu_sv.density_matrix_state import DensityMatrix
 from emu_sv.dense_state import DenseState
@@ -27,6 +27,9 @@ from emu_sv.time_evolution import (
     EvolveDensityMatrix,
     EvolveMonteCarlo,
     BaseStepper,
+    Exponentiation,
+    Lanczos,
+    Chebyshev,
 )
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
@@ -109,21 +112,7 @@ class SVBackendImpl:
 
         # the Hamiltonian is a RydbergLindbladian for density matrices, and for state
         # vectors a RydbergHamiltonian, applied by the fused kernel where it can be
-        self.stepper: BaseStepper
-        if use_density_matrix:
-            self.stepper = EvolveDensityMatrix(config.max_krylov_dim)
-        else:
-            hamiltonian_type = (
-                FusedRydbergHamiltonian
-                if FusedRydbergHamiltonian.is_available(
-                    self.state.data.device, self.nqubits
-                )
-                else RydbergHamiltonian
-            )
-            stepper_type = (
-                EvolveMonteCarlo if self.pulser_lindblads else EvolveStateVector
-            )
-            self.stepper = stepper_type(config.max_krylov_dim, hamiltonian_type)
+        self.stepper = self.init_stepper(use_density_matrix)
 
         self.time = time.time()
         self.results = Results(
@@ -169,6 +158,40 @@ class SVBackendImpl:
             self.state = state_type(config_state.data.clone(), gpu=self.resolved_gpu)
         else:
             self.state = state_type.make(self.nqubits, gpu=self.resolved_gpu)
+
+    def init_stepper(self, use_density_matrix: bool) -> BaseStepper:
+        max_krylov_dim = self._config.max_krylov_dim
+        hamiltonian_type = (
+            FusedRydbergHamiltonian
+            if not use_density_matrix
+            and FusedRydbergHamiltonian.is_available(self.state.data.device, self.nqubits)
+            else RydbergHamiltonian
+        )
+        exponentiator = self.init_exponentiator(
+            hermitian=not self.pulser_lindblads,
+        )
+        if use_density_matrix:
+            return EvolveDensityMatrix(exponentiator, max_krylov_dim)
+        stepper_type = EvolveMonteCarlo if self.pulser_lindblads else EvolveStateVector
+        return stepper_type(exponentiator, max_krylov_dim, hamiltonian_type)
+
+    def init_exponentiator(self, hermitian: bool) -> Exponentiation:
+        """
+        The exponentiator requested in the config. By default,
+        Chebyshev if there's no Lindblad noise, and Lanczos otherwise. Chebyshev
+        needs a Hermitian generator, so it is not available with Lindblad noise.
+        """
+        requested = self._config.exponentiator
+        if requested == Exponentiator.CHEBYSHEV and not hermitian:
+            raise ValueError(
+                "Exponentiator.CHEBYSHEV is only available for noiseless state "
+                "vector evolution; use Exponentiator.LANCZOS with Lindblad noise."
+            )
+        if requested == Exponentiator.CHEBYSHEV or (
+            requested == Exponentiator.DEFAULT and hermitian
+        ):
+            return Chebyshev()
+        return Lanczos(self._config.max_krylov_dim)
 
     def init_dark_qubits(self) -> None:
         if self._data.state_prep_error > 0.0:

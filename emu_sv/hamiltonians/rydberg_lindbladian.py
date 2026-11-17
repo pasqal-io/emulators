@@ -1,3 +1,5 @@
+from typing import Callable
+
 import torch
 from emu_base import compute_noise_from_lindbladians, matmul_2x2_with_batched
 from emu_sv.density_matrix_state import DensityMatrix
@@ -174,6 +176,10 @@ class RydbergLindbladian:
     def _apply_interaction_terms(self, density_matrix: torch.Tensor) -> torch.Tensor:
         """Apply the interaction terms ∑ᵢⱼ Uᵢⱼ nᵢ nⱼ to the density matrix."""
         return self.diag.view(-1, 1) * density_matrix
+
+    def make_op(self, factor: complex) -> Callable[[torch.Tensor], torch.Tensor]:
+        """Return the operator ρ ↦ factor·(L ρ), e.g. -i dt L for `krylov_exp`."""
+        return lambda x: factor * (self @ x)
 
     def __matmul__(self, density_matrix: torch.Tensor) -> torch.Tensor:
         """Apply the i*RydbergLindbladian operator to the density matrix ρ

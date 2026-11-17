@@ -1,13 +1,22 @@
 import torch
+from typing import Type
 import pytest
 from test.utils_testing import (
     dense_rydberg_hamiltonian,
     randn_interaction_matrix,
 )
-from emu_sv.time_evolution import EvolveStateVector
+from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM
+from emu_sv.hamiltonians import RydbergHamiltonian, FusedRydbergHamiltonian
+from emu_sv.time_evolution import Chebyshev, EvolveStateVector, Exponentiation, Lanczos
 
 # to test locally on GPU just change device here
 device = "cpu"
+
+# forward step with either algorithm; the backward pass is Lanczos-based in both cases
+with_exponentiators = pytest.mark.parametrize(
+    "exponentiator",
+    [pytest.param(Lanczos(), id="lanczos"), pytest.param(Chebyshev(), id="chebyshev")],
+)
 
 
 def do_dense_time_step(
@@ -44,17 +53,21 @@ def get_randn_state(
     return state / state.norm()
 
 
+@with_exponentiators
 @pytest.mark.parametrize("requires_grad", [True, False])
-def test_forward_with_requires_grad(requires_grad):
+def test_forward_with_requires_grad(requires_grad, exponentiator: Exponentiation):
     """test that index_add is called in a no_grad context in forward"""
     ham_params = get_randn_ham_params(
         1, with_phase=False, requires_grad=not requires_grad
     )
     state_in = get_randn_state(1, device=device, requires_grad=requires_grad)
-    state_out, _ = EvolveStateVector().apply(0.3, *ham_params, state_in, 1e-5, None)
+    state_out, _ = EvolveStateVector(
+        exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian
+    ).apply(0.3, *ham_params, state_in, 1e-5, None)
     assert state_out.requires_grad
 
 
+@with_exponentiators
 @pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize(
     "N, tolerance, with_phase",
@@ -65,23 +78,28 @@ def test_forward_with_requires_grad(requires_grad):
         for wp in [False, True]
     ],
 )
-def test_forward_accuracy(N: int, tolerance: float, with_phase: bool) -> None:
+def test_forward_accuracy(
+    N: int, tolerance: float, with_phase: bool, exponentiator: Exponentiation
+) -> None:
     torch.manual_seed(1337)
     ham_params = get_randn_ham_params(N, with_phase=with_phase)
     state_in = get_randn_state(N, device=device)
     dt = 1.0  # 1 μs big time step
 
     expected = do_dense_time_step(dt, *ham_params, state_in)
-    state_out, _ = EvolveStateVector().apply(dt, *ham_params, state_in, tolerance, None)
+    state_out, _ = EvolveStateVector(
+        exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian
+    ).apply(dt, *ham_params, state_in, tolerance, None)
     assert torch.allclose(expected, state_out, atol=tolerance)
 
 
+@with_exponentiators
 @pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize(
     "N, tolerance",
     [(n, tol) for n in [3, 5, 8] for tol in [1e-8, 1e-10, 1e-12]],
 )
-def test_backward_accuracy(N, tolerance):
+def test_backward_accuracy(N, tolerance, exponentiator: Exponentiation):
     torch.manual_seed(1337)
     ham_params = get_randn_ham_params(N, with_phase=True, requires_grad=True)
     state_in = get_randn_state(N, device=device, requires_grad=True)
@@ -91,7 +109,9 @@ def test_backward_accuracy(N, tolerance):
     r = torch.randn(2**N, dtype=state_in.dtype, device=state_in.device)
     r *= 0.71 / r.norm()
 
-    state_out, _ = EvolveStateVector().apply(dt, *ham_params, state_in, tolerance, None)
+    state_out, _ = EvolveStateVector(
+        exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian
+    ).apply(dt, *ham_params, state_in, tolerance, None)
     scalar = torch.vdot(r, state_out).real
     grads = torch.autograd.grad(scalar, (*ham_params, state_in))
 
@@ -103,10 +123,16 @@ def test_backward_accuracy(N, tolerance):
         assert torch.allclose(g, eg, rtol=tolerance)
 
 
+@pytest.mark.parametrize(
+    "hamiltonian_type", [RydbergHamiltonian, FusedRydbergHamiltonian]
+)
+@with_exponentiators
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
 @pytest.mark.usefixtures("restore_rng_state")
 @pytest.mark.parametrize("N", [8, 9])
-def test_forward_backward_accuracy_cuda(N: int) -> None:
+def test_forward_backward_accuracy_cuda(
+    N: int, exponentiator: Exponentiation, hamiltonian_type: Type
+) -> None:
     """On CUDA with Triton, both passes apply H with the fused kernel."""
     torch.manual_seed(1337)
     tolerance = 1e-10
@@ -116,7 +142,9 @@ def test_forward_backward_accuracy_cuda(N: int) -> None:
     r = torch.randn(2**N, dtype=state_in.dtype, device=state_in.device)
     r *= 0.71 / r.norm()
 
-    state_out, _ = EvolveStateVector().apply(dt, *ham_params, state_in, tolerance, None)
+    state_out, _ = EvolveStateVector(
+        exponentiator, DEFAULT_MAX_KRYLOV_DIM, hamiltonian_type
+    ).apply(dt, *ham_params, state_in, tolerance, None)
     grads = torch.autograd.grad(torch.vdot(r, state_out).real, (*ham_params, state_in))
 
     expected = do_dense_time_step(dt, *ham_params, state_in)
@@ -126,3 +154,37 @@ def test_forward_backward_accuracy_cuda(N: int) -> None:
     assert torch.allclose(expected, state_out, atol=tolerance)
     for g, eg in zip(grads, expected_grads):
         assert torch.allclose(g, eg, rtol=tolerance)
+
+
+@with_exponentiators
+@pytest.mark.usefixtures("restore_rng_state")
+@pytest.mark.parametrize("with_phase", [False, True])
+@pytest.mark.parametrize("dt", [0.01, 1.0, 10.0])
+def test_forward_accuracy_dt(
+    dt: float, with_phase: bool, exponentiator: Exponentiation
+) -> None:
+    torch.manual_seed(1337)
+    N, tolerance = 5, 1e-10
+    ham_params = get_randn_ham_params(N, with_phase=with_phase)
+    state_in = get_randn_state(N, device=device)
+
+    expected = do_dense_time_step(dt, *ham_params, state_in)
+    stepper = EvolveStateVector(exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian)
+    state_out, _ = stepper.apply(dt, *ham_params, state_in, tolerance, None)
+    assert torch.allclose(expected, state_out, atol=tolerance)
+
+
+@with_exponentiators
+def test_diagonal_hamiltonian(exponentiator: Exponentiation) -> None:
+    """Omega = 0: H is diagonal and the step is a phase per basis state"""
+    N, dt = 3, 0.7
+    omegas, deltas, phis, interaction = get_randn_ham_params(N)
+    omegas = torch.zeros_like(omegas)
+    state_in = get_randn_state(N, device=device)
+
+    expected = do_dense_time_step(dt, omegas, deltas, phis, interaction, state_in)
+    stepper = EvolveStateVector(exponentiator, DEFAULT_MAX_KRYLOV_DIM, RydbergHamiltonian)
+    state_out, _ = stepper.apply(
+        dt, omegas, deltas, phis, interaction, state_in, 1e-10, None
+    )
+    assert torch.allclose(expected, state_out, atol=1e-12)

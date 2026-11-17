@@ -8,6 +8,12 @@ The emu-sv API is based on the specification [here](../base_classes.md). Concret
 ## SVConfig
 ::: emu_sv.sv_config.SVConfig
 
+## Solvers
+::: emu_sv.enums.Solver
+
+## Exponentiators
+::: emu_sv.enums.Exponentiator
+
 ## StateVector
 ::: emu_sv.state_vector.StateVector
 

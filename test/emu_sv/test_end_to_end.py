@@ -53,6 +53,7 @@ dtype_f64 = torch.float64
 gpu = False  # if True, bitstrigs and energy variance will fail
 
 device = "cpu" if not gpu else "cuda"
+krylov_tolerance = 1e-5
 
 
 def create_antiferromagnetic_state_vector(
@@ -112,7 +113,7 @@ def simulate(
     sv_config = SVConfig(
         initial_state=initial_state,
         dt=dt,
-        krylov_tolerance=1e-5,
+        krylov_tolerance=krylov_tolerance,
         observables=[
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=num_shots),
@@ -163,7 +164,7 @@ def simulate_with_den_matrix(
     sv_config = SVConfig(
         initial_state=initial_state,
         dt=dt,
-        krylov_tolerance=1e-5,
+        krylov_tolerance=krylov_tolerance,
         observables=[
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=num_shots),
@@ -231,7 +232,7 @@ def test_end_to_end_afm_ring() -> None:
     assert torch.allclose(
         energy_variance,
         torch.tensor(45.91111056399, dtype=dtype_f64, device=device),
-        rtol=1e-3,
+        rtol=3e-3,
     )
 
     energy_second_moment = result.energy_second_moment[final_time]  # 13350.505342183847
@@ -313,7 +314,7 @@ def test_end_to_end_pi_half_pulse() -> None:
     final_state = result.state[final_time]
 
     expected = torch.tensor([1, -1j], dtype=dtype) / math.sqrt(2)
-    assert torch.allclose(final_state.data.cpu(), expected, atol=1e-8)
+    assert torch.allclose(final_state.data.cpu(), expected, atol=krylov_tolerance)
 
 
 def test_end_to_end_pi_half_pulse_with_phase() -> None:
@@ -330,7 +331,7 @@ def test_end_to_end_pi_half_pulse_with_phase() -> None:
     # with the phase we expect |ψ❭=(|0❭+|1❭)/sqrt(2)
     expected = torch.tensor([1, 1], dtype=dtype) / math.sqrt(2)
 
-    assert torch.allclose(final_state.data.cpu(), expected, atol=1e-8)
+    assert torch.allclose(final_state.data.cpu(), expected, atol=krylov_tolerance)
 
 
 def test_initial_state() -> None:
@@ -488,7 +489,7 @@ def test_end_to_end_spontaneous_emission_rate() -> None:
     sv_config = SVConfig(
         initial_state=initial_state,
         dt=dt,
-        krylov_tolerance=1e-5,
+        krylov_tolerance=krylov_tolerance,
         observables=[
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=1000),
@@ -622,7 +623,7 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
     )
     sv_config = SVConfig(
         dt=dt,
-        krylov_tolerance=1e-5,
+        krylov_tolerance=krylov_tolerance,
         observables=[
             StateResult(evaluation_times=times),
             BitStrings(evaluation_times=times, num_shots=1000),
@@ -644,7 +645,11 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
         expected = StateVector.zero(natoms, gpu=gpu)
         expected.data[-2] = 1.0j  # |1110> state
 
-        assert torch.allclose(final_state.data, expected.data, atol=1e-4)
+        assert torch.allclose(
+            final_state.data,
+            expected.data,
+            atol=math.sqrt(total_time / dt) * krylov_tolerance,
+        )
 
         probabilities = result.bitstrings[-1]
 
@@ -662,7 +667,11 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
         expected = StateVector.zero(natoms, gpu=gpu)
         expected.data[-3] = 1.0j  # |1101> state
 
-        assert torch.allclose(final_state.data, expected.data, atol=1e-4)
+        assert torch.allclose(
+            final_state.data,
+            expected.data,
+            atol=math.sqrt(total_time / dt) * krylov_tolerance,
+        )
 
         probabilities = result.bitstrings[-1]
 
@@ -680,7 +689,11 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
         expected = StateVector.zero(natoms, gpu=gpu)
         expected.data[11] = 1.0j  # |1011> state
 
-        assert torch.allclose(final_state.data, expected.data, atol=1e-4)
+        assert torch.allclose(
+            final_state.data,
+            expected.data,
+            atol=math.sqrt(total_time / dt) * krylov_tolerance,
+        )
 
         probabilities = result.bitstrings[-1]
 
@@ -698,7 +711,11 @@ def test_end_to_end_sv_afm_line_with_state_preparation_errors() -> None:
         expected = StateVector.zero(natoms, gpu=gpu)
         expected.data[7] = 1.0j  # |0111> state
 
-        assert torch.allclose(final_state.data, expected.data, atol=1e-4)
+        assert torch.allclose(
+            final_state.data,
+            expected.data,
+            atol=math.sqrt(total_time / dt) * krylov_tolerance,
+        )
 
         probabilities = result.bitstrings[-1]
 
@@ -1056,5 +1073,5 @@ def test_observable_tensors_on_wrong_device():
     results = SVBackend(seq, config=config).run()  # this shouldn't error
 
     excited_population = math.sin(0.05) ** 2  # Ω * t / 2 = 1.0 rad/µs * 0.1 µs / 2
-    assert results.expectation[0].item().real == approx(excited_population, abs=1e-4)
-    assert results.fidelity[0].item() == approx(excited_population, abs=1e-4)
+    assert results.expectation[0].item().real == approx(excited_population, abs=1e-10)
+    assert results.fidelity[0].item() == approx(excited_population, abs=1e-10)
