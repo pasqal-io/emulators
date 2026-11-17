@@ -53,7 +53,9 @@ def krylov_exp_impl(
 
         k_start = max(0, j - 1) if is_hermitian else 0
         for k in range(k_start, j + 1):
-            overlap = torch.tensordot(lanczos_vectors[k].conj(), w, dims=w.dim())
+            # Not tensordot: on CPU a BLAS dot right after a multithreaded MKL sparse
+            # matvec (CSR H, >= 2^11 rows) costs ~0.5 ms in thread handoff.
+            overlap = (lanczos_vectors[k].conj() * w).sum()
             T[k, j] = overlap
             w -= overlap * lanczos_vectors[k]
 
