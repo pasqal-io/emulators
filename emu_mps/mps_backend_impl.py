@@ -295,6 +295,10 @@ class MPSBackendImpl:
         )
 
         if self.well_prepared_qubits_filter is not None:
+            # if we permute qubits, then the filter should be permuted too
+            self.well_prepared_qubits_filter = optimat.permute_tensor(
+                self.well_prepared_qubits_filter, self.qubit_permutation
+            )
             self.qubit_count = sum(1 for x in self.well_prepared_qubits_filter if x)
             self.omega = self.omega[:, self.well_prepared_qubits_filter]
             self.delta = self.delta[:, self.well_prepared_qubits_filter]
