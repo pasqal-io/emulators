@@ -36,4 +36,4 @@ __all__ = [
     "init_logging",
 ]
 
-__version__ = "2.11.0"
+__version__ = "2.11.1"
