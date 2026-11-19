@@ -1361,3 +1361,38 @@ def test_inactive_baths_are_kept_on_cpu(relaxation_rate):
         MPSBackend(seq, config=config).run()
 
     assert saw_offloaded_bath
+
+
+def test_bad_qubit_reordering():
+    fl = torch.float64
+    cp = torch.complex128
+    seq = SequenceData(
+        omega=torch.ones((100, 3), dtype=cp) * (torch.pi),
+        delta=torch.zeros((100, 3), dtype=cp),
+        phi=torch.zeros((100, 3), dtype=cp),
+        interaction_matrix=lambda x: torch.tensor(
+            [[[0.0, 0.0, 1e10], [0.0, 0.0, 0.0], [1e10, 0.0, 0.0]]], dtype=fl
+        ),
+        qubit_ids=("q0", "q1", "q2"),
+        bad_atoms=(False, True, False),
+        lindblad_ops=[],
+        state_prep_error=0.3,
+        target_times=[10 * n for n in range(101)],
+        eigenstates=["r", "g"],
+        hamiltonian_type=HamiltonianType.Rydberg,
+        has_stochastic_noise=True,
+    )
+    config = MPSConfig(
+        observables=[Occupation(evaluation_times=[1.0])], optimize_qubit_ordering=True
+    )
+    results = MPSBackend._run_from_sequence_data(seq, config)
+    occupation = results.occupation
+    # there was a bug where the dark qubit filter wasn't reordered.
+    # one of the interacting qubits was put in the missing center
+    # then it was masked and the occupation on the remaining qubits
+    # would be 1 as a pi-pulse without blockade would do
+    assert torch.allclose(
+        occupation[0],
+        torch.tensor([0.3166, 0.0000, 0.3166], dtype=torch.float64),
+        atol=1e-4,
+    )

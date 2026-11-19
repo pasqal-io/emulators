@@ -39,7 +39,8 @@ class Lanczos(Exponentiation):
 class Chebyshev(Exponentiation):
     """
     Chebyshev expansion of exp(-i dt H), see `chebyshev_exp`. Only for a Hermitian
-    `RydbergHamiltonian` (no noise). Keeps three vectors, whatever the step size.
+    `RydbergHamiltonian` (no noise). Keeps three vectors in addition to the in-
+    and output, whatever the step size.
     """
 
     def __call__(
