@@ -160,6 +160,11 @@ def test_run_from_sequence_data():
 
     assert set(results._tagmap.keys()) == {"occupation", "statistics"}
     assert results.get_result_times("occupation") == occup.evaluation_times.tolist()
+    # statistics are stored after every time step
+    target_times = seq_data.target_times
+    assert results.get_result_times("statistics") == pytest.approx(
+        [t / target_times[-1] for t in target_times[1:]]
+    )
     assert results.occupation[0] == pytest.approx(0.0)
     assert results.occupation[-1] == pytest.approx(1.0)
 

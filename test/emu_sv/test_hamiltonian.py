@@ -203,6 +203,57 @@ def test_interaction_diagonal_is_kept_between_steps() -> None:
         assert torch.allclose(ham.diag, torch.diagonal(dense).to(dtype), atol=1e-12)
 
 
+@pytest.mark.usefixtures("restore_rng_state")
+@pytest.mark.parametrize("N, with_phase", [(3, False), (5, True), (6, False)])
+def test_spectral_bounds_and_shifted(N: int, with_phase: bool) -> None:
+    torch.manual_seed(1337)
+    omegas = torch.randn(N, dtype=torch.float64)
+    deltas = torch.randn(N, dtype=torch.float64)
+    phis = torch.randn(N, dtype=torch.float64) if with_phase else torch.zeros(N)
+    interaction_matrix = randn_interaction_matrix(N)
+    ham = RydbergHamiltonian(
+        omegas=omegas,
+        deltas=deltas,
+        phis=phis,
+        interaction_matrix=interaction_matrix,
+        device=device,
+        noise=None,
+    )
+    dense = dense_rydberg_hamiltonian(omegas, deltas, phis, interaction_matrix).to(dtype)
+
+    d, lower, upper, offdiag_bound = ham.spectral_bounds()
+    assert torch.allclose(d, torch.diagonal(dense), atol=1e-12)
+    assert offdiag_bound == pytest.approx(omegas.abs().sum().item() / 2)
+    eigvals = torch.linalg.eigvalsh(dense)
+    assert lower <= eigvals.min().item() and eigvals.max().item() <= upper
+
+    shift = 0.7
+    state = torch.randn(2**N, dtype=dtype)
+    expected = (dense - shift * torch.eye(2**N, dtype=dtype)) @ state
+    assert torch.allclose(ham.shifted(shift) * state, expected, atol=1e-12)
+    # the diagonal from spectral_bounds is handed over, shifted in place
+    shifted = ham.shifted(shift, d)
+    assert shifted._diag is d
+    assert torch.allclose(shifted * state, expected, atol=1e-12)
+    # and H itself is unchanged
+    assert torch.allclose(ham * state, dense @ state, atol=1e-12)
+
+
+def test_spectral_bounds_of_diagonal_hamiltonian() -> None:
+    N = 3
+    ham = RydbergHamiltonian(
+        omegas=torch.zeros(N, dtype=torch.float64),
+        deltas=torch.randn(N, dtype=torch.float64),
+        phis=torch.zeros(N, dtype=torch.float64),
+        interaction_matrix=randn_interaction_matrix(N),
+        device=device,
+        noise=None,
+    )
+    d, lower, upper, offdiag_bound = ham.spectral_bounds()
+    assert offdiag_bound == 0.0
+    assert (lower, upper) == (d.real.min().item(), d.real.max().item())
+
+
 def test_kernel_probe_failure_falls_back() -> None:
     """Triton can import fine and still fail to compile, e.g. without a C compiler."""
     launcher = MagicMock(side_effect=RuntimeError("no C compiler"))
@@ -258,6 +309,17 @@ def test_fused_kernel_matches_torch(N: int, with_phase: bool, with_noise: bool) 
     reference_strided = reference_ham * strided
     assert torch.allclose(fused, reference, atol=1e-12)
     assert torch.allclose(fused_op, -0.3j * reference, atol=1e-12)
+    if not with_noise:
+        d, *bounds = ham.spectral_bounds()
+        reference_d, *reference_bounds = reference_ham.spectral_bounds()
+        assert d.dtype == torch.float64
+        assert torch.allclose(d, reference_d.real, atol=1e-12)
+        assert bounds == pytest.approx(reference_bounds)
+        shifted = ham.shifted(0.7, d)
+        assert type(shifted) is FusedRydbergHamiltonian
+        assert shifted._kernel_diag is d and shifted._diag is None
+        assert shifted._kernel_buffer is ham._kernel_buffer
+        assert torch.allclose(shifted * state, reference - 0.7 * state, atol=1e-12)
     assert torch.allclose(fused_strided, -0.3j * reference_strided, atol=1e-12)
 
     # the kernel is not differentiable: autograd falls back to torch

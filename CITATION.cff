@@ -5,19 +5,6 @@ message: >-
   metadata from this file.
 type: software
 authors:
-  - given-names: Kemal
-    family-names: Bidzhiev
-    email: kemal.bidzhiev@pasqal.com
-    affiliation: Pasqal
-  - email: stefano.grava@pasqal.com
-    given-names: Stefano
-    family-names: Grava
-    affiliation: Pasqal
-  - given-names: Pablo
-    name-particle: le
-    family-names: Henaff
-    email: pablo.le-henaff@pasqal.com
-    affiliation: Pasqal
   - given-names: Mauro
     family-names: Mendizabal Pico
     email: mauro.mendizabal-pico@pasqal.com
