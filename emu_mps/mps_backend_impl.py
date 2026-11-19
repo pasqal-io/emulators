@@ -76,6 +76,22 @@ class Statistics(Observable):
     def _base_tag(self) -> str:
         return "statistics"
 
+    def __call__(
+        self,
+        config: EmulationConfig,
+        t: float,
+        state: State,
+        hamiltonian: typing.Any,
+        result: Results,
+    ) -> None:
+        """
+        Store the statistics at time t. Statistics are taken at every time step, so
+        unlike `Observable.__call__`, this does not look t up in the evaluation
+        times, which would take O(number of steps) at each step.
+        """
+        value = self.apply(config=config, state=state, hamiltonian=hamiltonian)
+        result._store(observable=self, time=t, value=value)
+
     def apply(
         self,
         *,
