@@ -258,7 +258,8 @@ def test_backend_impl_hamiltonian_type(
         (Exponentiator.CHEBYSHEV, [], Solver.DEFAULT, False, Chebyshev),
         (Exponentiator.DEFAULT, [1.0], Solver.MONTECARLO, True, Lanczos),
         (Exponentiator.DEFAULT, [1.0], Solver.LINDBLAD, True, Lanczos),
-        (Exponentiator.CHEBYSHEV, [1.0], Solver.MONTECARLO, True, ValueError),
+        # Chebyshev handles the non-Hermitian H - iΓ of Monte Carlo, opt-in
+        (Exponentiator.CHEBYSHEV, [1.0], Solver.MONTECARLO, True, Chebyshev),
         (Exponentiator.CHEBYSHEV, [1.0], Solver.LINDBLAD, True, ValueError),
     ],
 )

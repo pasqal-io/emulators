@@ -1,3 +1,4 @@
+import math
 from typing import Callable
 
 import torch
@@ -201,19 +202,27 @@ class RydbergHamiltonian:
             i_fixed -= self.deltas[i]
         return diag.view(-1)
 
-    def spectral_bounds(self) -> tuple[torch.Tensor, float, float, float]:
+    def spectral_bounds(
+        self,
+    ) -> tuple[torch.Tensor, float, float, float, float, float]:
         """
-        Return the diagonal d = -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ of H, the bounds
-        min(d) - R ≤ λ ≤ max(d) + R on its spectrum, and R = ∑ⱼ|Ωⱼ|/2 (Gershgorin),
-        whatever the phases ϕⱼ. R is zero exactly when H is diagonal.
-        Only for a Hermitian H (no noise).
+        Return the diagonal d of H and bounds on its numerical range, as
+        (d, lower, upper, radius, im_lower, im_upper):
+
+        - lower ≤ Re ≤ upper, from min/max of Re(d) ∓ R with R = ∑ⱼ|Ωⱼ|/2
+          (Gershgorin), whatever the phases ϕⱼ. The Hermitian part of H is the
+          noiseless Hamiltonian (`noise` = -iΓ with Γ = ½∑L†L Hermitian), so the
+          noiseless bounds hold with noise too. radius = R is zero exactly when
+          the noiseless part of H is diagonal.
+        - im_lower ≤ Im ≤ im_upper: Im of the numerical range is -⟨Γ⟩, and
+          Γ = ∑ⱼ gⱼ with the same 2×2 PSD matrix g = i·noise on every qubit, so
+          its spectrum is exactly [n·λmin(g), n·λmax(g)]. (0, 0) without noise.
 
         d is a new complex128 tensor, like `diag`, so it can be handed to `shifted`
         instead of being built again.
         """
-        assert self.noise is None
         d = self._create_diagonal()
-        return (d, *self._bounds(d.real))
+        return (d, *self._bounds(d.real), *self._imag_bounds())
 
     def _bounds(self, real_diag: torch.Tensor) -> tuple[float, float, float]:
         """(min(d) - R, max(d) + R, R) for `spectral_bounds`, with a single sync."""
@@ -222,24 +231,45 @@ class RydbergHamiltonian:
         d_min, d_max, radius = torch.stack((d_min, d_max, radius)).tolist()
         return d_min - radius, d_max + radius, radius
 
+    def _imag_bounds(self) -> tuple[float, float]:
+        """(im_lower, im_upper) of `spectral_bounds`: -(max, min) eigenvalue of Γ."""
+        if self.noise is None:
+            return 0.0, 0.0
+        g = (1j * self.noise).cpu()  # noise = -i g with g Hermitian PSD
+        g00, g11 = g[0, 0].real.item(), g[1, 1].real.item()
+        off = abs(complex((g[0, 1] + g[1, 0].conj()).item())) / 2  # roundoff-symmetric
+        mean, half = (g00 + g11) / 2, math.hypot((g00 - g11) / 2, off)
+        return -self.nqubits * (mean + half), -self.nqubits * (mean - half)
+
     def shifted(
-        self, shift: float, diag: torch.Tensor | None = None
+        self, shift: complex, diag: torch.Tensor | None = None
     ) -> "RydbergHamiltonian":
         """
-        Return H - shift·𝟙, of the same type as H (so with the same kernel).
+        Return H - shift·𝟙, of the same type as H (so with the same kernel). The
+        imaginary part of the shift (which centres the noise decay, see `Chebyshev`)
+        goes into the noise term: `_create_diagonal` adds the noise diagonal once
+        per qubit, so subtracting i·Im(shift)/nqubits from it shifts the whole
+        diagonal by i·Im(shift) exactly, and `interaction_diag` stays real.
 
         `diag`, if given, must be the diagonal d of H returned by `spectral_bounds`:
         it is shifted in place and becomes the diagonal of the result, which saves
         building it again.
         """
+        shift = complex(shift)
+        noise = self.noise
+        if shift.imag != 0.0:
+            assert noise is not None  # an imaginary shift only arises with noise
+            noise = noise - 1j * (shift.imag / self.nqubits) * torch.eye(
+                2, dtype=noise.dtype, device=noise.device
+            )
         res = type(self)(
             omegas=2.0 * self.omegas,  # the constructor halves them, exactly
             deltas=self.deltas,
             phis=self.phis,
             interaction_matrix=self.interaction_matrix,
             device=self.device,
-            noise=self.noise,
-            interaction_diag=self.interaction_diag - shift,
+            noise=noise,
+            interaction_diag=self.interaction_diag - shift.real,
         )
         if diag is not None:
             res._diag = diag.sub_(shift)

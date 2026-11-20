@@ -424,27 +424,32 @@ class FusedRydbergHamiltonian(RydbergHamiltonian):
             return _apply(vec, diag, table, one, self.complex)
         return super().__mul__(vec)
 
-    def spectral_bounds(self) -> tuple[torch.Tensor, float, float, float]:
+    def spectral_bounds(
+        self,
+    ) -> tuple[torch.Tensor, float, float, float, float, float]:
         """
-        As `RydbergHamiltonian.spectral_bounds`, but d is the real (float64) diagonal
-        the kernel uses, built in a single pass by `_make_diagonal`. It is not cached
-        here: `shifted` takes it over.
+        As `RydbergHamiltonian.spectral_bounds`, but d is the diagonal the kernel
+        uses (float64 without noise, complex128 with), built in a single pass by
+        `_make_diagonal`. It is not cached here: `shifted` takes it over.
         """
-        assert self.noise is None
-        d = _make_diagonal(self.interaction_diag, self._table(), noise=False)
-        return (d, *self._bounds(d))
+        d = _make_diagonal(self.interaction_diag, self._table(), self.noise is not None)
+        real_d = d.real if d.is_complex() else d
+        return (d, *self._bounds(real_d), *self._imag_bounds())
 
     def shifted(
-        self, shift: float, diag: torch.Tensor | None = None
+        self, shift: complex, diag: torch.Tensor | None = None
     ) -> "RydbergHamiltonian":
         """
         As `RydbergHamiltonian.shifted`: `diag`, if given, must be the diagonal d
         returned by `spectral_bounds`, and becomes the kernel diagonal of the result.
-        The kernel coefficients do not depend on the shift, so they are shared.
+        The kernel coefficients do not depend on the shift (an imaginary shift only
+        changes the noise diagonal, prebuilt in `diag`), so they are shared; `_apply`
+        reads only the off-diagonal entries f0, f1 of the shared table.
         """
+        shift = complex(shift)
         res = super().shifted(shift)
         if diag is not None:
             assert isinstance(res, FusedRydbergHamiltonian)
-            res._kernel_diag = diag.sub_(shift)
+            res._kernel_diag = diag.sub_(shift if diag.is_complex() else shift.real)
             res._kernel_buffer = self._kernel_buffer
         return res

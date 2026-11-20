@@ -61,8 +61,10 @@ class SVConfig(EmulationConfig):
             over the timestep dt where H is assumed constant. The accuracy should be
             similar, CHEBYSHEV is more memory efficient, and probably faster.
             By default it does CHEBYSHEV in the absence of Lindblad noise,
-            and LANCZOS otherwise. CHEBYSHEV is only available without Lindblad noise,
-            and does not use max_krylov_dim (gradients are still computed with Lanczos).
+            and LANCZOS otherwise. CHEBYSHEV works on state vectors, with or without
+            Monte Carlo quantum jump noise, but not for density-matrix (Lindblad
+            equation) evolution. It does not use max_krylov_dim (gradients are still
+            computed with Lanczos).
         kwargs: arguments that are passed to the base class
 
     Examples:

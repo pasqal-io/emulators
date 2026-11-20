@@ -183,28 +183,27 @@ class SVBackendImpl:
             and FusedRydbergHamiltonian.is_available(self.state.data.device, self.nqubits)
             else RydbergHamiltonian
         )
-        exponentiator = self.init_exponentiator(
-            hermitian=not self.pulser_lindblads,
-        )
+        exponentiator = self.init_exponentiator(use_density_matrix)
         if use_density_matrix:
             return EvolveDensityMatrix(exponentiator, max_krylov_dim)
         stepper_type = EvolveMonteCarlo if self.pulser_lindblads else EvolveStateVector
         return stepper_type(exponentiator, max_krylov_dim, hamiltonian_type)
 
-    def init_exponentiator(self, hermitian: bool) -> Exponentiation:
+    def init_exponentiator(self, use_density_matrix: bool) -> Exponentiation:
         """
-        The exponentiator requested in the config. By default,
-        Chebyshev if there's no Lindblad noise, and Lanczos otherwise. Chebyshev
-        needs a Hermitian generator, so it is not available with Lindblad noise.
+        The exponentiator requested in the config. By default, Chebyshev if there's
+        no Lindblad noise, and Lanczos otherwise. Chebyshev works on state vectors,
+        with or without the non-Hermitian jump noise of the Monte Carlo stepper, but
+        not on density matrices (the Lindbladian is not of the form H - iΓ).
         """
         requested = self._config.exponentiator
-        if requested == Exponentiator.CHEBYSHEV and not hermitian:
+        if requested == Exponentiator.CHEBYSHEV and use_density_matrix:
             raise ValueError(
-                "Exponentiator.CHEBYSHEV is only available for noiseless state "
-                "vector evolution; use Exponentiator.LANCZOS with Lindblad noise."
+                "Exponentiator.CHEBYSHEV is not available for density-matrix "
+                "evolution; use Exponentiator.LANCZOS."
             )
         if requested == Exponentiator.CHEBYSHEV or (
-            requested == Exponentiator.DEFAULT and hermitian
+            requested == Exponentiator.DEFAULT and not self.pulser_lindblads
         ):
             return Chebyshev()
         return Lanczos(self._config.max_krylov_dim)

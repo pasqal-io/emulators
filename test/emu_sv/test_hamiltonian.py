@@ -221,9 +221,10 @@ def test_spectral_bounds_and_shifted(N: int, with_phase: bool) -> None:
     )
     dense = dense_rydberg_hamiltonian(omegas, deltas, phis, interaction_matrix).to(dtype)
 
-    d, lower, upper, offdiag_bound = ham.spectral_bounds()
+    d, lower, upper, offdiag_bound, im_lower, im_upper = ham.spectral_bounds()
     assert torch.allclose(d, torch.diagonal(dense), atol=1e-12)
     assert offdiag_bound == pytest.approx(omegas.abs().sum().item() / 2)
+    assert (im_lower, im_upper) == (0.0, 0.0)  # no noise
     eigvals = torch.linalg.eigvalsh(dense)
     assert lower <= eigvals.min().item() and eigvals.max().item() <= upper
 
@@ -249,9 +250,61 @@ def test_spectral_bounds_of_diagonal_hamiltonian() -> None:
         device=device,
         noise=None,
     )
-    d, lower, upper, offdiag_bound = ham.spectral_bounds()
+    d, lower, upper, offdiag_bound, _, _ = ham.spectral_bounds()
     assert offdiag_bound == 0.0
     assert (lower, upper) == (d.real.min().item(), d.real.max().item())
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+def test_spectral_bounds_and_shifted_noise() -> None:
+    """
+    With jump noise H = H₀ - iΓ: the real bounds still enclose the Hermitian part,
+    the imaginary bounds are the exact spectrum extrema of -Γ, and `shifted` accepts
+    a complex shift (the imaginary part goes into the noise term).
+    """
+    torch.manual_seed(1337)
+    N = 4
+    omegas = torch.randn(N, dtype=torch.float64)
+    deltas = torch.randn(N, dtype=torch.float64)
+    phis = torch.randn(N, dtype=torch.float64)
+    interaction_matrix = randn_interaction_matrix(N)
+    # a non-diagonal L†L, so the noise has off-diagonal entries
+    lindblad = 0.6 * torch.tensor([[0.3, 1.0], [0.1j, -0.2]], dtype=dtype)
+    noise = -0.5j * lindblad.mH @ lindblad
+    ham = RydbergHamiltonian(
+        omegas=omegas,
+        deltas=deltas,
+        phis=phis,
+        interaction_matrix=interaction_matrix,
+        device=device,
+        noise=noise,
+    )
+    dense = dense_rydberg_hamiltonian(
+        omegas, deltas, phis, interaction_matrix, noise=noise
+    ).to(dtype)
+
+    d, lower, upper, offdiag_bound, im_lower, im_upper = ham.spectral_bounds()
+    assert torch.allclose(d, torch.diagonal(dense), atol=1e-12)
+    assert offdiag_bound == pytest.approx(omegas.abs().sum().item() / 2)
+    # the Hermitian part of H is the noiseless Hamiltonian: real bounds unchanged
+    eig_re = torch.linalg.eigvalsh((dense + dense.mH) / 2)
+    assert lower <= eig_re.min().item() and eig_re.max().item() <= upper
+    # the skew part is -Γ with Γ = ∑ⱼ gⱼ: the imaginary bounds are its exact extrema
+    eig_im = torch.linalg.eigvalsh((dense - dense.mH) / 2j)
+    assert im_lower == pytest.approx(eig_im.min().item())
+    assert im_upper == pytest.approx(eig_im.max().item())
+    assert im_upper < 0.0  # Γ is positive definite here
+
+    shift = 0.7 + 1j * (im_lower + im_upper) / 2
+    state = torch.randn(2**N, dtype=dtype)
+    expected = (dense - shift * torch.eye(2**N, dtype=dtype)) @ state
+    assert torch.allclose(ham.shifted(shift) * state, expected, atol=1e-12)
+    shifted = ham.shifted(shift, d)
+    assert shifted._diag is d
+    assert not shifted.interaction_diag.is_complex()
+    assert torch.allclose(shifted * state, expected, atol=1e-12)
+    # and H itself is unchanged
+    assert torch.allclose(ham * state, dense @ state, atol=1e-12)
 
 
 def test_kernel_probe_failure_falls_back() -> None:
@@ -309,17 +362,17 @@ def test_fused_kernel_matches_torch(N: int, with_phase: bool, with_noise: bool) 
     reference_strided = reference_ham * strided
     assert torch.allclose(fused, reference, atol=1e-12)
     assert torch.allclose(fused_op, -0.3j * reference, atol=1e-12)
-    if not with_noise:
-        d, *bounds = ham.spectral_bounds()
-        reference_d, *reference_bounds = reference_ham.spectral_bounds()
-        assert d.dtype == torch.float64
-        assert torch.allclose(d, reference_d.real, atol=1e-12)
-        assert bounds == pytest.approx(reference_bounds)
-        shifted = ham.shifted(0.7, d)
-        assert type(shifted) is FusedRydbergHamiltonian
-        assert shifted._kernel_diag is d and shifted._diag is None
-        assert shifted._kernel_buffer is ham._kernel_buffer
-        assert torch.allclose(shifted * state, reference - 0.7 * state, atol=1e-12)
+    d, *bounds = ham.spectral_bounds()
+    reference_d, *reference_bounds = reference_ham.spectral_bounds()
+    assert d.dtype == (torch.complex128 if with_noise else torch.float64)
+    assert torch.allclose(d, reference_d if with_noise else reference_d.real, atol=1e-12)
+    assert bounds == pytest.approx(reference_bounds)
+    shift = 0.7 - 0.2j if with_noise else 0.7
+    shifted = ham.shifted(shift, d)
+    assert type(shifted) is FusedRydbergHamiltonian
+    assert shifted._kernel_diag is d and shifted._diag is None
+    assert shifted._kernel_buffer is ham._kernel_buffer
+    assert torch.allclose(shifted * state, reference - shift * state, atol=1e-12)
     assert torch.allclose(fused_strided, -0.3j * reference_strided, atol=1e-12)
 
     # the kernel is not differentiable: autograd falls back to torch
