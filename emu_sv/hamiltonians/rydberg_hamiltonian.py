@@ -201,23 +201,38 @@ class RydbergHamiltonian:
             i_fixed -= self.deltas[i]
         return diag.view(-1)
 
-    def spectral_bounds(self) -> tuple[torch.Tensor, float, float]:
+    def spectral_bounds(self) -> tuple[torch.Tensor, float, float, float]:
         """
-        Return the real diagonal d = -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ of H (float64) and the bounds
-        min(d) - R ≤ λ ≤ max(d) + R on its spectrum, with R = ∑ⱼ|Ωⱼ|/2 (Gershgorin),
-        whatever the phases ϕⱼ. Only for a Hermitian H (no noise).
+        Return the diagonal d = -∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ of H, the bounds
+        min(d) - R ≤ λ ≤ max(d) + R on its spectrum, and R = ∑ⱼ|Ωⱼ|/2 (Gershgorin),
+        whatever the phases ϕⱼ. R is zero exactly when H is diagonal.
+        Only for a Hermitian H (no noise).
+
+        d is a new complex128 tensor, like `diag`, so it can be handed to `shifted`
+        instead of being built again.
         """
         assert self.noise is None
-        d = self.interaction_diag.clone()
-        for i in range(self.nqubits):
-            d.view(2**i, 2, -1)[:, 1, :] -= self.deltas[i].real
-        radius = self.omegas.abs().sum().item()
-        d_min, d_max = torch.stack(torch.aminmax(d)).tolist()
-        return d, d_min - radius, d_max + radius
+        d = self._create_diagonal()
+        return (d, *self._bounds(d.real))
 
-    def shifted(self, shift: float) -> "RydbergHamiltonian":
-        """Return H - shift·𝟙, of the same type as H (so with the same kernel)."""
-        return type(self)(
+    def _bounds(self, real_diag: torch.Tensor) -> tuple[float, float, float]:
+        """(min(d) - R, max(d) + R, R) for `spectral_bounds`, with a single sync."""
+        d_min, d_max = torch.aminmax(real_diag)
+        radius = self.omegas.abs().sum().to(real_diag)
+        d_min, d_max, radius = torch.stack((d_min, d_max, radius)).tolist()
+        return d_min - radius, d_max + radius, radius
+
+    def shifted(
+        self, shift: float, diag: torch.Tensor | None = None
+    ) -> "RydbergHamiltonian":
+        """
+        Return H - shift·𝟙, of the same type as H (so with the same kernel).
+
+        `diag`, if given, must be the diagonal d of H returned by `spectral_bounds`:
+        it is shifted in place and becomes the diagonal of the result, which saves
+        building it again.
+        """
+        res = type(self)(
             omegas=2.0 * self.omegas,  # the constructor halves them, exactly
             deltas=self.deltas,
             phis=self.phis,
@@ -226,6 +241,9 @@ class RydbergHamiltonian:
             noise=self.noise,
             interaction_diag=self.interaction_diag - shift,
         )
+        if diag is not None:
+            res._diag = diag.sub_(shift)
+        return res
 
     def expect(self, state: StateVector) -> torch.Tensor:
         """Return the energy expectation value E=❬ψ|H|ψ❭"""

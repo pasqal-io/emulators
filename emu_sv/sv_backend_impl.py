@@ -53,6 +53,22 @@ class Statistics(Observable):
     def _base_tag(self) -> str:
         return "statistics"
 
+    def __call__(
+        self,
+        config: EmulationConfig,
+        t: float,
+        state: State,
+        hamiltonian: typing.Any,
+        result: Results,
+    ) -> None:
+        """
+        Store the statistics at time t. Statistics are taken at every time step, so
+        unlike `Observable.__call__`, this does not look t up in the evaluation
+        times, which would take O(number of steps) at each step.
+        """
+        value = self.apply(config=config, state=state, hamiltonian=hamiltonian)
+        result._store(observable=self, time=t, value=value)
+
     def apply(
         self,
         *,
@@ -120,7 +136,7 @@ class SVBackendImpl:
             total_duration=int(self.target_times[-1]),
         )
         self.statistics = Statistics(
-            evaluation_times=[t / self.target_times[-1] for t in self.target_times],
+            evaluation_times=None,
             data=[],
             timestep_count=self.nsteps,
         )
@@ -244,18 +260,20 @@ class SVBackendImpl:
 
     def _apply_observables(self, step_idx: int) -> None:
         norm_time = self.target_times[step_idx] / self.target_times[-1]
+        callbacks_for_current_time_step = [
+            callback
+            for callback in self._config.observables
+            if is_evaluation_time(self._config, callback, norm_time)
+        ]
+        if not callbacks_for_current_time_step:
+            return
         norm = self.state.norm()
         state: DensityMatrix | StateVector
         if not torch.allclose(norm, torch.tensor(1.0, dtype=torch.float64)):
             state = (1 / norm.item()) * self.state
         else:
             state = self.state
-        callbacks_for_current_time_step = [
-            callback
-            for callback in self._config.observables
-            if is_evaluation_time(self._config, callback, norm_time)
-        ]
-        if not self._current_H and callbacks_for_current_time_step:
+        if not self._current_H:
             self._current_H = self.stepper.get_hamiltonian(
                 omegas=self.omega[0],
                 deltas=self.delta[0],

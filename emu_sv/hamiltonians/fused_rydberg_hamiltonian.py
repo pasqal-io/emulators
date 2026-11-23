@@ -368,6 +368,19 @@ class FusedRydbergHamiltonian(RydbergHamiltonian):
         `_apply`) and the scalar 1, built on the device once per
         Hamiltonian.
         """
+        table = self._table()
+        if self._kernel_diag is None:
+            self._kernel_diag = _make_diagonal(
+                self.interaction_diag, table, self.noise is not None
+            )
+        assert self._kernel_buffer is not None  # built by _table
+        return self._kernel_diag, table, self._kernel_buffer[-1:]
+
+    def _table(self) -> torch.Tensor:
+        """
+        The per-qubit coefficients of the fused kernel, as a float64 view of
+        `_kernel_buffer`, which is built on the device once per Hamiltonian.
+        """
         if self._kernel_buffer is None:
             d0 = torch.zeros(self.nqubits, dtype=torch.complex128)
             d1 = -self.deltas.detach().cpu().to(torch.complex128)
@@ -383,12 +396,7 @@ class FusedRydbergHamiltonian(RydbergHamiltonian):
             one = torch.ones(1, dtype=torch.complex128)
             buffer = torch.cat((torch.stack((d0, d1, f0, f1), dim=1).view(-1), one))
             self._kernel_buffer = buffer.to(self.interaction_diag.device)
-        table = torch.view_as_real(self._kernel_buffer[:-1]).reshape(-1)
-        if self._kernel_diag is None:
-            self._kernel_diag = _make_diagonal(
-                self.interaction_diag, table, self.noise is not None
-            )
-        return self._kernel_diag, table, self._kernel_buffer[-1:]
+        return torch.view_as_real(self._kernel_buffer[:-1]).reshape(-1)
 
     def make_op(self, factor: complex) -> Callable[[torch.Tensor], torch.Tensor]:
         """
@@ -415,3 +423,28 @@ class FusedRydbergHamiltonian(RydbergHamiltonian):
             diag, table, one = self._kernel_args()
             return _apply(vec, diag, table, one, self.complex)
         return super().__mul__(vec)
+
+    def spectral_bounds(self) -> tuple[torch.Tensor, float, float, float]:
+        """
+        As `RydbergHamiltonian.spectral_bounds`, but d is the real (float64) diagonal
+        the kernel uses, built in a single pass by `_make_diagonal`. It is not cached
+        here: `shifted` takes it over.
+        """
+        assert self.noise is None
+        d = _make_diagonal(self.interaction_diag, self._table(), noise=False)
+        return (d, *self._bounds(d))
+
+    def shifted(
+        self, shift: float, diag: torch.Tensor | None = None
+    ) -> "RydbergHamiltonian":
+        """
+        As `RydbergHamiltonian.shifted`: `diag`, if given, must be the diagonal d
+        returned by `spectral_bounds`, and becomes the kernel diagonal of the result.
+        The kernel coefficients do not depend on the shift, so they are shared.
+        """
+        res = super().shifted(shift)
+        if diag is not None:
+            assert isinstance(res, FusedRydbergHamiltonian)
+            res._kernel_diag = diag.sub_(shift)
+            res._kernel_buffer = self._kernel_buffer
+        return res

@@ -54,16 +54,16 @@ class Chebyshev(Exponentiation):
             raise ValueError(
                 "Chebyshev exponentiation needs a Hermitian RydbergHamiltonian."
             )
-        d, lower, upper = ham.spectral_bounds()
-        if not ham.omegas.any():  # H is diagonal
+        d, lower, upper, offdiag_bound = ham.spectral_bounds()
+        if offdiag_bound == 0.0:  # H is diagonal
             return torch.exp(-1j * dt * d) * state
-        del d
         # exp(-i dt H) = exp(-i dt c) exp(-i α (H - c)/r), with c the shift, r the
         # radius and α = r dt: the spectrum of (H - c)/r lies in [-1, 1]
         shift, radius = (upper + lower) / 2, (upper - lower) / 2
         alpha = radius * dt
         substeps = max(1, math.ceil(abs(alpha) / CHEBYSHEV_MAX_ALPHA))
-        op = ham.shifted(shift).make_op(2 / radius)
+        op = ham.shifted(shift, d).make_op(2 / radius)
+        del d
         phase = cmath.exp(-1j * dt * shift / substeps)
         tolerance = tolerance / substeps
         res = state
