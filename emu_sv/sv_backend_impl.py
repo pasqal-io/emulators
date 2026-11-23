@@ -136,7 +136,7 @@ class SVBackendImpl:
             total_duration=int(self.target_times[-1]),
         )
         self.statistics = Statistics(
-            evaluation_times=[t / self.target_times[-1] for t in self.target_times],
+            evaluation_times=None,
             data=[],
             timestep_count=self.nsteps,
         )
