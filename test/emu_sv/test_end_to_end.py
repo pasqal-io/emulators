@@ -1075,3 +1075,53 @@ def test_observable_tensors_on_wrong_device():
     excited_population = math.sin(0.05) ** 2  # Ω * t / 2 = 1.0 rad/µs * 0.1 µs / 2
     assert results.expectation[0].item().real == approx(excited_population, abs=1e-10)
     assert results.fidelity[0].item() == approx(excited_population, abs=1e-10)
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+def test_end_to_end_monte_carlo_chebyshev_matches_lanczos():
+    """
+    Monte Carlo trajectories with the Chebyshev exponentiator (non-Hermitian
+    H - iΓ) reproduce the Lanczos ones: with identical seeds and a tight
+    tolerance, the jump decisions and the norms agree. The relaxation rate is
+    high enough that jumps do occur, so the Brent root finder also steps
+    backwards in time (dt < 0).
+    """
+    from emu_sv import Exponentiator
+
+    total_time = 500
+    natoms = 3
+    pulse = pulser.Pulse.ConstantAmplitude(
+        2 * math.pi, pulser.waveforms.ConstantWaveform(total_time, 0.0), 0.0
+    )
+    reg = pulser.Register.rectangle(1, natoms, spacing=8, prefix="q")
+    seq = pulser.Sequence(reg, pulser.MockDevice)
+    seq.declare_channel("ising_global", "rydberg_global")
+    seq.add(pulse, "ising_global")
+
+    noise_model = pulser.noise_model.NoiseModel(relaxation_rate=4.0)
+    times = [1.0]
+
+    def run(exponentiator: Exponentiator) -> torch.Tensor:
+        torch.manual_seed(1337)
+        random.seed(0xDEADBEEF)
+        config = SVConfig(
+            dt=10,
+            krylov_tolerance=1e-10,
+            observables=[Occupation(evaluation_times=times)],
+            noise_model=noise_model,
+            n_trajectories=5,
+            solver=Solver.MONTECARLO,
+            exponentiator=exponentiator,
+            log_level=100,
+        )
+        result = SVBackend(seq, config=config).run()
+        occupation = result.occupation[-1]
+        assert isinstance(occupation, torch.Tensor)
+        return occupation
+
+    expected = run(Exponentiator.LANCZOS)
+    occupation = run(Exponentiator.CHEBYSHEV)
+    # jump times are only located to JUMP_TIME_TOLERANCE_FRACTION * dt = 1 ns, and
+    # within that window the methods converge to different points, so the
+    # trajectories agree to ~1e-4, not to the krylov_tolerance
+    assert torch.allclose(occupation, expected, atol=2e-3)

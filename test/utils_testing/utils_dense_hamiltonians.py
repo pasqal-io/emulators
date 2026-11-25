@@ -39,15 +39,19 @@ def dense_rydberg_hamiltonian(
     deltas: torch.Tensor,
     phis: torch.Tensor,
     interaction_matrix: torch.Tensor,
+    noise: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """
     Dense Rydberg Hamiltonian for testing:
         H = ∑ⱼΩⱼ/2[cos(ϕⱼ)σˣⱼ + sin(ϕⱼ)σʸⱼ] - ∑ⱼΔⱼnⱼ + ∑ᵢ﹥ⱼUᵢⱼnᵢnⱼ
+    plus, if given, the single-qubit noise term `noise` = -½i∑L†L on every qubit.
     """
     N = interaction_matrix.size(dim=1)
     device = omegas[0].device
     h = torch.zeros(2**N, 2**N, dtype=dtype, device=device)
     for i in range(N):
+        if noise is not None:
+            h += single_gate(i, N, noise.cpu().to(dtype)).to(device=device)
         h += (
             omegas[i]
             * torch.cos(phis[i])

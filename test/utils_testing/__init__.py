@@ -17,6 +17,7 @@ from .utils_chebyshev import (
     chebyshev_coefficients_exact,
     chebyshev_rounding_bound,
     chebyshev_step_budget,
+    chebyshev_weighted_tails,
     matrix_exp_error,
 )
 
@@ -38,5 +39,6 @@ __all__ = [
     "chebyshev_coefficients_exact",
     "chebyshev_rounding_bound",
     "chebyshev_step_budget",
+    "chebyshev_weighted_tails",
     "matrix_exp_error",
 ]

@@ -90,6 +90,23 @@ def chebyshev_coefficients_exact(alpha: float) -> tuple[torch.Tensor, list[Decim
     return coefs, tails
 
 
+def chebyshev_weighted_tails(alpha: float, rho: float) -> list[Decimal]:
+    """
+    tails[k] = sum_{j > k} |c_j| rho^j in decimal arithmetic, for the truncation
+    index of the rho-weighted series (|T_k| <= rho^k on the Bernstein ellipse E_rho).
+    Only valid while the dropped terms are negligible after weighting, i.e.
+    rho^length * 1e-30 far below the tolerance of interest.
+    """
+    bessel = _bessel_exact(abs(alpha))
+    r = Decimal(rho)
+    tails = [Decimal(0)] * len(bessel)
+    rho_pow = r ** (len(bessel) - 1)
+    for k in range(len(bessel) - 2, -1, -1):
+        tails[k] = tails[k + 1] + 2 * abs(bessel[k + 1]) * rho_pow
+        rho_pow /= r
+    return tails
+
+
 def tails(coefs: torch.Tensor) -> torch.Tensor:
     """tails[k] = sum_{j > k} |c_j|"""
     a = coefs.abs()

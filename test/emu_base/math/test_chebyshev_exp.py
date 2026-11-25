@@ -11,6 +11,7 @@ from test.utils_testing import (
     EPS,
     chebyshev_coefficients_exact,
     chebyshev_rounding_bound,
+    chebyshev_weighted_tails,
     matrix_exp_error,
 )
 
@@ -54,6 +55,37 @@ def test_exp_chebyshev_coefficients_match_oracle(alpha: float, tolerance: float)
     # Budget per coefficient: Miller error on J_k, doubled for c_k, plus the rounding of
     # the exact oracle to double (eps |c_k| / 2 <= eps). Both tolerances explicit;
     # atol = 2x the budget. A sign or factor-2 bug changes some c_k by ~0.1.
+    atol = 2 * (2 * MILLER_ERROR + EPS)
+    torch.testing.assert_close(
+        torch.tensor(coefs, dtype=dtype), expected[: K + 1], rtol=0.0, atol=atol
+    )
+
+
+@pytest.mark.parametrize(
+    "alpha, rho",  # pairs keep rho^length * 1e-30 below the oracle's validity
+    [(0.5, 1.5), (7.3, 1.2), (7.3, 1.0 + 1e-8), (50.0, 1.05), (-50.0, 1.05)],
+)
+@pytest.mark.parametrize("tolerance", [1e-8, 1e-12])
+def test_exp_chebyshev_coefficients_rho(
+    alpha: float, rho: float, tolerance: float
+) -> None:
+    """
+    For rho > 1 (operator with numerical range in the Bernstein ellipse E_rho), the
+    coefficient values are unchanged; only the truncation moves, to the smallest K
+    with sum_{k>K} |c_k| rho^k <= tolerance.
+    """
+    expected, _ = chebyshev_coefficients_exact(alpha)
+    weighted_tails = chebyshev_weighted_tails(alpha, rho)
+    tol = Decimal(tolerance)
+    K = next(k for k, tail in enumerate(weighted_tails) if tail <= tol)
+    assert weighted_tails[K] < tol * (1 - TAIL_MARGIN), "test case too close"
+    assert K == 0 or weighted_tails[K - 1] > tol * (
+        1 + TAIL_MARGIN
+    ), "test case too close"
+
+    coefs = exp_chebyshev_coefficients(alpha, tolerance, rho)
+    assert len(coefs) == K + 1
+    assert len(coefs) >= len(exp_chebyshev_coefficients(alpha, tolerance))
     atol = 2 * (2 * MILLER_ERROR + EPS)
     torch.testing.assert_close(
         torch.tensor(coefs, dtype=dtype), expected[: K + 1], rtol=0.0, atol=atol
@@ -165,3 +197,65 @@ def test_chebyshev_exp_matches_matrix_exp(
         rtol=0.0,
         atol=norm * end_to_end,
     )
+
+
+def test_exp_chebyshev_coefficients_tiny_alpha_rho() -> None:
+    """The tiny-alpha early exit compares the rho-weighted |c_1| to the tolerance."""
+    assert exp_chebyshev_coefficients(1e-150, 1e-12, rho=2.0) == [1.0]
+    assert exp_chebyshev_coefficients(1e-150, 1e-151, rho=2.0) == [1.0, -1e-150j]
+
+
+@pytest.mark.usefixtures("restore_rng_state")
+@pytest.mark.parametrize(
+    "alpha, eps_im",  # pairs keep |alpha| ln(rho) ~ |alpha| sqrt(eps_im) <= ~4,
+    [  # as the caller guarantees through CHEBYSHEV_MAX_LOG_GROWTH substepping
+        (0.5, 0.05),
+        (7.3, 0.05),
+        (7.3, 2.5e-3),
+        (50.0, 2.5e-3),
+        (-50.0, 2.5e-3),
+        (50.0, 1e-4),
+    ],
+)
+def test_chebyshev_exp_non_hermitian_matches_matrix_exp(
+    alpha: float, eps_im: float
+) -> None:
+    """
+    exp(-i alpha A) v against matrix_exp for a non-Hermitian A = H - i G (G PSD, as
+    the Monte Carlo effective Hamiltonian), with the numerical range of A normalised
+    into [-1, 1] x [-eps, eps] by a complex shift, and rho the smallest Bernstein
+    ellipse containing that rectangle. The error bound is (1 + sqrt(2)) tolerance
+    (Crouzeix-Palencia) plus roundoff amplified by at most rho^K.
+    """
+    torch.manual_seed(1337)
+    dim = 16
+    tolerance = 1e-12
+    x = torch.randn(dim, dim, dtype=dtype)
+    h = (x + x.mH) / 2 + 3.0 * torch.eye(dim, dtype=dtype)
+    eigs = torch.linalg.eigvalsh(h)
+    slack = 4 * dim * EPS * eigs.abs().max().item()
+    lower, upper = eigs[0].item() - slack, eigs[-1].item() + slack
+    r = (upper - lower) / 2
+    # diagonal PSD noise part, with spread 2 eps_im r after normalisation by r
+    g = torch.diag(torch.rand(dim, dtype=torch.float64) * 2 * eps_im * r).to(dtype)
+    im_lower, im_upper = -g.real.diagonal().max().item(), -g.real.diagonal().min().item()
+    a = h - 1j * g
+
+    shift = complex((upper + lower) / 2, (im_upper + im_lower) / 2)
+    epsilon = (im_upper - im_lower) / (2 * r)
+    s = epsilon * (epsilon + math.sqrt(epsilon * epsilon + 4.0)) / 2
+    rho = math.sqrt(1.0 + s) + math.sqrt(s)
+    dt = alpha / r
+    phase = cmath.exp(-1j * dt * shift)
+    m = 2 * (a - shift * torch.eye(dim, dtype=dtype)) / r
+
+    v = torch.randn(dim, dtype=dtype)
+    v *= 3.7 / v.norm()
+
+    out = chebyshev_exp(lambda y: m @ y, v, alpha, phase, tolerance, rho)
+
+    expected = torch.linalg.matrix_exp(-1j * dt * a) @ v
+    # truncation <= (1 + sqrt(2)) tolerance over the numerical range, plus a roundoff
+    # allowance for the ~e^4 worst-case growth of the recurrence (see the pairs above)
+    budget = (1 + math.sqrt(2)) * tolerance + 1e-11
+    assert torch.linalg.vector_norm(out - expected).item() <= v.norm().item() * budget
