@@ -53,7 +53,8 @@ class Chebyshev(Exponentiation):
     E_ρ with ρ = √(1+s) + √s, s = ε(ε + √(ε²+4))/2 (the smallest such ellipse, from
     the corner condition 1/cosh²t + ε²/sinh²t = 1 with ρ = eᵗ). Without noise ε = 0
     and ρ = 1; so too for dephasing and depolarizing, whose Γ is a multiple of the
-    identity, absorbed entirely by the imaginary shift.
+    identity, absorbed entirely by the imaginary shift. If r = 0 (no drive and a
+    constant real diagonal, but noise off-diagonals), r is the imaginary half-width.
     """
 
     def __call__(
@@ -79,6 +80,8 @@ class Chebyshev(Exponentiation):
         # α = r dt: the numerical range of (H - c)/r lies in [-1, 1] × [-ε, ε]
         shift = complex((upper + lower) / 2, (im_upper + im_lower) / 2)
         radius = (upper - lower) / 2
+        if radius == 0.0:  # no drive and a constant real diagonal: ε = 1
+            radius = (im_upper - im_lower) / 2
         epsilon = (im_upper - im_lower) / (2 * radius)
         if epsilon > 0.0:
             s = epsilon * (epsilon + math.sqrt(epsilon * epsilon + 4.0)) / 2

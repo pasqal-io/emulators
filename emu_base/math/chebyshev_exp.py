@@ -56,11 +56,16 @@ def exp_chebyshev_coefficients(
     bessel = [v / norm for v in values]  # the normalized solution
 
     tail = 0.0
-    rho_pow = rho**start  # inf is fine: the loop then keeps every coefficient
+    log_rho = math.log(rho)
     last = start  # find K by summing the ρ-weighted tail until we hit tolerance
-    while last > 0 and tail + 2.0 * abs(bessel[last]) * rho_pow <= tolerance:
-        tail += 2.0 * abs(bessel[last]) * rho_pow
-        rho_pow /= rho
+    while last > 0:
+        # 2|Jₖ|ρᵏ in log space: ρᵏ can overflow where Jₖ underflows (large ρ);
+        # a term capped at e⁷⁰⁰ is above any tolerance and ends the loop anyway
+        j = abs(bessel[last])
+        term = 2.0 * math.exp(min(math.log(j) + last * log_rho, 700.0)) if j else 0.0
+        if tail + term > tolerance:
+            break
+        tail += term
         last -= 1
 
     powers = (1.0 + 0.0j, -1.0j, -1.0 + 0.0j, 1.0j)  # (-i)ᵏ

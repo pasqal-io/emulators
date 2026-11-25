@@ -315,3 +315,42 @@ def test_chebyshev_rejects_lindbladian() -> None:
     state = torch.eye(2, dtype=torch.complex128).view(-1) / math.sqrt(2)
     with pytest.raises(ValueError, match="density-matrix"):
         Chebyshev()(lindbladian, 0.1, state, 1e-10)
+
+
+@pytest.mark.parametrize("dt", [0.7, -0.3, 40.0])
+def test_chebyshev_no_drive_offdiagonal_noise(dt: float) -> None:
+    """
+    Omega = Delta = U = 0 with a non-diagonal L†L: the real part of the numerical
+    range is a single point (zero real half-width), so H - c is anti-Hermitian and is
+    scaled by an imaginary number. dt = 40 forces substeps.
+    """
+    N = 3
+    zeros = torch.zeros(N, dtype=torch.float64)
+    interaction = torch.zeros(N, N, dtype=torch.float64)
+    noise = make_noise("eff_noise")
+    state_in = get_randn_state(N, device=device)
+
+    h = dense_rydberg_hamiltonian(zeros, zeros, zeros, interaction, noise=noise)
+    expected = torch.linalg.matrix_exp(-1j * dt * h.to(state_in.device)) @ state_in
+    ham = make_noisy_hamiltonian((zeros, zeros, zeros, interaction), noise)
+    state_out = Chebyshev()(ham, dt, state_in, 1e-10)
+    assert torch.allclose(expected, state_out, atol=1e-9)
+
+
+def test_chebyshev_tiny_drive_offdiagonal_noise() -> None:
+    """
+    A tiny drive next to off-diagonal noise: ε = (noise half-width)/r is huge, and
+    so is ρ, whose power ρ^start in the coefficient truncation must not overflow.
+    """
+    N, dt = 3, 0.7
+    omegas = torch.full((N,), 1e-6, dtype=torch.float64)
+    zeros = torch.zeros(N, dtype=torch.float64)
+    interaction = torch.zeros(N, N, dtype=torch.float64)
+    noise = make_noise("eff_noise")
+    state_in = get_randn_state(N, device=device)
+
+    h = dense_rydberg_hamiltonian(omegas, zeros, zeros, interaction, noise=noise)
+    expected = torch.linalg.matrix_exp(-1j * dt * h.to(state_in.device)) @ state_in
+    ham = make_noisy_hamiltonian((omegas, zeros, zeros, interaction), noise)
+    state_out = Chebyshev()(ham, dt, state_in, 1e-10)
+    assert torch.allclose(expected, state_out, atol=1e-9)
