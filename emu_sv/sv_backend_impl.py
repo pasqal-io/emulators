@@ -202,7 +202,9 @@ class SVBackendImpl:
                 "Exponentiator.CHEBYSHEV is not available for density-matrix "
                 "evolution; use Exponentiator.LANCZOS."
             )
-        if requested == Exponentiator.CHEBYSHEV or requested == Exponentiator.DEFAULT:
+        if requested == Exponentiator.CHEBYSHEV or (
+            requested == Exponentiator.DEFAULT and not use_density_matrix
+        ):
             return Chebyshev()
         return Lanczos(self._config.max_krylov_dim)
 
