@@ -86,7 +86,9 @@ def deallocate_tensor(t: torch.Tensor) -> None:
 
 def get_max_rss_cpu() -> float:
     if unix_like:
-        return getrusage(RUSAGE_SELF).ru_maxrss * 1e-3
+        # ru_maxrss is in bytes on macOS and in kilobytes on Linux
+        scale = 1e-6 if sys.platform == "darwin" else 1e-3
+        return getrusage(RUSAGE_SELF).ru_maxrss * scale
     else:
         return 0.0
 
