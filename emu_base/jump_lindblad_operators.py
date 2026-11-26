@@ -65,10 +65,11 @@ def get_lindblad_operators(
             for rate, op in zip(noise_model.eff_noise_rates, torch_ops)
         ]
 
-        # pulser ising basis changing to emu-mps ising basis
+        # pulser ising basis (r, g[, x]) -> emu-mps ising basis (g, r[, x]):
+        # permute rows and columns of the whole matrix
         if interact_type == "ising":
-            for tensor in lindblad_ops:
-                tensor[:2, :2] = torch.flip(tensor[:2, :2], (0, 1))
+            perm = [1, 0, 2][:dim]
+            lindblad_ops = [op[perm][:, perm] for op in lindblad_ops]
 
         return lindblad_ops
     if noise_type == "leakage":  # leakage operators are eff_noise
