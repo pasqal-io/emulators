@@ -62,14 +62,10 @@ def test_flipping_right_elements():
         dim=dim,
     )
 
-    expected0 = (eff_ops0.clone().detach()) * math.sqrt(eff_rate[0])
-    expected1 = (eff_ops1.clone().detach()) * math.sqrt(eff_rate[1])
-    expected0[:2, :2] = torch.flip(  # flip for ising emu-mps basis
-        expected0[:2, :2], (0, 1)
-    )
-    expected1[:2, :2] = torch.flip(  # flip for ising emu-mps basis
-        expected1[:2, :2], (0, 1)
-    )
+    # change of basis (r, g, x) -> (g, r, x): permute rows and columns
+    perm = [1, 0, 2]
+    expected0 = eff_ops0[perm][:, perm] * math.sqrt(eff_rate[0])
+    expected1 = eff_ops1[perm][:, perm] * math.sqrt(eff_rate[1])
 
     assert len(emu_mps_lindblad) == len(eff_ops)
     assert torch.allclose(emu_mps_lindblad[0], expected0)
@@ -88,3 +84,27 @@ def test_get_lindblad_op_with_wrong_dim():
 
     with pytest.raises(ValueError, match="Only 2 by 2 effective noise operator matrices"):
         get_lindblad_operators(noise_type="eff_noise", noise_model=noise_model)
+
+
+@pytest.mark.parametrize(
+    "pulser_index, emu_index",
+    [
+        ((2, 0), (2, 1)),  # |x><r|
+        ((2, 1), (2, 0)),  # |x><g|
+        ((0, 2), (1, 2)),  # |r><x|
+        ((1, 2), (0, 2)),  # |g><x|
+    ],
+)
+def test_leakage_operator_change_of_basis(pulser_index, emu_index):
+    """pulser (r, g, x) -> emu-mps (g, r, x) must permute the x row and column too"""
+    op = np.zeros((3, 3))
+    op[pulser_index] = 1.0
+    noise_model = NoiseModel(
+        with_leakage=True, eff_noise_rates=(2.0,), eff_noise_opers=(op,)
+    )
+    (lindblad,) = get_lindblad_operators(
+        noise_type="eff_noise", noise_model=noise_model, interact_type="ising", dim=3
+    )
+    expected = torch.zeros(3, 3, dtype=dtype)
+    expected[emu_index] = math.sqrt(2.0)
+    assert torch.allclose(lindblad, expected)
