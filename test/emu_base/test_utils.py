@@ -1,9 +1,10 @@
 from collections import Counter
+import os
 import random
 from unittest.mock import call, patch
 import torch
 import pytest
-from emu_base.utils import deallocate_tensor
+from emu_base.utils import deallocate_tensor, get_max_rss_cpu, unix_like
 from emu_base.utils import readout_with_error, apply_measurement_errors
 
 
@@ -236,3 +237,13 @@ def test_add_measurement_errors_large():
     )
 
     assert sum(bitstrings_with_measurement_errors.values()) == sum(bitstrings.values())
+
+
+@pytest.mark.skipif(not unix_like, reason="getrusage is not available on Windows")
+def test_get_max_rss_cpu_is_in_mb():
+    t = torch.ones(25_000_000, dtype=torch.float64)  # 200 MB
+    t += 1.0
+
+    physical_memory_mb = os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") * 1e-6
+
+    assert 200 < get_max_rss_cpu() < physical_memory_mb
