@@ -1,11 +1,12 @@
 import torch
 from typing import Type
+from unittest.mock import patch
 import pytest
 from test.utils_testing import (
     dense_rydberg_hamiltonian,
     randn_interaction_matrix,
 )
-from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM
+from emu_base.math.krylov_exp import DEFAULT_MAX_KRYLOV_DIM, krylov_exp_impl
 from emu_sv.hamiltonians import RydbergHamiltonian, FusedRydbergHamiltonian
 from emu_sv.time_evolution import Chebyshev, EvolveStateVector, Exponentiation, Lanczos
 
@@ -354,3 +355,186 @@ def test_chebyshev_tiny_drive_offdiagonal_noise() -> None:
     ham = make_noisy_hamiltonian((omegas, zeros, zeros, interaction), noise)
     state_out = Chebyshev()(ham, dt, state_in, 1e-10)
     assert torch.allclose(expected, state_out, atol=1e-9)
+
+
+@pytest.mark.parametrize("max_krylov_dim", [8, 100])
+def test_lanczos_substeps_large_step(max_krylov_dim: int) -> None:
+    """A step whose Krylov iteration count would exceed the cap is split a priori
+    into sub-steps, and stays accurate."""
+    torch.manual_seed(1337)
+    nqubits = 4
+    omegas, deltas, phis, interaction = get_randn_ham_params(nqubits, with_phase=True)
+    omegas *= 10.0  # a wide spectrum
+    state_in = get_randn_state(nqubits)
+    dt = 2.0
+    tolerance = 1e-10
+    ham = RydbergHamiltonian(
+        omegas, deltas, phis, interaction, torch.device(device), noise=None
+    )
+    lanczos = Lanczos(max_krylov_dim)
+
+    substeps = lanczos.a_priori_substeps(ham, dt, tolerance, max_krylov_dim)
+    assert substeps > 1
+    assert substeps >= lanczos.a_priori_substeps(ham, dt, tolerance, 100)
+    assert lanczos.a_priori_substeps(ham, dt, tolerance, 1000) == 1
+
+    state_out = lanczos(ham, dt, state_in.clone(), tolerance)
+    expected = do_dense_time_step(dt, omegas, deltas, phis, interaction, state_in)
+    assert torch.allclose(state_out, expected, atol=1e-9, rtol=0)
+
+
+def test_lanczos_memory_cap() -> None:
+    """The Krylov dimension is capped by the memory available on the device."""
+    torch.manual_seed(1337)
+    nqubits = 4
+    omegas, deltas, phis, interaction = get_randn_ham_params(nqubits)
+    state_in = get_randn_state(nqubits)
+    ham = RydbergHamiltonian(
+        omegas, deltas, phis, interaction, torch.device(device), noise=None
+    )
+    lanczos = Lanczos(100)
+    vector_bytes = state_in.numel() * state_in.element_size()
+    module = "emu_sv.time_evolution.exponentiation"
+
+    # room for 6 basis vectors + KRYLOV_EXTRA_VECTORS in LANCZOS_MEMORY_FRACTION
+    with patch(f"{module}.available_memory", return_value=8 * vector_bytes / 0.8):
+        assert lanczos.krylov_cap(ham, state_in) == 6
+        state_out = lanczos(ham, 1.0, state_in.clone(), 1e-10)
+    expected = do_dense_time_step(1.0, omegas, deltas, phis, interaction, state_in)
+    assert torch.allclose(state_out, expected, atol=1e-9, rtol=0)
+
+    with (
+        patch(f"{module}.available_memory", return_value=3 * vector_bytes / 0.8),
+        pytest.raises(MemoryError),
+    ):
+        lanczos.krylov_cap(ham, state_in)
+
+    with patch(f"{module}.available_memory", return_value=None):
+        assert lanczos.krylov_cap(ham, state_in) == 100
+
+
+@pytest.mark.parametrize("failure", ["non-convergence", "oom"])
+def test_lanczos_retries_with_halved_step(failure: str) -> None:
+    """A sub-step that does not converge, or runs out of GPU memory, is halved."""
+    torch.manual_seed(1337)
+    nqubits = 3
+    omegas, deltas, phis, interaction = get_randn_ham_params(nqubits)
+    state_in = get_randn_state(nqubits)
+    ham = RydbergHamiltonian(
+        omegas, deltas, phis, interaction, torch.device(device), noise=None
+    )
+    dts = []
+
+    def failing_once(op, v, **kwargs):
+        if not dts and failure == "oom":
+            dts.append(None)
+            raise torch.cuda.OutOfMemoryError("simulated")
+        if not dts:  # too small a cap for the first attempt
+            kwargs["max_krylov_dim"] = 2
+        result = krylov_exp_impl(op, v, **kwargs)
+        dts.append(result.converged)
+        return result
+
+    with patch(
+        "emu_sv.time_evolution.exponentiation.krylov_exp_impl", side_effect=failing_once
+    ) as spy:
+        state_out = Lanczos(100)(ham, 1.0, state_in.clone(), 1e-10)
+
+    expected = do_dense_time_step(1.0, omegas, deltas, phis, interaction, state_in)
+    assert torch.allclose(state_out, expected, atol=1e-9, rtol=0)
+    # the failed attempt, then the two halves
+    assert spy.call_count == 3
+    assert dts[1:] == [True, True]
+
+
+def test_lanczos_gives_up_after_max_splits() -> None:
+    torch.manual_seed(1337)
+    nqubits = 3
+    omegas, deltas, phis, interaction = get_randn_ham_params(nqubits)
+    state_in = get_randn_state(nqubits)
+    ham = RydbergHamiltonian(
+        omegas, deltas, phis, interaction, torch.device(device), noise=None
+    )
+
+    def never_converges(op, v, **kwargs):
+        kwargs["max_krylov_dim"] = 1
+        return krylov_exp_impl(op, v, **kwargs)
+
+    with (
+        patch(
+            "emu_sv.time_evolution.exponentiation.krylov_exp_impl",
+            side_effect=never_converges,
+        ),
+        pytest.raises(RecursionError, match="halving"),
+    ):
+        Lanczos(100)(ham, 1.0, state_in.clone(), 1e-10)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs the CUDA allocator")
+@pytest.mark.parametrize("cap", [3, 6])
+def test_lanczos_memory_accounting(cap: int) -> None:
+    """A Krylov call holds at most cap + max(KRYLOV_EXTRA_VECTORS, working_vectors)
+    state-sized tensors beyond its input, and the operators their `working_vectors`,
+    as `Lanczos.krylov_cap` assumes."""
+    from emu_base.math.krylov_exp import KRYLOV_EXTRA_VECTORS
+    from emu_sv.hamiltonians import RydbergLindbladian
+
+    torch.manual_seed(1337)
+    cuda = torch.device("cuda")
+
+    def peak_vectors(fn, reference: torch.Tensor) -> float:
+        torch.cuda.synchronize()
+        torch.cuda.reset_peak_memory_stats()
+        base = torch.cuda.memory_allocated()
+        fn()
+        torch.cuda.synchronize()
+        return (torch.cuda.max_memory_allocated() - base) / (
+            reference.numel() * reference.element_size()
+        )
+
+    nqubits = 12
+    omegas, deltas, phis, interaction = get_randn_ham_params(nqubits, with_phase=True)
+    state = get_randn_state(nqubits).to(cuda)
+    noise = -0.5j * torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128)
+    lindblad = [torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128)]
+    rho = torch.randn(2**6, 2**6, dtype=torch.complex128, device=cuda)
+    cases = [
+        (RydbergHamiltonian(omegas, deltas, phis, interaction, cuda, noise=None), state),
+        (RydbergHamiltonian(omegas, deltas, phis, interaction, cuda, noise=noise), state),
+        (
+            FusedRydbergHamiltonian(omegas, deltas, phis, interaction, cuda, noise=None),
+            state,
+        ),
+        (
+            RydbergLindbladian(
+                omegas=omegas[:6],
+                deltas=deltas[:6],
+                phis=phis[:6],
+                pulser_lindblads=lindblad,
+                interaction_matrix=interaction[:6, :6],
+                device=cuda,
+            ),
+            rho,
+        ),
+    ]
+    for ham, vector in cases:
+        op = ham.make_op(-1j * 0.1)
+        hermitian = isinstance(ham, RydbergHamiltonian) and ham.noise is None
+        # warm up: lazily cached diagonals and library workspaces (cuBLAS)
+        krylov_exp_impl(op, vector.clone(), hermitian, 1e-14, 1e-14, max_krylov_dim=2)
+        assert peak_vectors(lambda: op(vector), vector) == pytest.approx(
+            ham.working_vectors, abs=0.05
+        )
+        for _ in range(2):  # the second call converges within the cap, or not
+            result = peak_vectors(
+                lambda: krylov_exp_impl(
+                    op,
+                    vector.clone(),
+                    is_hermitian=hermitian,
+                    exp_tolerance=1e-14,
+                    norm_tolerance=1e-14,
+                    max_krylov_dim=cap,
+                ),
+                vector,
+            )
+            assert result <= 1 + cap + max(KRYLOV_EXTRA_VECTORS, ham.working_vectors)

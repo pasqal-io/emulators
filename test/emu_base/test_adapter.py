@@ -8,6 +8,7 @@ from pulser.backend import EmulationConfig, Observable
 from pulser.noise_model import NoiseModel
 from pulser.math import AbstractArray
 from pulser._hamiltonian_data.hamiltonian_data import SamplesWithReps
+from test.utils_testing import pulser_XY_sequence_slm_mask
 
 from emu_base.pulser_adapter import (
     _InteractionMatrixCallable,
@@ -1148,3 +1149,46 @@ def test_extract_omega_delta_phi_missing_qubit():
     )
 
     assert torch.allclose(omega, omega_expected)
+
+
+def test_get_target_times_includes_slm_end_time():
+    duration = 20
+    dt = 5.5
+    time_grid = [0, 5.5, 11, 16.5, 20]
+    config = EmulationConfig(observables=[])
+
+    with (
+        patch.object(sequence, "get_duration") as mock_get_duration,
+        patch.object(sequence, "_slm_mask_time", [0, 7.0]),
+    ):
+        mock_get_duration.return_value = duration
+        target_times = _get_target_times(sequence, config, dt)
+
+    assert target_times == pytest.approx([*time_grid[:2], 7.0, *time_grid[2:]])
+
+
+def test_pulser_data_target_times_include_slm_end_time():
+    """With a real SLM mask: the 200 ns masked pulse ends off the dt grid."""
+    seq = pulser_XY_sequence_slm_mask(amplitude=1.0, slm_masked_atoms=(0,))
+    config = EmulationConfig(observables=[], interaction_cutoff=0.0)
+    pulser_data = PulserData(sequence=seq, config=config, dt=30)
+    data = next(pulser_data.get_sequences())
+
+    assert pulser_data.slm_end_time == 200.0
+    assert 200.0 in data.target_times
+    grid = torch.tensor(data.target_times)
+    assert all(
+        torch.isclose(grid, torch.tensor(float(t))).any() for t in range(0, 700, 30)
+    )
+    # the matrix read at the midpoint of a step is the same object for all steps
+    # on the same side of the SLM end, and differs across it
+    times = data.target_times
+    matrices = [
+        data.interaction_matrix(0.5 * (times[i] + times[i + 1]))
+        for i in range(len(times) - 1)
+    ]
+    before = [m for m, t in zip(matrices, times) if t < 200.0]
+    after = [m for m, t in zip(matrices, times) if t >= 200.0]
+    assert all(m is before[0] for m in before)
+    assert all(m is after[0] for m in after)
+    assert before[0] is not after[0]

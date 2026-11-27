@@ -43,6 +43,10 @@ class SVConfig(EmulationConfig):
             only calculated if the evaluation_times are divisible by dt.
         max_krylov_dim:
             the size of the krylov subspace that the Lanczos algorithm maximally builds
+            per exponentiation. Each Krylov vector takes as much memory as the state,
+            so the subspace is further capped by the memory available, and a time
+            step is split into as many exponentiations as needed to converge within
+            the cap (a step is only ever split, never fused, by this).
         krylov_tolerance:
             the Lanczos algorithm uses this as the convergence tolerance
         gpu: whether to run the simulation on GPU

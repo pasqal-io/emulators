@@ -127,6 +127,12 @@ def is_evaluation_time(
     return is_observable_eval_time or config.is_evaluation_time(t, tol=tolerance)
 
 
+def _slm_end_time(sequence: pulser.Sequence) -> float:
+    """The absolute time (ns) the SLM mask ends, 0.0 without a mask."""
+    slm_mask_time = sequence._slm_mask_time
+    return float(slm_mask_time[1]) if len(slm_mask_time) > 1 else 0.0
+
+
 def _get_target_times(
     sequence: pulser.Sequence,
     config: EmulationConfig,
@@ -134,19 +140,23 @@ def _get_target_times(
 ) -> list[float]:
     """Compute the sorted absolute times to sample the sequence.
 
-    Combines a uniform grid with step ``dt`` and any extra observable times,
-    then converts everything to absolute times over the sequence duration.
-    Times closer together than `TIME_TOLERANCE` are considered the same time,
-    consistently with `is_evaluation_time`.
+    Combines a uniform grid with step ``dt``, any extra observable times and the
+    end of the SLM mask, then converts everything to absolute times over the
+    sequence duration. Times closer together than `TIME_TOLERANCE` are considered
+    the same time, consistently with `is_evaluation_time`.
     """
     duration = float(sequence.get_duration(include_fall_time=config.with_modulation))
     n_steps = math.floor(duration / dt)
     evolution_times_rel = [i * float(dt) / duration for i in range(n_steps + 1)]
     if evolution_times_rel[-1] < 1.0 - TIME_TOLERANCE:
         evolution_times_rel.append(1.0)
+    extra_times = _unique_observable_times(config)
+    slm_end_rel = _slm_end_time(sequence) / duration
+    if 0.0 < slm_end_rel < 1.0:
+        extra_times.add(slm_end_rel)
     target_times_rel = _fuzzy_union(
         evolution_times_rel,
-        sorted(_unique_observable_times(config)),
+        sorted(extra_times),
         TIME_TOLERANCE,
     )
     return [t * duration for t in target_times_rel]
@@ -351,9 +361,7 @@ class PulserData:
                 raise ValueError(f"Unsupported interaction type {self.hamiltonian_type}")
 
         self.interaction_cutoff = config.interaction_cutoff
-        self.slm_end_time = (
-            sequence._slm_mask_time[1] if len(sequence._slm_mask_time) > 1 else 0.0
-        )
+        self.slm_end_time = _slm_end_time(sequence)
 
     def get_sequences(self) -> Iterator[SequenceData]:
         for samples in self.hamiltonian.noisy_samples:

@@ -216,3 +216,55 @@ def test_krylov_with_matrix():
     expected = torch.linalg.matrix_exp(random_matrix) @ MxM
 
     assert torch.allclose(result, expected)
+
+
+def test_non_convergence_restores_input():
+    """A step too large for the cap leaves v as it was, so the caller can retry."""
+    torch.manual_seed(1337)
+    m = uniform_random_tensor(40, 40)
+    m = -1j * 5.0 * (m + m.conj().T)
+    v = 3.0 * uniform_random_tensor(40)
+    v_in = v.clone()
+
+    result = krylov_exp_impl(
+        lambda x: m @ x,
+        v,
+        is_hermitian=True,
+        exp_tolerance=1e-12,
+        norm_tolerance=1e-12,
+        max_krylov_dim=3,
+    )
+
+    assert not result.converged
+    assert torch.allclose(v, v_in, atol=1e-14, rtol=0)
+
+
+def test_oom_restores_input_and_releases_basis():
+    """A CUDA out-of-memory error in the iteration propagates with v restored and
+    the Krylov basis dropped (the traceback would otherwise keep it alive)."""
+    torch.manual_seed(1337)
+    m = uniform_random_tensor(40, 40)
+    m = -1j * (m + m.conj().T)
+    v = 3.0 * uniform_random_tensor(40)
+    v_in = v.clone()
+    calls = 0
+    produced: list[torch.Tensor] = []
+
+    def op(x: torch.Tensor) -> torch.Tensor:
+        nonlocal calls
+        calls += 1
+        if calls == 4:
+            raise torch.cuda.OutOfMemoryError("simulated")
+        produced.append(m @ x)
+        return produced[-1]
+
+    with pytest.raises(torch.cuda.OutOfMemoryError):
+        krylov_exp_impl(
+            op, v, is_hermitian=True, exp_tolerance=1e-12, norm_tolerance=1e-12
+        )
+
+    assert torch.allclose(v, v_in, atol=1e-14, rtol=0)
+    # the normalised op outputs became the basis vectors: nothing else holds them
+    import sys
+
+    assert all(sys.getrefcount(t) == 3 for t in produced)  # list, loop var, arg

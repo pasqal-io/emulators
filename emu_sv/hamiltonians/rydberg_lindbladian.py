@@ -177,9 +177,14 @@ class RydbergLindbladian:
         """Apply the interaction terms ∑ᵢⱼ Uᵢⱼ nᵢ nⱼ to the density matrix."""
         return self.diag.view(-1, 1) * density_matrix
 
+    # Density-matrix-sized tensors `make_op`'s operator holds at its peak, output
+    # included (see `RydbergHamiltonian.working_vectors`): `__matmul__` holds Heff ρ,
+    # its anti-Hermitian part, the ∑ₖLₖρLₖ† accumulator and a term of it.
+    working_vectors: int = 4
+
     def make_op(self, factor: complex) -> Callable[[torch.Tensor], torch.Tensor]:
         """Return the operator ρ ↦ factor·(L ρ), e.g. -i dt L for `krylov_exp`."""
-        return lambda x: factor * (self @ x)
+        return lambda x: (self @ x).mul_(factor)
 
     def __matmul__(self, density_matrix: torch.Tensor) -> torch.Tensor:
         """Apply the i*RydbergLindbladian operator to the density matrix ρ
@@ -200,7 +205,9 @@ class RydbergLindbladian:
         # Heff - Heff^†=  [H, ρ] - 0.5i ∑ₖ Lₖ† Lₖρ - ρ 0.5i ∑ₖ Lₖ† Lₖ
         H_den_matrix = H_den_matrix - H_den_matrix.conj().T
 
-        # compute ∑ₖ Lₖ ρ Lₖ†, last part of the Lindblad operator
+        # compute ∑ₖ Lₖ ρ Lₖ†, last part of the Lindblad operator. This is the memory
+        # peak of `working_vectors`: H_den_matrix, the sum, a term and the Lₖρ it
+        # is computed from.
         L_den_matrix_Ldag = sum(
             self.apply_density_matrix_to_local_op_T(
                 self.apply_local_op_to_density_matrix(
@@ -213,8 +220,10 @@ class RydbergLindbladian:
             for L in self.pulser_lindblads
         )
 
-        res = H_den_matrix + 1.0j * L_den_matrix_Ldag
-        return 0.5 * (res - res.conj().T)  # for numerical stability
+        H_den_matrix.add_(L_den_matrix_Ldag, alpha=1.0j)
+        del L_den_matrix_Ldag
+        res = H_den_matrix - H_den_matrix.conj().T  # for numerical stability
+        return res.mul_(0.5)
 
     def expect(self, state: DensityMatrix) -> torch.Tensor:
         """Return the energy expectation value E=tr(H𝜌)"""

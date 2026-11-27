@@ -106,9 +106,14 @@ class RydbergHamiltonian:
             self._diag = self._create_diagonal()
         return self._diag
 
+    # State-sized tensors `make_op`'s operator holds at its peak, output included:
+    # `__mul__` (and the fused kernel) write into one fresh tensor, scaled in place.
+    # `krylov_exp_impl` uses it to bound the memory of a call.
+    working_vectors: int = 1
+
     def make_op(self, factor: complex) -> Callable[[torch.Tensor], torch.Tensor]:
         """Return the operator x ↦ factor·(H x), e.g. -i dt H for `krylov_exp`."""
-        return lambda x: factor * (self * x)
+        return lambda x: (self * x).mul_(factor)
 
     def __mul__(self, vec: torch.Tensor) -> torch.Tensor:
         """

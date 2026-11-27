@@ -91,6 +91,29 @@ def get_max_rss_cpu() -> float:
         return 0.0
 
 
+def available_memory(device: torch.device) -> int | None:
+    """
+    Bytes that can currently be allocated on `device`, or None if unknown.
+
+    On CUDA this is the free device memory plus what torch's caching allocator
+    holds in reserve, so it accounts for blocks already cached by this process. On
+    CPU it is Linux's MemAvailable, which counts reclaimable page cache as free,
+    unlike the free-page count sysconf reports; other platforms return None.
+    """
+    if device.type == "cuda":
+        free, _ = torch.cuda.mem_get_info(device)
+        cached = torch.cuda.memory_reserved(device) - torch.cuda.memory_allocated(device)
+        return int(free + cached)
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) * 1024
+    except OSError:
+        pass
+    return None
+
+
 def get_max_rss_gpu() -> float:
     max_mem_per_device = (
         torch.cuda.max_memory_allocated(device) * 1e-6
