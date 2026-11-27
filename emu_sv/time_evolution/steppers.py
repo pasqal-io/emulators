@@ -119,16 +119,24 @@ class EvolveDensityMatrix(BaseStepper):
 
 
 class EvolveMonteCarlo(BaseStepper):
-    """Evolution of a state vector under Monte Carlo quantum jumps."""
+    """
+    Evolution of a state vector under Monte Carlo quantum jumps.
+
+    A jump time is located to `JUMP_TIME_TOLERANCE_FRACTION` of the time step, or
+    to `jump_time_tolerance` if that is smaller: the backend sets it from the
+    configured step, so fusing time steps does not coarsen the jump times.
+    """
 
     def __init__(
         self,
         exponentiator: Exponentiation,
         max_krylov_dim: int,
         hamiltonian_type: type[RydbergHamiltonian],
+        jump_time_tolerance: float | None = None,
     ) -> None:
         super().__init__(exponentiator, max_krylov_dim)
         self.hamiltonian_type = hamiltonian_type
+        self.jump_time_tolerance = jump_time_tolerance
         self.jump_threshold = random.uniform(0.0, 1.0)
 
     def get_hamiltonian(
@@ -222,6 +230,8 @@ class EvolveMonteCarlo(BaseStepper):
 
         current_time = 0.0
         tol = dt * JUMP_TIME_TOLERANCE_FRACTION
+        if self.jump_time_tolerance is not None:
+            tol = min(tol, self.jump_time_tolerance)
         new_norm_gap = torch.linalg.vector_norm(state).item() ** 2 - self.jump_threshold
         stacked = torch.stack(pulser_lindblads)
         # The below is used for batch computation of noise collapse weights.

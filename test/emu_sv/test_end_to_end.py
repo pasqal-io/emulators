@@ -593,10 +593,13 @@ def test_end_to_end_random_effective_noise():
 
     # should converge to the lindblad result as sqrt(n_trajectories)
     # this convergence behaviour was tested manually by increasing n_trajectories
-    # n_trajectories is kept small here for performance reasons
+    # n_trajectories is kept small here for performance reasons. The pinned value
+    # is one realisation: the constant pulse is evolved as a single fused step, and
+    # the jump times are located within JUMP_TIME_TOLERANCE_FRACTION * dt of the
+    # exact ones, at points that depend on the bracketing interval.
     assert torch.allclose(
         result_mc.occupation[-1],
-        torch.tensor([0.8508, 0.8536], dtype=torch.float64),
+        torch.tensor([0.8371, 0.8349], dtype=torch.float64),
         atol=1e-4,
     )
 

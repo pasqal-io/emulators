@@ -31,6 +31,7 @@ from emu_sv.time_evolution import (
     Lanczos,
     Chebyshev,
 )
+from emu_sv.time_evolution.steppers import JUMP_TIME_TOLERANCE_FRACTION
 
 _TIME_CONVERSION_COEFF = 0.001  # Omega and delta are given in rad/μs, dt in ns
 
@@ -96,6 +97,13 @@ class Statistics(Observable):
 class SVBackendImpl:
     """
     This class is used to handle the state vector and density matrix evolution.
+
+    The pulses and the interaction matrix are sampled at the midpoint of each time
+    step, so the Hamiltonian is constant over a step. Consecutive steps with the
+    same Hamiltonian, and no observable to evaluate in between, are fused into a
+    single exponentiation (see `fused_intervals`): one large step is much cheaper
+    than many small ones, for Chebyshev and Lanczos alike, as both need a number of
+    operator applications that grows sublinearly with the step at small steps.
     """
 
     well_prepared_qubits_filter: typing.Optional[torch.Tensor]
@@ -186,8 +194,18 @@ class SVBackendImpl:
         exponentiator = self.init_exponentiator(use_density_matrix)
         if use_density_matrix:
             return EvolveDensityMatrix(exponentiator, max_krylov_dim)
-        stepper_type = EvolveMonteCarlo if self.pulser_lindblads else EvolveStateVector
-        return stepper_type(exponentiator, max_krylov_dim, hamiltonian_type)
+        if self.pulser_lindblads:
+            return EvolveMonteCarlo(
+                exponentiator,
+                max_krylov_dim,
+                hamiltonian_type,
+                # jump times are located relative to the configured step, not to
+                # the (possibly fused) step actually taken
+                jump_time_tolerance=JUMP_TIME_TOLERANCE_FRACTION
+                * self._config.dt
+                * _TIME_CONVERSION_COEFF,
+            )
+        return EvolveStateVector(exponentiator, max_krylov_dim, hamiltonian_type)
 
     def init_exponentiator(self, use_density_matrix: bool) -> Exponentiation:
         """
@@ -220,11 +238,23 @@ class SVBackendImpl:
 
             indices = torch.where(self.well_prepared_qubits_filter)[0]
 
+            # The masked matrix is built once per matrix object `original` returns
+            # (it returns the same object as long as its content is the same), so
+            # that this callable does too: `fused_intervals` relies on it.
+            cache: dict[int, tuple[torch.Tensor, torch.Tensor]] = {}
+
             def interaction_matrix(t: float) -> torch.Tensor:
-                mat = original(t).clone()
-                mat[:, indices] = 0.0
-                mat[:, :, indices] = 0.0
-                return mat
+                mat = original(t)
+                cached = cache.get(id(mat))
+                if cached is not None and cached[0] is mat:
+                    return cached[1]
+                masked = mat.clone()
+                masked[:, indices] = 0.0
+                masked[:, :, indices] = 0.0
+                if len(cache) >= 4:  # bounded, in case `original` makes new tensors
+                    del cache[next(iter(cache))]
+                cache[id(mat)] = (mat, masked)  # keeping `mat` alive pins its id
+                return masked
 
             self.interaction_matrix = interaction_matrix
 
@@ -232,38 +262,87 @@ class SVBackendImpl:
             self.delta[:, self.well_prepared_qubits_filter] = 0.0
             self.phi[:, self.well_prepared_qubits_filter] = 0.0
 
-    def step(self, step_idx: int) -> None:
-        """One step of the evolution"""
-        dt = self._compute_dt(step_idx)
-        self._evolve_step(dt, step_idx)
-        step_idx += 1
-        self._apply_observables(step_idx)
-        self._save_statistics(step_idx)
+    def step(self, start: int, end: int) -> None:
+        """One step of the evolution, from time index `start` to `end`"""
+        dt = self.target_times[end] - self.target_times[start]
+        self._evolve_step(dt, start, end)
+        self._apply_observables(end)
+        self._save_statistics(end)
 
-    def _compute_dt(self, step_idx: int) -> float:
-        return self.target_times[step_idx + 1] - self.target_times[step_idx]
+    def _midpoint(self, start: int, end: int) -> float:
+        return 0.5 * (self.target_times[start] + self.target_times[end])
 
-    def _evolve_step(self, dt: float, step_idx: int) -> None:
-        """One step evolution"""
+    def _evolve_step(self, dt: float, start: int, end: int) -> None:
+        """
+        Evolve from time index `start` to `end` (`start` + 1 by default) with the
+        Hamiltonian of step `start`: the pulses are sampled at the midpoint of each
+        step and the interaction matrix is read at the midpoint of the interval,
+        which `fused_intervals` guarantees is the same for every step in it.
+        """
         self._current_H = None  # save a bit of memory
         self.state.data, self._current_H = self.stepper.apply(
             dt * _TIME_CONVERSION_COEFF,
-            self.omega[step_idx],
-            self.delta[step_idx],
-            self.phi[step_idx],
-            self.interaction_matrix(self.target_times[step_idx])[0],
+            self.omega[start],
+            self.delta[start],
+            self.phi[start],
+            self.interaction_matrix(self._midpoint(start, end))[0],
             self.state.data,
             self._config.krylov_tolerance,
             self.pulser_lindblads,
         )
 
-    def _apply_observables(self, step_idx: int) -> None:
+    def _callbacks_at(self, step_idx: int) -> list[Observable]:
+        """The observables evaluated at time index `step_idx`."""
         norm_time = self.target_times[step_idx] / self.target_times[-1]
-        callbacks_for_current_time_step = [
+        return [
             callback
             for callback in self._config.observables
             if is_evaluation_time(self._config, callback, norm_time)
         ]
+
+    def fused_intervals(self) -> list[tuple[int, int]]:
+        """
+        The time-index intervals (start, end) to evolve over in one exponentiation
+        each, covering all steps in order. Consecutive steps are fused when their
+        pulse parameters are equal, their interaction matrices are the same object
+        (which the Pulser adapter guarantees when they are equal in content), and
+        no observable is evaluated at the time between them. Nothing is fused when
+        gradients are requested: the parameters of the two steps are then distinct
+        inputs of the computation, which a fused step would not both differentiate.
+        """
+        nsteps = self.nsteps
+        if nsteps == 0:
+            return []
+        if torch.is_grad_enabled() and any(
+            t.requires_grad for t in (self.omega, self.delta, self.phi, self.state.data)
+        ):
+            return [(i, i + 1) for i in range(nsteps)]
+        same_pulses = (
+            (self.omega[1:] == self.omega[:-1]).all(dim=1)
+            & (self.delta[1:] == self.delta[:-1]).all(dim=1)
+            & (self.phi[1:] == self.phi[:-1]).all(dim=1)
+        ).tolist()
+        intervals = []
+        start = 0
+        previous = self.interaction_matrix(self._midpoint(0, 1))
+        for i in range(1, nsteps):
+            matrix = self.interaction_matrix(self._midpoint(i, i + 1))
+            fuse = (
+                same_pulses[i - 1]
+                and matrix is previous
+                and not (torch.is_grad_enabled() and matrix.requires_grad)
+                and not self._callbacks_at(i)
+            )
+            if not fuse:
+                intervals.append((start, i))
+                start = i
+                previous = matrix
+        intervals.append((start, nsteps))
+        return intervals
+
+    def _apply_observables(self, step_idx: int) -> None:
+        norm_time = self.target_times[step_idx] / self.target_times[-1]
+        callbacks_for_current_time_step = self._callbacks_at(step_idx)
         if not callbacks_for_current_time_step:
             return
         norm = self.state.norm()
@@ -307,7 +386,9 @@ class SVBackendImpl:
 
     def _run(self) -> Results:
         self._apply_observables(0)  # at t == 0 for pulser compatibility
-        for step in range(self.nsteps):
-            self.step(step)
+        intervals = self.fused_intervals()
+        self.statistics.timestep_count = len(intervals)
+        for start, end in intervals:
+            self.step(start, end)
 
         return self.results
