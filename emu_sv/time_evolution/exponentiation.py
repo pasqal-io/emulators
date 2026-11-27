@@ -25,8 +25,9 @@ CHEBYSHEV_MAX_LOG_GROWTH = 6.0
 # The a priori Lanczos iteration count (see `Lanczos`) may use this fraction of the
 # Krylov cap, the rest being headroom for the finite-precision delay of convergence.
 LANCZOS_ITERATION_MARGIN = 0.8
-# Fraction of the available memory a Lanczos call may fill, the rest is
-# fragmentation headroom.
+# Fraction of the available memory a Lanczos call may fill, the rest is headroom
+# for fragmentation and for the workspace (a few MB, whatever the state size)
+# cuBLAS takes from the allocator during each dot product on recent torch.
 LANCZOS_MEMORY_FRACTION = 0.8
 # A step is halved at most this many times before giving up.
 LANCZOS_MAX_SPLITS = 20

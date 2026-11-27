@@ -1,3 +1,4 @@
+import weakref
 import torch
 import pytest
 
@@ -258,13 +259,19 @@ def test_oom_restores_input_and_releases_basis():
         produced.append(m @ x)
         return produced[-1]
 
-    with pytest.raises(torch.cuda.OutOfMemoryError):
+    # handled like a caller retrying would: the exception is dropped afterwards
+    try:
         krylov_exp_impl(
             op, v, is_hermitian=True, exp_tolerance=1e-12, norm_tolerance=1e-12
         )
+    except torch.cuda.OutOfMemoryError:
+        oom = True
+    assert oom
 
     assert torch.allclose(v, v_in, atol=1e-14, rtol=0)
-    # the normalised op outputs became the basis vectors: nothing else holds them
-    import sys
-
-    assert all(sys.getrefcount(t) == 3 for t in produced)  # list, loop var, arg
+    # the normalised op outputs became the basis vectors: once this test's own
+    # list lets go of them, nothing else keeps them alive
+    assert len(produced) == 3
+    basis = [weakref.ref(t) for t in produced]
+    produced.clear()
+    assert all(ref() is None for ref in basis)

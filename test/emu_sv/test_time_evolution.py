@@ -475,7 +475,10 @@ def test_lanczos_gives_up_after_max_splits() -> None:
 def test_lanczos_memory_accounting(cap: int) -> None:
     """A Krylov call holds at most cap + max(KRYLOV_EXTRA_VECTORS, working_vectors)
     state-sized tensors beyond its input, and the operators their `working_vectors`,
-    as `Lanczos.krylov_cap` assumes."""
+    as `Lanczos.krylov_cap` assumes. On top of that, cuBLAS may take a workspace
+    (a few MB, independent of the state) from the allocator for the duration of
+    each dot product; it is measured and allowed for, on vectors large enough for
+    it to be a fraction of one."""
     from emu_base.math.krylov_exp import KRYLOV_EXTRA_VECTORS
     from emu_sv.hamiltonians import RydbergLindbladian
 
@@ -492,12 +495,12 @@ def test_lanczos_memory_accounting(cap: int) -> None:
             reference.numel() * reference.element_size()
         )
 
-    nqubits = 12
+    nqubits = 20  # 16 MB vectors; the density matrix below has the same size
     omegas, deltas, phis, interaction = get_randn_ham_params(nqubits, with_phase=True)
     state = get_randn_state(nqubits).to(cuda)
     noise = -0.5j * torch.tensor([[0.0, 0.0], [0.0, 1.0]], dtype=torch.complex128)
     lindblad = [torch.tensor([[0.0, 1.0], [0.0, 0.0]], dtype=torch.complex128)]
-    rho = torch.randn(2**6, 2**6, dtype=torch.complex128, device=cuda)
+    rho = torch.randn(2**10, 2**10, dtype=torch.complex128, device=cuda)
     cases = [
         (RydbergHamiltonian(omegas, deltas, phis, interaction, cuda, noise=None), state),
         (RydbergHamiltonian(omegas, deltas, phis, interaction, cuda, noise=noise), state),
@@ -507,11 +510,11 @@ def test_lanczos_memory_accounting(cap: int) -> None:
         ),
         (
             RydbergLindbladian(
-                omegas=omegas[:6],
-                deltas=deltas[:6],
-                phis=phis[:6],
+                omegas=omegas[:10],
+                deltas=deltas[:10],
+                phis=phis[:10],
                 pulser_lindblads=lindblad,
-                interaction_matrix=interaction[:6, :6],
+                interaction_matrix=interaction[:10, :10],
                 device=cuda,
             ),
             rho,
@@ -520,11 +523,14 @@ def test_lanczos_memory_accounting(cap: int) -> None:
     for ham, vector in cases:
         op = ham.make_op(-1j * 0.1)
         hermitian = isinstance(ham, RydbergHamiltonian) and ham.noise is None
-        # warm up: lazily cached diagonals and library workspaces (cuBLAS)
+        # warm up: lazily cached diagonals and anything a library keeps around
         krylov_exp_impl(op, vector.clone(), hermitian, 1e-14, 1e-14, max_krylov_dim=2)
-        assert peak_vectors(lambda: op(vector), vector) == pytest.approx(
-            ham.working_vectors, abs=0.05
+        workspace = peak_vectors(
+            lambda: torch.tensordot(vector.conj(), vector, dims=vector.dim()), vector
         )
+        assert workspace < 1.0
+        op_peak = peak_vectors(lambda: op(vector), vector)
+        assert op_peak == pytest.approx(ham.working_vectors, abs=workspace + 0.01)
         for _ in range(2):  # the second call converges within the cap, or not
             result = peak_vectors(
                 lambda: krylov_exp_impl(
@@ -537,4 +543,5 @@ def test_lanczos_memory_accounting(cap: int) -> None:
                 ),
                 vector,
             )
-            assert result <= 1 + cap + max(KRYLOV_EXTRA_VECTORS, ham.working_vectors)
+            bound = 1 + cap + max(KRYLOV_EXTRA_VECTORS, ham.working_vectors)
+            assert result <= bound + workspace + 0.01
